@@ -211,6 +211,12 @@ describe("signing in through the proxy", () => {
     expect(held.retryAfter).toBe("1");
   });
 
+  it("refuses a guess that stops short of the passphrase or runs past it", async () => {
+    expect((await signIn("correct hors")).status).toBe(401);
+    expect((await signIn("correct horse!")).status).toBe(401);
+    expect((await signIn("correct horse")).status).toBe(204);
+  });
+
   // Refused before the count, so a page elsewhere posting wrong guesses
   // unseen can't hold new devices at the wait.
   it("refuses a sign-in another origin or site sent, without counting it", async () => {

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { type AuthCheck, readCookie } from "./auth.ts";
 import { createLoginThrottle } from "./loginThrottle.ts";
 import { readRequestBody } from "./requestBody.ts";
@@ -147,6 +147,10 @@ export function createPassphraseAuth({
   const sessionKey = keyFor(SESSION_COOKIE);
   const deviceKey = keyFor(DEVICE_COOKIE);
   const throttle = createLoginThrottle();
+  // Guesses are compared as digests, all one length, so how long a compare
+  // takes says nothing about the passphrase's length either.
+  const digestOf = (text: string) => createHash("sha256").update(text, "utf8").digest();
+  const passphraseDigest = digestOf(passphrase);
 
   return {
     authorize(req) {
@@ -196,12 +200,7 @@ export function createPassphraseAuth({
       // Only a string is compared. Turned into bytes, a JSON object with a
       // numeric `length` reads as array-like and allocates that many, so a
       // 35-byte body could stall the server for seconds.
-      const submittedBuffer = typeof submitted === "string" ? Buffer.from(submitted, "utf8") : undefined;
-      const expectedBuffer = Buffer.from(passphrase, "utf8");
-      const matches =
-        submittedBuffer !== undefined &&
-        submittedBuffer.length === expectedBuffer.length &&
-        timingSafeEqual(submittedBuffer, expectedBuffer);
+      const matches = typeof submitted === "string" && timingSafeEqual(digestOf(submitted), passphraseDigest);
 
       if (!matches) {
         throttle.countFailure(tries);
