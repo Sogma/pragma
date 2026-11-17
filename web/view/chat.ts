@@ -26,6 +26,7 @@ import { addCodeBlockCopyButtons, must, setEntryIcon } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import { settingLinks } from "../lib/settingLink.ts";
+import { buildUpJuggle } from "../lib/typingJuggle.ts";
 import { diffLines, renderLineDiff } from "../lineDiff.ts";
 import { renderMarkdownInline } from "../markdownRender.ts";
 import { installLinkPreview } from "../notePreview.ts";
@@ -711,6 +712,7 @@ export function wireChat(deps: ChatDeps): Chat {
     el.className = "chat-message assistant typing-indicator";
     el.innerHTML = "<span></span><span></span><span></span>";
     append(thread, el);
+    buildUpJuggle(el);
     return el;
   }
 
