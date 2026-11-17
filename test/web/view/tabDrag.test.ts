@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTabDrag, type TabDragStrip } from "../../../web/view/tabDrag.ts";
+import { asStyled } from "../support/styled.ts";
 
 // jsdom lays nothing out, so the row is laid out here: every pill and gap in
 // a strip is 100px wide, in DOM order; strip A spans 0..300 and strip B
@@ -113,7 +114,7 @@ describe("createTabDrag", () => {
     const gap = a.strip.querySelector<HTMLElement>(".editor-tab-gap");
     expect(gap?.previousElementSibling).toBe(a.pills()[0]);
     expect(gap?.style.flex).toBe("0 0 100px");
-    expect(a.pills()[1].style.transform).toBe("translate(-100px, 0)");
+    expect(a.pills()[1].style.transform).toBe(asStyled("transform", "translate(-100px, 0)"));
     expect(a.settle).toHaveBeenCalled();
 
     pointer("pointerup", window, 260, 20);
@@ -131,7 +132,8 @@ describe("createTabDrag", () => {
     const [a] = strips;
     await carry(a.pills()[0], [[260, 20]]);
     // Over a2's second half: the slot is between a2 and a3.
-    expect(a.pills().map((pill) => pill.style.transform)).toEqual(["translate(-100px, 0)", "translate(-100px, 0)", ""]);
+    const stepped = asStyled("transform", "translate(-100px, 0)");
+    expect(a.pills().map((pill) => pill.style.transform)).toEqual([stepped, stepped, ""]);
     expect(a.pills().map((pill) => pill.classList.contains("after-slot"))).toEqual([false, false, true]);
     // Back over a1's first half: the slot is where the tab came from.
     pointer("pointermove", window, 90, 20);
@@ -151,7 +153,7 @@ describe("createTabDrag", () => {
     expect(a.strip.querySelector(".editor-tab-gap")).toBeNull();
     const gap = b.strip.querySelector<HTMLElement>(".editor-tab-gap");
     expect(gap?.previousElementSibling).toBe(b.pills()[1]);
-    expect(b.pills()[1].style.transform).toBe("translate(100px, 0)");
+    expect(b.pills()[1].style.transform).toBe(asStyled("transform", "translate(100px, 0)"));
     expect(b.settle).toHaveBeenCalled();
 
     pointer("pointerup", window, 480, 20);
@@ -180,7 +182,7 @@ describe("createTabDrag", () => {
     await carry(lifted, [[700, 20]]);
     await frame();
     // The row's last slot, b1 having stepped aside: 100px before the "+".
-    expect(lifted.style.transform).toBe("translate3d(400px, 0px, 0)");
+    expect(lifted.style.transform).toBe(asStyled("transform", "translate3d(400px, 0px, 0)"));
     pointer("pointerup", window, 700, 20);
     expect(names(b)).toEqual(["b1", "b0"]);
     expect(onDrop).toHaveBeenCalledWith({ from: b, index: 0, to: b, at: 1 });

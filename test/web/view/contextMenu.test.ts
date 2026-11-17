@@ -4,6 +4,7 @@ import { type CommandContext, createCommands } from "../../../web/services/comma
 import { createKeybindings } from "../../../web/services/keybindings.ts";
 import { createMenus } from "../../../web/services/menus.ts";
 import { createContextMenu } from "../../../web/view/contextMenu.ts";
+import { asStyled } from "../support/styled.ts";
 
 const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -698,7 +699,10 @@ describe("contextMenu", () => {
     });
     const row = menu()?.querySelector(".context-menu-label") as HTMLElement;
     const label = row.querySelector<HTMLElement>(".context-menu-font");
-    expect([label?.textContent, label?.style.fontFamily]).toEqual(["Courier New", '"Courier New"']);
+    expect([label?.textContent, label?.style.fontFamily]).toEqual([
+      "Courier New",
+      asStyled("font-family", '"Courier New"'),
+    ]);
     expect(row.querySelector(".context-menu-detail")?.parentElement).toBe(row);
   });
 

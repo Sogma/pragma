@@ -14,6 +14,7 @@ import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats, type FormatRegistry } from "../../web/services/formats.ts";
 import { polyfillRangeRects } from "./support/codemirrorJsdom.ts";
 import { testFormats } from "./support/formats.ts";
+import { asStyled } from "./support/styled.ts";
 
 polyfillRangeRects();
 
@@ -499,7 +500,7 @@ describe("a link's preview", () => {
       install();
       over(link());
       await vi.advanceTimersByTimeAsync(300);
-      expect(page()?.style.zoom).toBe(String(584 / 750));
+      expect(page()?.style.zoom).toBe(asStyled("zoom", String(584 / 750)));
     });
 
     it("centres the page under the link, shifting it only to stay inside the window", async () => {
@@ -527,7 +528,7 @@ describe("a link's preview", () => {
       over(link());
       await vi.advanceTimersByTimeAsync(300);
       expect([preview()?.style.left, page()?.style.zoom]).toEqual(["708px", "0.75"]);
-      expect(page()?.style.width).toBe(`${(1200 - 8 - 708) / 0.75}px`);
+      expect(page()?.style.width).toBe(asStyled("width", `${(1200 - 8 - 708) / 0.75}px`));
     });
 
     // The chat's column, against the window's right edge: the page runs left
@@ -560,7 +561,7 @@ describe("a link's preview", () => {
       over(link());
       await vi.advanceTimersByTimeAsync(300);
       expect([preview()?.style.top, preview()?.style.bottom]).toEqual([`${120 + 6}px`, ""]);
-      expect(page()?.style.maxHeight).toBe(`${(960 - 8 - 120 - 6) / (675 / 750)}px`);
+      expect(page()?.style.maxHeight).toBe(asStyled("max-height", `${(960 - 8 - 120 - 6) / (675 / 750)}px`));
     });
   });
 });

@@ -50,8 +50,12 @@ function setup(nodes: FlowNodeInstance[], edges: FlowEdgeInstance[], locked?: Do
   return { contextMenu, elements, looseEnds, lastSave };
 }
 
-// The row a loose end's pin sits on, from where it was placed.
-const rowOf = (end: HTMLElement) => Number(/translate\([^,]+,\s*([-\d.]+)px\)/.exec(end.style.transform)?.[1]);
+// The row a loose end's pin sits on, from where it was placed. Read back, a
+// translate with a zero second argument may come without it.
+const rowOf = (end: HTMLElement) => {
+  const placed = /translate\(\s*[-\d.]+px(?:,\s*([-\d.]+)px)?\s*\)/.exec(end.style.transform);
+  return placed ? Number(placed[1] ?? 0) : Number.NaN;
+};
 
 describe("wires: loose ends", () => {
   it("hangs one off the drawn pin of each wire naming a missing node, labelled with that node", () => {
