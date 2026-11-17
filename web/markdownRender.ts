@@ -58,6 +58,12 @@ const HEADING_TAGS: Record<string, keyof HTMLElementTagNameMap> = {
 // never become clickable.
 const SAFE_URL = /^(https?:|mailto:)/i;
 
+// An in-space link's href is a fragment holding its path, never the path or
+// the text it was written as: either can spell any scheme, "javascript:"
+// included, and an href reads its scheme first. Following one goes through
+// data-space-path, which every click handler reads instead.
+const inSpaceHref = (spacePath: string) => `#${encodeURIComponent(spacePath)}`;
+
 /** Whether a link to `href` leaves the space: reading view gives it a live
  * href, where any other target must resolve to a space file. */
 export function isSafeHref(href: string): boolean {
@@ -223,7 +229,7 @@ function appendWikilinkElement(raw: string, container: Node, resolvers: Markdown
   const spacePath = resolvers.wikilink(target);
   if (spacePath !== undefined) {
     const el = document.createElement("a");
-    el.href = spacePath;
+    el.href = inSpaceHref(spacePath);
     el.dataset.spacePath = spacePath;
     el.textContent = display;
     container.appendChild(el);
@@ -618,13 +624,13 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
       const el =
         SAFE_URL.test(href) || spacePath !== undefined ? document.createElement("a") : document.createElement("span");
       if (el instanceof HTMLAnchorElement) {
-        el.href = href;
         if (spacePath !== undefined) {
-          // Left as an in-space href (not target=_blank/rel) — main.ts's
-          // click handler intercepts this via data-space-path and routes it
-          // through in-app navigation instead of a real page load.
+          // Kept in the page, not target=_blank: main.ts's click handler
+          // follows data-space-path through in-app navigation.
+          el.href = inSpaceHref(spacePath);
           el.dataset.spacePath = spacePath;
         } else {
+          el.href = href;
           el.target = "_blank";
           el.rel = "noopener noreferrer";
         }

@@ -384,3 +384,29 @@ describe("math in reading view", () => {
     expect(typesetMath).not.toHaveBeenCalled();
   });
 });
+
+// A path is any text a name can hold, and a link's own text can be shaped to
+// survive into a scheme: neither may become an href a browser would run.
+describe("a link into the space", () => {
+  const anyPath = { image: () => undefined, link: (href: string) => href, wikilink: (target: string) => target };
+  const linksIn = (markdown: string) => {
+    const host = document.createElement("div");
+    host.appendChild(renderMarkdown(markdown, anyPath));
+    return [...host.querySelectorAll("a")];
+  };
+
+  it("gets a fragment for its href, its path kept for the click to follow", () => {
+    const [link] = linksIn("[Plan](notes/plan.md)");
+    expect(link.getAttribute("href")).toBe("#notes%2Fplan.md");
+    expect(link.dataset.spacePath).toBe("notes/plan.md");
+  });
+
+  it("never carries a script URL, however its target is spelled", () => {
+    const links = linksIn("[x][r] and [[javascript:alert(1)]]\n\n[r]: <java\tscript:alert(document.domain)>");
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link.getAttribute("href")?.startsWith("#")).toBe(true);
+      expect(link.protocol).not.toBe("javascript:");
+    }
+  });
+});
