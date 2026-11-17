@@ -9,6 +9,7 @@
 // reach chat, sandbox execution, provider secrets, git and publishing, none
 // of which "read-only" contains.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import {
   type ApiToken,
   apiEnabled,
@@ -95,18 +96,29 @@ function sendError(res: ServerResponse, status: number, message: string): void {
  * default, which handing it an already-parsed body bypasses. */
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
-/** Serves a request that passed every check, its whole body already read. */
+// How long a whole request, body included, and its headers may take to
+// arrive. A local agent sends 4 MiB in well under either; a client holding a
+// request open has no business with the listener's default five minutes.
+const REQUEST_DEADLINE_MS = 30_000;
+const HEADERS_DEADLINE_MS = 10_000;
+
+/** Serves a request that passed every check, its whole body already read,
+ * from `spaceRoot`, the space its last check was made against. */
 export type ApiHandler = (
   req: IncomingMessage,
   res: ServerResponse,
   authorized: AuthorizedRequest,
   body: Buffer,
+  spaceRoot: string,
 ) => Promise<void> | void;
 
 export interface ApiServer {
   server: Server;
   port: number;
+  /** Stops listening and ends every open request with it. */
   close(): Promise<void>;
+  /** Ends every request the token with `id` has open, a run included. */
+  dropToken(id: string): void;
 }
 
 /** Starts the listener. Rejects if the port is taken rather than scanning for
@@ -115,28 +127,45 @@ export interface ApiServer {
 export function startApiServer(options: ApiServerOptions, handler: ApiHandler): Promise<ApiServer> {
   const port = options.port ?? apiPort(loadGlobalConfig());
 
-  const server = createServer(async (req, res) => {
-    try {
-      checkRequestOrigin(req);
-      const authorized = authorizeApiRequest(req, options.spaceRoot());
-      // After the token check, so an unknown caller never gets a body read.
-      const body = await readRequestBody(req, MAX_BODY_BYTES);
-      if (body === undefined) throw new ApiAuthError(413, `Request body over ${MAX_BODY_BYTES / 1024 / 1024} MiB`);
-      await handler(req, res, authorized, body);
-    } catch (error) {
-      // A refused request is the only thing here that leaves no trace at all:
-      // the client sees a status code and pragma's own window shows nothing,
-      // which is how a stale token looks exactly like a stopped endpoint.
-      // Warn rather than error — it completed, just unhappily.
-      if (error instanceof ApiAuthError) {
-        recordActivity("warn", "API", `Refused: ${error.message}`, `${req.method ?? "GET"} ${req.url ?? "/"}`);
-        return sendError(res, error.status, error.message);
+  // Each token's open connections, so revoking it ends them at once.
+  const opened = new Map<string, Set<Socket>>();
+  const hold = (tokenId: string, socket: Socket): void => {
+    const sockets = opened.get(tokenId) ?? new Set<Socket>();
+    opened.set(tokenId, sockets);
+    if (sockets.has(socket)) return;
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  };
+
+  const server = createServer(
+    { requestTimeout: REQUEST_DEADLINE_MS, headersTimeout: HEADERS_DEADLINE_MS },
+    async (req, res) => {
+      try {
+        checkRequestOrigin(req);
+        hold(authorizeApiRequest(req, options.spaceRoot()).token.id, req.socket);
+        // After the token check, so an unknown caller never gets a body read.
+        const body = await readRequestBody(req, MAX_BODY_BYTES);
+        if (body === undefined) throw new ApiAuthError(413, `Request body over ${MAX_BODY_BYTES / 1024 / 1024} MiB`);
+        // Checked again once the body is in, and served from the space this
+        // check sees: a token revoked, or a space switched, while the body
+        // arrived refuses the request instead of riding the first check.
+        const spaceRoot = options.spaceRoot();
+        await handler(req, res, authorizeApiRequest(req, spaceRoot), body, spaceRoot);
+      } catch (error) {
+        // A refused request is the only thing here that leaves no trace at all:
+        // the client sees a status code and pragma's own window shows nothing,
+        // which is how a stale token looks exactly like a stopped endpoint.
+        // Warn rather than error — it completed, just unhappily.
+        if (error instanceof ApiAuthError) {
+          recordActivity("warn", "API", `Refused: ${error.message}`, `${req.method ?? "GET"} ${req.url ?? "/"}`);
+          return sendError(res, error.status, error.message);
+        }
+        const message = error instanceof Error ? error.message : "Internal error";
+        recordActivity("error", "API", `${req.method ?? "GET"} ${req.url ?? "/"}`, message);
+        sendError(res, 500, message);
       }
-      const message = error instanceof Error ? error.message : "Internal error";
-      recordActivity("error", "API", `${req.method ?? "GET"} ${req.url ?? "/"}`, message);
-      sendError(res, 500, message);
-    }
-  });
+    },
+  );
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -150,7 +179,16 @@ export function startApiServer(options: ApiServerOptions, handler: ApiHandler): 
         // was requested, and everything downstream — the CLI's log line, the
         // panel's copy-paste config — names this one.
         port: typeof address === "object" && address !== null ? address.port : port,
-        close: () => new Promise<void>((done, fail) => server.close((error) => (error ? fail(error) : done()))),
+        // Switched off means no answer to anyone, so requests still open end
+        // now, not when their clients finish them.
+        close: () =>
+          new Promise<void>((done, fail) => {
+            server.close((error) => (error ? fail(error) : done()));
+            server.closeAllConnections();
+          }),
+        dropToken: (id) => {
+          for (const socket of opened.get(id) ?? []) socket.destroy();
+        },
       });
     });
   });
@@ -175,6 +213,9 @@ export interface AgentEndpoint {
   /** The port currently listening, if any. */
   port(): number | undefined;
   close(): Promise<void>;
+  /** Ends what a just-revoked token has open, so its client is cut off now
+   * rather than once its requests, a run among them, finish. */
+  dropToken(id: string): void;
 }
 
 export function createAgentEndpoint(spaceRoot: () => string): AgentEndpoint {
@@ -199,6 +240,7 @@ export function createAgentEndpoint(spaceRoot: () => string): AgentEndpoint {
   return {
     apply,
     port: () => running?.port,
+    dropToken: (id) => running?.dropToken(id),
     close: async () => {
       await running?.close();
       running = undefined;
@@ -212,7 +254,7 @@ async function startAgentEndpoint(spaceRoot: () => string, port: number): Promis
 
   const { handleRestRequest } = await import("./restApi.ts");
 
-  return startApiServer({ spaceRoot, port }, async (req, res, authorized, body) => {
+  return startApiServer({ spaceRoot, port }, async (req, res, authorized, body, servedRoot) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const who = `token \u201c${authorized.token.label}\u201d \u00b7 ${authorized.canWrite ? "read-write" : "read-only"}`;
     // Written once the response is decided, so an entry carries the outcome
@@ -224,7 +266,7 @@ async function startAgentEndpoint(spaceRoot: () => string, port: number): Promis
     // Two encodings of one surface: MCP owns /mcp, REST owns the rest of the
     // root. Both arrive here already authorized.
     if (url.pathname !== "/mcp") {
-      if (!(await handleRestRequest(spaceRoot(), req, res, authorized, body))) {
+      if (!(await handleRestRequest(servedRoot, req, res, authorized, body))) {
         res.statusCode = 404;
         res.setHeader("content-type", "application/json");
         res.end(JSON.stringify({ error: "No such route. MCP is at /mcp; see docs/agent-api.md." }));
@@ -245,7 +287,7 @@ async function startAgentEndpoint(spaceRoot: () => string, port: number): Promis
       return;
     }
     const message = parseJsonBody(body);
-    await handleMcpRequest(spaceRoot(), req, res, authorized, message);
+    await handleMcpRequest(servedRoot, req, res, authorized, message);
     const { label, detail } = describeMcpCall(message);
     record("MCP", label, detail);
   });

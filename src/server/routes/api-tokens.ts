@@ -120,6 +120,7 @@ export function mountApiTokenRoutes(app: Hono, { spaceRoot, agentEndpoint }: Rou
       const remaining = (config.apiTokens ?? []).filter((token) => token.id !== id);
       if (remaining.length === (config.apiTokens ?? []).length) return c.text("No such token", 400);
       saveGlobalConfig({ ...config, apiTokens: remaining });
+      agentEndpoint?.dropToken(id);
       return c.body(null, 204);
     } catch (error) {
       return c.text(error instanceof Error ? error.message : "Internal error", 500);

@@ -1,10 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createApiToken,
+  findApiToken,
   findSpaceId,
   loadGlobalConfig,
   rememberSpace,
@@ -314,6 +315,94 @@ describe("the REST surface", () => {
 
     leaving.abort();
     await first;
+    await vi.waitFor(() => expect(model.closed()).toBe(true));
+    model.stop();
+  });
+});
+
+// A request whose headers go now and whose body goes only when told, as a
+// client holding a request open sends it. `status` settles with the answer,
+// or fails when the connection is ended without one.
+function heldOpen(token: string, port = endpoint?.port()): { send: () => Promise<number>; status: Promise<number> } {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+  const req = request({
+    host: "127.0.0.1",
+    port,
+    path: "/mcp",
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      "content-length": Buffer.byteLength(body),
+    },
+  });
+  const status = new Promise<number>((resolve, reject) => {
+    req.on("response", (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on("error", reject);
+  });
+  req.flushHeaders();
+  return {
+    status,
+    send: () => {
+      req.end(body);
+      return status;
+    },
+  };
+}
+
+// Long enough for the listener to have taken the headers and made its first
+// check, which happens before it waits for the body.
+const headersTaken = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+const tokenId = (secret: string) => findApiToken(loadGlobalConfig(), secret)?.id as string;
+
+describe("a request held open", () => {
+  it("is refused when its token is revoked while its body arrives", async () => {
+    const pending = heldOpen(readOnlyToken);
+    await headersTaken();
+    const config = loadGlobalConfig();
+    const revoked = tokenId(readOnlyToken);
+    saveGlobalConfig({ ...config, apiTokens: config.apiTokens?.filter((token) => token.id !== revoked) });
+    expect(await pending.send()).toBe(401);
+  });
+
+  it("is refused when the served space switches while its body arrives", async () => {
+    const other = mkdtempSync(path.join(tmpdir(), "pragma-rest-other-"));
+    saveGlobalConfig(rememberSpace(loadGlobalConfig(), other));
+    let served = space;
+    await endpoint?.close();
+    endpoint = createAgentEndpoint(() => served);
+    await endpoint.apply();
+    const pending = heldOpen(readOnlyToken, endpoint.port());
+    await headersTaken();
+    served = other;
+    expect(await pending.send()).toBe(403);
+    rmSync(other, { recursive: true, force: true });
+  });
+
+  it("ends when the endpoint is switched off, without waiting for its client", async () => {
+    const pending = heldOpen(readOnlyToken);
+    await headersTaken();
+    const started = Date.now();
+    await endpoint?.close();
+    endpoint = undefined;
+    expect(Date.now() - started).toBeLessThan(2000);
+    await expect(pending.status).rejects.toThrow();
+  });
+
+  it("ends, run and model call included, when its token is revoked", async () => {
+    const model = await hungFlow("hang.flow.html");
+    const running = fetch(`${base}/files/hang.flow.html/run`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${writeToken}` },
+    });
+    await vi.waitFor(() => expect(model.seen()).toBe(true));
+    endpoint?.dropToken(tokenId(writeToken));
+    await expect(running).rejects.toThrow();
     await vi.waitFor(() => expect(model.closed()).toBe(true));
     model.stop();
   });
