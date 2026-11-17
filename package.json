@@ -91,5 +91,9 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.7",
     "vitest": "^5.1.0"
+  },
+  "allowScripts": {
+    "electron-winstaller": false,
+    "esbuild": false
   }
 }
