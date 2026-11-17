@@ -1,0 +1,19 @@
+[Unit]
+Description=Pragma editor (remote access)
+After=network.target
+
+[Service]
+Type=simple
+# Replace all four: the account pragma should run as, the path where
+# `git clone` + `npm install` were run, node's actual path for that account
+# (`which node` — systemd doesn't use a login shell's PATH, so an
+# nvm-installed node, common on a Pi, is rarely at /usr/bin/node), and the
+# https:// address your proxy serves — see docs/deployment.md.
+User=pragma
+WorkingDirectory=/opt/pragma
+ExecStart=/usr/bin/node bin/pragma.ts start --external-url https://<machine>.<tailnet>.ts.net --port 14319
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

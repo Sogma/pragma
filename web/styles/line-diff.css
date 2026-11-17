@@ -1,0 +1,52 @@
+/* Diff preview in a copilot propose card. Scrolls within its own box, so a
+   large change never stretches the chat panel. */
+.diff {
+  font-family: var(--font-monospace);
+  font-size: var(--small-font-size);
+  line-height: 1.5;
+  border: 1px solid var(--border-color);
+  border-radius: var(--control-radius);
+  background: var(--bg-inset);
+  overflow: auto;
+  max-height: 320px;
+}
+
+.diff-line {
+  display: flex;
+  white-space: pre;
+}
+
+.diff-gutter {
+  flex: none;
+  width: 2ch;
+  text-align: center;
+  user-select: none;
+  color: var(--text-faint);
+}
+
+.diff-text {
+  flex: 1;
+  padding-inline-end: 8px;
+}
+
+.diff-line-add {
+  background: var(--diff-add-bg);
+}
+
+.diff-line-add .diff-gutter {
+  color: var(--diff-add-fg);
+}
+
+.diff-line-remove {
+  background: var(--diff-del-bg);
+}
+
+.diff-line-remove .diff-gutter {
+  color: var(--diff-del-fg);
+}
+
+.diff-fold {
+  padding: 2px 2ch;
+  color: var(--text-muted);
+  font-style: italic;
+}

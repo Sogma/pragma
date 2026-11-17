@@ -1,0 +1,307 @@
+.flow-node-config {
+  padding: 4px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border-muted);
+  margin-top: 4px;
+}
+
+.flow-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-config-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Same exposed-by-pin-type tint as .flow-port-label.exposed, for a config
+   field's own label (a checkbox exposes as boolean, a whole number as
+   number, every other field as text) and for the bespoke "Selected
+   row/note/image" pickers. */
+.flow-config-label.exposed {
+  color: var(--type-color);
+}
+
+.flow-config-field input[type="text"],
+.flow-config-field textarea {
+  padding: 3px 6px;
+  font-size: var(--small-font-size);
+  width: 100%;
+  box-sizing: border-box;
+  /* Overrides .flow-node's grab cursor; a text field should show the I-beam. */
+  cursor: text;
+}
+
+.flow-config-field textarea {
+  resize: vertical;
+  min-height: 40px;
+}
+
+/* Matches .flow-port-row.has-widget select rather than the text-field style
+   above; the two aren't meant to converge. */
+.flow-config-field select,
+.flow-config-field .flow-picker {
+  padding: 2px 4px;
+  font-size: 11px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.flow-config-field.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A whole-number field's arrows sit inside its box. The box stays the field
+   itself, so it keeps the primitive's focus border and recess; the arrows
+   only lie over its ends. */
+.flow-int-stepper {
+  position: relative;
+  display: flex;
+}
+
+.flow-config-field .flow-int-stepper input[type="text"] {
+  padding-inline: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An .icon-button as tall as the box inside its border. */
+.flow-int-stepper-step {
+  position: absolute;
+  inset-block: 1px;
+  width: 18px;
+  height: auto;
+}
+
+.flow-int-stepper-less {
+  left: 1px;
+  border-radius: 3px 0 0 3px;
+}
+
+.flow-int-stepper-more {
+  right: 1px;
+  border-radius: 0 3px 3px 0;
+}
+
+.flow-int-stepper-icon {
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-left) center / contain no-repeat;
+}
+
+.flow-int-stepper-more .flow-int-stepper-icon {
+  mask-image: var(--icon-chevron-right);
+}
+
+/* Chart's type and two axes share a row: the type keeps its own width and
+   the axes split the rest. A card narrowed past where an axis can show a
+   column name stacks them instead; plain flex-wrap would strand Y alone on a
+   second line under Type and X. */
+.flow-chart-config {
+  container-type: inline-size;
+}
+
+.flow-chart-fields {
+  display: flex;
+  gap: 6px;
+}
+
+.flow-chart-fields > .flow-config-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.flow-chart-fields > .flow-config-field:first-child {
+  flex: none;
+}
+
+@container (width < 205px) {
+  .flow-chart-fields {
+    flex-direction: column;
+  }
+
+  .flow-chart-fields > .flow-config-field {
+    flex: none;
+  }
+}
+
+.flow-dropzone {
+  margin: 4px 10px 8px;
+  border: 1px dashed var(--border-input);
+  border-radius: var(--box-radius);
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flow-dropzone.drag-over {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* A drop target holding a space path: the dashed prompt becomes a solid
+   one-line chip showing the path, so a loaded node doesn't read as empty. Its
+   children take no pointer events, or crossing one mid-drag fires dragleave
+   on the chip and drops the "Drop to replace" state. */
+.flow-space-drop.loaded {
+  flex: 0 0 auto;
+  position: relative;
+  justify-content: flex-start;
+  gap: 6px;
+  border-style: solid;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--small-font-size);
+  cursor: default;
+}
+
+.flow-space-drop.loaded > * {
+  pointer-events: none;
+}
+
+/* A path with nothing at it: border and name in red, as a missing pin is,
+   and the node's error line says so in words. The icon keeps its colour, so
+   the chip still says what kind of file it takes.
+
+   Above the drag-over rules, which take the border back by source order. */
+.flow-space-drop.loaded.missing {
+  border-color: var(--color-danger);
+}
+
+.flow-space-drop.missing .path-label-name {
+  color: var(--color-danger);
+}
+
+/* A flex item here, so it may narrow past its content for its own cut to
+   apply (path-label.css). The chip is the path's box already, so the label
+   keeps only its code face. */
+.flow-space-drop .path-label {
+  min-width: 0;
+}
+
+.flow-space-drop .path-label-box {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* After an image picked from outside the space: Run reads the picked copy,
+   which isn't saved with the Flow. */
+.flow-space-drop-note {
+  flex: none;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* An Applet node's drop target stands for the Applet itself when exposed. */
+.flow-dropzone.exposed.type-object {
+  border-style: solid;
+  border-color: var(--type-color);
+  color: var(--type-color);
+}
+
+.flow-space-drop.loaded.drag-over {
+  border-style: dashed;
+  border-color: var(--color-accent);
+}
+
+.flow-space-drop.loaded.drag-over > * {
+  visibility: hidden;
+}
+
+.flow-space-drop.loaded.drag-over::after {
+  content: "Drop to replace";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-accent);
+}
+
+/* loadImage's dropzone has no separate label to tint, so Expose colours the
+   box itself: solid instead of dashed, so the state reads before hovering. */
+.flow-dropzone.exposed.type-image {
+  border-style: solid;
+  border-color: var(--type-color);
+  color: var(--type-color);
+}
+
+/* The gallery's frame around a contained picture. */
+.flow-dropzone:has(> .flow-picture) {
+  background: var(--bg-inset);
+}
+
+/* The row of the file a node names: a path pin on the card's edge left of
+   it, a loader's `path` output right of it. It spans the card, out of the
+   config's 10px inset, so the pins and their names sit where any port's do;
+   the target keeps the inset, and fills the row against a loaded chip's
+   flex: 0 0 auto. */
+.flow-path-row {
+  height: auto;
+  min-height: 22px;
+}
+
+.flow-node-config > .flow-path-row {
+  margin-inline: -10px;
+}
+
+.flow-node-config > .flow-path-row > .flow-dropzone,
+.flow-node-image-picker > .flow-path-row > .flow-dropzone {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 10px;
+}
+
+/* A folder loader's pick, which its `path` output hands on. */
+.flow-config-field > .flow-path-row {
+  margin-right: -10px;
+}
+
+.flow-config-field > .flow-path-row > select {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 10px;
+}
+
+/* Unwired, the target says what the pin takes, so the pin goes unnamed.
+   Wired, the picker shows only the pins and their names: nothing it shows of
+   the dragged file is what the run will read. */
+.flow-path-picker:not(.wired) > .flow-path-row > .flow-port-label,
+.flow-path-picker.wired > :not(.flow-path-row),
+.flow-path-picker.wired > .flow-path-row > :not(.handle, .flow-port-label, .flow-port-row) {
+  display: none;
+}
+
+/* The `path` output's own row, at the far end, unnamed beside the file as
+   the path pin is. */
+.flow-path-row > .flow-port-row {
+  margin-left: auto;
+}
+
+:not(.flow-path-picker.wired) > .flow-path-row > .flow-port-row > .flow-port-label {
+  display: none;
+}
+
+/* Reuse result on repeat's last result and Regenerate, under the switch,
+   spaced like the fields above them. */
+.flow-node-held {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

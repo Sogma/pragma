@@ -1,0 +1,16 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Confirmed 1 upload. Pass media_id as value in the medias array of generation tools.\n- 75e4ac19-3b0b-4b2a-8241-954298598ee9 (uploaded)"
+    }
+  ],
+  "structuredContent": {
+    "results": [
+      {
+        "media_id": "75e4ac19-3b0b-4b2a-8241-954298598ee9",
+        "status": "uploaded"
+      }
+    ]
+  }
+}

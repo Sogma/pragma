@@ -1,0 +1,187 @@
+/* The Links tab: a group per folder, spaced like the panel's sections, and in
+   each a row per linked file, styled like a search result's file row. A
+   target that names no file reads muted and does nothing. */
+.inspector-links {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inspector-links-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A row's line: its chevron, then the file. Pulled out by the chevron's own
+   inset, so the glyph lines up with the heading and only a hover background
+   overhangs. */
+.inspector-link-line {
+  display: flex;
+  align-items: center;
+  margin-inline: -4px;
+}
+
+.inspector-link-toggle,
+.inspector-link-toggle-space {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.inspector-link-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  cursor: pointer;
+}
+
+.inspector-link-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.inspector-link-toggle > .disclosure {
+  width: 12px;
+  height: 12px;
+}
+
+.inspector-link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+}
+
+button.inspector-link {
+  cursor: pointer;
+}
+
+button.inspector-link:hover {
+  background: var(--bg-hover);
+}
+
+.inspector-link.missing {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* A plain file has no glyph in the tree, so it has none here either. */
+.inspector-link-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  margin-inline-end: 4px;
+}
+
+.inspector-link-icon:not([data-entry-icon]),
+.inspector-link.missing .inspector-link-icon {
+  display: none;
+}
+
+.inspector-link-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A file Pragma can't open, a step lighter, as in the tree. */
+.inspector-link.cant-open {
+  color: var(--text-secondary);
+}
+
+.inspector-link-count {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* A row's folder in one list, right after its name: at the row's end,
+   beside the count, "notes 2" would read as one folder's name. */
+.inspector-link-folder {
+  flex: none;
+  margin-inline-start: 2px;
+}
+
+/* The switch between folder groups and one list, a row chevron's box with
+   its margins pulled into the heading's line, so adding it moves no row. */
+.inspector-section-title:has(> .inspector-links-grouping) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspector-links-grouping {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: -4px -4px -4px auto;
+}
+
+.inspector-links-grouping::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-list) center / contain no-repeat;
+}
+
+.inspector-links-grouping[data-grouping="none"]::before {
+  mask-image: var(--icon-folder);
+}
+
+/* Beneath its row, indented to the file's name. */
+.inspector-link-description {
+  margin: 0 0 6px;
+  padding-inline-start: 20px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inspector-link-description.empty {
+  font-style: italic;
+}
+
+/* A linking note's mentions, indented like a description: a line each, as
+   Search shows a match, never past a few wrapped lines. */
+.inspector-link-mentions {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 6px;
+  padding-inline-start: 16px;
+}
+
+.inspector-link-mention {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--small-font-size);
+  line-height: 1.45;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.inspector-link-mention:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}

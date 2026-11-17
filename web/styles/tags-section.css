@@ -1,0 +1,28 @@
+/* The Tags section: a row per declared tag, its pill. The row itself isn't
+   an action, so it takes no hover fill. */
+.tags-section-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 0 2px 4px;
+  border-radius: var(--control-radius);
+}
+
+/* The pill gives up its room to nothing: the tag's name is what the row is
+   about. */
+.tags-section-pill {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tags-section-new {
+  padding: 2px 0 4px;
+}
+
+.tags-section-new > .form-input {
+  width: 100%;
+  box-sizing: border-box;
+}

@@ -1,0 +1,231 @@
+/* A Class's rows are drawn with a Table's grid and cards (data-table.css,
+   data-cards.css). These are what a Class adds: its views' tabs and row
+   count, this view's chips, a group's heading, a list value's pills, the
+   title that opens a note, and a header that opens its field's menu. */
+.class-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.class-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.class-view-add {
+  width: 24px;
+  height: 24px;
+}
+
+.class-count {
+  color: var(--text-muted);
+}
+
+.class-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--pill-radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--control-font-size);
+}
+
+/* Without a remove button, the chip's padding is even on both sides. */
+.class-chip:not(:has(.class-chip-remove)) {
+  padding-inline-end: 10px;
+}
+
+.class-chip-label {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.class-chip-label {
+  cursor: pointer;
+}
+
+.class-chip-remove {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--pill-radius);
+}
+
+.class-chip-remove > .class-icon {
+  width: 10px;
+  height: 10px;
+}
+
+/* The header is its field's menu: it looks pressable on hover alone, so a
+   grid being read isn't a row of buttons. */
+.class-field-header {
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+
+.class-field-header:hover {
+  background: var(--bg-hover);
+}
+
+.class-field-header:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.class-view {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--box-radius);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.class-view:hover {
+  color: var(--text-primary);
+}
+
+.class-view[aria-selected="true"] {
+  border-color: var(--border-muted);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.class-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: calc(var(--editor-font-size) * 14 / 16);
+  font-weight: 600;
+}
+
+.class-group-count {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* The title and a list's pills take a locked value's box (data-table.css),
+   so a row's cells line up whatever each holds. */
+.class-row-title,
+.class-pills {
+  box-sizing: border-box;
+  min-height: calc(var(--cell-line-height) + 10px);
+  padding: 5px 7px;
+  font-family: var(--font-default);
+  font-size: var(--cell-font-size);
+  line-height: var(--cell-line-height);
+}
+
+.class-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  user-select: text;
+}
+
+/* Flat to the line, so a row holding pills is as tall as one that doesn't. */
+.class-pills > .pill {
+  padding-block: 0;
+}
+
+/* The title selects as a link's text does: a selection started beside it
+   takes it in, and a press on it still opens the note or drags the row, so a
+   press never starts one (web/lib/dom.ts). Firefox won't select a button's
+   text unless the button itself says `user-select: text`. */
+.class-row-title {
+  display: block;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  text-align: start;
+  cursor: pointer;
+  user-select: text;
+}
+
+.class-row-title:hover {
+  text-decoration: underline;
+}
+
+/* Where a dragged row lands in a folder shown in manual order: a line above
+   or below a row of the list, as the tree marks one, and a bar in the gap
+   beside a card, as the gallery does. */
+.data-table tr.class-drop-before > td {
+  box-shadow: inset 0 2px 0 0 var(--color-accent);
+}
+
+.data-table tr.class-drop-after > td {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+.data-cards-card.class-drop-before {
+  box-shadow: -5px 0 0 -2px var(--color-accent);
+}
+
+.data-cards-card.class-drop-after {
+  box-shadow: 5px 0 0 -2px var(--color-accent);
+}
+
+/* A note's frontmatter that doesn't parse, said under its title. */
+.class-row-error {
+  margin: 0 7px 5px;
+}
+
+/* A value that isn't its field's type: the text it is, in a locked value's
+   box, and a click away from an editor. */
+.class-unfit {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(var(--cell-line-height) + 10px);
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-primary);
+  font-family: var(--font-default);
+  font-size: var(--cell-font-size);
+  line-height: var(--cell-line-height);
+  text-align: start;
+  cursor: text;
+}
+
+.class-unfit:hover {
+  border-color: var(--border-input);
+}
+
+.class-unfit > span {
+  color: var(--text-muted);
+  font-size: calc(var(--editor-font-size) * 13 / 16);
+}
+
+.class-new-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+
+.class-new-note-input {
+  font-size: 15px;
+}
+
+.class-new-note-template {
+  align-self: flex-start;
+}

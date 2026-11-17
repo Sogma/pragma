@@ -1,0 +1,86 @@
+/* A row with its action at its end: an API token and its Revoke. */
+.settings-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.providers-row-meta,
+.settings-list-row-meta {
+  min-width: 0;
+}
+
+/* A picker over a list that changes, of models or of fonts, keeps one width
+   of its own, so picking a longer name never shifts it and the default
+   models' two line up. A fixed list's picker is as wide as its longest. */
+.settings-wide-picker {
+  width: 240px;
+}
+
+/* A provider's mark stands beside both lines, its name and what it offers. */
+.providers-row-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.providers-row-lead .provider-mark {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+/* Block, since an open row's name and sub line are spans inside a button. */
+.providers-row-name,
+.settings-row-name {
+  display: block;
+  color: var(--text-primary);
+}
+
+.settings-row-uses {
+  color: var(--text-muted);
+}
+
+.providers-row-sub,
+.settings-row-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+/* A list row's facts (an API token's space and date) select, for copying;
+   a language's code selects whole. An open row's sub line stays out, since
+   a press there opens the row. */
+.settings-list-row .settings-row-sub {
+  user-select: text;
+}
+
+#spellcheck-language-list .settings-row-sub {
+  user-select: all;
+}
+
+.providers-form-models-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.providers-form-models-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+}
+
+/* A saved MCP server's URL: fixed, so shown as text in the input's place,
+   and selected whole on one click. */
+.mcp-form-url-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

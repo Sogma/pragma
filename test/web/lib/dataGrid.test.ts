@@ -1,0 +1,266 @@
+// @vitest-environment jsdom
+import { describe, expect, it, type Mock, vi } from "vitest";
+import type { TableColumn, TableRow } from "../../../src/protocol/types.ts";
+import {
+  type CellControls,
+  cardParts,
+  createCard,
+  createCell,
+  createGridTable,
+  createTableForm,
+  startLabelRename,
+  type TableFormSpec,
+} from "../../../web/lib/dataGrid.ts";
+
+const column = (id: string, type: TableColumn["type"], options?: string[]): TableColumn => ({
+  id,
+  type,
+  label: id,
+  ...(options ? { options } : {}),
+});
+
+function controls(): {
+  media: Mock<CellControls["media"]>;
+  path: Mock<CellControls["path"]>;
+  pickColor: Mock<CellControls["pickColor"]>;
+} {
+  return {
+    media: vi.fn<CellControls["media"]>(() => document.createElement("figure")),
+    path: vi.fn<CellControls["path"]>(() => document.createElement("a")),
+    pickColor: vi.fn<CellControls["pickColor"]>(),
+  };
+}
+
+describe("cardParts", () => {
+  it("claims the picture before the title, then the first select as the badge", () => {
+    const columns = [
+      column("frame", "media"),
+      column("name", "text"),
+      column("status", "select"),
+      column("n", "integer"),
+    ];
+    const parts = cardParts(columns);
+    expect([parts.picture?.id, parts.title?.id, parts.badge?.id]).toEqual(["frame", "name", "status"]);
+    expect(parts.lines.map((each) => each.id)).toEqual(["n"]);
+  });
+
+  it("takes no title from the columns for rows that bring their own", () => {
+    const parts = cardParts([column("status", "select"), column("n", "integer")], true);
+    expect(parts.title).toBeUndefined();
+    expect(parts.badge?.id).toBe("status");
+    expect(parts.lines.map((each) => each.id)).toEqual(["n"]);
+  });
+});
+
+describe("createCard", () => {
+  it("leaves out a head with nothing in it", () => {
+    const control = document.createElement("span");
+    const card = createCard({ lines: [{ label: "Take", control }] });
+    expect(card.querySelector(".data-cards-head")).toBeNull();
+    expect(card.querySelector(".data-cards-field-label")?.textContent).toBe("Take");
+  });
+});
+
+describe("createGridTable", () => {
+  it("draws a header for every column and a cell only where a column has one", () => {
+    const grid = createGridTable<string>([
+      {
+        header: document.createElement("span"),
+        cell: (row) => Object.assign(document.createElement("b"), { textContent: row }),
+      },
+      { headerClass: "add" },
+      { cell: (_row, index) => Object.assign(document.createElement("i"), { textContent: String(index) }) },
+    ]);
+    grid.setRows(["a", "b"]);
+    expect(grid.table.querySelectorAll("thead th")).toHaveLength(3);
+    expect(grid.table.querySelector("thead th.add")).not.toBeNull();
+    const body = [...grid.table.querySelectorAll("tbody tr")].map((tr) => tr.textContent);
+    expect(body).toEqual(["a0", "b1"]);
+
+    const head = grid.table.querySelector("thead");
+    grid.setRows(["c"]);
+    expect(grid.table.querySelector("thead")).toBe(head);
+    expect(grid.table.querySelectorAll("tbody tr")).toHaveLength(1);
+  });
+
+  // Hovering a row shows all its quiet fields (controls.css), as a card
+  // does; the header row holds none.
+  it("marks each body row, and each card, as a row of fields", () => {
+    const grid = createGridTable<string>([
+      { cell: (row) => Object.assign(document.createElement("b"), { textContent: row }) },
+    ]);
+    grid.setRows(["a", "b"]);
+    expect([...grid.table.querySelectorAll("tbody tr")].every((tr) => tr.classList.contains("form-input-row"))).toBe(
+      true,
+    );
+    expect(grid.table.querySelector("thead tr")?.classList.contains("form-input-row")).toBe(false);
+    expect(createCard({ lines: [] }).classList.contains("form-input-row")).toBe(true);
+  });
+});
+
+describe("createCell", () => {
+  it("shows a locked value as content, but a media or path value always as its slot", () => {
+    const given = controls();
+    expect(createCell(column("n", "integer"), "3", vi.fn(), true, given).textContent).toBe("3");
+    const onChange = vi.fn();
+    createCell(column("frame", "media"), "a.png", onChange, true, given);
+    expect(given.media).toHaveBeenCalledWith(expect.objectContaining({ id: "frame" }), "a.png", true, onChange);
+    createCell(column("ref", "path"), "notes/", onChange, true, given);
+    expect(given.path).toHaveBeenCalledWith("notes/", true, onChange);
+  });
+
+  it("hands back each editor's value as text", () => {
+    const onChange = vi.fn();
+    const select = createCell(column("s", "select", ["a", "b"]), "a", onChange, false, controls()) as HTMLSelectElement;
+    select.value = "b";
+    select.dispatchEvent(new Event("change"));
+    const box = createCell(column("c", "checkbox"), "false", onChange, false, controls()) as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event("change"));
+    const text = createCell(column("t", "integer"), "1", onChange, false, controls()) as HTMLInputElement;
+    expect(text.type).toBe("number");
+    text.value = "2";
+    text.dispatchEvent(new Event("input"));
+    expect(onChange.mock.calls).toEqual([["b"], ["true"], ["2"]]);
+  });
+
+  it("picks a color from the value it holds now, not the one it was drawn with", () => {
+    const given = controls();
+    const onChange = vi.fn();
+    const button = createCell(column("hue", "color"), "#112233", onChange, false, given);
+    button.click();
+    given.pickColor.mock.calls[0][2]("#445566");
+    button.click();
+    expect(given.pickColor.mock.calls[1][1]).toBe("#445566");
+    expect(onChange).toHaveBeenCalledWith("#445566");
+  });
+});
+
+describe("createTableForm", () => {
+  const takes = () => [
+    column("still", "media"),
+    column("take", "text"),
+    column("status", "select"),
+    column("note", "text"),
+  ];
+  const rows = (): TableRow[] => [
+    { values: { still: "a.png", take: "wide", status: "final", note: "" } },
+    { values: { still: "", take: "close", status: "draft", note: "soft" } },
+  ];
+  // Each cell shows its value as text, so a test reads what was drawn where.
+  const form = (overrides: Partial<TableFormSpec> = {}) =>
+    createTableForm({
+      columns: takes(),
+      rows: rows(),
+      layout: "list",
+      version: "1.0",
+      editable: false,
+      readOnly: true,
+      cell: (each, row) => Object.assign(document.createElement("span"), { textContent: row.values[each.id] }),
+      ...overrides,
+    });
+  const texts = (root: Element, selector: string) => [...root.querySelectorAll(selector)].map((el) => el.textContent);
+
+  it("draws the grid by the cells handed in, each column headed by its label", () => {
+    const drawn = form();
+    expect(drawn.classList.contains("is-read-only")).toBe(true);
+    expect(texts(drawn, "thead th")).toEqual(["still", "take", "status", "note"]);
+    expect(texts(drawn, "tbody tr")).toEqual(["a.pngwidefinal", "closedraftsoft"]);
+  });
+
+  it("draws a card per row, leaving out a line with no value only while values are content", () => {
+    const reading = form({ layout: "cards" });
+    expect(texts(reading, ".data-cards-title")).toEqual(["wide", "close"]);
+    expect(texts(reading, ".data-cards-badge")).toEqual(["final", "draft"]);
+    expect(texts(reading, ".data-cards-field-label")).toEqual(["note"]);
+
+    const editing = form({ layout: "cards", editable: true, readOnly: false });
+    expect(editing.classList.contains("is-read-only")).toBe(false);
+    expect(texts(editing, ".data-cards-field-label")).toEqual(["note", "note"]);
+  });
+
+  it("says why a locked file is read-only, and draws nothing past the notice of an unreadable one", () => {
+    const newer = form({ locked: "newer-format", version: "2.0" });
+    expect(newer.querySelector(".document-locked-notice")).not.toBeNull();
+    expect(newer.querySelectorAll("tbody tr")).toHaveLength(2);
+
+    const after = document.createElement("button");
+    const unreadable = form({ locked: "unreadable", columns: [], rows: [], after });
+    expect([...unreadable.children].map((child) => child.className)).toEqual(["document-locked-notice inline-warning"]);
+  });
+
+  it("says a Table with no columns has none, with what comes after it", () => {
+    const after = document.createElement("button");
+    const empty = form({ columns: [], rows: [], after });
+    expect(empty.querySelector(".data-table-empty")?.textContent).toBe("This Table has no columns defined yet.");
+    expect(empty.lastElementChild).toBe(after);
+  });
+
+  it("puts a row's control at the end of its line or its card's head, drawing the rows again once it is gone", () => {
+    for (const layout of ["list", "cards"] as const) {
+      const shown = rows();
+      const drawn = form({
+        layout,
+        rows: shown,
+        rowControl: (row, redraw) => {
+          const button = Object.assign(document.createElement("button"), { textContent: "x" });
+          button.addEventListener("click", () => {
+            shown.splice(shown.indexOf(row), 1);
+            redraw();
+          });
+          return button;
+        },
+      });
+      const where = layout === "list" ? "tbody tr > td:last-child > button" : ".data-cards-head > button";
+      expect(drawn.querySelectorAll(where), layout).toHaveLength(2);
+      (drawn.querySelector(where) as HTMLButtonElement).click();
+      expect(drawn.querySelectorAll(where), layout).toHaveLength(1);
+      expect(drawn.textContent, layout).not.toContain("wide");
+    }
+  });
+
+  it("takes headers of the pane's own, and a last header cell with no cell in any row", () => {
+    const drawn = form({
+      header: (each) => Object.assign(document.createElement("b"), { textContent: each.label.toUpperCase() }),
+      lastHeader: { header: document.createElement("i"), headerClass: "add" },
+    });
+    expect(texts(drawn, "thead th")).toEqual(["STILL", "TAKE", "STATUS", "NOTE", ""]);
+    expect(drawn.querySelector("thead th.add > i")).not.toBeNull();
+    expect(drawn.querySelector("tbody tr")?.children).toHaveLength(4);
+  });
+});
+
+describe("startLabelRename", () => {
+  function rename(keys: string, typed: string) {
+    const holder = document.createElement("div");
+    const label = Object.assign(document.createElement("span"), { textContent: "Status" });
+    holder.appendChild(label);
+    document.body.appendChild(holder);
+    const onRename = vi.fn();
+    startLabelRename(label, onRename);
+    const input = holder.querySelector("input") as HTMLInputElement;
+    input.value = typed;
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: keys }));
+    holder.remove();
+    return { holder, label, onRename };
+  }
+
+  it("commits a changed label on Enter, trimmed", () => {
+    const { holder, label, onRename } = rename("Enter", "  State ");
+    expect(onRename).toHaveBeenCalledWith("State");
+    expect(label.textContent).toBe("State");
+    expect(holder.firstChild).toBe(label);
+  });
+
+  it("keeps the label for a blank commit, an unchanged one, and Escape", () => {
+    for (const [key, typed] of [
+      ["Enter", "  "],
+      ["Enter", "Status"],
+      ["Escape", "Other"],
+    ]) {
+      const { label, onRename } = rename(key, typed);
+      expect(onRename).not.toHaveBeenCalled();
+      expect(label.textContent).toBe("Status");
+    }
+  });
+});

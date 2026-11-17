@@ -1,0 +1,253 @@
+/* The last child of its editor group's column, under the pane it reports on,
+   so each group's bar stays attached to its own document, and an open
+   console sits below both. */
+.editor-statusbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Set here, not grown from the text: the text's box is trimmed below. */
+  min-height: var(--statusbar-height);
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-color);
+  /* Matches #sidebar's background, not #editor's: it reads as chrome framing
+     the editor, not as document content. */
+  background: var(--bg-secondary);
+}
+
+/* Back and Forward, leftmost, beside the path they move along. The negative
+   margins keep the 24px buttons from growing the bar, and pull the arrow in
+   line with the bar's padding. */
+.editor-statusbar-nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin: -4px 0 -4px -4px;
+}
+
+.editor-statusbar-nav .icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+.editor-statusbar-nav .icon-button::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  mask: var(--icon-arrow-left) center / contain no-repeat;
+}
+
+.editor-statusbar-forward::before {
+  transform: scaleX(-1);
+}
+
+/* Trimmed to the x-height, so align-items centres the lowercase body of the
+   text on the arrows. Untrimmed, the line box centres the capitals, and a
+   path, mostly lowercase, sits about a pixel low. */
+.editor-statusbar-path,
+.editor-statusbar-wordcount,
+.editor-statusbar-save-label {
+  text-box: trim-both ex alphabetic;
+}
+
+.editor-statusbar-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* clip, not hidden: hidden clips both axes, cutting off the ascenders and
+     descenders the trim leaves outside the box. */
+  overflow-x: clip;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  color: var(--text-muted);
+  user-select: text;
+}
+
+/* LLM activity indicator, shown while an applet or a Flow has a generate call
+   in flight. It is fed by the console reporting path, which the chat copilot
+   doesn't use, so chat never lights it. The reduced-motion reset flattens the
+   pulse to a steady icon, which still reads as working. */
+.editor-statusbar-activity {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  background-color: var(--color-accent);
+  mask: var(--icon-sparkle) center / contain no-repeat;
+  animation: statusbar-activity-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes statusbar-activity-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Right-justified by the flex row rather than margin-left: auto, so it
+   collapses to nothing when empty, for tab kinds with no word count.
+
+   An announcement flashes this box, which the trim above cuts to the
+   x-height: the padding gives the yellow the letters' full height, and the
+   margin takes it back so the bar never moves. */
+.editor-statusbar-wordcount {
+  flex: 0 0 auto;
+  margin: -6px;
+  padding: 6px;
+  border-radius: var(--control-radius);
+  white-space: nowrap;
+  font-weight: 300;
+  color: var(--text-muted);
+}
+
+/* An announcement the path's folders couldn't make room for gives up its
+   end before the file's name gives up any (statusbar.ts): the path keeps
+   its own width, and the announcement takes what is left, down to about its
+   first word and the dots inside the padding.
+
+   Not a steep flex-shrink: any share of a shrink takes a sliver from the
+   path too, and the slightest overflow puts dots on the name.
+
+   Clipped across only, as the path is, so the trimmed box keeps its
+   ascenders and descenders. */
+.editor-statusbar:has(> .editor-statusbar-wordcount.is-cut) > .editor-statusbar-path {
+  flex-grow: 0;
+}
+
+.editor-statusbar-wordcount.is-cut {
+  flex: 1 1 0;
+  min-width: calc(6ch + 12px);
+  max-width: max-content;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+}
+
+.editor-statusbar-path-name {
+  color: var(--text-primary);
+}
+
+/* The path selects so it can be copied, and copies as a plain path,
+   projects/notes/a.md: the spaces either side of each "/" are drawn here,
+   not written in the text. */
+.editor-statusbar-path-separator::before,
+.editor-statusbar-path-separator::after {
+  content: " ";
+}
+
+/* The "…" standing in for the folders a narrow bar drops, drawn here for the
+   same reason. */
+.editor-statusbar-path-more::before {
+  content: "… / ";
+}
+
+/* A folder above the file, a library's own name included: a button that
+   opens it, all chrome reset so it reads as a breadcrumb segment.
+
+   Firefox won't select a button's text unless the button itself says
+   `user-select: text`; the path's doesn't reach it. */
+.editor-statusbar-path-folder {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  user-select: text;
+}
+
+.editor-statusbar-path-folder:hover {
+  text-decoration: underline;
+}
+
+.editor-statusbar-path-folder:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The root a file lives in, when it isn't the space: the Libraries glyph in
+   place of the lib: scheme, then the library's name. The glyph carries
+   --view-library, like a library tab's stripe, so tab and breadcrumb say
+   "somewhere else" in one colour. The name keeps the text colour: as text,
+   crimson falls under 4.5:1 on the dark bar. */
+.editor-statusbar-path-root-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-inline-end: 5px;
+  vertical-align: -1px;
+  background: var(--view-library);
+  mask: var(--icon-library) center / contain no-repeat;
+}
+
+/* Unsaved work the save queue is still retrying, and the open file's
+   notices: its errors, problems and the rest. Each hidden while there's
+   nothing to say, so its presence is the signal; each keeps its label, since
+   none should hide in a hover title. A problem is --color-warning, not
+   --color-danger: a heads-up, not a destructive action. */
+.editor-statusbar-save,
+.editor-statusbar-errors,
+.editor-statusbar-problems,
+.editor-statusbar-notices {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: -3px 0;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-warning);
+}
+
+/* An error is something that failed; a notice says what happened, not that
+   anything is wrong. */
+.editor-statusbar-errors {
+  color: var(--color-danger);
+}
+
+.editor-statusbar-notices {
+  color: var(--color-accent);
+}
+
+.editor-statusbar-save:hover,
+.editor-statusbar-errors:hover,
+.editor-statusbar-problems:hover,
+.editor-statusbar-notices:hover {
+  background: var(--bg-hover);
+}
+
+.editor-statusbar-save-icon {
+  flex: 0 0 auto;
+}
+
+.editor-statusbar-errors-icon,
+.editor-statusbar-problems-icon,
+.editor-statusbar-notices-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-triangle-alert) center / contain no-repeat;
+}
+
+.editor-statusbar-errors-icon {
+  mask-image: var(--icon-circle-x);
+}
+
+.editor-statusbar-notices-icon {
+  mask-image: var(--icon-info);
+}

@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "higgsfield/generationCapabilities": {
+      "predictVirality": true,
+      "termsOfUseConsent": false,
+      "waitForCompletion": false
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Submitted 1 job. If a widget is visible, it polls automatically — do not call job_status or show_generations as a follow-up poll. In text-only clients, use job_status with sync:true to poll for completion.\n- 3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c  \"steam slowly rises from the red ceramic cup as the camera pushes in gently\""
+    },
+    {
+      "type": "text",
+      "text": "If the user requests a combined display of multiple generations, including jobs submitted through separate generate_* calls, collect all requested job IDs, wait for the complete set with jobs_wait, then call show_generation_by_ids with jobs: [{\"index\":0,\"job_id\":\"<first actual job ID>\"},{\"index\":1,\"job_id\":\"<second actual job ID>\"}, ...]. job_display accepts only one id: never pass ids to it or loop over it to show a group. Do not create an extra display when the existing generation widgets already satisfy the request."
+    }
+  ],
+  "structuredContent": {
+    "results": [
+      {
+        "id": "3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c",
+        "type": "video",
+        "status": "pending",
+        "model": "seedance1_5",
+        "params": {
+          "prompt": "steam slowly rises from the red ceramic cup as the camera pushes in gently",
+          "aspect_ratio": "1:1",
+          "duration": 4,
+          "reference_images": ["5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e", "6c7d8e9f-0a1b-4c2d-9e3f-4a5b6c7d8e9f"],
+          "resolution": "480p",
+          "generate_audio": false
+        }
+      }
+    ]
+  }
+}

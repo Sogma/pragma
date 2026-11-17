@@ -1,0 +1,111 @@
+/* Scrolling lives on .editor-reading itself, full pane width, rather than on
+   the measure-constrained content: overflow and max-width on the same element
+   pin the scrollbar to the text column's edge, which reads as misplaced. */
+.editor-reading {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The readable line length with the 24px inset outside it, so the text is
+   exactly as wide as edit view's and switching views never moves a line
+   break. */
+.editor-reading-content {
+  user-select: text;
+  box-sizing: border-box;
+  max-width: calc(var(--readable-line-length) + 48px);
+  margin: 0 auto;
+  padding: 24px;
+  font-family: var(--font-text);
+  font-size: var(--editor-font-size);
+  line-height: var(--prose-line-height);
+  color: var(--text-primary);
+}
+
+/* With no title bar above it, in reading view or a previewed note, the text
+   is the top of the page and starts where a title would (editor.css). */
+.editor-reading-content:first-child {
+  padding-top: var(--page-top-inset);
+}
+
+/* A heading's size and weight, which edit view's formatting reads too, so a
+   heading is the same size in both views. Scales rather than lengths: edit
+   view's gutter sets a heading's line number at its size from them.
+
+   A note's title (editor.css) is its leading # heading, set larger than an
+   h2 so no section under it outsizes it. */
+:root {
+  --h1-scale: 2;
+  --h2-scale: 1.5;
+  --h3-scale: 1.17;
+  --h4-scale: 1;
+  --h5-scale: 0.83;
+  --h6-scale: 0.67;
+  --title-scale: 1.7;
+  --heading-weight: 600;
+  --heading-line-height: 1.3;
+}
+
+/* A heading sits a line of prose below what comes before it, where one
+   written after a blank line sits in edit view. Half its own size goes
+   under it. */
+.editor-reading-content h1,
+.editor-reading-content h2,
+.editor-reading-content h3,
+.editor-reading-content h4,
+.editor-reading-content h5,
+.editor-reading-content h6 {
+  margin: calc(var(--prose-line-height) * var(--editor-font-size)) 0 0.5em;
+  font-weight: var(--heading-weight);
+  line-height: var(--heading-line-height);
+}
+
+.editor-reading-content h1 {
+  font-size: calc(var(--h1-scale) * 1em);
+}
+
+.editor-reading-content h2 {
+  font-size: calc(var(--h2-scale) * 1em);
+}
+
+.editor-reading-content h3 {
+  font-size: calc(var(--h3-scale) * 1em);
+}
+
+.editor-reading-content h4 {
+  font-size: calc(var(--h4-scale) * 1em);
+}
+
+.editor-reading-content h5 {
+  font-size: calc(var(--h5-scale) * 1em);
+}
+
+.editor-reading-content h6 {
+  font-size: calc(var(--h6-scale) * 1em);
+}
+
+.editor-reading-content h1:first-child,
+.editor-reading-content h2:first-child,
+.editor-reading-content h3:first-child,
+.editor-reading-content h4:first-child,
+.editor-reading-content h5:first-child,
+.editor-reading-content h6:first-child {
+  margin-top: 0;
+}
+
+/* A paragraph's line break starts a new line under Single line breaks, as
+   edit view shows it, rather than reading as a space. Only the marked break
+   takes pre-line: on a whole list item, the line breaks between its blocks
+   would each draw an empty line. */
+.single-line-breaks .editor-reading-content .soft-break {
+  white-space: pre-line;
+}
+
+/* A tag written in a note, as written, in the pill Properties draws for it,
+   sized to the text around it. Unscoped: the editor's formatting draws the
+   same pill, and a click on either opens Search for the tag. */
+.inline-tag {
+  padding: 1px 0.5em;
+  font-size: 0.875em;
+  cursor: pointer;
+}

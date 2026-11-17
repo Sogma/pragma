@@ -1,0 +1,12 @@
+/* A canvas's readout box: the Flow's position and the frame stats
+   (Settings → Advanced → Show stats). The look only; each canvas places it. */
+.canvas-stat {
+  font-size: var(--small-font-size);
+  font-family: var(--font-monospace);
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 6px 10px;
+  border-radius: var(--box-radius);
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
+}

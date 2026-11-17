@@ -1,0 +1,174 @@
+/* A node's glyph: its card's title icon, App Mode's tile glyph and its
+   add-node menu entry all read --node-glyph, which each type's rule below
+   sets on whatever carries its data-node-type. background-color:
+   currentColor, so a node color recolours it along with the title text. */
+.flow-node-dot {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background-color: currentColor;
+  mask: var(--node-glyph) center / contain no-repeat;
+}
+
+.context-menu [data-node-type] .context-menu-icon {
+  mask-image: var(--node-glyph);
+}
+
+[data-node-type="loadRow"] {
+  --node-glyph: var(--icon-table);
+}
+
+/* A die face (five pips as zero-length round-linecap paths), distinct from
+   loadRow's grid so the two "Load ... Row" nodes read apart in the add-node
+   menu. */
+[data-node-type="loadRandomRow"] {
+  --node-glyph: var(--icon-dice);
+}
+
+/* Stacked rows, not loadRow's column grid: every row of the table rather
+   than one, and the two "Load" table nodes sit side by side in the menu. */
+[data-node-type="loadTableRows"] {
+  --node-glyph: var(--icon-rows);
+}
+
+/* loadTableRows' stacked rows, with a plus where the next row goes. */
+[data-node-type="addRow"] {
+  --node-glyph: var(--icon-row-plus);
+}
+
+/* The space tree's Applet grid, so the node reads as the file it runs. */
+[data-node-type="applet"] {
+  --node-glyph: var(--icon-applet);
+}
+
+[data-node-type="chart"] {
+  --node-glyph: var(--icon-chart);
+}
+
+[data-node-type="loadNote"] {
+  --node-glyph: var(--icon-file-down);
+}
+
+[data-node-type="loadFolderNote"] {
+  --node-glyph: var(--icon-folder);
+}
+
+[data-node-type="loadImage"] {
+  --node-glyph: var(--icon-image);
+}
+
+[data-node-type="loadFolderImage"] {
+  --node-glyph: var(--icon-folder);
+}
+
+[data-node-type="generateText"] {
+  --node-glyph: var(--icon-sparkles);
+}
+
+[data-node-type="prompt"] {
+  --node-glyph: var(--icon-message);
+}
+
+/* A dropdown: a field holding a value, with its chevron. */
+[data-node-type="choice"] {
+  --node-glyph: var(--icon-dropdown);
+}
+
+/* The hash a whole-number Table column or property shows. */
+[data-node-type="int"] {
+  --node-glyph: var(--icon-hash);
+}
+
+/* Letters, against Int's hash: a number written as text. */
+[data-node-type="numberToText"] {
+  --node-glyph: var(--icon-case-sensitive);
+}
+
+/* A page with a pen, against loadNote's page with an arrow in. */
+[data-node-type="writeNote"] {
+  --node-glyph: var(--icon-file-pen);
+}
+
+/* A page with a plus, against writeNote's pen: text added, not written over. */
+[data-node-type="addToNote"] {
+  --node-glyph: var(--icon-file-plus);
+}
+
+/* A folder with a plus, against the folder loaders' plain one: a note goes in. */
+[data-node-type="writeFolderNote"] {
+  --node-glyph: var(--icon-folder-plus);
+}
+
+[data-node-type="comment"] {
+  --node-glyph: var(--icon-sticky-note);
+}
+
+[data-node-type="toggleText"] {
+  --node-glyph: var(--icon-toggle);
+}
+
+[data-node-type="showText"] {
+  --node-glyph: var(--icon-eye);
+}
+
+/* showObject: </>, not showText's eye, so the two adjacent menu entries read
+   apart. */
+[data-node-type="showObject"] {
+  --node-glyph: var(--icon-code);
+}
+
+[data-node-type="getField"] {
+  --node-glyph: var(--icon-key);
+}
+
+[data-node-type="joinText"] {
+  --node-glyph: var(--icon-merge);
+}
+
+/* A turn from where a path starts to where it leads, as a tree indents a
+   file under its folder. */
+[data-node-type="resolvePath"] {
+  --node-glyph: var(--icon-corner-down-right);
+}
+
+[data-node-type="templateVariables"] {
+  --node-glyph: var(--icon-braces);
+}
+
+/* generate's sparkle beside a list: several replies rather than one. */
+[data-node-type="generateOptions"] {
+  --node-glyph: var(--icon-list-sparkle);
+}
+
+/* loadImage's frame with generate's sparkle in place of its sun. */
+[data-node-type="generateImage"] {
+  --node-glyph: var(--icon-image-sparkle);
+}
+
+/* The video frame with generate's sparkle beside its play mark. */
+[data-node-type="generateVideo"] {
+  --node-glyph: var(--icon-video-sparkle);
+}
+
+/* Lines of text inside focus brackets: the document on screen, not a file
+   picked from the tree, so it reads apart from loadNote's page. */
+[data-node-type="currentDocument"] {
+  --node-glyph: var(--icon-scan-text);
+}
+
+/* Lines in a panel: what it shows lands under the toolkit's buttons. */
+[data-node-type="showResult"] {
+  --node-glyph: var(--icon-text-box);
+}
+
+[data-node-type="replaceSelection"] {
+  --node-glyph: var(--icon-replace);
+}
+
+[data-node-type="button"] {
+  --node-glyph: var(--icon-pointer-click);
+}
+
+[data-node-type="openToSide"] {
+  --node-glyph: var(--icon-square-arrow-out);
+}

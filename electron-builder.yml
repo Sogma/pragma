@@ -1,0 +1,70 @@
+appId: com.sogma.pragma
+productName: Pragma
+# The app's Windows file properties and macOS info carry this line. Left
+# unset, electron-builder writes package.json's author with each build's year.
+copyright: "Copyright © 2026 SGM DevNet LLC"
+directories:
+  output: release
+# GitHub Releases feed for electron-updater (electron/autoUpdate.ts). No owner
+# or repo here: electron-builder reads them from package.json's `repository`,
+# as the server's update check does, so both name one repo.
+#
+# The app reads the feed with no token, so that repo's releases must be
+# public. Leave `private` unset: with it, electron-updater sends any GH_TOKEN
+# it finds in the user's environment.
+publish:
+  provider: github
+  # Uploads land on a *draft* release. release.yml pre-creates it; the "Publish
+  # release" workflow (publish.yml) flips it live after a smoke test. This is
+  # electron-builder's default, but the whole release flow depends on it, so
+  # it's pinned here — an accidental `release`/`prerelease` would ship builds the
+  # moment CI finishes.
+  releaseType: draft
+# The npm package lists the same run-time files in scripts/pack-npm.mjs: a
+# file the app reads goes in both lists.
+files:
+  - electron/**/*
+  - src/**/*
+  # Outside src/, so listed on its own. Without it, packaged builds scaffold
+  # an empty space (scaffoldSpace.ts).
+  - templates/**/*
+  # Read at run time and served to models a section at a time
+  # (protocolSpec.ts); without either, packaged builds offer no spec tool.
+  - docs/protocol.md
+  - docs/flow-nodes.md
+  - bin/**/*
+  - dist/web/**/*
+  - dist/electron/**/*
+  - package.json
+  # Every production dependency is packed too, so a package the frontend
+  # bundles into dist/web belongs in devDependencies, or it ships twice. It
+  # still reaches users inside the bundle, so an audit that omits dev
+  # dependencies doesn't cover it.
+mac:
+  # Universal: Apple Silicon and Intel in one app. Both halves package the
+  # same node_modules, so a prebuilt native module that `files` lets through
+  # lands in both as one arch, and the merge fails.
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
+  # The mark on Apple's rounded-square template, not the bare mark the other
+  # platforms use: macOS 26 shows any other icon shape inside a gray box.
+  icon: build/icon.icns
+win:
+  target:
+    - nsis
+    - zip
+  icon: build/icon.ico
+nsis:
+  # The Mac tile beside "Installing, please wait…". Unset, the one-click
+  # banner repeats the title bar's mark.
+  installerHeaderIcon: build/installerHeaderIcon.ico
+linux:
+  target:
+    - AppImage
+    - zip
+  # Needed although build/icons is the default: unset, electron-builder makes
+  # the Linux icons from mac.icon, the Mac tile.
+  icon: build/icons

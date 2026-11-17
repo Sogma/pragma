@@ -1,0 +1,75 @@
+import type { MetadataEntry, TableColumn, TableFile } from "./types.ts";
+
+// Pure string-building, no Node/DOM APIs — isomorphic on purpose, so the
+// server (scaffolding a new file) and the client (persisting an edit) share
+// one serializer rather than drifting apart. See docs/protocol.md's Tables
+// section: "byte-stable for unchanged content" keeps git diffs one row wide.
+
+export function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// One line per key, so a git diff stays one key wide. A key with no value
+// still gets its `<dd>`: a `<dt>` with none is not a valid HTML group.
+function metadataRow({ key, values }: MetadataEntry): string {
+  const cells = (values.length ? values : [""]).map((value) => `<dd>${escapeHtml(value)}</dd>`).join("");
+  return `    <dt>${escapeHtml(key)}</dt>${cells}\n`;
+}
+
+/** The `<dl data-role="metadata">` block a Flow and Class share
+ * with a Table, every entry in order. With none it is still written, empty,
+ * so a file's shape never depends on its metadata. */
+export function metadataBlock(metadata: readonly MetadataEntry[] | undefined): string {
+  return `  <dl data-role="metadata">\n${(metadata ?? []).map(metadataRow).join("")}  </dl>`;
+}
+
+/** One `<th>` of a `<thead>` of field definitions, which a Class's
+ * fields share with a Table's columns. */
+export function fieldHeaderCell(column: TableColumn): string {
+  const options = column.options?.length ? ` data-options="${escapeHtml(column.options.join(","))}"` : "";
+  const mediaFolder = column.mediaFolder ? ` data-media-folder="${escapeHtml(column.mediaFolder)}"` : "";
+  const showName = column.showName ? " data-show-name" : "";
+  const defaultValue = column.default ? ` data-default="${escapeHtml(column.default)}"` : "";
+  return `        <th data-field="${escapeHtml(column.id)}" data-type="${escapeHtml(column.type)}"${options}${mediaFolder}${showName}${defaultValue}>${escapeHtml(column.label)}</th>\n`;
+}
+
+/** Serializes a TableFile back to `.table.html` text. Column/row order is
+ * exactly the order of the `columns`/`rows` arrays passed in. */
+export function serializeTableFile(file: TableFile): string {
+  const title = file.name ?? "";
+  const metadata = metadataBlock(file.metadata);
+
+  const headerCells = file.columns.map(fieldHeaderCell).join("");
+  // Only ever written for a layout other than the list, so a file that never
+  // named one stays byte-identical.
+  const layout = file.layout && file.layout !== "list" ? ` data-layout="${escapeHtml(file.layout)}"` : "";
+  const bodyRows = file.rows
+    .map((row) => {
+      const cells = file.columns.map((column) => `<td>${escapeHtml(row.values[column.id] ?? "")}</td>`).join("");
+      return `      <tr>${cells}</tr>\n`;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html data-format="table" data-format-version="${escapeHtml(file.version)}">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+</head>
+<body>
+
+${metadata}
+
+  <table data-role="data"${layout}>
+    <thead>
+      <tr>
+${headerCells}      </tr>
+    </thead>
+    <tbody>
+${bodyRows}    </tbody>
+  </table>
+
+</body>
+</html>
+`;
+}

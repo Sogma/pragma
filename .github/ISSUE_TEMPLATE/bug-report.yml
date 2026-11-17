@@ -1,0 +1,86 @@
+name: Bug report
+description: Something in Pragma doesn't work the way it should.
+type: Bug
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the report to one problem. Found a way across a boundary Pragma enforces? Don't file it here: report it privately, as [SECURITY.md](https://github.com/sogma/pragma/blob/main/SECURITY.md) describes.
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you did
+      description: Each step, in order, up to the problem.
+      placeholder: |
+        1. Opened sample-scene.md
+        2. Selected a sentence
+        3. Clicked Tighten in the Tools tab
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings shows it. Running from source? Give the commit (`git rev-parse --short HEAD`).
+      placeholder: 0.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: How you run Pragma
+      options:
+        - Desktop app
+        - pragma start
+        - pragma dev
+        - Remote-access server (pragma start --external-url)
+        - Another command (pragma run, pragma init)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, Ubuntu 24.04, macOS 15
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed Pragma
+      options:
+        - Windows installer
+        - Linux AppImage
+        - From source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message
+      description: Copied as text, not a screenshot.
+      render: text
+  - type: textarea
+    id: document
+    attributes:
+      label: The smallest document that shows it
+      description: When a file is involved, paste or attach the smallest one that still shows the problem.
+  - type: textarea
+    id: fix
+    attributes:
+      label: A proposed fix
+      description: A snippet or a diff, if you have one. It is read as part of the report.

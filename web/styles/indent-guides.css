@@ -1,0 +1,13 @@
+/* Code's indentation guides (web/lib/indentGuides.ts), in the file tree's
+   guide colours and drawn as its are, as a border. */
+.cm-indent-guide {
+  border-inline-start: 1px solid var(--indent-guide);
+}
+
+.cm-indent-guide.active {
+  border-color: var(--indent-guide-active);
+}
+
+.hide-indent-guides .cm-indent-guide-layer {
+  display: none;
+}

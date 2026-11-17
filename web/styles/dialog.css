@@ -1,0 +1,235 @@
+/* Dialogs: one scrim and one panel shape for every modal the dialog service
+   opens. Full-page by default; a dialog scoped to a pane anchors inside it,
+   centred over the thing it is about. The panel is removed on close, so no
+   [hidden] rule. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dialog-backdrop);
+  /* Fades in only. Closing removes the backdrop at once, so a fade-out would
+     keep it on screen catching clicks after the dialog has closed and handed
+     focus back. The panel is its child and fades with it. */
+  animation: fade-in 120ms ease-out;
+}
+
+/* Above the toolbars floating over the same pane (.editor-toolbar,
+   .editor-canvas-toolbar): their buttons act on what the modal sits
+   over, so its backdrop covers them too rather than leaving them lit and
+   clickable above it. */
+.dialog-backdrop.dialog-scoped {
+  position: absolute;
+  z-index: var(--z-pane-overlay);
+}
+
+/* Padding and gap are variables because the service's header reads them to
+   reach the panel's edges (settings.css, .dialog-header): a variant changes
+   them here, never padding or gap directly. */
+.dialog-panel {
+  --dialog-padding: 16px;
+  --dialog-gap: 10px;
+  /* A destructive action's colours: the text colours inverted, red only
+     under the pointer. The close disc rests in the same fill, so both read
+     it here. The fill is the tooltip's, not --text-primary, which reads dim
+     as a fill in the dark theme. */
+  --dialog-danger-bg: var(--tooltip-bg);
+  --dialog-danger-border: var(--text-primary);
+  --dialog-danger-text: var(--bg-primary);
+  --dialog-danger-bg-hover: var(--color-danger);
+  --dialog-danger-text-hover: var(--text-on-primary);
+  width: 480px;
+  max-width: calc(100vw - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dialog-gap);
+  padding: var(--dialog-padding);
+  border-radius: var(--panel-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-panel);
+}
+
+.dialog-panel:focus {
+  outline: none;
+}
+
+.dialog-panel.dialog-wide {
+  width: 560px;
+  max-height: calc(100vh - 80px);
+}
+
+/* The variant for a modal that is a shell rather than a sheet: it draws its
+   own divider rails and self-scrolling panes, so the panel drops its padding
+   to run separators edge to edge and put a pane's scrollbar against the
+   border. overflow: hidden clips to the corner radius; menus and popovers
+   mount on document.body as position: fixed, outside the clip. */
+.dialog-panel.dialog-flush {
+  --dialog-padding: 0px;
+  --dialog-gap: 0px;
+  overflow: hidden;
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dialog-message {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.4;
+  user-select: text;
+}
+
+/* Facts under a dialog's message, a key column and a value column: the
+   details of an error, say. min-width: 0 lets a long path wrap rather than
+   widen the panel. */
+.dialog-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.dialog-details dt {
+  color: var(--text-muted);
+}
+
+.dialog-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The copy-files dialog's bar: full width of the panel, native otherwise. */
+.dialog-progress {
+  width: 100%;
+  margin: 8px 0 4px;
+}
+
+.dialog-field-label {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.dialog-field-description {
+  margin: 0;
+  line-height: 1.4;
+}
+
+select.dialog-input {
+  cursor: pointer;
+}
+
+.dialog-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  line-height: 1.45;
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 4.5em;
+}
+
+.dialog-input::placeholder,
+.dialog-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+/* A prompt that takes a folder dragged from a tree (a media folder) marks
+   its field as the target while one is over the panel. */
+.dialog-panel.drag-over .dialog-input {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-faint);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* A dialog's buttons are .btn.btn-large, its confirm also .primary-fill. A
+   destructive confirm (delete, remove sorting, grant a capability) takes the
+   panel's danger colours instead: the dialog's variant beside .btn.danger's
+   tint, scoped to .btn so it outranks that tint. */
+.dialog-primary {
+  font-weight: 600;
+}
+
+.btn.dialog-primary.danger {
+  border-color: var(--dialog-danger-border);
+  background: var(--dialog-danger-bg);
+  color: var(--dialog-danger-text);
+}
+
+.btn.dialog-primary.danger:hover:not(:disabled) {
+  border-color: var(--dialog-danger-bg-hover);
+  background: var(--dialog-danger-bg-hover);
+  color: var(--dialog-danger-text-hover);
+}
+
+.dialog-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-default);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dialog-option:hover {
+  background: var(--bg-hover);
+}
+
+.dialog-option-description {
+  color: var(--text-muted);
+}
+
+/* Wide enough for a 71-character token on one line: broken across two it
+   reads as two values. On a small window .dialog-panel's max-width narrows it
+   and .api-token-value's break-all takes over. */
+.dialog-panel.dialog-token-reveal {
+  width: 580px;
+}
+
+/* The one-time token in its reveal dialog. Breaks anywhere rather than
+   scrolling: a token is one unbroken 71-character word, and a horizontal
+   scrollbar would hide the end of the very thing the dialog exists to show. */
+.api-token-value {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-monospace);
+  line-height: 1.6;
+  word-break: break-all;
+  user-select: all;
+}

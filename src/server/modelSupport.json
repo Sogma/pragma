@@ -1,0 +1,106 @@
+{
+  "$comment": "Each model's support details, read from its maker's official docs. What each field means, and how to keep this file current: docs/model-support.md.",
+  "models": {
+    "Seedance 2.5": {
+      "ids": ["seedance_2_5"],
+      "references": { "image": 30, "video": 10, "audio": 10 },
+      "frames": ["start", "end"],
+      "mention": { "image": "@Image{n}", "video": "@Video{n}", "audio": "@Audio{n}" },
+      "source": [
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-5",
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-5-prompt-guide"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Seedance 2.0": {
+      "ids": ["seedance_2_0"],
+      "references": { "image": 9, "video": 3, "audio": 3 },
+      "frames": ["start", "end"],
+      "mention": { "image": "@Image{n}", "video": "@Video{n}", "audio": "@Audio{n}" },
+      "source": [
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-0",
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-0-prompt-guide"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Seedream 4.5": {
+      "ids": ["seedream_v4_5", "seedream-4-5-*"],
+      "references": { "image": 14 },
+      "mention": { "image": "Image {n}" },
+      "source": [
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/image-generation-api",
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedream-4-0-5-0-prompt-guide"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Seedream 5.0 lite": {
+      "ids": ["seedream_v5_lite", "seedream-5-0-lite-*", "seedream-5-0-260128"],
+      "references": { "image": 14 },
+      "mention": { "image": "image {n}" },
+      "source": [
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/image-generation-api",
+        "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/image-generation-tutorial"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Kling 3.0 Omni": {
+      "ids": ["kling_o3_image_reference", "kling-v3-omni"],
+      "references": { "image": 7 },
+      "frames": ["start", "end"],
+      "mention": { "image": "<<<image_{n}>>>" },
+      "source": [
+        "https://kling.ai/document-api/api/video/3-0-omni/video-omni.md",
+        "https://kling.ai/document-api/api/video/3-0-omni/video-omni/legacy"
+      ],
+      "checked": "2026-11-11",
+      "hosts": {
+        "mcp.higgsfield.ai": {
+          "frames": [],
+          "mention": { "image": null },
+          "source": [
+            "Higgsfield's MCP tool docs (show_reference_elements) read <<<…>>> in a prompt as its own element placeholder.",
+            "Higgsfield's models_explore lists kling_o3_image_reference with the image_references role only; its frames model is kling_o3_flf."
+          ],
+          "checked": "2026-11-11"
+        }
+      }
+    },
+    "Nano Banana Pro": {
+      "ids": ["nano_banana_pro", "gemini-3-pro-image*"],
+      "references": { "image": 14 },
+      "source": [
+        "https://aistudio.google.com/docs/image-generation",
+        "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-pro-image"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Nano Banana 2": {
+      "ids": ["nano_banana_2", "gemini-3.1-flash-image*"],
+      "references": { "image": 14 },
+      "source": [
+        "https://aistudio.google.com/docs/image-generation",
+        "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-1-flash-image"
+      ],
+      "checked": "2026-11-11"
+    },
+    "Nano Banana": {
+      "ids": ["gemini-2.5-flash-image*"],
+      "references": { "image": 3 },
+      "source": [
+        "https://aistudio.google.com/docs/image-generation",
+        "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/2-5-flash-image"
+      ],
+      "checked": "2026-11-11"
+    },
+    "GPT Image": {
+      "ids": ["gpt-image-*", "gpt_image_*"],
+      "references": { "image": 16 },
+      "mention": { "image": "image {n}" },
+      "source": [
+        "https://developers.openai.com/api/reference/resources/images/methods/edit",
+        "https://developers.openai.com/api/docs/guides/image-prompting"
+      ],
+      "checked": "2026-11-11"
+    }
+  }
+}

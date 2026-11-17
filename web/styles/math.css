@@ -1,0 +1,137 @@
+/* MathJax's fonts, which web/mathJax.ts keeps it from declaring itself:
+   each face from the npm package MathJax's metrics ship in, so an update
+   moves glyphs and metrics together. test/web/mathJax.test.ts checks the
+   list against the faces MathJax names. Faces load only once math uses them. */
+
+@font-face {
+  font-family: "MJX-TEX-ZERO";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-zero.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-BRK";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-brk.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-N";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-n.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-B";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-b.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-I";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-i.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-BI";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-bi.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-F";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-f.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-FB";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-fb.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-SS";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-ss.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-SSB";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-ssb.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-SSI";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-ssi.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-M";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-m.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-SO";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-so.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-LO";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-lo.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-C";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-c.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-CB";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-cb.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-OS";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-os.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-OB";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-ob.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-MI";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-mi.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-V";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-v.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-S3";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-s3.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-TEX-S4";
+  src: url("../../node_modules/@mathjax/mathjax-tex-font/chtml/woff2/mjx-tex-s4.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-MHC-M";
+  src: url("../../node_modules/@mathjax/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-m.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "MJX-MHC-N";
+  src: url("../../node_modules/@mathjax/mathjax-mhchem-font-extension/chtml/woff2/mjx-mhc-n.woff2") format("woff2");
+}
+
+/* MathJax lays its boxes out by the browser's default sizing, which
+   reset.css changes for every element. */
+.math * {
+  box-sizing: content-box;
+}
+
+/* The TeX shown while MathJax loads. */
+.math.is-pending {
+  font-family: var(--font-code);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}

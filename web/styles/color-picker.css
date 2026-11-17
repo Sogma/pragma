@@ -1,0 +1,109 @@
+/* Colour-picker popover: .popover's box, as wide as its swatch grid.
+   Imported after popover.css so this width and gap win, and after
+   controls.css so the hex field's density beats .form-input's default. */
+.color-picker {
+  gap: 10px;
+  width: max-content;
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 22px);
+  gap: 8px;
+}
+
+.color-picker-swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px var(--swatch-ring);
+  cursor: pointer;
+}
+
+.color-picker-swatch.is-empty {
+  background: var(--bg-primary);
+  box-shadow: inset 0 0 0 1px var(--border-input);
+  background-image: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--text-faint) calc(50% - 1px),
+    var(--text-faint) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+.color-picker-swatch:hover {
+  box-shadow:
+    inset 0 0 0 1px var(--swatch-ring),
+    0 0 0 2px var(--bg-hover);
+}
+
+.color-picker-swatch:focus-visible,
+.color-picker-swatch[aria-pressed="true"] {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--swatch-ring),
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--color-accent);
+}
+
+/* Selected-swatch tick: drawn white and inverted against whatever the
+   swatch fill is. */
+.color-picker-swatch[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: #fff;
+  mix-blend-mode: difference;
+  mask: var(--icon-check) center / 13px no-repeat;
+}
+
+.color-picker-footer {
+  display: flex;
+  flex-direction: column;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.color-picker-custom-toggle {
+  font-family: var(--font-default);
+  font-weight: 600;
+  padding: 7px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.color-picker-custom-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.color-picker-custom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-picker-native {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  cursor: pointer;
+}
+
+.color-picker-hex {
+  width: 120px;
+  font-family: var(--font-monospace);
+  padding: 8px;
+  border-radius: var(--box-radius);
+}

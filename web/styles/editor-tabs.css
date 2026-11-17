@@ -1,0 +1,358 @@
+/* Tab pills. The strip's own styling lives up by #app-header, since the strip
+   sits in the title bar.
+
+   Pills share the strip equally but stop shrinking at min-width, and the
+   strip scrolls from there: there is no tab-list menu to reach a pill
+   squeezed to a sliver.
+
+   The active tab is the header's full height, up through the strip's
+   padding; every other tab is --tab-drop shorter, which is how far a tab
+   rises when it becomes the active one. 14/3px is exactly seven device
+   pixels at 150%; a round 5px would snap to seven or eight there. */
+.editor-tab {
+  --tab-drop: calc(14px / 3);
+  position: relative;
+  flex: 1 1 0;
+  min-width: 80px;
+  max-width: var(--tab-cap);
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+  height: calc(var(--header-height) - var(--tab-drop));
+  padding-block: 0;
+  padding-inline: 12px 8px;
+  border: none;
+  border-inline-end: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.editor-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* The active pill keeps the width every pill has: a drag lays slots out from
+   the pills' widths alone, so no pill may take more or less room than its
+   neighbours. Its body is the ::before below. z-index: 1, or the pill after
+   it paints its hover background over the right-hand curve and the outline.
+   Its own separator turns transparent: the outline is drawn on that pixel.
+
+   Its label centres in the whole tab, stripe and all, so it sits above the
+   other tabs' labels, and a rise moves it half as far as the tab's top. */
+.editor-tab.active {
+  --tab-radius: 4px;
+  --corner: calc(10px / 3);
+  --tab-sink: calc((1 - var(--tab-lift)) * var(--tab-drop));
+  --tab-reach: 1px;
+  z-index: 1;
+  height: calc(var(--header-height) - var(--tab-sink));
+  padding-inline: 12px 9px;
+  border-inline-end-color: transparent;
+  color: color-mix(in srgb, var(--text-primary) calc(var(--tab-lift) * 100%), var(--text-muted));
+}
+
+/* The body: over the previous pill's separator on the left and the pill's
+   own on the right, so the outline sits on the two separator pixels, and 1px
+   under the strip's bottom line, which the fill covers to join the pane. Its
+   insets count from the pill's padding box, inside the separator.
+
+   Outline and stripe are background layers in a transparent border, not
+   box-shadows: Firefox rounds an inset shadow to device pixels apart from
+   the background.
+
+   The stripe lies over the outline, with a tail fading down each side from
+   its bottom ends. It grows from nothing as the tab rises, rather than
+   riding down with the tab's top. The tails blend `in srgb`: their colour
+   comes from color-mix(), and Firefox blends such a colour in Oklab,
+   drawing them faint. */
+.editor-tab.active::before {
+  --tab-lift: inherit;
+  --lift: calc(var(--tab-lift) * 100%);
+  --stripe: color-mix(in srgb, var(--tab-accent, var(--view-space)) var(--lift), transparent);
+  --stripe-height: max(0px, 4px - var(--tab-sink));
+  --tail-size: calc(8px / 3) calc(16px / 3);
+  --tail-left: radial-gradient(var(--tail-size) at 0 0 in srgb, var(--stripe), transparent);
+  --tail-right: radial-gradient(var(--tail-size) at 100% 0 in srgb, var(--stripe), transparent);
+  content: "";
+  position: absolute;
+  inset: 0 -1px -1px -1px;
+  z-index: -1;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--corner) var(--corner) 0 0;
+  background:
+    linear-gradient(var(--stripe) 0 0) top / 100% var(--stripe-height) no-repeat border-box,
+    var(--tail-left) 0 var(--stripe-height) / var(--tail-size) no-repeat border-box,
+    var(--tail-right) 100% var(--stripe-height) / var(--tail-size) no-repeat border-box,
+    linear-gradient(color-mix(in srgb, var(--bg-primary) var(--lift), transparent) 0 0) padding-box,
+    color-mix(in srgb, var(--border-color) var(--lift), transparent) border-box;
+}
+
+/* The pill before the active one gives its separator up to the active pill's
+   outline, unless a carried tab's slot has opened between them (tabDrag.ts):
+   the active pill has stepped aside then, and the separator is the slot's
+   left edge. */
+.editor-tab:has(+ .editor-tab.active:not(.after-slot)) {
+  border-inline-end-color: transparent;
+}
+
+/* The bottom corners curve out into the editor surface, carrying the outline
+   into the header's bottom line. Gradients, not corner-shape: scoop, so
+   Firefox and Safari draw them too; each colour ramps in over 1px so the
+   edges antialias. Its colours are the tab's background and outline: change
+   them together.
+
+   Each gradient also reaches 1px into the body. The outline snaps to whole
+   device pixels and the gradient does not, so at most zoom levels a sliver
+   of the outline would show between them, below the curve. */
+.editor-tab.active::after {
+  --curve-stops:
+    transparent calc(var(--tab-radius) - 1.5px), var(--border-color) calc(var(--tab-radius) - 0.5px),
+    var(--bg-primary) calc(var(--tab-radius) + 0.5px);
+  --curve-tile: calc(var(--tab-radius) + 1px) 100%;
+  --tab-lift: inherit;
+  content: "";
+  position: absolute;
+  inset-inline: calc(-1 * var(--tab-radius));
+  bottom: 0;
+  height: var(--tab-radius);
+  background:
+    radial-gradient(circle at 0 0, var(--curve-stops)) left / var(--curve-tile) no-repeat,
+    radial-gradient(circle at 100% 0, var(--curve-stops)) right / var(--curve-tile) no-repeat;
+  opacity: var(--tab-lift);
+  pointer-events: none;
+}
+
+/* How far the active tab has risen into place, 0 to 1. Its height, colours
+   and curves all follow this one number, so the rise and the fade stay one
+   motion, and at 1 every value is the resting one. Not inherited: the
+   curves above pull it in with `inherit`. */
+@property --tab-lift {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+/* A tab that was sitting lower in the strip rises into the active look,
+   while the old one drops at once. Only a switch to a tab already in the
+   strip marks it rising (editorGroup.ts): a new tab grows in instead, and a
+   file opened in the active tab is no switch at all. */
+.editor-tab.active.rising {
+  animation: editor-tab-rise 50ms linear;
+}
+
+@keyframes editor-tab-rise {
+  from {
+    --tab-lift: 0;
+  }
+}
+
+/* A tab on a file outside the space (see --view-library). Same stripe shape
+   as the active tab, so nothing tracks tab positions. */
+.editor-tab.foreign-root {
+  --tab-accent: var(--view-library);
+}
+
+/* An inactive tab gets a thinner muted stripe in its root's colour rather
+   than nothing. 8/3px is exactly four device pixels at 150%. */
+.editor-tab:not(.active) {
+  box-shadow: inset 0 calc(8px / 3) color-mix(in srgb, var(--tab-accent, var(--view-space)) 50%, transparent);
+}
+
+/* The group without focus draws its active tab selected, label and all: its
+   strip still says what its pane shows. Only a quieter stripe marks the
+   focus as elsewhere, since a muted label would read as an inactive tab.
+
+   Mixed with the background, not transparent: the stripe lies over the
+   outline, which would show through. */
+.editor-group-tabs.unfocused .editor-tab.active {
+  --tab-accent: color-mix(in srgb, var(--view-space) 40%, var(--bg-primary));
+}
+
+.editor-group-tabs.unfocused .editor-tab.foreign-root.active {
+  --tab-accent: color-mix(in srgb, var(--view-library) 40%, var(--bg-primary));
+}
+
+.editor-tab-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+/* An inactive tab's icon fades by about the step its label takes, keeping
+   its hue: a format's colour still picks its tab out. Opacity, not a
+   colour: entry-icons.css alone paints an entry's icon. Under a carried
+   tab a pill keeps it faded, as it keeps its label muted. */
+.editor-tab:not(.active):not(:hover) .editor-tab-icon,
+.tab-dragging .editor-tab:not(.active) .editor-tab-icon {
+  opacity: 0.6;
+}
+
+/* flex: 1 keeps the X at the pill's trailing edge. The pill is a button, so
+   without text-align the name would sit centred in the room that leaves. */
+.editor-tab-label {
+  flex: 1;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 1px below the pill's centre on purpose: centred on the line box, the X sits
+   above a lowercase label's visual middle, and the active tab's stripe takes
+   its top. Moving the button rather than the glyph keeps the X centred in its
+   hover square. */
+.editor-tab-close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+  translate: 0 1px;
+}
+
+/* An inactive tab shows its X only under the pointer. visibility, not
+   display: a collapsing X would hand its room to the label, so a cut-off
+   name would grow and shrink as the pointer crosses it. */
+.editor-tab:not(.active):not(:hover) .editor-tab-close {
+  visibility: hidden;
+}
+
+/* Mixed from the text colour, not --bg-hover: a hovered tab is already
+   --bg-hover, so the button would vanish into it. Not --color-danger
+   either — closing a tab deletes nothing. */
+.editor-tab-close:hover {
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  color: var(--text-primary);
+}
+
+/* The two tabs of a file edited on one side and read on the other, which
+   scroll as one. Alike on both sides, unlike the stripe: the pair is one
+   thing whichever group has focus. */
+.editor-tab-sync {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background-color: var(--pragma-green);
+  mask: var(--icon-scroll-sync) center / contain no-repeat;
+}
+
+/* While the pointer is on the other side's disc. On the body: the pill's
+   own background lies under it. */
+.editor-tab.sync-partner::before {
+  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--pragma-green) 13%, transparent);
+}
+
+/* A tab carried along the strips (tabDrag.ts) rides the header's drag layer
+   (frame.css), above both strips, its bottom on theirs: its own height is
+   its height in the strip, active or not. */
+.editor-tab.carried {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  will-change: transform;
+}
+
+/* Pulled off the row, the tab floats under the pointer as a closed card.
+   It goes home when let go: nothing takes a tab outside the strips. */
+.editor-tab.floating {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+}
+
+.editor-tab.floating::before {
+  inset-block-end: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: var(--corner);
+}
+
+.editor-tab.floating::after {
+  display: none;
+}
+
+/* Holds the carried tab's place in a row. Boxed like a pill, it takes a
+   pill's share of the strip; held (tabDrag.ts), it keeps a width of its own,
+   so it can ease to or from none. */
+.editor-tab-gap {
+  flex: 1 1 0;
+  min-width: 80px;
+  max-width: var(--tab-cap);
+  height: 100%;
+  padding-inline: 12px 8px;
+  border-inline-end: 1px solid transparent;
+}
+
+.editor-tab-gap.held {
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border: 0;
+}
+
+/* A pill's left line is the separator of the pill before it. The pill after
+   the carried tab's slot has the slot before it, so it draws the slot's
+   right-hand line itself, on the pixel a pill dropped there puts its outline
+   on; the active pill's outline is there already.
+
+   A slot at the end of the row gets no line: one standing before the "+"
+   reads as a stray mark. */
+.editor-tab.after-slot:not(.active)::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -1px;
+  width: 1px;
+  background: var(--border-color);
+}
+
+/* While a tab is carried, the pills it passes step aside on the drag's
+   curve. Only then: dropping the class with the transforms, when the tab
+   lands, lets nothing slide back. The pills show neither a hover nor a ×
+   under the carried tab: its layer takes no pointer, so they would. */
+.tab-dragging .editor-tab {
+  transition: transform var(--tab-move-duration) var(--tab-move-easing);
+}
+
+.tab-dragging .editor-tab:not(.active):hover {
+  background: none;
+  color: var(--text-muted);
+}
+
+.tab-dragging .editor-tab:not(.active) .editor-tab-close {
+  visibility: hidden;
+}
+
+/* How wide a pill may grow, set on the strip: holding every pill's width
+   while the pointer closes tabs is one write, and letting go is one
+   animation (editorGroup.ts). */
+@property --tab-cap {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 200px;
+}
+
+/* While its width animates, a pill can be narrower than what it holds: it
+   clips that to its own box, plus the active pill's reach over the
+   separator before it, plus its foot either side, where the active pill's
+   curves reach past it. */
+.editor-tab.resizing {
+  --foot: var(--tab-radius, 0px);
+  --reach: var(--tab-reach, 0px);
+  clip-path: polygon(
+    calc(-1 * var(--foot) - var(--reach)) 100%,
+    calc(-1 * var(--foot) - var(--reach)) calc(100% - var(--foot)),
+    calc(-1 * var(--reach)) calc(100% - var(--foot)),
+    calc(-1 * var(--reach)) 0,
+    100% 0,
+    100% calc(100% - var(--foot)),
+    calc(100% + var(--foot)) calc(100% - var(--foot)),
+    calc(100% + var(--foot)) 100%
+  );
+}
+
+/* A pill shrinking away sits between its neighbours until it's gone: the
+   pill before it drops its separator beside the active pill already. */
+.editor-tab:has(+ .editor-tab.leaving + .editor-tab.active) {
+  border-inline-end-color: transparent;
+}

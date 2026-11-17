@@ -1,0 +1,28 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "jobs[1]{index,job_id,status,type,model,result_url}:\n  0,3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c,completed,video,seedance1_5,\"https://d8j0ntlcm91z4.cloudfront.net/user_TEST/hf_20261104_224553_3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c.mp4\"\nsummary:\n  total: 1\n  completed: 1\n  failed: 0\n  active: 0\n  errors: 0\nall_terminal: true"
+    }
+  ],
+  "structuredContent": {
+    "jobs": [
+      {
+        "index": 0,
+        "job_id": "3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c",
+        "status": "completed",
+        "type": "video",
+        "model": "seedance1_5",
+        "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_TEST/hf_20261104_224553_3c9a1b2e-4f5d-4e6a-8b7c-9d0e1f2a3b4c.mp4"
+      }
+    ],
+    "summary": {
+      "total": 1,
+      "completed": 1,
+      "failed": 0,
+      "active": 0,
+      "errors": 0
+    },
+    "all_terminal": true
+  }
+}

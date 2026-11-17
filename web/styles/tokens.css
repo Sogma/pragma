@@ -1,0 +1,338 @@
+:root {
+  /* The OS-native font stack, led by Windows's Segoe UI re-split to centre
+     its capitals (fonts.css). The bundled faces are for readouts laid over
+     media and for screenplays, not for the interface. */
+  --font-system:
+    "Segoe UI Centred", system-ui, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  /* The interface's font. Settings → Appearance → Interface font writes its
+     pick on :root as --font-interface, as index.html's first-paint script
+     does. Every rule outside a note's text reads it. Never declare
+     --font-interface in a stylesheet: unset is what means "no pick". */
+  --font-default: var(--font-interface, var(--font-system));
+  --font-monospace:
+    ui-monospace, SFMono-Regular, "Cascadia Mono", "Roboto Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo,
+    Consolas, monospace;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  /* Readouts over media: DINish until an interface font is picked, then the
+     pick. It reads the pick, not --font-default, which always has a value. */
+  --font-hud: var(--font-interface, "DINish", var(--font-system));
+  --font-screenplay: "Courier Prime", var(--font-monospace);
+  /* The font notes are set in, which Settings → Editor → Font writes on
+     :root. A note's edit view, reading view and title read it, never
+     --font-default, so a note keeps its font whatever the interface's is;
+     a format with a font of its own outranks those rules (fountain.css). */
+  --font-text: var(--font-system);
+  /* An applet's source, which the Code page's Font writes on :root. */
+  --font-code: var(--font-monospace);
+
+  /* The one accent colour. Every active/selected surface but the ones
+     --bg-selected names reads it from here, so a theme overrides these two
+     lines and nothing else. */
+  --color-accent: #1d4ed8;
+  /* The moving part of a switch, white in both themes: it reads against the
+     track's colour rather than following the page's surface. */
+  --toggle-knob: #fff;
+  --color-accent-bg: #dbeafe;
+  --color-accent-bg-faint: #f5f9ff;
+  /* A primary action's fill (Run, a dialog's confirm), and a count badge's.
+     One value each in both themes, so an action or a count looks the same
+     in either. Neither is the accent, which marks what is selected or on. */
+  --color-primary: #1d7aef;
+  --color-primary-hover: #1668d6;
+  --text-on-primary: #fff;
+  --color-badge: #0e8ac0;
+  --text-on-badge: #fff;
+
+  /* Pragma's palette: seven colours from the logo, its teal and cyan made
+     one turquoise cyan. Each keeps its OKLCH hue and moves in lightness per
+     theme only as far as it takes to clear 3:1 against --bg-primary,
+     --bg-secondary and --bg-hover. The logo's own hexes stay with the mark
+     (lib/logoColors.ts). Rules reach them through the aliases below. */
+  --pragma-green: #00a042;
+  --pragma-cyan: #0098a2;
+  --pragma-blue: #0189d2;
+  --pragma-yellow: #ae8400;
+  --pragma-orange: #e56301;
+  --pragma-red: #f0353b;
+  --pragma-crimson: #cc004e;
+
+  /* A scope's folder glyph paints in this: the palette clockwise in the order
+     the mark's segments sit, parted at top and bottom, where the logo's two
+     halves never touch. It resolves on the root element, where the dark block
+     redefines the palette, so that block needs no copy of it. */
+  --scope-ring: conic-gradient(
+    transparent 0 5deg,
+    var(--pragma-green) 5deg 60deg,
+    var(--pragma-cyan) 60deg 118deg,
+    var(--pragma-blue) 118deg 175deg,
+    transparent 175deg 185deg,
+    var(--pragma-yellow) 185deg 232deg,
+    var(--pragma-orange) 232deg 270deg,
+    var(--pragma-red) 270deg 302deg,
+    var(--pragma-crimson) 302deg 355deg,
+    transparent 355deg
+  );
+
+  /* Each sidebar view's colour, keyed by its id: the rail's bar paints in
+     it. --view-space and --view-library also stripe the tabs of files from
+     the space and from a library, and the inspector's bar takes the focused
+     tab's, marking where a file lives, never that it is read-only:
+     permission can flip, a root can't. */
+  --view-space: var(--pragma-blue);
+  --view-search: var(--pragma-yellow);
+  --view-source-control: var(--pragma-red);
+  --view-websites: var(--pragma-green);
+  --view-bookmarks: var(--pragma-orange);
+  --view-library: var(--pragma-crimson);
+
+  /* Surfaces, text, and borders — every color elsewhere in this file should
+     come from one of these rather than a literal, so the `[data-theme=
+     "dark"]` block below is the entire dark theme in one place instead of
+     scattered overrides per component. */
+  --bg-primary: #fff;
+  --bg-secondary: #f6f6f6;
+  --bg-hover: #f0f0f0;
+  /* A tree's open file and selected rows, and selected editor text: a step
+     past --bg-hover, and short of --indent-guide. */
+  --bg-selected: #e9e9e9;
+  --bg-inset: #fafafa;
+  --border-color: #ddd;
+  --border-muted: #eee;
+  --border-input: #ccc;
+  /* A focused field's border, standing in for the browser's focus ring. An
+     alias, so it follows the accent into the dark theme; the accent clears
+     the 3:1 on --bg-primary a focus indicator needs in both. */
+  --border-focus: var(--color-accent);
+  /* One step above --text-primary on this ramp: the brightened glyph of an
+     active rail icon, which at --text-primary was the same colour the hover
+     state already paints and so read as no state change at all. */
+  --text-highlight: #000;
+  --text-primary: #1c1c1a;
+  /* Long running text beside the document, like the chat: a dense narrow
+     column at --text-primary reads heavier than the note it sits next to. */
+  --text-secondary: #4a4a47;
+  --text-muted: #888;
+  --text-faint: #bbb;
+  /* Indentation guides, the file tree's and code's alike, and the brighter
+     one of the block holding the open file or the cursor. Both are drawn
+     over the hover and selected fills, so each lies past --bg-selected,
+     away from the background: short of it, a guide shows inverted across
+     the open file's row. */
+  --indent-guide: #e0e0e0;
+  --indent-guide-active: var(--text-faint);
+  /* Settings' cards, their hover and their dividers: the text colour mixed
+     into the panel, 4% landing on --bg-secondary here. They resolve on the
+     root element, where the dark block redefines both inputs, so that block
+     needs no copy of them. */
+  --bg-card: color-mix(in srgb, var(--bg-primary), var(--text-primary) 4%);
+  --bg-card-hover: color-mix(in srgb, var(--bg-card), var(--text-primary) 7%);
+  --border-card: color-mix(in srgb, var(--bg-card), var(--text-primary) 8%);
+  /* Mixed the same way: a menu's slider row under the keys, its checked row. */
+  --bg-menu-hover: color-mix(in srgb, var(--bg-secondary), var(--text-primary) 7%);
+  --bg-menu-checked: color-mix(in srgb, var(--bg-secondary), var(--color-accent) 10%);
+  /* A tooltip's fill, inverted against the page: the text colour here, and
+     a step lighter in the dark theme, whose text grey reads dim as a fill. */
+  --tooltip-bg: var(--text-primary);
+  /* A modal's close disc under the pointer. One value for both themes: the
+     X on it, in the panel's colour, clears 3:1 in either. */
+  --color-dialog-close-hover: #f85249;
+  /* Destructive actions — ones that themselves delete something. */
+  --color-danger: #e93147;
+  --color-danger-bg: rgba(233, 49, 71, 0.12);
+  /* The label over a solid --color-danger fill. One value for both themes:
+     the fill is dark enough in each that white is the readable side. */
+  --text-on-danger: #fff;
+  /* One step down from --color-danger: "this has a consequence" states.
+     --color-danger stays reserved for actions that themselves delete
+     something. */
+  --color-warning: #e8871e;
+  --color-warning-bg: rgba(232, 135, 30, 0.12);
+  /* What an attempt that worked confirms. Green confirms and blue
+     (--color-accent) is a notice. The palette's green, so the palette test
+     holds it to 3:1 on every surface. */
+  --color-success: var(--pragma-green);
+  /* A soft error: something a document names that isn't there, such as
+     media gone offline. A fill, and what is drawn on it. */
+  --problem-bg: #73272a;
+  --problem-fg: #fff;
+  --color-applet-icon: #16a34a;
+  /* The glyph over a solid --color-applet-icon fill, an Applet's Reload:
+     white on this green, the page's own dark on the dark theme's lighter
+     one, which white can't be seen on. */
+  --text-on-applet-icon: #fff;
+  --color-violet: #7c3aed;
+  --annotation-bg: #fff3b0;
+  --annotation-fg: #7a6a00;
+  --synopsis-bg: rgba(29, 78, 216, 0.06);
+  --synopsis-fg: #1d4ed8;
+  /* A value type's colour: a Flow pin and its wire, and a Table column's or
+     Class field's icon by the port type it becomes. Never borrowed from a
+     token with another job, and never a data colour a user picks. Each
+     clears 4.5:1 on the node card, since an exposed field's label is text,
+     except image: an orange dark enough for that reads as brown. */
+  --type-text: #1d4ed8;
+  --type-number: #737300;
+  --type-boolean: #15803d;
+  --type-image: #ff9b2e;
+  --type-object: #7c3aed;
+  /* Code colors, one per kind of token: a widely used code editor's default
+     light theme here and its dark one in the dark block, so an applet's code
+     reads as it does there. */
+  --syntax-bracket: #800000;
+  --syntax-tag: #800000;
+  --syntax-attribute: #e50000;
+  --syntax-attribute-value: #0000ff;
+  --syntax-string: #a31515;
+  --syntax-comment: #008000;
+  --syntax-selector: #800000;
+  --syntax-value: #0451a5;
+  --syntax-number: #098658;
+  --syntax-function: #795e26;
+  --syntax-keyword: #0000ff;
+  --syntax-control: #af00db;
+  --syntax-variable: #001080;
+  --syntax-type: #267f99;
+  /* A play button over a video thumbnail. One value for both themes: it
+     sits on the photo, never on a theme surface. */
+  --video-play-bg: rgba(0, 0, 0, 0.6);
+  --video-play-fg: #fff;
+  /* The media overlay's bars and badges and a player's on mark, on the picture for the same reason. */
+  --media-hud-bg: rgba(0, 0, 0, 0.75);
+  --media-hud-fg: #fff;
+  --media-hud-accent: #66a8f6;
+  --media-hud-badge-bg: #fff;
+  --media-hud-badge-fg: #000;
+  --media-hud-badge-off-bg: #787878;
+  /* A player's guides (video-guides.css), on the picture too: lines, the matte outside a frame, the lines' halo. */
+  --media-guide-line: rgba(255, 255, 255, 0.75);
+  --media-guide-matte: rgba(0, 0, 0, 0.25);
+  --media-guide-halo: rgba(0, 0, 0, 0.9);
+  /* One dark grey for both themes, behind what must look the same in either:
+     a previewed picture's mat, and a screenplay's link glyph, whose lime is
+     one value in both themes too. */
+  --neutral-bg: #252525;
+  --link-note-glyph: #e3ff39;
+  /* A highlight's fill and text, the same in both themes: the dark theme's
+     own text is too light to read on the fill. */
+  --highlight-bg: #e3ff39;
+  --highlight-fg: #1c1c1a;
+  /* Find's matches: bright in both themes, with dark text in the dark one. */
+  --find-match-bg: #ffff55;
+  --find-current-bg: #ff9632;
+  --find-match-fg: currentcolor;
+  /* A panel's resize strip under the pointer and mid-drag: a fixed purple in
+     both themes, deliberately not the accent. */
+  --resize-handle-hover: #8a5cf5;
+  /* Added/removed text in the copilot's diff cards and the editor's
+     proposals, opaque so a selection beneath can't tint them. The -fg
+     aliases follow their source, so the dark block doesn't repeat them. */
+  --diff-add-bg: #c2e7d0;
+  --diff-add-fg: var(--color-applet-icon);
+  --diff-del-bg: #f9c9cf;
+  --diff-del-fg: var(--color-danger);
+  --run-button-bg: #efeeec;
+  --run-button-bg-hover: #e3e2de;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-menu: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.25);
+  /* Raised affordance for neutral push-buttons, so they don't read as text
+     inputs (which share their border / radius / background). */
+  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.12);
+  /* The opposite of --shadow-button: a text field sits pressed into the
+     surface, so it never reads as a button beside it. */
+  --shadow-input: inset 0 4px 7px rgba(0, 0, 0, 0.08);
+  /* The chat header's shadow, as an opacity: deeper in the dark theme, where
+     a light one is lost. */
+  --chat-header-shadow: 0.12;
+  /* The inner ring that keeps a colour value's fill from vanishing into a
+     surface of nearly its colour: a colour chip in a Table, a swatch in the
+     colour picker. */
+  --color-chip-ring: rgba(0, 0, 0, 0.15);
+  --swatch-ring: rgba(0, 0, 0, 0.12);
+
+  --dialog-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* Tells the browser which palette to use for chrome this file doesn't
+     touch: native <select> popups and form-control focus rings. Without it
+     that chrome stays light under data-theme="dark". */
+  color-scheme: light;
+}
+
+/* The dark theme: one block redefining every token above, never per-component
+   overrides. data-theme is set on <html> by an inline script in index.html's
+   <head>, so the light defaults never flash first. */
+html[data-theme="dark"] {
+  --color-accent: #66a8f6;
+  --color-accent-bg: rgba(102, 168, 246, 0.18);
+  --color-accent-bg-faint: rgba(102, 168, 246, 0.12);
+  /* Unshifted, each clears 3:1 on these surfaces, all but crimson. */
+  --pragma-green: #0db14c;
+  --pragma-cyan: #1db8c3;
+  --pragma-yellow: #ecb72b;
+  --pragma-orange: #f3701f;
+  --pragma-crimson: #dc235b;
+  --bg-primary: #101111;
+  --bg-secondary: #191a1b;
+  --bg-hover: #2a2a2a;
+  --bg-selected: #333333;
+  --bg-inset: #151617;
+  --border-color: #333;
+  --border-muted: #292929;
+  --border-input: #333;
+  --text-highlight: #fff;
+  --text-primary: #ccc;
+  --text-secondary: #a8a8a8;
+  --text-muted: #868686;
+  --text-faint: #5a5a5a;
+  --indent-guide: #3d3d3d;
+  --tooltip-bg: #e2e2e2;
+  --color-danger: #c70c2a;
+  --color-danger-bg: rgba(251, 70, 76, 0.18);
+  --color-warning: #e2a336;
+  --color-warning-bg: rgba(226, 163, 54, 0.18);
+  --problem-bg: #1b0001;
+  --problem-fg: #840017;
+  --color-applet-icon: #4ade80;
+  --text-on-applet-icon: var(--bg-primary);
+  --color-violet: #a78bfa;
+  --annotation-bg: rgba(224, 193, 90, 0.18);
+  --annotation-fg: #e0c15a;
+  --synopsis-bg: rgba(102, 168, 246, 0.1);
+  --synopsis-fg: #66a8f6;
+  --type-text: #66a8f6;
+  --type-number: #e5e510;
+  --type-boolean: #4ade80;
+  --type-image: #fb923c;
+  --type-object: #a78bfa;
+  --syntax-bracket: #808080;
+  --syntax-tag: #569cd6;
+  --syntax-attribute: #9cdcfe;
+  --syntax-attribute-value: #ce9178;
+  --syntax-string: #ce9178;
+  --syntax-comment: #6a9955;
+  --syntax-selector: #d7ba7d;
+  --syntax-value: #ce9178;
+  --syntax-number: #b5cea8;
+  --syntax-function: #dcdcaa;
+  --syntax-keyword: #569cd6;
+  --syntax-control: #c586c0;
+  --syntax-variable: #9cdcfe;
+  --syntax-type: #4ec9b0;
+  --find-match-fg: var(--bg-primary);
+  --diff-add-bg: #265f3b;
+  --diff-del-bg: #73272a;
+  --run-button-bg: #2a2a2a;
+  --run-button-bg-hover: #333;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-menu: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0px 0px 10px rgba(250, 255, 255, 0.75);
+  --dialog-backdrop: rgba(0, 0, 0, 0.7);
+  /* A drop shadow alone barely shows on a dark surface — the top inset
+     highlight is what reads as "raised" here. */
+  --shadow-button: 0 1px 1px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-input: inset 0 4px 7px rgba(0, 0, 0, 0.42);
+  --chat-header-shadow: 0.5;
+  --color-chip-ring: rgba(255, 255, 255, 0.18);
+  --swatch-ring: rgba(255, 255, 255, 0.16);
+  color-scheme: dark;
+}

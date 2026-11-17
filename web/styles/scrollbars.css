@@ -1,0 +1,63 @@
+/* The PDF's frame takes this file as text (view/panes/pdfPane.ts), where the
+   app's tokens are only the ones the pane hands it: a token used here must be
+   handed in there too. */
+
+/* Every scrollbar in the app, in one place. Styling ::-webkit-scrollbar at
+   all opts out of Chromium's transient overlay scrollbars, easy to miss on a
+   panel nobody hovers. Deliberately unqualified: an allowlist of scroll
+   containers drifts behind the real set. `-button` hides the end-arrow
+   steppers Chromium draws on Windows, which look broken on an 8px bar.
+
+   Firefox ignores all of this and keeps its default; `scrollbar-width` is
+   left unset because Chromium honours it too and it would override the 8px. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* Faint at rest; fades in while the pointer is anywhere over the scroller,
+   outer scrollers included, and out more slowly on leave. A leave runs the
+   un-hovered state's transition, which is why the fade-out sits on `*`.
+
+   Chromium neither transitions scrollbar parts nor repaints them unless the
+   scroller's own style changes, so the fade animates --scrollbar-thumb-mix on
+   the scroller and the thumb pulls it with an explicit `inherit`. Registered
+   non-inheriting so a frame doesn't restyle the scroller's whole subtree.
+
+   A scroller with its own `transition` in a later layer overrides this one,
+   and its thumb snaps instead of fading. */
+@property --scrollbar-thumb-mix {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 30%;
+}
+
+* {
+  transition: --scrollbar-thumb-mix 500ms ease-out;
+}
+
+:hover {
+  --scrollbar-thumb-mix: 100%;
+  transition: --scrollbar-thumb-mix 250ms ease-out;
+}
+
+::-webkit-scrollbar-thumb {
+  --scrollbar-thumb-mix: inherit;
+  background: color-mix(in srgb, var(--border-input) var(--scrollbar-thumb-mix), transparent);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Where a horizontal and a vertical bar meet. Unstyled it stays the UA's
+   own light grey, which is invisible in the light theme and an obvious
+   pale notch in the dark one. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}

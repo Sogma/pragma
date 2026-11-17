@@ -1,0 +1,12 @@
+/* A chart drawn by web/chart/plotChart.ts. Plot draws axes and marks in
+   currentColor, and fills behind line markers with --plot-background, which
+   a surface that isn't --bg-primary overrides. Plot's own defaults sit in
+   :where(), so these win without specificity. */
+.chart {
+  --plot-background: var(--bg-primary);
+  color: var(--text-muted);
+}
+
+.chart .chart-marks {
+  color: var(--color-accent);
+}

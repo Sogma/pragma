@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Story Dials</title>
+<script type="application/json" data-role="manifest">
+{
+  "version": "1.0",
+  "meta": {
+    "name": "Story Dials",
+    "version": "1.0.0",
+    "description": "Set a scene's tone, pace and point of view. As a node in a Flow, it hands them on as one line of direction."
+  },
+  "style": "default",
+  "ports": {
+    "inputs": [],
+    "outputs": [{ "id": "direction", "type": "text", "description": "The tone, pace and point of view, as one line of direction." }]
+  }
+}
+</script>
+</head>
+<body>
+<div class="form">
+  <p class="description">Set a scene's tone, pace and point of view. Open on its own, this only shows the direction it would give; as a node in a Flow, it hands it on.</p>
+
+  <div class="field">
+    <label for="tone">Tone: <span id="tone-name"></span></label>
+    <input id="tone" type="range" min="0" max="4" step="1">
+  </div>
+
+  <div class="field">
+    <label for="pace">Pace: <span id="pace-name"></span></label>
+    <input id="pace" type="range" min="0" max="4" step="1">
+  </div>
+
+  <div class="field">
+    <label for="pov">Point of view</label>
+    <select id="pov">
+      <option value="first">First person</option>
+      <option value="close-third">Close third person</option>
+      <option value="omniscient">Omniscient</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Direction</label>
+    <p id="direction" class="description"></p>
+  </div>
+</div>
+
+<script>
+  var TONES = ["warm and hopeful", "light", "even", "uneasy", "dark and foreboding"];
+  var PACES = ["slow and lingering", "unhurried", "steady", "brisk", "breakneck"];
+  var NARRATORS = { first: "first person", "close-third": "close third person", omniscient: "an omniscient narrator" };
+
+  var tone = document.getElementById("tone");
+  var pace = document.getElementById("pace");
+  var pov = document.getElementById("pov");
+
+  // What the Flow saved for this node last time, or the middle of every dial.
+  // On its own the Applet has no Flow, so it always starts in the middle.
+  var saved = window.pragma.state || {};
+  tone.value = String(saved.tone ?? 2);
+  pace.value = String(saved.pace ?? 2);
+  pov.value = saved.pov || "close-third";
+
+  function update() {
+    var direction =
+      "Keep the scene " + TONES[tone.value] + " in tone and " + PACES[pace.value] +
+      " in pace, told in " + NARRATORS[pov.value] + ".";
+    document.getElementById("tone-name").textContent = TONES[tone.value];
+    document.getElementById("pace-name").textContent = PACES[pace.value];
+    document.getElementById("direction").textContent = direction;
+    // Both are inert when the Applet runs on its own.
+    window.pragma.setState({ tone: Number(tone.value), pace: Number(pace.value), pov: pov.value });
+    window.pragma.setOutputs({ direction: direction });
+  }
+
+  tone.addEventListener("input", update);
+  pace.addEventListener("input", update);
+  pov.addEventListener("change", update);
+  update();
+</script>
+</body>
+</html>

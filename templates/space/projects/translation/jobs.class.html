@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html data-format="class" data-format-version="1.0">
+<head>
+  <meta charset="utf-8">
+  <title>Translation jobs</title>
+</head>
+<body>
+
+  <dl data-role="metadata">
+    <dt>description</dt><dd>Every document in the space tagged translate, with its client, languages, status and due date. Each one gets the Translate and Review toolkits' buttons.</dd>
+  </dl>
+
+  <ul data-role="filter">
+    <li data-property="file.tags" data-test="has">translate</li>
+  </ul>
+
+  <ul data-role="links">
+    <li>tools/translate.flow.html</li>
+    <li>tools/review.flow.html</li>
+  </ul>
+
+  <table data-role="fields">
+    <thead>
+      <tr>
+        <th data-field="client" data-type="text">Client</th>
+        <th data-field="languages" data-type="text">Languages</th>
+        <th data-field="status" data-type="select" data-options="To do,Translating,In review,Delivered">Status</th>
+        <th data-field="due" data-type="text">Due</th>
+      </tr>
+    </thead>
+  </table>
+
+  <ol data-role="views">
+  </ol>
+
+</body>
+</html>

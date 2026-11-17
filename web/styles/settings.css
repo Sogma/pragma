@@ -1,0 +1,400 @@
+/* Settings: a fixed-size two-pane dialog, so the frame doesn't resize as
+   categories and subpages swap in content of different lengths; the body
+   scrolls when it overflows. Still clamped on short viewports. */
+.dialog-panel.dialog-settings {
+  width: 700px;
+  height: 500px;
+  max-height: calc(100vh - 80px);
+}
+
+#settings-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The dialog service's header, the only one a modal has: title left, the
+   .dialog-close disc right, a line under it, so every modal opens and closes
+   the same way.
+
+   Its margins read the panel's padding and gap rather than repeating them,
+   which a flush panel zeroes: out to the panel's edges, so the line runs edge
+   to edge, and the body as far below the line as the panel's sides are. */
+.dialog-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: calc(-1 * var(--dialog-padding)) calc(-1 * var(--dialog-padding))
+    calc(var(--dialog-padding) - var(--dialog-gap));
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog-title-muted {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* What the dialog is about, before its title: an entry's icon (painted by
+   entry-icons.css), a view's or the logo, each at the title's size. */
+.dialog-title-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.35em;
+  vertical-align: -0.15em;
+}
+
+/* A round button, its X a hole the panel shows through: the disc rests in
+   the danger button's fill (dialog.css, .dialog-panel) and turns red under
+   the pointer, while the X keeps the panel's colour. No hover fill:
+   .icon-button's square would frame the disc and show through its X. */
+.dialog-close {
+  color: var(--dialog-danger-bg);
+}
+
+.dialog-close:hover {
+  background: none;
+  color: var(--color-dialog-close-hover);
+}
+
+.dialog-close::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  mask: var(--icon-circle-x) center / contain no-repeat;
+}
+
+.settings-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.settings-nav {
+  display: flex;
+  flex: 0 0 160px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-inline-end: 1px solid var(--border-muted);
+  background: var(--bg-secondary);
+}
+
+/* An active item turns bold, so a label that fits at regular weight can
+   wrap once selected. */
+.settings-nav-item {
+  padding: 6px 10px;
+  white-space: nowrap;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-default);
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.settings-nav-item.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* The keyboard cursor's ring (utilities.css) stands in for the browser's,
+   and showing a category hides it: the item's fill marks it then. */
+.settings-nav-item:focus-visible {
+  outline: none;
+}
+
+.settings-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* The shared row-of-labelled-fields shape: title (and optional description)
+   left, control or value right, hairline between rows. A plain unscoped
+   class, not .settings-body .field-row, so Settings, the Applet permissions
+   panel and any future row list share one spacing definition. */
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-muted);
+  /* The title's colour, set here so a flash's dark text reaches it. */
+  color: var(--text-primary);
+}
+
+.field-row:last-child {
+  border-bottom: none;
+}
+
+.field-row-description {
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+.field-row-description code {
+  font-family: var(--font-monospace);
+  font-size: var(--control-font-size);
+}
+
+/* The version row doubles as the about line, so the app mark leads it. The
+   wrapper keeps .field-row's two-child space-between shape: mark and
+   logotype travel together on the left. */
+.settings-about {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The update status is the row's third child and wraps onto a line of its
+   own. Inside .settings-about it had only the strip beside the mark to wrap
+   in, which broke a one-sentence message across two lines and pushed the
+   mark off the button's centre line. It ends flush right, under the button
+   whose result it reports.
+
+   It sits on the page, not in a card: the card inset lines the mark up with
+   the rows below. */
+.settings-version-row {
+  flex-wrap: wrap;
+  padding: 8px var(--card-inset) 0;
+  border-bottom: none;
+}
+
+#setting-update-status {
+  flex-basis: 100%;
+  text-align: end;
+}
+
+/* Release notes sits alone on the last line, flush right. The button rides in
+   a full-width wrapper because a flex item claims a line of its own only at
+   full width, which would stretch the button; the wrapper is what hides, as
+   an empty line would still add the row's gap. */
+#setting-release-notes-line {
+  display: flex;
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+
+.settings-logo {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+/* The logotype is painted as a mask rather than drawn: the artwork is a
+   single white shape, which would vanish against the light theme's surface
+   if it were an <img>. Width is the 733:218 artwork ratio at this height —
+   a square box would letterbox it. */
+.settings-wordmark {
+  width: 121px;
+  height: 36px;
+  background-color: var(--text-primary);
+  mask: url("/images/wordmark.svg") left center / contain no-repeat;
+}
+
+.field-row-control {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-row-value {
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  text-align: end;
+  user-select: text;
+}
+
+.settings-select {
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.settings-input {
+  padding: 4px 8px;
+  width: 180px;
+}
+
+/* The track fills with the accent up to the knob, which takes the switch's
+   colour. Firefox draws that part itself (::-moz-range-progress). Chromium
+   has no such part, so the knob is a view timeline and the input's animation
+   turns where it sits into --slider-fill, 0 to 1, where the track's gradient
+   changes colour. A value set from code moves the fill with no extra step.
+
+   overflow: hidden is what makes the input the scroller the knob is measured
+   in, and it clips, so the box holds the knob and its shadow. Negative
+   margins lay it out as its track with the default 2px margins: the
+   knob overhangs its row instead of growing it. animation-timeline must
+   follow the shorthand, which resets it. */
+@property --slider-fill {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.settings-slider {
+  --slider-knob-size: 18px;
+  --slider-track-height: 6px;
+  width: 120px;
+  height: 24px;
+  margin-block: calc((var(--slider-track-height) - 24px) / 2 + 2px);
+  padding: 0;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+  timeline-scope: --slider-knob;
+  animation: slider-fill linear both;
+  animation-timeline: --slider-knob;
+  animation-range: contain;
+}
+
+/* View progress starts with the knob at the far end, so it counts down. */
+@keyframes slider-fill {
+  from {
+    --slider-fill: 1;
+  }
+  to {
+    --slider-fill: 0;
+  }
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+  height: var(--slider-track-height);
+  border-radius: var(--pill-radius);
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) calc(var(--slider-knob-size) / 2 + (100% - var(--slider-knob-size)) * var(--slider-fill)),
+    var(--border-input) 0
+  );
+}
+
+.settings-slider::-webkit-slider-thumb {
+  box-sizing: border-box;
+  width: var(--slider-knob-size);
+  height: var(--slider-knob-size);
+  margin-top: calc((var(--slider-track-height) - var(--slider-knob-size)) / 2);
+  border: 1px solid var(--border-input);
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+  appearance: none;
+  view-timeline: --slider-knob inline;
+}
+
+.settings-slider::-moz-range-track {
+  height: var(--slider-track-height);
+  border-radius: var(--pill-radius);
+  background: var(--border-input);
+}
+
+.settings-slider::-moz-range-progress {
+  height: var(--slider-track-height);
+  border-radius: var(--pill-radius);
+  background: var(--color-accent);
+}
+
+.settings-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--slider-knob-size);
+  height: var(--slider-knob-size);
+  border: 1px solid var(--border-input);
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+}
+
+/* A port sits beside its label rather than filling the row, since four digits
+   in a full-width field reads as a mistake. */
+.settings-port {
+  width: 96px;
+  flex: none;
+}
+
+/* Site Settings: Settings' two-pane shape at a smaller size. Save sits under
+   the publisher's fields, with its error beside it, since those are written
+   to the publisher on submit rather than as each one changes. */
+.dialog-panel.dialog-site-settings {
+  width: 620px;
+  height: 360px;
+}
+
+.site-settings-message {
+  margin-bottom: 12px;
+}
+
+.site-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+/* An image setting: thumbnail, name, Choose and a clear, on the row's
+   control side. The name gives way first so the buttons never wrap. */
+.site-image-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.site-image-thumb {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--control-radius);
+  color: var(--text-muted);
+}
+
+.site-image-picture {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* One click selects the whole name, cut or not. "None" is the field's own
+   word, not a value, so a copy leaves it out. */
+.site-image-name {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.site-image-field.is-empty .site-image-name {
+  user-select: none;
+}

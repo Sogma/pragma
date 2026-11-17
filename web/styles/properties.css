@@ -1,0 +1,367 @@
+/* Same grid as the read-only .meta-rows (one max-content
+   key column, one shared card), with inputs in place of text. The folder
+   Properties dialog shows it as this card; a document's properties section
+   in the assistant flattens it (below). */
+.property-editor {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: center;
+  max-width: 70ch;
+  margin: 0 auto;
+  padding: 10px 14px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--box-radius);
+  background: var(--bg-inset);
+  font-family: var(--font-default);
+  font-size: var(--editor-font-size);
+}
+
+/* A document's properties, in the assistant's Properties tab: the panel is
+   already the card, and the column is too narrow for the editor's type. Rows
+   align at the top, so a key stays beside the first line of a value that
+   wraps. */
+.inspector-section .property-editor {
+  align-items: start;
+  max-width: none;
+  /* The auto margins that centre the dialog's card would also keep it from
+     stretching in the section's column, shrinking it to its widest row. */
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--control-font-size);
+}
+
+/* The rows at the inspector's own size, matching the facts in its other tabs.
+   The 0.85em and the key's letter-spacing below suit the folder dialog's
+   editor-sized form; in the Inspector they shrink the rows below everything
+   around them. */
+.inspector-section .property-editor-key-cell,
+.inspector-section .property-editor-value-input,
+.inspector-section .property-editor-tag-input,
+.inspector-section .property-editor-pill {
+  font-size: 1em;
+}
+
+/* Every key here names a value edited in place, so it reads a step above a
+   fact's key. */
+.inspector-section .property-editor-key {
+  width: 7em;
+  letter-spacing: normal;
+  color: var(--text-secondary);
+}
+
+/* Where an input can size to its text, each key is as wide as it needs and
+   the key column as wide as the longest, leaving the rest to the values.
+   Behind @supports: without it, width: auto falls back to an input's ~20ch
+   default, wider than the fixed 7em above. */
+@supports (field-sizing: content) {
+  .inspector-section .property-editor-key {
+    width: auto;
+    min-width: 3em;
+    max-width: 12em;
+    field-sizing: content;
+  }
+}
+
+/* A row is a box of its own, so a drag can lift and move it whole, and a
+   subgrid, so its cells still share the form's two columns. */
+.property-editor-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: inherit;
+}
+
+/* A key too long for its field is cut with "…" while the field is at rest;
+   the browser drops the "…" while it is edited. */
+.property-editor-key {
+  width: 8em;
+  min-width: 5em;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 2px 4px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+}
+
+.property-editor-key:is(:hover, :focus) {
+  color: var(--text-primary);
+}
+
+/* A fixed-key row's key is a <span>, not a rename input; keep it looking
+   inert. Its transparent border matches a field's, so the key lines up with
+   the renamable ones. */
+.property-editor-key-fixed,
+.property-editor-key-fixed:hover {
+  cursor: default;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+}
+
+/* Inline, not flex, so the icon's vertical-align: middle centres it on the
+   key's letters. The key's size is set here, on its cell, because middle
+   reads the parent's x-height. */
+.property-editor-key-cell {
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+
+/* The key's field adds its 1px border and 4px padding to this margin, so its
+   text stands 8px from the icon, as a read-only key's does. */
+.property-editor-key-cell > .property-editor-key {
+  margin-inline-start: 3px;
+}
+
+/* A property's icon: a key Pragma acts on shows what it does with it, any
+   other key its value's type, a step fainter.
+
+   Centred on the key's x-height, as the status bar centres its text: a key
+   is lowercase, and centred on the line box, which centres capitals, its
+   letters read low. */
+.property-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  background-color: currentColor;
+  mask: var(--property-glyph) center / contain no-repeat;
+}
+
+.property-icon[data-value-type] {
+  color: var(--text-faint);
+}
+
+/* A removable row's icon is its menu button, inline to sit on the key's line
+   as a plain icon does. The primitive's box is cut to the icon and 2px a
+   side, and the negative margin gives those back, so the icon sits where a
+   plain one does.
+
+   The icon is also what its property is dragged by: a touch on it drags
+   rather than scrolling the panel. */
+.property-menu-button {
+  display: inline-flex;
+  vertical-align: middle;
+  width: 18px;
+  height: 18px;
+  margin: -2px;
+  touch-action: none;
+}
+
+.property-menu-button[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+
+/* The glyph sets its own colour, so the button's hover brightening has to
+   reach it here. */
+.property-menu-button:is(:hover, [aria-expanded="true"]) > .property-icon {
+  color: var(--text-primary);
+}
+
+/* The form holds the pointer while a property is dragged, so its cursor is
+   the one shown wherever the pointer goes. */
+.property-editor.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The dragged row keeps its place in the list as a tinted slot, which moves
+   through the list as the pointer does. */
+.property-editor-row.dragging {
+  position: relative;
+  visibility: hidden;
+}
+
+.property-editor-row.dragging::before {
+  content: "";
+  position: absolute;
+  inset: -2px -4px;
+  border-radius: var(--control-radius);
+  background: var(--color-accent-bg);
+  visibility: visible;
+}
+
+/* The row lifted under the pointer, where it was taken up. It sits in the
+   form, so the form's styles still reach its cells; fixed, it takes no place
+   in the grid, so it is given the grid's columns in pixels.
+
+   It stands out from the row by the slot's margin, its padding giving the
+   content back its place: content-box, since its size is the row's. */
+.property-editor-drag-ghost {
+  position: fixed;
+  z-index: var(--z-dialog);
+  display: grid;
+  box-sizing: content-box;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+  pointer-events: none;
+}
+
+/* The key stays inline, not flex: the read-only rows align on their first
+   baseline, which a flex key would take from the empty icon's bottom edge.
+   The negative block margin keeps the icon, hanging below the font's descent
+   once centred on the letters, from stretching the line. */
+.meta-key > .property-icon {
+  margin-block: -2px;
+  margin-inline-end: 8px;
+}
+
+/* The scope mark keeps the logo's colours: an image, not a mask. */
+.property-icon[data-known-key="pragma"] {
+  background: var(--icon-mark-pragma) center / contain no-repeat;
+  mask: none;
+}
+
+.property-icon[data-known-key="tags"] {
+  --property-glyph: var(--icon-tag);
+}
+
+.property-icon[data-known-key="description"] {
+  --property-glyph: var(--icon-description);
+}
+
+.property-icon[data-known-key="date"] {
+  --property-glyph: var(--icon-calendar);
+}
+
+.property-icon[data-known-key="visibility"] {
+  --property-glyph: var(--icon-eye);
+}
+
+.property-icon[data-value-type="text"] {
+  --property-glyph: var(--icon-text-lines);
+}
+
+.property-icon[data-value-type="number"] {
+  --property-glyph: var(--icon-hash);
+}
+
+.property-icon[data-value-type="boolean"] {
+  --property-glyph: var(--icon-square-check);
+}
+
+.property-icon[data-value-type="list"] {
+  --property-glyph: var(--icon-rows);
+}
+
+.property-icon[data-value-type="object"] {
+  --property-glyph: var(--icon-braces);
+}
+
+.property-editor-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.property-editor-value-input,
+.property-editor-tag-input {
+  flex: 1;
+  min-width: 4em;
+  font-family: inherit;
+  font-size: 0.85em;
+  padding: 2px 4px;
+}
+
+.property-editor-value .wrapping-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A value Pragma sets itself, a fact rather than a field. The padding stands
+   in for a field's border and padding, so its text lines up with theirs. It
+   is one line, cut as a field is at rest. */
+.property-editor-value-readonly {
+  min-width: 0;
+  padding: 3px 5px;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+/* Reading view's rows cut a property's key where the editor's key field
+   stops, its 10px of border and padding traded for the icon's 22px, and give
+   its whole text as a tooltip. A value is never cut there: it wraps, since
+   reading is where the whole value is read. */
+.meta-key:has(> .property-icon) {
+  min-width: 0;
+  max-width: calc(12em + 12px);
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.property-editor-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+}
+
+.property-editor > .data-table-add-row {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.property-editor-pill-remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: var(--pill-radius);
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.property-editor-pill-remove:hover {
+  opacity: 1;
+  background: var(--bg-primary);
+}
+
+/* A pill filled with its tag's color can have text the panel's own color,
+   which the hover above would hide the × against; a faint wash of the text
+   color shows on any fill. */
+.has-tag-color .property-editor-pill-remove:hover {
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.property-editor-pill-remove::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-x) center / contain no-repeat;
+}
+
+.property-editor-date-button {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.property-editor-date-button::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-calendar) center / contain no-repeat;
+}

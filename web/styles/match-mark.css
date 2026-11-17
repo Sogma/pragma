@@ -1,0 +1,7 @@
+/* A match marked in a line of text, in Search's results and the Links tab's
+   mentions: Find's colours, so a hit looks the same there as in the editor. */
+.match-mark {
+  border-radius: 2px;
+  background: var(--find-match-bg);
+  color: var(--find-match-fg);
+}

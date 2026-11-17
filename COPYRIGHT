@@ -1,0 +1,32 @@
+Pragma
+Copyright © 2026 SGM DevNet LLC and contributors
+
+Pragma is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+Pragma is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+Pragma, in the file LICENSE. If not, see <https://www.gnu.org/licenses/>.
+
+Files under other licences
+
+The fonts in web/public/fonts/ are not covered by the notice above. Courier
+Prime, Courier Prime Sans and DINish are each licensed under the SIL Open
+Font License, Version 1.1, in the OFL.txt beside them, which also names
+their authors.
+
+The protocol, docs/protocol.md and its Flow node catalog
+docs/flow-nodes.md, is not covered by the notice above either. It is
+licensed under the Creative Commons Attribution 4.0 International License,
+<https://creativecommons.org/licenses/by/4.0/>, and its examples are
+dedicated to the public domain under CC0 1.0 Universal,
+<https://creativecommons.org/publicdomain/zero/1.0/>.
+
+The templates Pragma copies into spaces, in templates/space/ and
+templates/builtin/, are not covered by the notice above either. They are
+dedicated to the public domain under CC0 1.0 Universal.

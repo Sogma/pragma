@@ -1,0 +1,13 @@
+{
+  // Typechecks the vitest suites — vitest itself only strips types, so a
+  // test can name a module or a shape that no longer exists and still pass.
+  // Extends the web config for the jsdom suites (DOM lib) and adds node
+  // types for the server and contract ones. Playwright's e2e folder has its
+  // own setup and stays out.
+  "extends": "../web/tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["."],
+  "exclude": ["e2e"]
+}

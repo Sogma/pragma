@@ -1,0 +1,37 @@
+/* The link under an error to the setting that fixes it (lib/settingLink.ts):
+   accent text on a line of its own, in the error's own size, so it reads as
+   the way out rather than as part of the message.
+
+   An inline error draws it as a .btn, so the link's look stops at :not(.btn):
+   this file comes after controls.css in the same layer and would win. */
+.setting-link:not(.btn) {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-accent);
+  text-align: start;
+  cursor: pointer;
+  user-select: none;
+}
+
+.setting-link:not(.btn):hover {
+  text-decoration: underline;
+}
+
+/* In a flashed item the link turns the flash's text colour with the item's
+   own text, in step with its flash, then fades back to its own: left to its
+   own colour it would stay light over the yellow in dark mode. Colour only,
+   or its yellow would double the item's as both fade. */
+.flash .setting-link {
+  animation: inherit;
+  animation-name: setting-link-flash;
+}
+
+@keyframes setting-link-flash {
+  from {
+    color: var(--find-match-fg);
+  }
+}

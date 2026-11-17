@@ -1,0 +1,8 @@
+/* The small grey text beside or under a name: a folder, a count, a hint, a
+   description. A surface keeps its own layout. Imported first among the
+   primitives, so one that colours its text by state (a menu row's ink) wins
+   over this. */
+.caption {
+  font-size: var(--small-font-size);
+  color: var(--text-muted);
+}

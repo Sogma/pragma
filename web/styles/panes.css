@@ -1,0 +1,159 @@
+/* The "empty" tab kind (docs/architecture.md's Files and views section) — a freshly
+   "+"-opened tab, or what's left after closing the last one open: its
+   actions in a column, centred, each as wide as the widest. */
+.editor-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.editor-empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.editor-empty-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--pill-radius);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-default);
+  font-size: var(--control-font-size);
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.editor-empty-action:hover {
+  background: var(--bg-hover);
+}
+
+.editor-empty-action [data-entry-icon] {
+  font-size: 16px;
+}
+
+.editor-empty-action-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* PDF pane: the sandboxed frame PDF.js draws in. The frame is transparent,
+   so the pages sit on this background. */
+.editor-pdf {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+/* Go to page's card and Find's, side by side in the toolbar's row. */
+.editor-pdf-aside {
+  display: contents;
+}
+
+.editor-pdf-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-pdf-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Over the frame, on the pane's background: a missing file, or one PDF.js
+   couldn't read. The [hidden] rule beats the unconditional display. */
+.editor-pdf-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 24px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.editor-pdf-message[hidden] {
+  display: none;
+}
+
+/* An editor group's pane host: where a registered pane (table, flow)
+   mounts while active. A flex column like the group around it, so a pane's
+   flex: 1; min-height: 0 fills it. */
+.editor-pane-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Table pane: a .table file's rows as an editable grid (docs/protocol.md,
+   Tables). Edits are persisted file content, so there is no generate-style
+   trigger. No top padding: the mounted title bar's own inset sets the
+   title's height, so it sits level with a note's. A Class's pane draws
+   the same grid, read-only, so it shares the layout. */
+.editor-table,
+.editor-class {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 24px 24px;
+}
+
+/* The grid's gap below the title, on the form rather than the pane's top
+   padding, which would push the title down too. */
+.editor-table > .data-table-form,
+.editor-class > .data-table-form {
+  margin-top: 12px;
+}
+
+/* A Table's or Class's box around the one that scrolls. Positioned and
+   still, because a file's preview (file-preview.css) and a note's
+   (note-preview.css) fill this box with a layer: in the scroller it would
+   scroll away with the rows. It holds focus while a file's preview shows,
+   for the preview's keys, with no ring: nothing in it is a control. */
+.editor-table-pane,
+.editor-class-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+/* Flow pane: a .flow.html graph on an interactive canvas (docs/protocol.md,
+   Flows). position: relative is load-bearing: the pane's scoped dialogs
+   centre on it, and a result's preview fills it. It holds focus while that
+   preview shows, for the preview's keys, with no ring. */
+.editor-flow {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  outline: none;
+}
+
+/* Shown by the Table, Class and Flow panes when a file's format major is newer
+   than this build writes. */
+.document-locked-notice {
+  margin-bottom: 12px;
+}

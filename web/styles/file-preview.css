@@ -1,0 +1,234 @@
+/* A file's preview (filePreview.ts), over what the pane lists rather than
+   in place of it, so closing it returns to the same scroll and selection.
+   Above the pane's floating toolbar: the group's ⋮ holds the pane's menu,
+   so the backdrop dims it too.
+
+   Clipped, because fitting a note lays its page out at full width for a
+   moment, past the pane: uncut, that gives the editor group a scrollbar
+   just then, the fit measures the stage without the bar's room, and the
+   page comes out short of its bottom bar.
+
+   The top padding is the toolbar's row, 18px down and 36px tall, and the
+   12px the arrows keep from the stage: a picture as tall as the stage never
+   runs under the toolbar. */
+.file-preview {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-pane-overlay);
+  overflow: clip;
+  display: flex;
+  gap: 12px;
+  padding: 66px 12px 24px;
+  background: var(--dialog-backdrop);
+}
+
+/* At the group toolbar's place (editor-toolbar.css), over the one the
+   backdrop dims, which would show round its edges anywhere else. Always up,
+   where the arrows come and go: it holds the way out. */
+.file-preview-toolbar {
+  position: absolute;
+  top: 18px;
+  inset-inline-end: 20px;
+}
+
+.file-preview-zoom::before,
+.file-preview-close::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-zoom-in) center / contain no-repeat;
+}
+
+.file-preview-zoom.is-zoomed::before {
+  mask-image: var(--icon-zoom-out);
+}
+
+.file-preview-close::before {
+  mask-image: var(--icon-x);
+}
+
+/* The arrows flank the stage rather than lying over the picture, so each
+   stays put whatever the picture's width and a run of clicks never chases
+   it. They wear the editor toolbar's look, not the overlay's: they are
+   controls, like its ⋮, not facts about the picture.
+
+   At either end an arrow is invisible but still there, and aria-disabled
+   rather than disabled: the stage keeps its width, so the picture doesn't
+   jump, and a run of clicks past the last picture lands on the arrow. On the
+   backdrop the run's double-click would open the picture. */
+.file-preview-nav {
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.file-preview:hover .file-preview-nav:not([aria-disabled="true"]) {
+  opacity: 1;
+}
+
+.file-preview-nav:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.file-preview-nav[aria-disabled="true"] {
+  cursor: default;
+}
+
+.file-preview-nav::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+}
+
+.file-preview-nav.is-prev::before {
+  transform: rotate(90deg);
+}
+
+.file-preview-nav.is-next::before {
+  transform: rotate(-90deg);
+}
+
+/* A size container, so the picture in its frame (mediaHud.ts) fits the
+   stage by container units. Those measure the content box, so the padding
+   is the mat's room: a picture fitted to the stage leaves the mat its width
+   on every side, an SVG that sets no size included. */
+.file-preview-stage {
+  --mat-width: 8px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--mat-width);
+  pointer-events: none;
+  container-type: size;
+}
+
+/* The mat (tokens.css says why it is one grey) is the frame's padding,
+   never a border on the picture: the hover bars cover the picture's whole
+   box, and would cover the mat too. */
+.file-preview-frame {
+  padding: var(--mat-width);
+  background: var(--neutral-bg);
+  box-shadow: var(--shadow-menu);
+}
+
+/* The frame's own media, never a picture inside a previewed note. */
+.file-preview-frame > :is(img, video) {
+  max-width: 100cqw;
+  max-height: 100cqh;
+  pointer-events: auto;
+}
+
+/* A still shrunk to fit zooms to full size on a click (pictureZoom.ts).
+   Zoomed, the frame grows with it up to the stage's room, and scrolls it
+   with no bars. It takes the pointer, mat and all: a click or a drag there
+   is the picture's, not the backdrop's, which would close the preview.
+
+   A scroller's least width is nothing, so a frame that shrinks would fit
+   the stage's content box, its mat inside it. Unshrinking, the mat lies on
+   the stage's padding, as when fitted. */
+.file-preview-frame.is-zoomable > img {
+  cursor: zoom-in;
+}
+
+.file-preview-frame.is-zoomed {
+  flex: none;
+  max-width: calc(100cqw + 2 * var(--mat-width));
+  max-height: calc(100cqh + 2 * var(--mat-width));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: auto;
+  cursor: zoom-out;
+}
+
+.file-preview-frame.is-zoomed > img {
+  max-width: none;
+  max-height: none;
+  transform-origin: 0 0;
+}
+
+.file-preview-frame.is-zoomed > img.is-unsized {
+  width: var(--svg-width);
+}
+
+/* The pointer never leaves a picture that fills the stage, so the bars
+   would cover its top and bottom the whole time it is zoomed. */
+.file-preview-frame.is-zoomed > .media-hud {
+  display: none;
+}
+
+/* While a zoom runs, the frame clips and its size is animated. A flex item
+   that only clips keeps its content's width as its least, the picture's
+   full width, and would hold the frame there for the whole run. */
+.file-preview-frame.is-zooming {
+  min-width: 0;
+  overflow: clip;
+}
+
+.file-preview-frame.is-panning {
+  cursor: grabbing;
+}
+
+/* A document or a Table is shown as wide as its page (note-preview.css), at
+   the share of full size the pane sets (--page-scale), never taller than a
+   Letter page of that width (8.5 by 11), and smaller only where the stage
+   is. */
+.file-preview-document {
+  --page-width: min(100cqw, calc((var(--preview-line-length) + 50px) * var(--page-scale, 1)));
+  width: var(--page-width);
+  height: min(100cqh, calc(var(--page-width) * 11 / 8.5));
+}
+
+/* The room below the text keeps its last line clear of the bar. */
+.file-preview-page {
+  padding-bottom: 32px;
+  pointer-events: auto;
+}
+
+/* Readable line length off: the page lays out as wide as the stage, as
+   reading view fills its pane, and shows at its share of that. */
+#editor .wide-editor .file-preview-document {
+  --page-width: calc(100cqw * var(--page-scale, 1));
+}
+
+#editor .wide-editor .file-preview-page {
+  width: 100cqw;
+}
+
+/* One bar, at the bottom so it never covers the title, inside the page's
+   border and rounded with it. Solid, where a picture's lets the image
+   through: text showing through would tangle with the facts. */
+.file-preview-document > .media-hud {
+  justify-content: flex-end;
+  margin: 1px;
+  border-radius: 5px;
+  overflow: clip;
+}
+
+.file-preview-document .media-hud-bar {
+  background: linear-gradient(var(--media-hud-bg), var(--media-hud-bg)), var(--neutral-bg);
+}
+
+/* The bar shows while the page is hovered. */
+.file-preview-document:hover > .media-hud {
+  opacity: 1;
+}

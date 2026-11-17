@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>About Pragma</title>
+    <!-- The desktop app's About window (electron/aboutWindow.ts). It loads
+         from the build, as welcome.html does, so its theme is
+         prefers-color-scheme's, which the app points at the theme picked
+         last. -->
+    <script>
+      document.documentElement.setAttribute(
+        "data-theme",
+        matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      );
+    </script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="about">
+    <main class="about-main">
+      <div class="settings-about">
+        <img class="settings-logo" src="/images/mark.svg" alt="" width="44" height="44" />
+        <div class="settings-wordmark" role="img" aria-label="Pragma"></div>
+      </div>
+      <p class="caption about-line about-version" hidden></p>
+      <p class="caption about-line about-copyright">Copyright © 2026 SGM DevNet LLC</p>
+    </main>
+    <script type="module" src="/about.ts"></script>
+  </body>
+</html>

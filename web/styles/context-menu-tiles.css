@@ -1,0 +1,56 @@
+/* A flyout of tiles under headings (web/view/contextMenu.ts): choices made
+   at once, which leave the menu open under the pointer. A lit tile is the
+   brightest text with a bold label; a row's blue fill and a checked row's
+   tint stay off tiles (context-menu.css), which would light a whole grid. */
+.context-submenu.is-tiles {
+  padding: 3px 0;
+}
+
+.context-menu-tiles {
+  padding: 7px 12px 6px;
+}
+
+.context-menu-tiles + .context-menu-tiles {
+  border-top: 1px solid var(--border-color);
+}
+
+.context-menu-tiles-heading {
+  margin-bottom: 6px;
+  color: var(--text-highlight);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.context-menu-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  gap: 2px 4px;
+}
+
+.context-menu .context-menu-tile {
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 6px 0 5px;
+  border-radius: var(--box-radius);
+  color: var(--text-muted);
+  font-size: var(--small-font-size);
+}
+
+.context-menu .context-menu-tile:hover {
+  background: var(--bg-menu-hover);
+  color: var(--text-primary);
+}
+
+.context-menu .context-menu-tile[aria-checked="true"] {
+  color: var(--text-highlight);
+  font-weight: 600;
+}
+
+/* Drawn larger than a row's icon, at the size the tile's label reads with. */
+.context-menu-tile-glyph {
+  width: 30px;
+  height: 30px;
+  background-color: currentColor;
+  mask: var(--glyph) center / contain no-repeat;
+}

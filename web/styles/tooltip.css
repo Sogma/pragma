@@ -1,0 +1,29 @@
+/* The one hover tooltip (web/lib/tooltip.ts), inverted — dark on a light
+   page, light on a dark one — so it reads as a passing hint and never as a
+   menu or popover it might sit beside. Above a menu (--z-tooltip): a
+   tooltip can name a control inside an open menu or dialog.
+
+   pointer-events: none, or the tooltip would take the hover from the element
+   it describes and close itself. */
+.tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  max-width: 360px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--tooltip-bg);
+  box-shadow: var(--shadow-menu);
+  color: var(--bg-primary);
+  font-family: var(--font-default);
+  line-height: 1.4;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: fade-in 100ms linear;
+}
+
+/* One that follows another closely appears at once: a fade on each would
+   flicker while the pointer slides along a row of icons. */
+.tooltip.is-instant {
+  animation: none;
+}

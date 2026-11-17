@@ -1,0 +1,375 @@
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* The app header: drag region, window controls and tab strip in one row.
+   Every button in it is no-drag, or the window drag takes its press. No
+   horizontal padding: the widths either side of the tab strips must match
+   the flush-edged columns under them.
+
+   An inset box-shadow, not border-bottom, draws the bottom edge:
+   .editor-group-tabs' overflow clips the area a border occupies, so only an
+   inset shadow can be covered by the active tab's opaque background, joining
+   it to the editor surface below. */
+#app-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: var(--header-height);
+  background: var(--bg-secondary);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  -webkit-app-region: drag;
+}
+
+#app-header button {
+  -webkit-app-region: no-drag;
+}
+
+/* Exactly #rail's width, so the button matches the rail's footprint below it;
+   the id's specificity overrides .icon-button's 28px.
+
+   On macOS it starts after the traffic lights instead. env(titlebar-area-x)
+   is their room (electron/main.ts) at any zoom, and is unset everywhere else
+   and in fullscreen, which puts the button back over the rail. */
+#header-sidebar-toggle {
+  width: var(--rail-width);
+  height: 100%;
+  margin-inline-start: env(titlebar-area-x, 0px);
+}
+
+/* The two header panel toggles are bare glyphs with .icon-button's hover as
+   the only chrome. The glyph is a panel outline whose near-side segment is
+   always drawn: a thin bar while that panel is collapsed, a solid block when
+   it's open, so the states read as a contrast rather than on/off. */
+#header-assistant-toggle {
+  width: 32px;
+}
+
+/* x/width are SVG geometry driven from CSS: the near-side segment is ~2u wide
+   collapsed and ~6u open. The right toggle also shifts x left as it widens,
+   so its segment stays pinned to the far edge. */
+#header-sidebar-toggle .panel-toggle-fill,
+#header-assistant-toggle .panel-toggle-fill {
+  transition:
+    x 0.12s ease,
+    width 0.12s ease;
+}
+
+#header-sidebar-toggle[aria-pressed="true"] .panel-toggle-fill {
+  width: 6px;
+}
+
+#header-assistant-toggle[aria-pressed="true"] .panel-toggle-fill {
+  x: 13px;
+  width: 6px;
+}
+
+/* How far open a side panel is, 0 to 1, set on each element that slides.
+   The slide transitions this number, never a width, so a resize drag writing
+   --sidebar-width or --assistant-width still follows the pointer mid-slide.
+   Not inherited, or every element in a panel would restyle on each frame. */
+@property --panel-reveal {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+/* Reserves exactly #sidebar's width (same --sidebar-width token) so the tab
+   strips start where the editor groups actually begin, narrowing with the
+   sidebar's slide (sidebar.css).
+
+   Less the room the toggle moved over for the traffic lights: a sidebar
+   narrower than that room leaves the strips starting after the toggle,
+   not where the groups do (editorArea.ts). No column's border runs up
+   beside the first tab there, so the spacer keeps 1px for its own line:
+   the min() is 1px wherever that room exists, and 0 everywhere else. */
+#header-sidebar-spacer {
+  flex-shrink: 0;
+  width: max(
+    min(1px, env(titlebar-area-x, 0px)),
+    calc(var(--sidebar-width) * var(--panel-reveal) - env(titlebar-area-x, 0px))
+  );
+  height: 100%;
+  display: flex;
+  justify-content: flex-end;
+  overflow: clip;
+}
+
+/* #sidebar's border, continued up through the header. A border, not a
+   gradient, so it snaps to the same device pixel as that one at fractional
+   scales; on a box of its own, so the spacer's clip takes it with the last
+   of the spacer's width instead of leaving it behind. */
+#header-sidebar-spacer::after {
+  content: "";
+  border-inline-end: 1px solid var(--border-color);
+}
+
+#header-sidebar-spacer.collapsed {
+  --panel-reveal: 0;
+}
+
+#header-sidebar-spacer.animated {
+  transition: --panel-reveal var(--panel-slide-duration) var(--panel-slide-easing);
+}
+
+/* The header's tab area: one strip per editor group, over the group it
+   belongs to. Positioned for the drag layer below. */
+#header-tabs {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+}
+
+/* Where a carried tab rides (tabDrag.ts), over both strips and clipped by
+   neither: the active tab reaches above the layer, to the header's top.
+   It takes no pointer: the host holds the pointer while a tab is carried. */
+.editor-tab-drag-layer {
+  position: absolute;
+  inset: 6px 0 0 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* #header-sidebar-spacer's mirror: exactly #assistant's open width, so the
+   inspector's tabs start at the column's edge. The padding is room before
+   the window controls.
+
+   Its max-content is the column's floor (assistantPanel.ts): open, it never
+   outgrows the column, which would part its line from the column's edge. It
+   still holds the toggle and the controls while it narrows with the column's
+   slide (assistant.css), down to them. */
+#header-assistant {
+  flex-shrink: 0;
+  width: calc(var(--assistant-width) * var(--panel-reveal));
+  min-width: max-content;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-inline: 6px 8px;
+  container-name: header-assistant;
+}
+
+#header-assistant.collapsed {
+  --panel-reveal: 0;
+}
+
+#header-assistant.animated {
+  transition: --panel-reveal var(--panel-slide-duration) var(--panel-slide-easing);
+}
+
+/* The tabs are .rail-icon buttons, muted like the rail's glyphs. The bar that
+   marks the selected one lies along the header's bottom edge here, over the
+   header's line, instead of the rail's leading edge.
+
+   Through a slide the strip takes whatever room the toggle leaves and crops
+   the rest, so its tabs and the column's border line (its ::before, which
+   the crop removes with them) follow the column's edge under the toggle.
+   contain keeps the tabs from holding the region open at their width.
+   isolate keeps the bar's and glyphs' z-index inside the strip. */
+#inspector-tabs {
+  align-self: stretch;
+  flex: 1 1 0;
+  display: flex;
+  margin-inline-start: -6px;
+  overflow: clip;
+  contain: inline-size;
+  isolation: isolate;
+}
+
+/* #assistant's border, continued up through the header: a border, not a
+   gradient, so it snaps to the same device pixel as that one at fractional
+   scales. */
+#inspector-tabs::before {
+  content: "";
+  flex: none;
+  border-inline-start: 1px solid var(--border-color);
+}
+
+/* Settled open, the tabs count again: the max-content above includes them,
+   and the column's floor is measured from it. */
+@container header-assistant style(--panel-reveal: 1) {
+  #inspector-tabs {
+    contain: none;
+  }
+}
+
+#header-assistant.collapsed #inspector-tabs {
+  display: none;
+}
+
+#header-assistant.animated #inspector-tabs {
+  transition: display var(--panel-slide-duration) allow-discrete;
+}
+
+/* flex: none, or a narrowing strip would squeeze its tabs and bar instead
+   of cropping them. The bar's box is a tab wide: the inspector steps it
+   along by its own width. */
+#inspector-tabs .rail-icon,
+#inspector-tabs .rail-indicator {
+  flex: none;
+  width: 44px;
+  height: 100%;
+}
+
+/* As far under the icon's centre as on the sidebar's taller rail, and over
+   the bar as the glyph is (below). */
+#inspector-tabs .rail-badge {
+  top: 21px;
+  z-index: 2;
+}
+
+/* The bar slides between the tabs as the rail's does. A flex item whose
+   margin takes its width back, so it holds no room and starts where the
+   first tab does: after the border line, on the same device pixel at every
+   scale. An absolute box would start on the line.
+
+   The selected tab's tint is this box's own background, so it slides with
+   the bar. */
+#inspector-tabs .rail-indicator {
+  position: relative;
+  margin-inline-end: -44px;
+  background: var(--bg-hover);
+}
+
+/* The bar stacks above the tabs (z-index 1, sidebar.css), or hovering the
+   selected tab would paint its fill over the bar. So the glyphs stack above
+   the bar's box, or its tint would cover the selected glyph. */
+#inspector-tabs .rail-icon svg {
+  position: relative;
+  z-index: 2;
+}
+
+/* --text-primary, not the rail's --text-highlight: the bar and the tint
+   mark the selected tab here, so its glyph needs no brighter step than a
+   hovered one's. */
+#inspector-tabs .rail-icon.active {
+  color: var(--text-primary);
+}
+
+/* The bar wears the focused tab's stripe colour (editor-tabs.css), saying
+   where the file the inspector shows lives. It changes in the same frame as
+   the stripe, without the rail's colour blend: following a tab switch, a
+   blend would draw the eye to a panel nobody touched. */
+#inspector-tabs .rail-indicator::before {
+  inset: auto 7px 0;
+  width: auto;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--view-space);
+  transition: none;
+}
+
+#inspector-tabs .rail-indicator.foreign-root::before {
+  background: var(--view-library);
+}
+
+/* A tab whose panel has nothing to show. Selected or hovered, it brightens
+   like any other: its panel says why it is empty. */
+#inspector-tabs .rail-icon.empty:not(.active, :hover) {
+  color: var(--text-faint);
+}
+
+/* An editor group's tab strip. Pills scroll horizontally within it; the
+   scrollbar is hidden. The new-tab button centres below the strip's padding,
+   and the pills grow up into it (editor-tabs.css), the active one to the
+   header's top.
+
+   Strict containment, so nothing a pill does as it grows or shrinks can
+   change the layout around the strip; its paint containment also keeps the
+   active pill's z-index inside the strip, under the resize lines that
+   overlap the strip's edges.
+
+   The strip's width comes from the header's row and editorArea.ts, never
+   from its pills: sized from them, a contained strip would collapse to
+   nothing. */
+.editor-group-tabs {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  contain: strict;
+}
+
+/* The divider between two groups, continued up through the header: drawn
+   only, lit with the divider below. It takes no pointer, so a resize starts
+   only below the header and the strip after it keeps its first pixels. Its
+   line overlaps those pixels, so it stacks above that strip. */
+.editor-group-header-divider {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.editor-group-header-divider + .editor-group-tabs {
+  border-inline-start: 1px solid var(--border-color);
+}
+
+/* On Electron the header is a window-drag region. While a tab is carried
+   the strips stop being one, so the pointer crossing them moves the tab and
+   never the window. */
+#header-tabs.tab-dragging .editor-group-tabs {
+  -webkit-app-region: no-drag;
+}
+
+.editor-group-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-group-new-tab {
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* Holds the room of pills closed near the end of a scrolled strip while the
+   pointer stays on it, so the scroll can't clamp under the pointer
+   (editorGroup.ts). flex: none, or the strip's overflow would shrink it away. */
+.editor-group-closing-spacer {
+  flex: none;
+}
+
+/* The room for the minimize, maximize and close Electron draws over the
+   header's end on Windows and Linux (electron/main.ts): what the overlay's
+   titlebar-area-* leave out. The margin takes back #header-assistant's end
+   padding, so the room reaches the window's edge as the controls do.
+
+   Its color is the one they draw their glyphs in (windowControls.ts). */
+#header-window-controls {
+  flex-shrink: 0;
+  width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  margin-inline-end: -8px;
+  color: var(--text-muted);
+}
+
+/* The side panels slide out past the window's edges (sidebar.css,
+   assistant.css). clip, not hidden: hidden overflow is still scrollable, and
+   focus left in a sliding panel would scroll the whole workspace sideways to
+   follow it. Sideways only: the side panels' resize lines reach up out of it
+   into the header (panel-resize.css). */
+#workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  overflow-x: clip;
+}
+
+/* Shown only while a git action is in flight. Deliberately invisible rather
+   than a dimming overlay: a sync is over in a second or two, and flashing the
+   workspace grey each time would be worse than the brief inertness. It exists
+   to swallow clicks; the keyboard half of the lock is a blur done alongside
+   it. */
+#workspace-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-scrim);
+  background: transparent;
+  cursor: progress;
+}

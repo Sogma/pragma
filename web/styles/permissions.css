@@ -1,0 +1,35 @@
+/* The Permissions panel: a document's grants, one .field-row each, with
+   the Flow's unattended grant last. */
+
+/* A permission row's target, after its verb: the path is the detail, the
+   verb is what is being granted. The path selects whole on one click, for
+   copying; the unattended row's "until …" is a phrase and selects as text. */
+.permission-target {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.permission-standing .permission-target {
+  user-select: text;
+}
+
+/* The unattended grant is a different question from the capabilities above
+   it, so a heavier rule sets it apart. The row before it drops its own
+   subtle border, or the two would stack into a double line. */
+.field-row:has(+ .permission-standing) {
+  border-bottom: none;
+}
+
+.permission-standing {
+  margin-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* The unattended row's Allow opens a menu of how long, so a chevron follows
+   its word. */
+.permission-allow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

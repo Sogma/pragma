@@ -1,0 +1,288 @@
+/* One node card: title bar over input/output port stacks, plus optional
+   config fields, dropzone, and a result/error line after Run. */
+.flow-node {
+  position: absolute;
+  width: 240px;
+  transform-origin: 0 0;
+  /* Title, ports, content. A grid, not a column flexbox: a resized card has
+     only a minimum height, so a flexbox's items get no definite height and
+     Chrome reads the picture zone's container units as zero. A grid's rows
+     are definite; the last takes the spare height. The one column is the
+     card's width, never its widest content's. */
+  display: grid;
+  grid-template: auto auto 1fr / minmax(0, 1fr);
+  /* Not --bg-primary: .flow-pane has no background of its own, so a card in
+     the base token blends into the canvas. --bg-secondary gives a subtler
+     lift than --bg-inset. */
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--panel-radius);
+  font-family: var(--font-default);
+  cursor: grab;
+  user-select: none;
+  box-shadow: var(--shadow-card);
+}
+
+.flow-node:active {
+  cursor: grabbing;
+}
+
+/* A colored node: the color fades down the body from under the title, as a
+   share of the card's height. It must stay above .running and .selected:
+   all three set border-color at equal specificity, and theirs must win. */
+.flow-node.tinted {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--node-color) 12%, var(--bg-secondary)),
+    color-mix(in srgb, var(--node-color) 2%, var(--bg-secondary)) 100%
+  );
+  border-color: color-mix(in srgb, var(--node-color) 49%, var(--border-color));
+}
+
+/* The node currently executing during a Run; only one carries this at a time.
+   Full-strength accent, unlike .selected: a Run in progress is worth being
+   bold about. */
+.flow-node.running {
+  border-color: var(--color-accent);
+}
+
+/* An accent glow, the Settings modal's edge in blue, pulses so a slow node
+   still reads as live. It fades on a pseudo-element rather than scaling the
+   card, which would drag the ports and edge endpoints with it, and animates
+   opacity alone, never the shadow, which would repaint every frame. The base
+   opacity is the full glow, so the reduced-motion reset settles on it. */
+.flow-node.running::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: var(--panel-radius);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--color-accent) 90%, transparent);
+  pointer-events: none;
+  animation: flow-node-running-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes flow-node-running-glow {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* The single clicked-on node: a neutral --text-primary border, not a coloured
+   one, so a merely selected node reads quieter than a .running one. No extra
+   ring; the base box-shadow is enough. */
+.flow-node.selected {
+  border-color: var(--text-primary);
+  /* Cards are absolutely positioned siblings and would stack in DOM order, so
+     an older card could cover the one just clicked, including while dragging
+     it. The stacking context is .flow-viewport's transform, so this lifts the
+     card over its neighbours only, never over the pane's chrome. */
+  z-index: 1;
+}
+
+.flow-node-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  font-weight: 600;
+  background: var(--bg-hover);
+  border-radius: 7px 7px 0 0;
+}
+
+/* The divider would cut the colored title off from the tinted body. */
+.flow-node.tinted .flow-node-title {
+  background: var(--node-color);
+  border-bottom-color: transparent;
+}
+
+.flow-node-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A node a run leaves out: a disabled one greyed and tagged, one a disabled
+   node feeds dimmed. Opacity on the whole card, so its pins fade with it and
+   meet the wires' dashes (canvas.css). */
+.flow-node.disabled {
+  opacity: 0.4;
+}
+
+.flow-node.skipped {
+  opacity: 0.6;
+}
+
+.flow-node-disabled-tag {
+  display: none;
+  flex: none;
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.flow-node.disabled .flow-node-disabled-tag {
+  display: inline;
+}
+
+/* Rename's in-place editor, swapped in for .flow-node-name at the same spot
+   and sized to match the bold title. */
+.flow-node-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--color-accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-weight: 600;
+  font-family: var(--font-default);
+  /* The title bar inherits .flow-node's grab cursor otherwise. */
+  cursor: text;
+}
+
+/* The canvas card's collapse toggle, wrapped around its title icon: the
+   icon is a mask, which would clip a hover background of its own. The
+   negative margin keeps the hover square out of the layout, so the title bar
+   stays its height and the name stays put.
+
+   currentColor, not --bg-hover: that is already the plain title's fill, and a
+   tinted title is its node color, so only the title's text color shows on both. */
+.flow-node-collapse {
+  display: flex;
+  flex: none;
+  padding: 3px;
+  margin: -3px;
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+
+.flow-node-collapse:hover {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+/* Collapsed: only the title bar, shrunk to max-content (the pill look) rather
+   than a full-width bar gone short. Edges stay connected: measurement swaps
+   in one synthetic handle per side, so a connected edge converges on the
+   title bar instead of vanishing. */
+.flow-node.collapsed {
+  width: max-content;
+}
+
+.flow-node.collapsed .flow-node-body,
+.flow-node.collapsed .flow-node-content,
+.flow-node.collapsed .flow-node-resize-handle {
+  display: none;
+}
+
+.flow-node.collapsed .flow-node-title {
+  border-bottom: none;
+  border-radius: 7px;
+}
+
+/* A node's comment, as a caption under its card. A child of the card, so
+   it moves with it, but out of the card's grid, so the card's size, pins and
+   wires stay as they are; nothing below makes room for it.
+
+   A collapsed card shrinks to its title, so the caption keeps the width the
+   card has open, which nodeCard.ts records.
+
+   It takes no pointer: a press on it reaches the canvas beneath, so only the
+   card's box drags or selects the node. */
+.flow-node-comment {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding-inline: 10px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.flow-node-comment[hidden] {
+  display: none;
+}
+
+.flow-node.selected > .flow-node-comment {
+  color: var(--text-muted);
+}
+
+.flow-node.collapsed > .flow-node-comment {
+  width: var(--flow-node-open-width);
+}
+
+/* The comment's in-place editor, over the caption: inset by the field's
+   border and padding, so the text being edited sits where the caption's does. */
+.flow-node-comment-field {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 5px;
+  right: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.flow-node.collapsed > .flow-node-comment-field {
+  right: auto;
+  width: calc(var(--flow-node-open-width) - 10px);
+}
+
+/* Lifted over the cards around it while the editor is open, as a selected
+   card is, so a card placed close below can't cover the field. */
+.flow-node:has(> .flow-node-comment-field) {
+  z-index: 1;
+}
+
+/* Everything below the port rows. A column, so a text box or picture can
+   grow into the spare height of a card resized taller than its content. */
+.flow-node-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inputs and outputs in side-by-side top-aligned columns, not stacked:
+   stacking would push a node's outputs below however many inputs it has. */
+.flow-node-body {
+  padding: 6px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.flow-node-inputs,
+.flow-node-outputs {
+  display: flex;
+  flex-direction: column;
+  /* Overrides the flex default min-width: auto so these columns can shrink
+     below their widest row; a <select>'s min-content is its widest option,
+     and generate's model dropdown pushed the output column past the card
+     edge. */
+  min-width: 0;
+}
+
+/* flex: 1 so a widget input's own flex: 1 control can fill the card; it only
+   stretches within this column. Outputs stay unstretched, since a label and a
+   dot are already as wide as they need to be. */
+.flow-node-inputs {
+  flex: 1 1 auto;
+}
+
+/* Get Field's outputs are its field dropdowns, so the width goes to them. */
+.flow-node[data-node-type="getField"] .flow-node-inputs {
+  flex: none;
+}
+
+.flow-node[data-node-type="getField"] .flow-node-outputs {
+  flex: 1 1 auto;
+}

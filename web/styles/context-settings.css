@@ -1,0 +1,71 @@
+/* A context's settings (services/contextSettings.ts): rows the Context
+   dialog's groups and the Properties tab's card share. */
+.context-settings-unknown-label {
+  padding: 10px var(--card-inset) 0;
+  font-size: var(--small-font-size);
+  color: var(--text-faint);
+}
+
+/* A key nothing declares, as written: never a field, so nothing edits it. */
+.field-row.context-settings-unknown :is(.field-row-title, .field-row-value) {
+  font-family: var(--font-monospace);
+  font-size: var(--control-font-size);
+  color: var(--text-muted);
+}
+
+.context-setting-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.context-setting-value:is(.is-empty, .is-inherited, .is-missing) {
+  color: var(--text-muted);
+}
+
+/* A setting's folder gives way before the words around it: its middle
+   folders fold, then its start, never the setting's name or "from …". */
+.context-setting-value .path-label {
+  min-width: 0;
+}
+
+.context-setting-value:is(.is-inherited, .is-missing) .path-label-name {
+  color: var(--text-muted);
+}
+
+/* The dialog's control takes at most half its row, so a long path folds
+   where the setting's line would otherwise be squeezed to a word a line. */
+.context-setting-control {
+  min-width: 0;
+  max-width: 50%;
+}
+
+.context-setting-from {
+  color: var(--text-faint);
+}
+
+/* The Properties tab's card, under the pragma row and across the form. */
+.context-settings-card {
+  --card-inset: 12px;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block: 4px 2px;
+}
+
+/* On the assistant's grey column a box is the card primitive's white one: a
+   Settings card's fill is the column's own grey there, and would vanish. */
+.context-settings-card .settings-card {
+  background: var(--bg-primary);
+}
+
+.context-settings-card .settings-open-row {
+  font-size: var(--control-font-size);
+}
+
+.context-settings-card .settings-open-row > .field-row-title {
+  flex: 1 0 auto;
+}

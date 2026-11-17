@@ -1,0 +1,41 @@
+/* A setting's folder chooser (services/folderChooser.ts): the space tree's own
+   rows in a popover. It opens from the Context dialog, so it sits above
+   dialogs, as a menu does. */
+.folder-chooser {
+  z-index: var(--z-menu);
+  width: 300px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--box-radius);
+  background: var(--bg-secondary);
+}
+
+.folder-chooser-tree {
+  --tree-indent-root: 0px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.folder-chooser-tree .node-label {
+  cursor: pointer;
+}
+
+/* The keyboard's row while the search box keeps focus: the ring a list that
+   holds focus itself draws (utilities.css). */
+.folder-chooser-tree .node-label.cursor {
+  outline: 1px solid var(--text-faint);
+  outline-offset: -1px;
+}
+
+/* A folder holding no folders has nothing to open here, though the tree
+   gives it a chevron for its files. */
+.folder-chooser-tree .directory.is-leaf > .node-label::before {
+  background: none;
+  mask: none;
+}
+
+.folder-chooser-empty {
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: var(--control-font-size);
+}

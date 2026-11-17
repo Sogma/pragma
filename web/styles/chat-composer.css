@@ -1,0 +1,129 @@
+/* The composer is one field: .form-input on the form draws the box and the
+   textarea inside it is bare. The box lights for the textarea's focus only;
+   the chip and the send button show their own. */
+#chat-form {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 8px 8px;
+  padding: 8px 6px 6px 10px;
+  border-radius: var(--panel-radius);
+  cursor: text;
+}
+
+#chat-form:has(#chat-input:focus) {
+  border-color: var(--border-focus);
+}
+
+#chat-input {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.45;
+  resize: none;
+}
+
+/* Grows with what is typed, up to the cap, where a textarea can size to its
+   text; elsewhere it keeps its one row and scrolls. The line-height above is
+   explicit because 1lh resolves short under `normal`. */
+@supports (field-sizing: content) {
+  #chat-input {
+    field-sizing: content;
+    min-height: 1lh;
+  }
+}
+
+/* The chat's text grey, not the faint one other fields' placeholders use:
+   the hint is most of what an idle composer shows. */
+#chat-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.chat-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
+}
+
+/* The chips share the toolbar's left and the send button its right. The
+   model's name gives way at a narrow width; the mode chip keeps its size. */
+.chat-composer-chips {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The model chip and the copilot's mode chip, flat buttons in the toolbar.
+   The model chip's mark lines up with the text above. */
+.chat-model-chip,
+.chat-mode-chip {
+  height: 26px;
+  padding: 0 6px 0 4px;
+  border-radius: var(--control-radius);
+}
+
+.chat-model-chip {
+  margin-inline-start: -4px;
+}
+
+.chat-mode-chip {
+  flex: none;
+  gap: 6px;
+}
+
+/* Each mode's glyph, on the chip and on its row in the mode menu. */
+[data-chat-mode="viewing"] {
+  --chat-mode-icon: var(--icon-eye);
+}
+
+[data-chat-mode="suggesting"] {
+  --chat-mode-icon: var(--icon-message);
+}
+
+[data-chat-mode="editing"] {
+  --chat-mode-icon: var(--icon-pencil);
+}
+
+.chat-mode-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--chat-mode-icon) center / contain no-repeat;
+}
+
+.chat-mode-menu .context-menu-icon {
+  margin-top: 2px;
+  mask-image: var(--chat-mode-icon);
+}
+
+#chat-send {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+#chat-send:disabled {
+  background: var(--bg-hover);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.chat-send-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-arrow-up) center / contain no-repeat;
+}

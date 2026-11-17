@@ -1,0 +1,210 @@
+/* Paid work in the Tools tab: the open Flow's runs and jobs, and a note's
+   toolkit runs under its buttons (web/flow/jobRows.ts). Its headings read
+   as the toolkit sections' do above it. */
+.flow-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-jobs[data-empty] {
+  display: none;
+}
+
+/* With jobs to show, the Tools tab's line saying a file has no toolkits is
+   only noise above them. */
+#inspector-tools:has(.flow-jobs:not([data-empty])) #button-list[data-empty] {
+  display: none;
+}
+
+.flow-jobs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-jobs-heading {
+  padding: 6px;
+}
+
+.flow-jobs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: start;
+}
+
+button.flow-jobs-row {
+  cursor: pointer;
+}
+
+button.flow-jobs-row:hover {
+  background: var(--bg-hover);
+}
+
+.flow-jobs-thumb {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 29px;
+  border-radius: var(--control-radius);
+  background: var(--bg-hover);
+  color: var(--color-accent);
+}
+
+.flow-jobs-thumb:not(.is-running)::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  mask: var(--icon-video) center / contain no-repeat;
+}
+
+/* Before the stages' glyphs, which win over it. */
+.flow-jobs-thumb[data-kind="image"]::before {
+  mask-image: var(--icon-image);
+}
+
+.flow-jobs-thumb.is-saved {
+  color: var(--text-muted);
+}
+
+.flow-jobs-thumb.is-failed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.flow-jobs-thumb.is-failed::before {
+  mask-image: var(--icon-circle-x);
+}
+
+.flow-jobs-thumb.is-interrupted {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.flow-jobs-thumb.is-interrupted::before {
+  mask-image: var(--icon-triangle-alert);
+}
+
+.flow-jobs-thumb.is-cancelled {
+  color: var(--text-muted);
+}
+
+.flow-jobs-thumb.is-cancelled::before {
+  mask-image: var(--icon-ban);
+}
+
+/* Cancel, as a circle and slash: muted, red on hover. */
+.flow-jobs-cancel {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.flow-jobs-cancel::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  mask: var(--icon-ban) center / contain no-repeat;
+}
+
+.flow-jobs-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--color-danger);
+}
+
+/* The run or job Cancel asks about, atop its dialog. */
+.flow-jobs-summary {
+  padding: 8px 10px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--box-radius);
+  background: var(--bg-inset);
+}
+
+.flow-jobs-spinner {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  animation: spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-jobs-spinner {
+    animation: none;
+  }
+}
+
+.flow-jobs-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.flow-jobs-title,
+.flow-jobs-detail,
+.flow-jobs-stage {
+  overflow: hidden;
+  font-size: var(--small-font-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A row that opens nothing selects a line at a time: one click takes the
+   whole line, the part its ellipsis cuts too, as the Info tab's cut values
+   do (flowJobs.ts holds the list's redraws meanwhile). A saved row is a
+   button, where a press opens its file. */
+.flow-jobs-row:not(button) :is(.flow-jobs-title, .flow-jobs-detail, .flow-jobs-stage) {
+  user-select: all;
+}
+
+.flow-jobs-title {
+  font-weight: 600;
+}
+
+.flow-jobs-detail,
+.flow-jobs-stage {
+  color: var(--text-muted);
+}
+
+.flow-jobs-stage.is-live {
+  color: var(--color-accent);
+}
+
+/* What went wrong is read whole, so it wraps. */
+.flow-jobs-stage.is-failed,
+.flow-jobs-stage.is-problem {
+  white-space: normal;
+}
+
+.flow-jobs-stage.is-failed {
+  color: var(--color-danger);
+}
+
+.flow-jobs-stage.is-problem {
+  color: var(--color-warning);
+}

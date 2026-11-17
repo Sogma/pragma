@@ -1,0 +1,209 @@
+#button-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The runs listed under the buttons keep their own look (flow/jobs.css);
+   :where adds nothing, so the rules after this still win as they did. */
+#button-list button:where(:not(.flow-jobs *)) {
+  font-family: var(--font-default);
+  padding: 2px 4px;
+  border-top: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: start;
+}
+
+#button-list button:where(:not(.flow-jobs *)):hover {
+  background: var(--bg-hover);
+}
+
+/* The glyph and label are one box, centred with 5px of room after it, so
+   the label sits 7.5px right of centre: the glyph is thin and dim, and the
+   eye centres on the label. */
+#button-list .run-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  padding: 4px;
+  border-radius: var(--box-radius);
+  background: var(--run-button-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* The room after the label gives way before the label is cut. A negative
+   start margin on the glyph centres the label alike, but a cut label
+   starts at the button's edge and would press the glyph into it. */
+#button-list .run-button::after {
+  content: "";
+  flex: 0 1 5px;
+}
+
+/* One line, ending in an ellipsis past the button's width. flex: none, so
+   the room after it shrinks before the label is cut. */
+#button-list .run-button-content {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The node card's own glyph, picked by the button's data-node-type
+   (flow/nodes.css).
+
+   Inline, not a flex item beside the label: the ellipsis only cuts text
+   that sits inline in its box, so a label in a flex row overflows uncut. */
+#button-list .run-button-content > .flow-node-dot {
+  display: inline-block;
+  vertical-align: -0.15em;
+  margin-inline-end: 6px;
+}
+
+#button-list .run-button:hover {
+  background: var(--run-button-bg-hover);
+}
+
+/* Filled with its node's color, its label colored from script. Hover mixes
+   in the text color, which darkens in the light theme and lightens in the
+   dark one, as the plain button's hover does. */
+#button-list .run-button.colored {
+  background: var(--node-color);
+}
+
+#button-list .run-button.colored:hover {
+  background: color-mix(in srgb, var(--node-color) 88%, var(--text-primary));
+}
+
+/* A toolkit's buttons render inside one of these: a titled, collapsible group, so
+   a document its Classes give several toolkits (docs/protocol.md's Toolkit
+   resolution) doesn't become one button pile. */
+.toolkit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The row carries the hover and the divider, so they span both of its
+   buttons. The toggle paints no hover of its own: its rounded fill would
+   double the row's edge. */
+.toolkit-section-header {
+  display: flex;
+  align-items: center;
+  border-radius: var(--control-radius);
+}
+
+.toolkit-section-header:hover {
+  background: var(--bg-hover);
+}
+
+.toolkit-section + .toolkit-section > .toolkit-section-header {
+  border-top: 1px solid var(--border-color);
+}
+
+/* #button-list-prefixed, like .run-button: an id beats two classes
+   regardless of order, so without the prefix #button-list button's own
+   padding/border/background win and the toggle renders as an ordinary
+   button. Its colour is .section-label's, restated for the same reason. */
+#button-list .toolkit-section-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#button-list .toolkit-section-toggle:hover {
+  background: none;
+}
+
+#button-list .toolkit-section-toggle[aria-expanded="true"] {
+  color: var(--text-primary);
+}
+
+.toolkit-section-chevron {
+  width: 12px;
+  height: 12px;
+}
+
+/* A bare icon-button at the row's end. #button-list button's padding,
+   border and fill outrank .icon-button's, so they're reset here. At 24px it
+   stays inside the toggle's height, so it never sets the row's. */
+#button-list .toolkit-section-menu {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+}
+
+#button-list .toolkit-section-menu:hover {
+  color: var(--text-primary);
+}
+
+.toolkit-section-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: start;
+}
+
+/* Equal columns of at least 120px, two at the default panel width, in the
+   Flow's order across then down. auto-fit, not auto-fill: a toolkit with
+   fewer buttons than columns stretches them across the row instead of
+   leaving empty slots. */
+.toolkit-section-body {
+  padding: 0 0 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  gap: 4px;
+}
+
+#action-results {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  user-select: text;
+}
+
+#action-results .option {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--font-default);
+  padding: 6px 8px;
+  border: 1px solid var(--color-accent-bg);
+  border-radius: var(--control-radius);
+  background: var(--color-accent-bg-faint);
+  color: var(--text-primary);
+}
+
+#action-results .option-text {
+  flex: 1;
+  white-space: pre-wrap;
+}
+
+/* What a run couldn't send as context, under its result: a note, not a
+   result. */
+#action-results .action-results-note {
+  margin: 0;
+  white-space: pre-line;
+  word-break: break-word;
+}

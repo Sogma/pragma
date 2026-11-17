@@ -1,0 +1,115 @@
+/* A value edited in place: one line at rest, a quiet textarea that wraps to
+   show the whole value while it is edited. A copy of the text lies over the
+   field in the same grid cell, the line shown at rest and invisible while
+   the field is edited. Where it sits, and its margins, are each surface's to
+   set. */
+.wrapping-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The copy must lay its text out exactly as the field does, or the pencil
+   lands away from the last word: a text or box property set on one goes on
+   both. */
+.wrapping-field > :is(.wrapping-field-input, .wrapping-field-copy) {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 4px;
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Stretched to the cell, so a pencil pushed onto a line of its own stays
+   inside the field's frame. */
+.wrapping-field > .wrapping-field-input {
+  align-self: stretch;
+  resize: none;
+}
+
+.wrapping-field > .wrapping-field-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* Grows with its text while it is typed into, where a textarea can size to
+   it: the copy only catches up when the edit ends. Elsewhere it is as tall
+   as the copy, and scrolls when typed past it. */
+@supports (field-sizing: content) {
+  .wrapping-field > .wrapping-field-input {
+    field-sizing: content;
+  }
+}
+
+/* Clicks pass through to the field, which puts the caret where they land:
+   on the pencil, after the last word. */
+.wrapping-field > .wrapping-field-copy {
+  border: 1px solid transparent;
+  color: transparent;
+  pointer-events: none;
+}
+
+.wrapping-field-copy::before {
+  content: attr(data-text);
+}
+
+/* At rest the copy shows the value on one line, cut with "…", the pencil kept
+   after the cut. The field under it holds one line with its text hidden, and
+   still takes the clicks. Its end padding is the pencil's room, so it is cut
+   off, and gives its tooltip, just when the copy is. */
+.wrapping-field:not(:focus-within) > .wrapping-field-input {
+  overflow: hidden;
+  padding-inline-end: 20px;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.wrapping-field:not(:focus-within) > .wrapping-field-copy {
+  display: flex;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.wrapping-field:not(:focus-within) > .wrapping-field-copy::before {
+  min-width: 0;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+}
+
+/* A flex item holding only a zero-width space, it would otherwise shrink
+   under a long value and cut its glyph. */
+.wrapping-field:not(:focus-within) .wrapping-field-pencil {
+  flex: none;
+}
+
+/* A field showing its placeholder shows it itself. */
+.wrapping-field-input:placeholder-shown + .wrapping-field-copy {
+  color: transparent;
+}
+
+/* The zero-width space gives it the line's height, so the glyph centers on
+   the line; 1lh resolves short under line-height: normal. Hidden, not
+   removed, while the field has focus: removing it would take away a line it
+   sits on alone, and what follows the field would jump. */
+.wrapping-field-pencil {
+  display: inline-block;
+  width: 12px;
+  margin-left: 4px;
+  color: var(--text-faint);
+  background-color: currentColor;
+  mask: var(--icon-pencil) center / 12px no-repeat;
+}
+
+.wrapping-field-pencil::before {
+  content: "\200b";
+}
+
+.wrapping-field:hover .wrapping-field-pencil {
+  color: var(--text-muted);
+}
+
+.wrapping-field:focus-within .wrapping-field-pencil {
+  visibility: hidden;
+}

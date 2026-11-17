@@ -1,0 +1,98 @@
+/* A note, a Table or another document on a plain page (web/notePreview.ts):
+   the gallery's preview of one and a link's. A page, not a picture: no mat,
+   the arrows' border and shadow.
+
+   Laid out at full size, a note's line length inside reading view's 24px
+   inset, and zoomed to the size shown: a note's text shrinks rather than
+   rewraps, so its lines keep their breaks at any size shown. A Table's page
+   is the same width, and a wider grid scrolls in it.
+
+   So is another document's, its locked editor centring its format's page
+   in it as edit view does, or at reading view's inset (codemirror.css). */
+.preview-page {
+  --page-start-inset: 18px;
+  --page-end-inset: 22px;
+  width: calc(var(--preview-line-length) + 50px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+  font-size: var(--editor-font-size);
+}
+
+.note-page > .editor-title-bar > .editor-title-inner,
+.note-page > .editor-reading-content {
+  max-width: none;
+}
+
+/* A Table as its tab lays it out: the title at the rows' left edge rather
+   than over a reading column, the form below it at the tab's inset. */
+.table-page > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+}
+
+.table-page > .data-table-form {
+  margin-top: 12px;
+  padding: 0 24px 24px;
+}
+
+/* A long title stops short of a link preview's open control, at the
+   smallest zoom too. */
+.link-preview > .preview-page > .editor-title-bar > .editor-title-inner {
+  padding-inline-end: 64px;
+}
+
+/* The control that opens the file: a bare icon, as the editor toolbar's More
+   options is, over the page's top right and clear of its scrollbar. Outside
+   the page, so it never zooms or scrolls with it; its corner wears the page's
+   colour, so text scrolled under it hides rather than crossing the glyph. */
+.preview-page-toolbar {
+  justify-self: end;
+  align-self: start;
+  margin: 14px 14px 0 0;
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  pointer-events: auto;
+}
+
+/* The open button's glyph, on a page and over a picture or a clip. */
+.preview-open::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-square-arrow-out) center / contain no-repeat;
+}
+
+/* A link's preview, placed and sized by its opener: over the editor, under a
+   dialog or a menu. The page and its control share one cell. */
+.link-preview {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: grid;
+}
+
+.link-preview > * {
+  grid-area: 1 / 1;
+}
+
+/* The pane behind a link's preview, muted: the page's own colour laid over
+   the editing area, with holes cut for the link (web/notePreview.ts). Over
+   anything reading view positions in the note, under the editor toolbar's
+   10. It takes no pointer, so what lies under it still hovers and clicks. */
+.link-preview-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--bg-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.link-preview-veil.is-shown {
+  opacity: 0.75;
+}

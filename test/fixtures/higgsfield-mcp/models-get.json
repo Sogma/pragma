@@ -1,0 +1,58 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"id\":\"seedance1_5\",\"name\":\"Seedance 1.5 Pro\",\"provider_name\":\"Bytedance\",\"description\":\"Reliable motion, improved quality\",\"output_type\":\"video\",\"parameters\":[{\"name\":\"duration\",\"required\":\"optional\",\"type\":\"number\",\"description\":\"Duration of the output video in seconds.\",\"options\":[4,8,12],\"default\":4},{\"name\":\"resolution\",\"required\":\"optional\",\"type\":\"string\",\"description\":\"Output resolution of the video.\",\"options\":[\"480p\",\"720p\",\"1080p\"],\"default\":\"720p\"},{\"name\":\"generate_audio\",\"required\":\"optional\",\"type\":\"bool\",\"description\":\"Generate native audio for the video. Set false for a silent video.\",\"default\":true}],\"medias\":[{\"name\":\"medias\",\"type\":\"image\",\"roles\":[\"start_image\",\"end_image\"]}],\"aspect_ratios\":[\"auto\",\"16:9\",\"9:16\",\"4:3\",\"3:4\",\"1:1\",\"21:9\"],\"tags\":[\"reliable\",\"motion\",\"quality\",\"versatile\"],\"unlim\":{\"available\":false,\"remaining\":null,\"expires_at\":null}}"
+    },
+    {
+      "type": "text",
+      "text": "Free-trial unlim: not spendable right now. Passing use_unlim returns a typed rejection rather than a charge, so it is still the right thing to send when the user asks for their free generations.\n\nUnlim configs: none sent — coverage detail is unknown, which is not the same as 'nothing is covered'. Pass use_unlim when the user asks and let the backend answer."
+    }
+  ],
+  "structuredContent": {
+    "id": "seedance1_5",
+    "name": "Seedance 1.5 Pro",
+    "provider_name": "Bytedance",
+    "description": "Reliable motion, improved quality",
+    "output_type": "video",
+    "parameters": [
+      {
+        "name": "duration",
+        "required": "optional",
+        "type": "number",
+        "description": "Duration of the output video in seconds.",
+        "options": [4, 8, 12],
+        "default": 4
+      },
+      {
+        "name": "resolution",
+        "required": "optional",
+        "type": "string",
+        "description": "Output resolution of the video.",
+        "options": ["480p", "720p", "1080p"],
+        "default": "720p"
+      },
+      {
+        "name": "generate_audio",
+        "required": "optional",
+        "type": "bool",
+        "description": "Generate native audio for the video. Set false for a silent video.",
+        "default": true
+      }
+    ],
+    "medias": [
+      {
+        "name": "medias",
+        "type": "image",
+        "roles": ["start_image", "end_image"]
+      }
+    ],
+    "aspect_ratios": ["auto", "16:9", "9:16", "4:3", "3:4", "1:1", "21:9"],
+    "tags": ["reliable", "motion", "quality", "versatile"],
+    "unlim": {
+      "available": false,
+      "remaining": null,
+      "expires_at": null
+    }
+  }
+}

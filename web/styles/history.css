@@ -1,0 +1,127 @@
+/* The History section under the space tree (view/sidebar/history.ts): its
+   rows are the tree's, a file's chevron drawn as a folder's is. */
+.history-list,
+.history-versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-tree .history-file > .node-label::before {
+  background-color: var(--text-muted);
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+  transition: transform var(--folder-slide-duration) ease;
+}
+
+.file-tree .history-file.collapsed > .node-label::before {
+  transform: rotate(-90deg);
+}
+
+.file-tree .history-version > .node-label {
+  --depth: 2;
+}
+
+/* A deleted file stays listed while its versions last, muted as the Trash's
+   entries are. */
+.file-tree .history-file.gone > .node-label {
+  color: var(--text-muted);
+}
+
+.history-folder,
+.history-time,
+.history-source {
+  flex: none;
+}
+
+.history-folder {
+  margin-inline-start: 6px;
+}
+
+/* At the row's end, where the eye runs down the times. */
+.history-time {
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+}
+
+.history-when {
+  flex: none;
+}
+
+.history-source {
+  min-width: 0;
+  margin-inline-start: 8px;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+}
+
+/* A version's tab (view/panes/versionPane.ts): a page as a note's is, its
+   heading where a note's title sits. The diff runs its full length rather
+   than a chat card's box, its lines wrapped as the note's are. */
+.editor-version {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--page-top-inset) 22px 24px 18px;
+}
+
+.version-page {
+  max-width: calc(var(--readable-line-length) + 8px);
+  margin: 0 auto;
+}
+
+/* As tall as the floating toolbar beside it, its text on the toolbar's
+   middle. */
+.version-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: center;
+  gap: 2px 8px;
+  min-height: 36px;
+}
+
+.version-when {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.version-note {
+  margin: 4px 0 12px;
+}
+
+.editor-version .diff {
+  max-height: none;
+}
+
+.editor-version .diff-line {
+  white-space: pre-wrap;
+}
+
+.editor-version .diff-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The toolbar's controls sit in its row as its own items do. */
+.version-toolbar {
+  display: contents;
+}
+
+.version-copy-icon,
+.version-restore-icon {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-copy) center / contain no-repeat;
+}
+
+.version-restore-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.version-restore-icon {
+  width: 14px;
+  height: 14px;
+  mask-image: var(--icon-history);
+}

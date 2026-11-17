@@ -1,0 +1,35 @@
+/* The Bookmarks view: a row per bookmark, drawn with the tree's row rules so
+   an entry reads the same in both. Only what sets a bookmark's row apart is
+   here. */
+
+/* The panel's one scroller, its rows flush with the title as the Space
+   view's top level is. */
+.file-tree .bookmarks-list {
+  --tree-indent-root: 0px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Each row takes focus, so its ring is the tree cursor's. */
+.file-tree .bookmark-row > .node-label:focus-visible {
+  outline: 1px solid var(--text-faint);
+  outline-offset: -1px;
+}
+
+/* The folder an entry sits in, after its name, when another bookmark shows
+   the same name. */
+.file-tree .bookmark-folder {
+  min-width: 0;
+  overflow-x: clip;
+  margin-inline-start: 6px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+}
+
+/* An entry the bookmark no longer finds opens nothing, and reads fainter
+   than the Trash's. */
+.file-tree .bookmark-row.missing > .node-label {
+  color: var(--text-faint);
+}

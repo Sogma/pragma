@@ -1,0 +1,20 @@
+name: Feature request
+description: Something Pragma doesn't let you do.
+type: Feature
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Keep the request to one thing. The design starts from your situation, so describe that before any solution.
+  - type: textarea
+    id: situation
+    attributes:
+      label: The situation
+      description: What you're working on, and what Pragma doesn't let you do there.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: A possible solution
+      description: Welcome once the situation is clear. Leave it blank if you don't have one.

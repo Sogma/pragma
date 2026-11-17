@@ -1,0 +1,220 @@
+/* Sections pinned under a panel's scroller (web/lib/sectionStack.ts). Full
+   bleed: the negative margins give back the sidebar's left and bottom
+   padding, so the dividing lines run edge to edge and the last header sits
+   on the panel's foot. Its own rows indent from 0, as the tree's do. */
+.section-stack {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 -8px -8px;
+  --tree-indent-root: 0px;
+}
+
+/* How far open a section is, 0 to 1: the side panels' --panel-reveal
+   arrangement (scale.css), so a drag on its edge still follows the pointer. */
+@property --section-reveal {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* Closed, a section is its header and the line above it. Open, it starts at
+   the height a drag left it and gives way before the scroller drops under
+   its own floor. It slides between the two as the side panels do, on
+   --section-reveal: a drag writes --section-height, so it still follows the
+   pointer mid-slide. */
+.stack-section {
+  --section-header-height: 26px;
+  --section-closed: calc(var(--section-header-height) + 1px);
+  position: relative;
+  flex: 0 1 calc(var(--section-closed) + (var(--section-height, 200px) - var(--section-closed)) * var(--section-reveal));
+  min-height: calc(
+    var(--section-closed) +
+    (var(--stack-section-min-height) - var(--section-closed)) *
+    var(--section-reveal)
+  );
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+  container-name: stack-section;
+  transition: --section-reveal var(--panel-slide-duration) var(--panel-slide-easing);
+}
+
+.stack-section.open {
+  --section-reveal: 1;
+}
+
+/* Above the scroller or section it straddles into. */
+.stack-section > .resize-handle {
+  z-index: 1;
+}
+
+.stack-section-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--section-header-height);
+  padding-inline-end: 8px;
+}
+
+/* Spaced as a tree row is, chevron then glyph, so the title lines up with
+   the names of the tree's top-level folders. */
+.stack-section-toggle {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 8px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* Turns as long as the section slides. */
+.stack-section-chevron {
+  margin-inline-end: 2px;
+  transition-duration: var(--panel-slide-duration);
+}
+
+.stack-section-glyph {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  mask: var(--glyph) center / contain no-repeat;
+}
+
+.stack-section-glyph[data-glyph="tag"] {
+  --glyph: var(--icon-tag);
+}
+
+.stack-section-glyph[data-glyph="trash"] {
+  --glyph: var(--icon-trash);
+}
+
+.stack-section-glyph[data-glyph="plus"] {
+  --glyph: var(--icon-plus);
+}
+
+.stack-section-glyph[data-glyph="template"] {
+  --glyph: var(--icon-template);
+}
+
+.stack-section-glyph[data-glyph="history"] {
+  --glyph: var(--icon-history);
+}
+
+.stack-section-glyph[data-glyph="file-plus"] {
+  --glyph: var(--icon-file-plus);
+}
+
+.stack-section-glyph[data-glyph="folder-plus"] {
+  --glyph: var(--icon-folder-plus);
+}
+
+/* In a folder icon's column, so in its grey. */
+.stack-section-toggle > .stack-section-glyph {
+  margin-inline-end: 4px;
+  background-color: var(--text-muted);
+}
+
+.stack-section-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* An open section's header in the space name's colour: its chevron, glyph,
+   title and count. A shut one keeps the label's grey. The actions stay icon
+   buttons, and the glyph class they also wear is why the first selector
+   names the toggle. */
+.stack-section.open
+  > .stack-section-header
+  > .stack-section-toggle
+  > :is(.stack-section-chevron, .stack-section-glyph) {
+  background-color: var(--text-primary);
+}
+
+.stack-section.open > .stack-section-header :is(.stack-section-title, .stack-section-count) {
+  color: var(--text-primary);
+}
+
+/* At the header's end, past the actions, so it holds its place whether the
+   section is open or closed. Outside the toggle, but a click on it opens or
+   closes the section all the same. */
+.stack-section-count {
+  flex: none;
+  padding-inline-start: 4px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* An open section keeps its actions' room, so nothing shifts when they show
+   on hover or focus. A closed one has none. */
+.stack-section-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: 4px;
+  visibility: hidden;
+}
+
+.stack-section.open .stack-section-actions {
+  display: flex;
+}
+
+.stack-section.open:is(:hover, :focus-within) .stack-section-actions {
+  visibility: visible;
+}
+
+.stack-section-action {
+  width: 22px;
+  height: 22px;
+}
+
+/* As much of the body as the section has room for. The clip, not the
+   section, so the edge's handle can still reach above it. */
+.stack-section-clip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+
+.stack-section-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 4px;
+}
+
+/* Shutting, the body stays drawn until the slide ends. */
+.stack-section:not(.open) .stack-section-body {
+  transition: display var(--panel-slide-duration) allow-discrete;
+}
+
+/* Mid-slide the body keeps its open height, so its rows and scrollbar hold
+   still while the clip grows or shrinks around them. */
+@container stack-section not style(--section-reveal: 1) {
+  .stack-section-body {
+    flex: none;
+    height: calc(var(--section-height, 200px) - var(--section-closed));
+  }
+}
+
+/* A section with nothing to list says so in one muted line, where its rows
+   would start. */
+.stack-section-message {
+  margin: 0;
+  padding: 4px;
+  color: var(--text-muted);
+}

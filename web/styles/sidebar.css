@@ -1,0 +1,355 @@
+/* The sidebar slides instead of narrowing, as #assistant does
+   (assistant.css): a negative start margin pulls its full width behind
+   #rail, so nothing inside re-lays out mid-slide. */
+#sidebar {
+  width: var(--sidebar-width);
+  margin-inline-start: calc(var(--sidebar-width) * (var(--panel-reveal) - 1));
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-inline-end: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 8px 8px;
+}
+
+#sidebar[hidden] {
+  --panel-reveal: 0;
+}
+
+#sidebar.animated {
+  transition:
+    --panel-reveal var(--panel-slide-duration) var(--panel-slide-easing),
+    display var(--panel-slide-duration) allow-discrete;
+}
+
+@starting-style {
+  #sidebar.animated {
+    --panel-reveal: 0;
+  }
+}
+
+/* Drags write --sidebar-width itself, not #sidebar's width, so
+   #header-sidebar-spacer follows for free. Hidden with #sidebar: a collapsed
+   sidebar has no edge to resize. z-index is load-bearing: #editor is also
+   positioned and later in DOM order, so it would paint over the strip that
+   overlaps it. */
+#sidebar-resize-handle {
+  z-index: 1;
+}
+
+/* Stacked above #sidebar, which slides out behind it; it is also what
+   covers the sidebar's last pixels, so its background stays opaque. */
+#rail {
+  position: relative;
+  z-index: 1;
+  width: var(--rail-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 0 0;
+  background: var(--bg-secondary);
+  border-inline-end: 1px solid var(--border-color);
+}
+
+/* An .icon-button as wide as the rail. */
+.rail-icon {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  border-radius: 0;
+}
+
+/* The active-view indicator: a left accent bar plus a brightened glyph. */
+.rail-icon.active {
+  color: var(--text-highlight);
+}
+
+/* A view's bar is .rail-indicator's, which slides between views; a view
+   button drawing one too would show two. Settings isn't a view and keeps
+   its own. */
+#rail .rail-icon:not([data-view]).active::before,
+.rail-indicator::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 0 2px 2px 0;
+}
+
+/* The shell sizes and moves this box onto the active view's button, as the
+   inspector does onto its selected tab (frame.css). It moves by transform
+   so the slide runs on the compositor while the new panel renders, and
+   sits above the buttons, whose hover fill would otherwise cover it. */
+.rail-indicator {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.rail-indicator.animated {
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rail-indicator.animated::before {
+  transition: background-color 260ms ease;
+}
+
+/* The bar paints in its view's tokens.css --view-* colour; a view without
+   one keeps the accent above. */
+.rail-indicator[data-view="space"]::before {
+  background: var(--view-space);
+}
+
+.rail-indicator[data-view="search"]::before {
+  background: var(--view-search);
+}
+
+.rail-indicator[data-view="source-control"]::before {
+  background: var(--view-source-control);
+}
+
+.rail-indicator[data-view="websites"]::before {
+  background: var(--view-websites);
+}
+
+.rail-indicator[data-view="bookmarks"]::before {
+  background: var(--view-bookmarks);
+}
+
+.rail-indicator[data-view="library"]::before {
+  background: var(--view-library);
+}
+
+/* The Space view's icon is Pragma's signature: while the view is open, and in
+   a dialog's title, its rings and arcs take these colours. Otherwise the whole
+   icon follows the button's text colour, as every other glyph does, so the
+   rail at rest stays muted. */
+.rail-icon.active .space-icon-ring-top,
+.dialog-title-icon .space-icon-ring-top {
+  stroke: var(--pragma-crimson);
+}
+
+.rail-icon.active .space-icon-ring-right,
+.dialog-title-icon .space-icon-ring-right {
+  stroke: var(--pragma-blue);
+}
+
+.rail-icon.active .space-icon-ring-left,
+.dialog-title-icon .space-icon-ring-left {
+  stroke: var(--pragma-orange);
+}
+
+.rail-icon.active .space-icon-arc-right,
+.dialog-title-icon .space-icon-arc-right {
+  stroke: var(--pragma-green);
+}
+
+.rail-icon.active .space-icon-arc-bottom,
+.dialog-title-icon .space-icon-arc-bottom {
+  stroke: var(--pragma-yellow);
+}
+
+.rail-icon.active .space-icon-arc-left,
+.dialog-title-icon .space-icon-arc-left {
+  stroke: var(--pragma-red);
+}
+
+/* A view's count or warning mark (count-badge.css), over the lower right of
+   its glyph. Placed from the button's centre, where the glyph is, not from
+   its edge. */
+.rail-badge {
+  position: absolute;
+  top: 25px;
+  left: calc(50% + 3px);
+  pointer-events: none;
+}
+
+.rail-badge.warning {
+  background: var(--color-warning);
+}
+
+#rail-settings {
+  margin-top: auto;
+}
+
+.sidebar-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Static header for the sidebar panels other than Space, whose
+   #tree-space-name is a switcher button instead. Same uppercase/muted
+   treatment, so they all read as one family. */
+.sidebar-title,
+#tree-space-name {
+  font-size: var(--ui-font-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.sidebar-title {
+  flex-shrink: 0;
+  margin: 0 0 8px;
+  padding-left: 4px;
+}
+
+/* The Libraries panel's title row: the title plus its one action. Only this
+   panel has an action, so the row sits beside .sidebar-title rather than
+   replacing it. */
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Sized and coloured like .list-item-menu so a panel-level action and a
+   row-level one read as the same weight of control. */
+.sidebar-title-action {
+  width: 22px;
+  height: 22px;
+  margin: 0 0 8px;
+}
+
+.sidebar-title-action-icon {
+  display: block;
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  mask: var(--icon-plus) center / contain no-repeat;
+}
+
+/* A quarter of the way down, not centred: the two spacers split the free
+   height 1:3 around the text. */
+.sidebar-panel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px;
+  margin: 0;
+}
+
+.sidebar-panel-empty::before,
+.sidebar-panel-empty::after {
+  content: "";
+}
+
+.sidebar-panel-empty::before {
+  flex: 1;
+}
+
+.sidebar-panel-empty::after {
+  flex: 3;
+}
+
+/* A sidebar view's scrolling list of accordion rows (Websites' sites, Libraries'
+   libraries). */
+.sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Shared by any expand-in-place .list-item accordion body. */
+.accordion-body {
+  padding: 4px 0 4px 8px;
+}
+
+/* The body leaves its right edge to the sidebar's scrollbar; an error card
+   stops short of it. */
+.accordion-body > .inline-error {
+  margin-inline-end: 8px;
+}
+
+#tree-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding-right: 8px;
+}
+
+#tree-space-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  /* The negative margin enlarges the hover box without moving the chevron and
+     label; the matching padding cancels it, so this still lines up with
+     .sidebar-title and the tree's own rows. */
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+#tree-space-name:hover,
+#tree-space-name[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+
+#tree-space-name-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* Against the chevron: a button would centre its stretched label. */
+  text-align: left;
+}
+
+/* Up and down chevrons rather than one: it reads as a picker's switch, not
+   expand/collapse. In em, like the tree's chevron, to track the font-size. */
+.space-name-chevron {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  mask: var(--icon-chevrons-up-down) center / contain no-repeat;
+}
+
+#tree-toolbar-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* Scoped to the icon buttons: #tree-space-name is a <button> too and keeps
+   its own width and padding, not this 26x26 square. */
+#tree-toolbar-actions button {
+  width: 26px;
+  height: 26px;
+}
+
+#tree-toolbar-actions button:hover {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.tree-collapse-all-icon {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-chevrons-down-up) center / contain no-repeat;
+}

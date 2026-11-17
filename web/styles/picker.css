@@ -1,0 +1,94 @@
+/* A picker names the value picked and opens a menu of the values under it:
+   Settings' dropdowns, the model pickers and the screenplay font. Each
+   surface draws its own box around it. At a narrow width the name gives
+   way, never a mark or the chevron.
+
+   The gap is a fallback rather than set here: a surface's own --picker-gap
+   comes earlier in the cascade, and would lose to a value set here. */
+.picker {
+  display: flex;
+  align-items: center;
+  gap: var(--picker-gap, 6px);
+  min-width: 0;
+  font-family: var(--font-default);
+  cursor: pointer;
+}
+
+.picker-name {
+  /* clip, not hidden: unlike hidden, clip leaves a flex item's least width
+     at its text's, so min-width lets the name give way. */
+  min-width: 0;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where a select's arrow sits, at the end however wide the button is drawn.
+   Also on the chips that open a menu without naming a value. */
+.picker-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+}
+
+.picker > .picker-chevron {
+  margin-inline-start: auto;
+}
+
+/* A choice picker's names share one cell, the one picked shown, so the
+   button is as wide as the longest choice. A button centres its text, which
+   would set a shorter name in from the left of that cell. */
+.picker-choices {
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+  text-align: start;
+}
+
+.picker-choice {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  visibility: hidden;
+}
+
+.picker-choice.current {
+  visibility: visible;
+}
+
+/* The menu scrolls inside a capped height, so a list of dozens of models
+   or hundreds of fonts never runs it off the window. The search box stays
+   above the scroll. */
+.context-menu.picker-menu {
+  max-height: min(480px, 60vh);
+}
+
+.picker-menu .context-menu-search {
+  font-size: var(--control-font-size);
+}
+
+.picker-menu .context-menu-items,
+.picker-menu .context-menu-results {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.picker-menu .context-menu-items > *,
+.picker-menu .context-menu-results > * {
+  flex: none;
+}
+
+/* A font picker's menu keeps one width whatever names it lists, and rows of
+   one height whatever each font's own line height. A row scrolled out of
+   view is never laid out, so of a list of hundreds only the fonts on screen
+   are loaded to draw. */
+.context-menu.font-menu {
+  width: 280px;
+}
+
+.font-menu button {
+  line-height: 20px;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 32px;
+}

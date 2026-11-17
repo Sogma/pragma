@@ -1,0 +1,21 @@
+/* A resize grip in a box's bottom-right corner: a small triangle in a 14px
+   hit area. A surface sets its colour and when it shows. */
+.corner-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+}
+
+.corner-grip::before {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}

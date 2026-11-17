@@ -1,0 +1,49 @@
+/* Selected text: the layer CodeMirror draws beneath an editor's text, the
+   mark on the selected text itself (lib/selection.ts), and with Bright
+   selection on, a document's reading view and title. Unlayered, as
+   codemirror.css is: the layer's rule must beat CodeMirror's injected
+   stylesheet. */
+:root {
+  --selection-bg: var(--bg-selected);
+  --selection-fg: currentcolor;
+  --selection-bright-bg: var(--color-primary);
+  --selection-bright-fg: var(--text-on-primary);
+}
+
+html.bright-selection {
+  --selection-bg: var(--selection-bright-bg);
+  --selection-fg: var(--selection-bright-fg);
+}
+
+/* One fill, focused or not: CodeMirror's own theme greys an unfocused
+   selection and tints a focused one. */
+#editor .cm-selectionBackground {
+  background: var(--selection-bg);
+}
+
+/* The same fill on the selected text, which a fill a format draws on its
+   text or line would otherwise hide. It stays opaque: over the layer, a
+   see-through one would paint the text twice.
+
+   Through .cm-content, to outrank the formats' rules that colour every
+   descendant of a mark (`#editor .cm-shown-syntax *`). */
+#editor .cm-content .cm-selected-text {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+/* Find's matches, a proposal's removed text and a reveal keep their own
+   look; a reveal selects what it flashes. */
+#editor .cm-content :is(.cm-searchMatch, .cm-proposal-delete, .flash) {
+  --selection-bg: transparent;
+  --selection-fg: currentcolor;
+}
+
+/* Reading view and a title draw the browser's own selection, which already
+   paints over a code span's fill; Bright selection colours it too. */
+html.bright-selection .editor-reading-content::selection,
+html.bright-selection .editor-reading-content ::selection,
+html.bright-selection :is(.editor-document-pane, .note-page) .editor-title-input::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}

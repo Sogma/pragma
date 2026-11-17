@@ -1,0 +1,49 @@
+name: Publish release
+
+# The deliberate "ship it" gate. Flips a draft GitHub Release (built by
+# release.yml) to published + latest, after checking its electron-updater
+# metadata is actually there. Once this runs, installed Windows/Linux copies
+# pick the update up on their next check.
+#
+# Run it from the Actions tab (Publish release -> Run workflow -> tag), or
+# locally: `gh release edit v0.1.7 --draft=false --latest`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the draft release to publish, e.g. v0.1.7"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # latest-mac.yml stands for the Mac upload, though Macs don't
+      # auto-update: once the release is published, electron-builder skips
+      # an upload still to come with only a warning.
+      - name: Verify the draft has its updater metadata, then publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          view=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets)
+          if [ "$(echo "$view" | jq -r .isDraft)" != "true" ]; then
+            echo "::error::$TAG is not a draft (already published, or does not exist)."
+            exit 1
+          fi
+          assets=$(echo "$view" | jq -r '.assets[].name')
+          echo "Assets on $TAG:"
+          echo "$assets"
+          for f in latest-mac.yml latest.yml latest-linux.yml; do
+            if ! echo "$assets" | grep -qx "$f"; then
+              echo "::error::draft $TAG is missing $f — has the build finished?"
+              exit 1
+            fi
+          done
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Published $TAG and marked it latest."

@@ -1,0 +1,119 @@
+/* Settings → Shortcuts: a search row over one .field-row per command, its
+   chords on the right as key chips. Rows sit tighter than other categories'
+   since the list holds every palette command, and the search row stays put
+   while it scrolls. */
+/* Sticky measures from inside the page's 16px top padding; -16px pins the
+   row to the edge itself, or the row scrolling under it shows above. */
+.shortcuts-search {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  background: var(--bg-primary);
+}
+
+.shortcuts-filter {
+  flex: 1;
+  width: auto;
+}
+
+.shortcuts-by-key[aria-pressed="true"] {
+  background: var(--bg-hover);
+  color: var(--color-accent);
+}
+
+.settings-card > .shortcut-row {
+  padding-block: 8px;
+}
+
+.shortcut-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 2px 1px 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-secondary);
+}
+
+.shortcut-chip-key {
+  font-family: var(--font-default);
+  white-space: nowrap;
+}
+
+.shortcut-chip-remove {
+  width: 18px;
+  height: 18px;
+  color: var(--text-faint);
+}
+
+.shortcut-chip-warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.shortcut-chip-warning::before {
+  width: 12px;
+  height: 12px;
+  margin-inline-end: 4px;
+  background-color: var(--color-warning);
+  content: "";
+  mask: var(--icon-triangle-alert) center / contain no-repeat;
+}
+
+.shortcut-recorder {
+  padding: 1px 8px;
+  border: 1px dashed var(--color-accent);
+  border-radius: var(--control-radius);
+  color: var(--text-muted);
+  white-space: nowrap;
+  outline: none;
+}
+
+.shortcut-add,
+.shortcut-reset {
+  width: 24px;
+  height: 24px;
+}
+
+.shortcut-add-icon,
+.shortcut-reset-icon,
+.shortcut-chip-remove-icon,
+.shortcuts-by-key-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--shortcut-icon) center / contain no-repeat;
+}
+
+.shortcut-add-icon {
+  --shortcut-icon: var(--icon-plus);
+}
+
+.shortcut-reset-icon {
+  --shortcut-icon: var(--icon-rotate-ccw);
+}
+
+.shortcut-chip-remove-icon {
+  --shortcut-icon: var(--icon-x);
+  width: 12px;
+  height: 12px;
+}
+
+.shortcuts-by-key-icon {
+  --shortcut-icon: var(--icon-keyboard);
+  width: 16px;
+  height: 16px;
+}

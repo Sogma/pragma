@@ -1,0 +1,292 @@
+/* The neutral button everywhere on a modal/panel/card surface. Carried by a
+   class, never by an `<ancestor> button` selector: `.toggle-switch` is a
+   `<button>` too, and a descendant selector outranks it and squares off the
+   pill.
+
+   The raised shadow sets these apart from the recessed .form-input fields
+   beside them; .icon-button and .toggle-switch stay flat on purpose. */
+.btn {
+  font-family: var(--font-default);
+  font-size: var(--control-font-size);
+  padding: 4px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The affirming twin of .btn.danger, in the same tinted shape: a primary
+   label over a wash of the same blue, filled on hover. */
+.btn.primary {
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--color-primary);
+}
+
+.btn.primary:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--text-on-primary);
+}
+
+/* The destructive twin of .btn, for a Remove that deletes something. Red
+   label over the normal surface rather than a red fill: these sit one per
+   row in a list, and a filled red would out-shout the pane's own primary
+   button. The fill is the hover state, matching .context-menu button.danger. */
+.btn.danger {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.btn.danger:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--text-on-danger);
+}
+
+/* A dialog's actions: roomier than a row's .btn, at the dialog's own text
+   size. */
+.btn.btn-large {
+  padding: 6px 14px;
+  font-size: inherit;
+}
+
+/* A .btn holding a glyph in place of its word, square at the worded button's
+   height. The glyph paints with the button's text colour, so .danger's red and
+   its hover's white reach it as they reach a word; a fixed colour would vanish
+   into the filled hover. */
+.btn.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+.btn-icon-glyph {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--btn-icon) center / contain no-repeat;
+}
+
+.btn-icon-remove {
+  --btn-icon: var(--icon-trash);
+}
+
+/* A .btn that opens a page in the browser ends in an outward arrow, so where
+   the click goes is no surprise. */
+.btn.btn-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn.btn-external::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-arrow-up-right) center / contain no-repeat;
+}
+
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* One look for an icon button that can't act: faint, with no hover fill to
+   promise a press. A solid primary keeps its own disabled look. */
+.icon-button:is(:disabled, [aria-disabled="true"]):not(.primary-fill) {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A labelled button with no box until pointed at: a Class's Filter, the
+   chat's model and mode chips, the canvas's zoom, Settings' Back. Under the
+   pointer or with its menu open it fills as an icon button does. A surface
+   sets its size, padding and corners. Only the fill's colour changes, so a
+   background image (the zoom's chevron) survives. */
+.flat-button {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-default);
+  cursor: pointer;
+}
+
+.flat-button:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* A primary action's solid blue: Run, Restore, Sync, a dialog's confirm,
+   the chat's send. The fill and the label's colour only; each keeps its own
+   shape, and after .icon-button so its fill wins there too. */
+.primary-fill {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--text-on-primary);
+}
+
+.primary-fill:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--text-on-primary);
+}
+
+/* A labelled action in a pane's floating toolbar, its glyph then its word:
+   Run, Restore and the count of runs beside Run. */
+.toolbar-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border: none;
+  border-radius: var(--box-radius);
+  font-family: var(--font-default);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* One switch in two forms: a role=switch <button> holding a .toggle-knob, and
+   a native checkbox, whose ::after is the knob, for a form where a <label>
+   toggles it and the keys come free. */
+.toggle-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--pill-radius);
+  background: var(--border-input);
+  cursor: pointer;
+}
+
+input.toggle-switch {
+  margin: 0;
+  appearance: none;
+}
+
+.toggle-switch:is([aria-checked="true"], :checked) {
+  background: var(--color-accent);
+}
+
+.toggle-switch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.toggle-knob,
+input.toggle-switch::after {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  transition: inset-inline-start 0.15s ease;
+}
+
+input.toggle-switch::after {
+  content: "";
+}
+
+.toggle-switch[aria-checked="true"] .toggle-knob,
+input.toggle-switch:checked::after {
+  inset-inline-start: 18px;
+}
+
+/* The soft filled action button: Add (a row), Add column, Add field, Publish. A
+   component overrides by class (the components layer wins), so it states
+   only its own placement or density, never these declarations again. */
+.action-button {
+  font-family: var(--font-default);
+  font-weight: 600;
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--box-radius);
+  background: var(--run-button-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.action-button:hover:not(:disabled) {
+  background: var(--run-button-bg-hover);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The bordered field, on <input>, <select>, <textarea> and a button that
+   stands in for one, such as a table's date cell. Density is the adopter's:
+   each sets its own padding, font-size and width on top of this.
+
+   An adopter's rule in the components layer outranks this one whatever its
+   specificity, so it sets no border, background or color: those would
+   override the focus and quiet states below as well. */
+.form-input {
+  font-family: var(--font-default);
+  padding: 6px 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-input);
+}
+
+/* Focus is the border alone: the browser's ring is a heavy near-black or
+   near-white outline that outweighs the field. */
+.form-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* A field that reads as plain text until hovered or focused, for values set
+   out as a list or a grid, where a box around every one would turn reading
+   into a form. The border stays, transparent, so the text holds still when
+   it appears.
+
+   Inside a .form-input-row, a table's row or card, hovering the row shows
+   every field in it, so the row being edited reads as the form it is. Here
+   rather than in a component rule, which would outrank the focus border. */
+.form-input-quiet:not(:hover, :focus, .form-input-row:hover *) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}

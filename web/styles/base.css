@@ -1,0 +1,60 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-default);
+  font-size: var(--ui-font-size);
+  color: var(--text-primary);
+}
+
+/* The page itself never scrolls; every panel scrolls on its own. Anything
+   placed past the window's edge, such as a browser extension's popup beside
+   a selection at the bottom, is clipped rather than giving the whole page
+   scrollbars. */
+html {
+  overflow: hidden;
+}
+
+/* The interface's own words don't select, as in a desktop app: a drag across
+   the tree or a double-click on a tab paints no highlight. Content opts back
+   in with `user-select: text` in its own stylesheet: a note as written or
+   rendered, a chat message, what a run printed or failed with. */
+body {
+  user-select: none;
+}
+
+/* Typed text always selects, and so does CodeMirror's in a read-only editor
+   (a screenplay in reading view). Spelled out rather than left to the
+   browser's exemption for editable elements, which not every engine makes. */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""],
+.cm-content {
+  user-select: text;
+}
+
+/* Form controls don't inherit font-size in any UA stylesheet, so without this
+   the body size wouldn't reach them. CodeMirror's content isn't a form
+   control and keeps sizing from --editor-font-size. */
+input,
+button,
+select,
+textarea,
+optgroup {
+  font-size: inherit;
+}
+
+/* Animations several components play: a fade in from transparent, and a
+   spinner's turn. Each sets its own duration and easing. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

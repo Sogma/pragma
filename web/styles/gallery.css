@@ -1,0 +1,176 @@
+/* The gallery: a folder's entries as tiles or cards over a scroll region.
+   Both are placed by the pane, absolutely, inside a canvas as tall as every
+   row — only the rows on screen exist, so the canvas's height is what keeps
+   the scrollbar honest. */
+.editor-gallery {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  outline: none;
+}
+
+/* position: relative is load-bearing: the pane reads the canvas's offsetTop,
+   below the title that scrolls in here too, against this box.
+
+   The scrollbar's room is kept whether it shows or not. Tiles are sized from
+   the width beside it, so a scrollbar that came and went with their height
+   would resize them, and at some sizes it would never settle. */
+.gallery-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.gallery-canvas {
+  position: relative;
+}
+
+.gallery-status {
+  margin: 0;
+  padding: 16px;
+  color: var(--text-muted);
+}
+
+.gallery-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gallery-tile-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--gallery-tile-size);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.gallery-tile:hover .gallery-tile-frame {
+  border-color: var(--border-input);
+}
+
+.gallery-tile.is-selected .gallery-tile-frame {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+/* Where a dragged tile lands in a folder shown in manual order: a bar in the
+   gap before or after the tile under the pointer. */
+.gallery-tile.drop-before .gallery-tile-frame {
+  box-shadow: -5px 0 0 -2px var(--color-accent);
+}
+
+.gallery-tile.drop-after .gallery-tile-frame {
+  box-shadow: 5px 0 0 -2px var(--color-accent);
+}
+
+/* Contained, not cropped: a frame's composition is what someone browsing
+   footage or stills is looking at. Faded in, so a thumbnail made on the spot
+   replaces the glyph rather than popping over it. */
+.gallery-tile-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.gallery-tile.has-thumbnail .gallery-tile-thumb {
+  opacity: 1;
+}
+
+.gallery-tile.has-thumbnail .gallery-tile-icon {
+  visibility: hidden;
+}
+
+/* The entry's icon, drawn large. */
+.gallery-tile-icon {
+  display: block;
+  font-size: 40px;
+  width: 1em;
+  height: 1em;
+}
+
+/* A play glyph on a dark disc in the corner, as the reading view marks a
+   video: a frame alone reads as a still. A shadow on the masked glyph itself
+   would be masked away with it. */
+.gallery-tile-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--video-play-bg);
+}
+
+.gallery-tile-badge::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  background: var(--video-play-fg);
+  mask: var(--icon-play) center / contain no-repeat;
+}
+
+/* The hover bars (thumbnail-hud.css) lie on the square's edges rather than
+   the picture's, so every tile's facts sit in the same place and a row
+   scans at a glance. Any part of the tile shows them. */
+.gallery-tile:hover .thumbnail-hud {
+  opacity: 1;
+}
+
+/* The bottom bar names the duration where the play glyph sits; a tile too
+   narrow for that bar keeps the glyph. */
+@container thumbnail (width >= 150px) {
+  .gallery-tile:hover .gallery-tile-badge {
+    opacity: 0;
+  }
+}
+
+.gallery-tile-name {
+  overflow: hidden;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gallery-tile.is-selected .gallery-tile-name {
+  color: var(--text-primary);
+}
+
+/* A rename or a new entry's name, typed on the tile: the tree's in-place
+   field, one name line tall so the tile keeps its height. */
+.gallery-tile-field {
+  box-sizing: border-box;
+  width: 100%;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-family: var(--font-default);
+  font-size: var(--small-font-size);
+  text-align: center;
+}
+
+.gallery-tile-field:focus {
+  outline: none;
+}

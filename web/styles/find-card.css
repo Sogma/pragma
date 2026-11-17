@@ -1,0 +1,253 @@
+/* Find's card (web/findCard.ts), the same on every surface that finds: it
+   sits in the editor toolbar's row, in the toolbar's own box look, which it
+   reshapes here. It shrinks with a narrow group, and its count goes first.
+
+   The frame is the row's item. In an editor, CodeMirror marks it with its
+   theme, a flex column that no rule here can unset, and draws its panels
+   box inside, whose sticky, filled, bordered look would frame the card, so
+   that box takes no box of its own. The card sets its own colour, since
+   that box still passes on its light theme's black. */
+.find-card-host,
+.find-card-frame > .cm-panels {
+  display: contents;
+}
+
+.find-card-frame {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.find-card {
+  width: 419px;
+  max-width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px;
+  container-type: inline-size;
+  font-family: var(--font-default);
+  color: var(--text-primary);
+}
+
+.find-card.has-reveal {
+  gap: 3px;
+  padding-inline-start: 2px;
+}
+
+/* A match where find searches a page (web/pageFind.ts), in the editor's
+   colours. The browser's highlight registry draws it over the page's text;
+   a field's text takes no highlight, so a field holding a match is filled
+   whole. */
+::highlight(find-match) {
+  background-color: var(--find-match-bg);
+  color: var(--find-match-fg);
+}
+
+::highlight(find-current) {
+  background-color: var(--find-current-bg);
+  color: var(--find-match-fg);
+}
+
+.form-input[data-find="match"] {
+  background-color: var(--find-match-bg);
+  color: var(--find-match-fg);
+}
+
+.form-input[data-find="current"] {
+  background-color: var(--find-current-bg);
+  color: var(--find-match-fg);
+}
+
+/* How a card slides in off an editor group's edge and back out: Find's from
+   the top, the Format column's from the right. Fast, then easing into
+   place; closing plays it backwards. */
+:root {
+  --card-slide: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The slide starts above the group's top edge, which clips it. */
+.find-card.is-opening {
+  animation: find-card-slide var(--card-slide);
+}
+
+.find-card.is-closing {
+  animation: find-card-slide var(--card-slide) reverse forwards;
+}
+
+@keyframes find-card-slide {
+  from {
+    transform: translateY(calc(-100% - 24px));
+  }
+}
+
+.find-card-glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--find-card-glyph) center / contain no-repeat;
+}
+
+/* Every button on the card is an .icon-button, at 24px. Reveal and the
+   options set their own size below, at this same specificity: a plain
+   class rule would lose to this one. */
+.find-card .icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+/* The full height of the card, so it opens Replace from either row. */
+.find-card .find-card-reveal {
+  flex: none;
+  width: 18px;
+  height: auto;
+  border-radius: 3px;
+  --find-card-glyph: var(--icon-chevron-right);
+}
+
+.find-card-reveal[aria-expanded="true"] {
+  --find-card-glyph: var(--icon-chevron-down);
+}
+
+/* Find and Replace share one column, so their fields line up. */
+.find-card-rows {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Density only: .form-input draws the field and its focus. */
+.find-card-field {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 2px 0 7px;
+}
+
+.find-card-field:focus-within {
+  border-color: var(--border-focus);
+}
+
+.find-card-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.find-card-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* The letters are drawn larger than the arrows: at 16px their strokes read
+   fainter than the words beside them. */
+.find-card .find-card-option {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  border-radius: 3px;
+}
+
+.find-card-option .find-card-glyph {
+  width: 18px;
+  height: 18px;
+}
+
+.find-card-option[aria-pressed="true"] {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.find-card-case {
+  --find-card-glyph: var(--icon-case-sensitive);
+}
+
+.find-card-word {
+  --find-card-glyph: var(--icon-whole-word);
+}
+
+.find-card-regex {
+  --find-card-glyph: var(--icon-regex);
+}
+
+.find-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+/* Close's line: the Format column's line between groups, stood upright. Its
+   margin and the row's 1px gap put it 5px from each button, as the column's
+   2px gap and its 3px margin do. */
+.find-card-line {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--border-color);
+}
+
+.find-card-previous {
+  --find-card-glyph: var(--icon-arrow-up);
+}
+
+.find-card-next {
+  --find-card-glyph: var(--icon-arrow-down);
+}
+
+.find-card-close {
+  --find-card-glyph: var(--icon-x);
+}
+
+.find-card-replace {
+  --find-card-glyph: var(--icon-replace);
+}
+
+.find-card-replace-all {
+  --find-card-glyph: var(--icon-replace-all);
+}
+
+/* A minimum width, so the arrows hold still as the count changes. */
+.find-card-count {
+  flex: none;
+  min-width: 62px;
+  padding: 0 6px 0 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.find-card-count.is-empty {
+  color: var(--text-muted);
+}
+
+.find-card-count.is-missing {
+  color: var(--color-danger);
+}
+
+@container (max-width: 300px) {
+  .find-card-count {
+    display: none;
+  }
+}
+
+/* Narrower still, the arrows and their line go, Enter and Shift+Enter
+   standing in, and so do the options that are off; one that is on stays, or
+   a regular expression could go on matching unseen. */
+@container (max-width: 240px) {
+  .find-card-previous,
+  .find-card-next,
+  .find-card-line,
+  .find-card-option:not([aria-pressed="true"]) {
+    display: none;
+  }
+}

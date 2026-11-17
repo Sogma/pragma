@@ -1,0 +1,202 @@
+/* A Class's Filter, Sort, Group and Fields: labeled buttons in its
+   pane's floating toolbar, set apart from the toggle and menu after them,
+   and the popovers they open. */
+.class-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-end: 2px;
+  padding-inline-end: 4px;
+  border-inline-end: 1px solid var(--border-color);
+}
+
+/* A pane too narrow for the buttons beside its title offers them from ⋮. */
+.class-toolbar.is-folded {
+  display: none;
+}
+
+.class-toolbar-button {
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--control-radius);
+}
+
+/* Set on this view: the button says so before it is opened. */
+.class-toolbar-button[aria-pressed="true"] {
+  color: var(--text-primary);
+}
+
+/* Wider than the Add field form the popover box was made for: a filter is
+   a line of three controls. */
+.class-popover {
+  width: max-content;
+  min-width: 240px;
+  max-width: min(480px, calc(100vw - 16px));
+  gap: 10px;
+}
+
+.class-popover.drag-over {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.class-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.class-popover-scopes {
+  display: flex;
+  gap: 4px;
+}
+
+.class-popover-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--box-radius);
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-default);
+  cursor: pointer;
+}
+
+.class-popover-scope[aria-pressed="true"] {
+  border-color: var(--border-muted);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.class-popover-heading {
+  font-weight: 600;
+}
+
+/* What a kind of link gives the rows, after its heading. */
+.class-links-gives {
+  font-weight: 400;
+}
+
+/* A text button: "+ Add filter", "+ Add folder", "+ Add field". */
+.class-popover-add {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-default);
+  cursor: pointer;
+}
+
+.class-popover-add:hover {
+  color: var(--text-primary);
+}
+
+.class-popover-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.class-popover-row > .class-popover-heading {
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.class-filter-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.class-filter-lead {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* The value starts wider, so `this.file.folder` reads whole beside
+   `file.folder` in a popover at its widest. */
+.class-filter-property {
+  flex: 1 1 104px;
+  min-width: 0;
+}
+
+.class-filter-values {
+  flex: 1 1 132px;
+  min-width: 0;
+}
+
+.class-filter-line > select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.class-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.class-link > [data-entry-icon] {
+  flex-shrink: 0;
+}
+
+.class-link-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-field-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.class-field-row > .popover-checkbox {
+  flex: 1;
+}
+
+/* A file's own facts, each added with one press, side by side. */
+.class-popover-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.class-icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+/* A glyph from icons.css, drawn in the text color. */
+.class-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+.class-icon-x {
+  mask-image: var(--icon-x);
+}
+
+.class-icon-plus {
+  mask-image: var(--icon-plus);
+}
+
+.class-icon-arrow-up {
+  mask-image: var(--icon-arrow-up);
+}
+
+.class-icon-arrow-down {
+  mask-image: var(--icon-arrow-down);
+}

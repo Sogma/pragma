@@ -1,0 +1,45 @@
+/* A folder's Context dialog: Settings' groups and cards in a dialog body,
+   the switch on top and what a context does under it. */
+.folder-context {
+  --card-inset: 14px;
+  gap: 18px;
+}
+
+/* Gray until the folder is a context. */
+.folder-context-effects,
+.folder-context-settings {
+  transition: opacity 0.15s ease;
+}
+
+.folder-context-effects.is-off,
+.folder-context-settings.is-off {
+  opacity: 0.45;
+}
+
+.folder-context-effect {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px var(--card-inset);
+}
+
+/* Sized here, painted by its glyph's mask. */
+.folder-context-effect-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.folder-context-effect-icon[data-effect] {
+  background-color: var(--text-secondary);
+  mask: var(--effect-glyph) center / contain no-repeat;
+}
+
+.folder-context-effect-icon[data-effect="links"] {
+  --effect-glyph: var(--icon-link);
+}
+
+.folder-context-effect-icon[data-effect="copilot"] {
+  --effect-glyph: var(--icon-message);
+}

@@ -1,0 +1,28 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "jobs[1]{index,job_id,status,type,model,result_url}:\n  0,71db41af-5b54-46b5-a88d-0eb4167ee799,completed,image,text2image_soul_v2,\"https://d8j0ntlcm91z4.cloudfront.net/user_TEST/hf_20261006_193238_71db41af-5b54-46b5-a88d-0eb4167ee799.png\"\nsummary:\n  total: 1\n  completed: 1\n  failed: 0\n  active: 0\n  errors: 0\nall_terminal: true"
+    }
+  ],
+  "structuredContent": {
+    "jobs": [
+      {
+        "index": 0,
+        "job_id": "71db41af-5b54-46b5-a88d-0eb4167ee799",
+        "status": "completed",
+        "type": "image",
+        "model": "text2image_soul_v2",
+        "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_TEST/hf_20261006_193238_71db41af-5b54-46b5-a88d-0eb4167ee799.png"
+      }
+    ],
+    "summary": {
+      "total": 1,
+      "completed": 1,
+      "failed": 0,
+      "active": 0,
+      "errors": 0
+    },
+    "all_terminal": true
+  }
+}

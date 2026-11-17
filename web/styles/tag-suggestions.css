@@ -1,0 +1,39 @@
+/* The add-tag input's suggestion list, only as wide as a long tag name
+   allows. */
+.context-menu.tag-suggestions {
+  max-width: 280px;
+}
+
+/* Every row keeps the slot, so names line up whether or not a tag has a
+   color. */
+.tag-suggestion-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--swatch, transparent);
+}
+
+.tag-suggestion-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The last row, adding the typed tag to the space's Tags. Its plus sits in
+   the color dot's slot, overhanging it, so the label lines up with the
+   names above. */
+.tag-suggestion-add-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-inline: -2px;
+  background-color: currentColor;
+  mask: var(--icon-plus) center / contain no-repeat;
+}
+
+.tag-suggestion-add-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

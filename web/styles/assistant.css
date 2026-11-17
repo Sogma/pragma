@@ -1,0 +1,190 @@
+/* The column slides instead of narrowing: a negative end margin pulls its
+   full width past the window's edge (#workspace clips it), so nothing inside
+   re-lays out mid-slide. */
+#assistant {
+  width: var(--assistant-width);
+  margin-inline-end: calc(var(--assistant-width) * (var(--panel-reveal) - 1));
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-inline-start: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+}
+
+#assistant[hidden] {
+  --panel-reveal: 0;
+}
+
+/* Only from the first toggle on: a state restored at startup must not slide
+   in. allow-discrete keeps a closing column displayed until it is out, and
+   @starting-style starts an opening one from fully out. */
+#assistant.animated {
+  transition:
+    --panel-reveal var(--panel-slide-duration) var(--panel-slide-easing),
+    display var(--panel-slide-duration) allow-discrete;
+}
+
+@starting-style {
+  #assistant.animated {
+    --panel-reveal: 0;
+  }
+}
+
+/* z-index for the reason #sidebar-resize-handle has one: the chat is a
+   stacking context of its own (chat.css), later in DOM order, so it would
+   paint over the strips that reach into it, the column's edge and the split
+   above it. */
+#assistant-resize-handle,
+#assistant-split-handle {
+  z-index: 1;
+}
+
+/* The inspector over the chat; its tabs are in the app header. Its height is
+   the split drag's output, written to --inspector-height on the element; it
+   may still shrink in a short window, so the chat's own floor holds. Folded,
+   it is gone and the chat has the column. */
+#assistant-inspector {
+  flex: 0 1 var(--inspector-height, 45%);
+  min-height: var(--inspector-min-height);
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-color);
+}
+
+#assistant-inspector.collapsed {
+  display: none;
+}
+
+.inspector-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The Tools tab's content sits 8px from the column's edges, in line with the
+   copilot's cards and composer below it. This tab only: the others keep the
+   panel's 10px. */
+#inspector-tools {
+  padding: 8px;
+}
+
+/* The Info tab's text sits a step below the interface's base size; the
+   Properties tab's rows are set to match it (properties.css). */
+#inspector-info {
+  font-size: var(--control-font-size);
+}
+
+/* A block in the inspector: the file facts, the mounted pane's own section,
+   Publish. */
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inspector-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* The Properties tab's own line gives way once the mounted pane's
+   properties show; the pane hides them for a document that keeps none. */
+#inspector-properties:has(> #inspector-properties-slot > :not([hidden])) > .inspector-empty {
+  display: none;
+}
+
+/* The shared key/value meta rows as a bare grid: the panel is already the
+   card, and a second border inside a 300px column costs width the values
+   need. */
+.inspector-section .meta-rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+
+.inspector-section .meta-row {
+  display: contents;
+}
+
+.inspector-section .meta-key {
+  color: var(--text-muted);
+}
+
+/* min-width: 0 lets a long path or digest wrap instead of widening the grid
+   past the column. */
+.inspector-section .meta-value {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* An opaque value, such as a digest, on one line, cut with an
+   ellipsis (the full value shows as a tooltip). display: block
+   because text-overflow does nothing on the flex container the value rule
+   above makes it. user-select: all so one click still copies the whole value,
+   cut or not. */
+.inspector-section .meta-code {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-monospace);
+  user-select: all;
+}
+
+/* The file's own facts: every value monospace, and the rows further apart
+   than a wrapped value's lines, so each row reads as one. */
+.inspector-facts .meta-rows {
+  row-gap: 8px;
+}
+
+.inspector-facts .meta-value {
+  font-family: var(--font-monospace);
+}
+
+/* One click selects the whole name or path. display: block because Chromium
+   copies each item of the value rule's flex box as a line of its own. */
+.inspector-facts .meta-name,
+.inspector-facts .meta-path {
+  display: block;
+  user-select: all;
+}
+
+/* Each folder is an inline-block, so a wrapped path breaks between folders,
+   never at a hyphen inside one that fits on its line. */
+.inspector-facts .meta-path > span {
+  display: inline-block;
+}
+
+/* Publish/Update. Plain unscoped classes, like .field-row, so a second
+   context control can reuse the building blocks. */
+.context-panel-button {
+  padding: 4px;
+  text-align: center;
+}
+
+.context-panel-button:disabled {
+  opacity: 0.6;
+}
+
+/* Selects, so a published URL can be copied: a selection started on
+   "Published:" takes the link in, while a press on the link still opens it. */
+.context-panel-status {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.context-panel-status a {
+  color: var(--color-accent);
+}

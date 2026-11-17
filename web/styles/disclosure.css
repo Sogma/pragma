@@ -1,0 +1,17 @@
+/* A fold's chevron: down while the control holding it is aria-expanded,
+   turned right while it isn't, so the control's state alone drives it. A
+   surface sets its size, and the turn's length when its fold slides longer.
+   The space tree draws its own, as a row's ::before. */
+.disclosure {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  background-color: var(--text-muted);
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+  transition: transform 100ms ease;
+}
+
+[aria-expanded="false"] > .disclosure {
+  transform: rotate(-90deg);
+}

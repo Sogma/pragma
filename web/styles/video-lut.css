@@ -1,0 +1,15 @@
+/* The picture a player shows through its LUT (web/lib/videoLut.ts): a canvas
+   over the player's box, under the guides, drawn in the clip's own pixels.
+   Fitted as the picture fits, so in full screen it letterboxes with it.
+
+   It takes no pointer, so a click on the picture still plays it and the
+   hover that shows the media's bars still lands on the video. */
+.video-lut {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to Pragma</title>
+    <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+    <!-- The desktop app's welcome window (electron/main.ts). Its theme is
+         prefers-color-scheme's, set before the stylesheet paints as
+         index.html's is: the window loads from the build, not the server, so
+         Settings' stored choices live at another origin it can't read. The app
+         points that query at the theme picked last, or the OS's before one. -->
+    <script>
+      document.documentElement.setAttribute(
+        "data-theme",
+        matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      );
+    </script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="welcome">
+    <header id="app-header">
+      <div id="header-window-controls" hidden></div>
+    </header>
+    <div class="welcome-spaces" hidden>
+      <div class="welcome-space-list" role="listbox" aria-label="Your spaces"></div>
+      <p class="welcome-spaces-error inline-error" hidden></p>
+    </div>
+    <main class="welcome-main">
+      <div class="welcome-brand">
+        <div class="settings-about">
+          <img class="settings-logo" src="/images/mark.svg" alt="" width="44" height="44" />
+          <div class="settings-wordmark" role="img" aria-label="Pragma"></div>
+        </div>
+        <div class="caption welcome-version" hidden></div>
+      </div>
+    </main>
+    <script type="module" src="/welcome.ts"></script>
+  </body>
+</html>

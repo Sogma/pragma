@@ -1,0 +1,32 @@
+/* A shortcut's label: its text with each arrow key drawn as an icon. The
+   icon is a little larger than the text, or its stroke reads fainter than
+   the letters beside it. White space is kept as written, or the space before
+   an icon would collapse ("Ctrl + Alt +←"). */
+.key-label {
+  display: inline-flex;
+  align-items: center;
+  white-space: pre;
+}
+
+.key-arrow {
+  width: 1.25em;
+  height: 1.25em;
+  background-color: currentColor;
+  mask: var(--key-arrow) center / contain no-repeat;
+}
+
+.key-arrow-left {
+  --key-arrow: var(--icon-arrow-left);
+}
+
+.key-arrow-right {
+  --key-arrow: var(--icon-arrow-right);
+}
+
+.key-arrow-up {
+  --key-arrow: var(--icon-arrow-up);
+}
+
+.key-arrow-down {
+  --key-arrow: var(--icon-arrow-down);
+}

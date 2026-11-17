@@ -1,0 +1,11 @@
+/* A list value's pill and a tag's, wherever one shows: Properties, reading
+   view, the Tags section, a Class, a tag written in a note. A surface's own
+   rule adds only its layout, never this look again. A tag the space colors
+   is filled inline over it. */
+.pill,
+.inline-tag {
+  padding: 1px 8px;
+  border-radius: var(--pill-radius);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}

@@ -1,0 +1,90 @@
+/* A video player's volume (web/lib/videoPlayer.ts): the speaker button in
+   its bar, and over it while it is hovered the slider every player shares.
+   A drag or a key holds the slider open by the player's .is-volume-open,
+   which keeps the bar up too (video-player.css). */
+.video-player-volume {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+/* Hidden, it takes no pointer, so only the button opens it; with opacity
+   alone, the empty space above the button would open it and take the
+   picture's clicks. Its transparent foot reaches down past the bar's top
+   edge to the button (--volume-lift), so the hover holds on the way up. */
+.video-player-volume-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding-bottom: calc(var(--volume-lift, 6px) + 6px);
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear 120ms;
+}
+
+.video-player-volume:hover > .video-player-volume-popup,
+.video-player.is-volume-open .video-player-volume-popup {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+/* The pill's fill and rounded ends, standing on end. The whole capsule
+   takes the press; the track inside it measures the level. */
+.video-player-volume-slider {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  width: 32px;
+  padding: 14px 0;
+  border-radius: 16px;
+  background: var(--media-hud-bg);
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* The seek bar's track, fill and knob, from the foot up. Shorter in a
+   short picture, so the capsule stays inside it. */
+.video-player-volume-track {
+  position: relative;
+  width: 3px;
+  height: clamp(24px, 100cqh - 108px, 80px);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--media-hud-fg) 30%, transparent);
+}
+
+.video-player-volume-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: calc(var(--level, 1) * 100%);
+  border-radius: inherit;
+  background: var(--media-hud-fg);
+}
+
+.video-player-volume-knob {
+  position: absolute;
+  bottom: calc(var(--level, 1) * 100%);
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin: 0 0 -5.5px -5.5px;
+  border-radius: 50%;
+  background: var(--media-hud-fg);
+  transition: transform 100ms ease;
+}
+
+.video-player-volume-slider:hover .video-player-volume-knob {
+  transform: scale(1.25);
+}
+
+/* Muted, the level it comes back to stays, dimmed. */
+.video-player-volume-slider.is-muted :is(.video-player-volume-fill, .video-player-volume-knob) {
+  opacity: 0.4;
+}

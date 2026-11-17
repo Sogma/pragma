@@ -1,0 +1,25 @@
+{
+  "order": [
+    {
+      "name": "README.md"
+    },
+    {
+      "name": "brochure.md"
+    },
+    {
+      "name": "style-guide.md"
+    },
+    {
+      "name": "queries.table.html"
+    },
+    {
+      "name": "jobs.class.html"
+    },
+    {
+      "name": "AGENTS.md"
+    },
+    {
+      "name": "tools"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+/* A section's heading in the chrome: small capitals in the muted grey, over
+   a group of Settings rows, a panel's section or a popover's options. A
+   heading that is also a toggle keeps its own state colours. */
+.section-label {
+  font-size: var(--small-font-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

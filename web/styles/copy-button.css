@@ -1,0 +1,12 @@
+/* A copy button's glyph, the same on a code block and a Flow text box,
+   turned to a check while the button says Copied. */
+.copy-button-icon {
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  mask: var(--icon-copy) center / contain no-repeat;
+}
+
+.copied > .copy-button-icon {
+  mask-image: var(--icon-check);
+}

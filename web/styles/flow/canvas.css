@@ -1,0 +1,137 @@
+.flow-pane {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  background-image: radial-gradient(circle, var(--border-muted) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.flow-pane:active {
+  cursor: grabbing;
+}
+
+/* The canvas takes focus so its keys (Delete, Undo) reach it; the selected
+   card's highlight shows what they act on, never a ring round the pane. A
+   key pressed after a click would otherwise turn :focus-visible on. */
+.flow-pane:focus {
+  outline: none;
+}
+
+.flow-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The stroke comes only from the edge's type-<port type> class: one naming
+   no type draws the edge invisible. */
+.edge-path {
+  fill: none;
+  stroke: var(--type-color);
+  stroke-width: 3;
+}
+
+/* A wire into or out of a pin its node lacks. Wins over the type's colour
+   by source order. */
+.edge-path.missing {
+  stroke: var(--color-danger);
+  stroke-dasharray: 6 4;
+}
+
+/* A wire touching a node a run leaves out carries nothing in a run: dashed
+   in its type's color, apart from a missing pin's red dashes. */
+.edge-path.left-out {
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+/* The end of a wire naming a node the Flow lacks: a hollow pin and the
+   node's id. The negative margin centres the pin on the wire's end; one
+   hanging left of an input runs backwards, shifted its own width left. */
+.flow-loose-end {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  cursor: crosshair;
+}
+
+.flow-loose-end.target {
+  flex-direction: row-reverse;
+  margin-left: 6px;
+  translate: -100% 0;
+}
+
+.flow-loose-end.disconnect-only {
+  cursor: context-menu;
+}
+
+.flow-loose-end.inert {
+  cursor: default;
+}
+
+.flow-loose-end-pin {
+  flex: none;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--color-danger);
+  background: var(--bg-primary);
+}
+
+.flow-loose-end-label {
+  font-size: var(--small-font-size);
+  color: var(--color-danger);
+  white-space: nowrap;
+}
+
+/* The drag-in-progress connection line's own layer, painted over
+   .flow-viewport so the line stays visible across the card it is dragged
+   onto. Click-through like .flow-edges, since it covers the whole pane. */
+.flow-connection-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.flow-connection-path {
+  fill: none;
+  stroke: var(--type-color, var(--text-muted));
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.flow-connection-path.invalid {
+  stroke: var(--color-danger);
+}
+
+.flow-viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+/* The Flow canvas's placement for that notice. .flow-pane covers the pane
+   absolutely, so this needs a z-index to paint above the graph, but it stays
+   in flow, so it lands under the centred title bar rather than over it. Width
+   capped so a wide pane doesn't stretch one sentence across the canvas.
+
+   Nodes pass under it, so its see-through fill goes over the panel's colour:
+   without it a node shows through the sentence. */
+.flow-locked-notice {
+  position: relative;
+  z-index: 3;
+  margin: 0 12px;
+  max-width: min(440px, calc(100% - 24px));
+  background: linear-gradient(var(--inline-error-fill) 0 0), var(--bg-primary);
+}

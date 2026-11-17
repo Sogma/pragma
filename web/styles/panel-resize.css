@@ -1,0 +1,102 @@
+/* Holds the resize cursor for a panel drag's whole duration. Drag handlers
+   listen on document, so the pointer routinely outruns the 8px strip and the
+   cursor would flip to whatever is underneath. The universal selector plus
+   !important is what beats each element's own cursor. */
+html.resizing-ew,
+html.resizing-ew * {
+  /* biome-ignore lint/complexity/noImportantStyles: the drag cursor has to beat
+     whatever cursor each element under the pointer sets for itself. */
+  cursor: ew-resize !important;
+}
+
+html.resizing-ns,
+html.resizing-ns * {
+  /* biome-ignore lint/complexity/noImportantStyles: see html.resizing-ew. */
+  cursor: ns-resize !important;
+}
+
+/* The drag strip on a resizable panel edge. It takes no room on the drag
+   axis, so the panels stay flush. */
+.resize-handle {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* An ew strip is the handle itself, 8px over the trailing panel and given
+   back by its negative margin. Trailing only: the leading side is a scroll
+   region whose scrollbar a straddling strip would cover. */
+.resize-handle.ew {
+  width: 8px;
+  margin-inline-end: -8px;
+  cursor: ew-resize;
+}
+
+/* The line it lights, 3px from the strip's start toward the trailing side,
+   as the strip lies: never over the scrollbar before the edge. A border, not
+   a gradient, so it snaps to device pixels as the panel borders do; a
+   gradient lands between pixels at fractional scales.
+
+   It starts at the trailing panel's first pixel, even where the panel border
+   is the leading panel's last (the sidebar's): an offset back onto that one
+   lands a device pixel early at some fractional positions, over the leading
+   side. */
+.resize-handle.ew::after,
+.resize-handle.ew.through-header::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  border-inline-start: 3px solid transparent;
+  pointer-events: none;
+  transition: border-color 200ms ease-in-out;
+}
+
+.resize-handle.ew::after {
+  inset-block: 0;
+}
+
+/* An edge whose line goes on up through the app header (frame.css). Only
+   drawn there: a resize starts only below the header, so the header's tabs
+   and window drag keep the pointer. #workspace clips only sideways, so the
+   line can reach up out of it. */
+.resize-handle.ew.through-header::before {
+  inset-block-end: 100%;
+  height: var(--header-height);
+}
+
+/* .hover is the pointer over another part of the same edge, drawn as a
+   separate element: panelResize.ts passes it on so the parts light as one. */
+.resize-handle.ew:is(:hover, .hover, .dragging)::after,
+.resize-handle.ew.through-header:is(:hover, .hover, .dragging)::before {
+  border-inline-start-color: var(--resize-handle-hover);
+}
+
+/* An ns strip straddles its edge as the ::after of a host with no height; a
+   hit on it still resolves to the host. */
+.resize-handle.ns {
+  height: 0;
+}
+
+.resize-handle.ns::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: -3px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+/* Its line, drawn as an ew strip's is: 3px from the edge toward the
+   trailing side. */
+.resize-handle.ns::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  border-block-start: 3px solid transparent;
+  pointer-events: none;
+  transition: border-color 200ms ease-in-out;
+}
+
+.resize-handle.ns:is(:hover, .hover, .dragging)::before {
+  border-block-start-color: var(--resize-handle-hover);
+}

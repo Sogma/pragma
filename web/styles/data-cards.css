@@ -1,0 +1,139 @@
+/* A Table's cards layout: one card per row, the grid's own controls laid
+   out vertically, so the two layouts share every cell. The picture is the
+   media field's, at the card's width and the file's own shape.
+
+   The least card width is a measure of its text, so it grows with the font
+   size as the card's lines do; a fixed width would wrap every value at a
+   large size. */
+.data-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--editor-font-size) * 240 / 16), 1fr));
+  gap: 16px;
+}
+
+.data-cards-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+
+/* The picture takes the whole width, its name beneath it when the column
+   shows names. The clear button lies on the picture's top-right corner, so
+   a card whose names are hidden ends at the picture. */
+.data-cards-picture .media-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+/* On a dark disc in the hover bars' colours, so it reads over any picture,
+   and shown while the field is hovered or holds keyboard focus. */
+.data-cards-picture .media-field-clear {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  border-radius: 50%;
+  background: var(--media-hud-bg);
+  color: var(--media-hud-fg);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.data-cards-picture .media-field:hover .media-field-clear {
+  opacity: 1;
+}
+
+.data-cards-picture .media-field:has(:focus-visible) .media-field-clear {
+  opacity: 1;
+}
+
+/* The top hover bar leaves the corner to the clear button. */
+.data-cards-picture .media-field:has(> .media-field-clear) .thumbnail-hud-bar.is-top {
+  padding-right: 32px;
+}
+
+/* The file's own shape, never a crop: a portrait still stands tall and the
+   name sits on the picture's real bottom edge. Only a slot with nothing to
+   show is held at a placeholder shape, so it still reads as a picture. */
+.data-cards-picture .media-field-thumb {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: auto;
+}
+
+.data-cards-picture .media-field-picture {
+  height: auto;
+  object-fit: contain;
+}
+
+.data-cards-picture .media-field.is-empty .media-field-thumb,
+.data-cards-picture .media-field.is-missing .media-field-thumb {
+  aspect-ratio: 16 / 9;
+}
+
+.data-cards-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-cards-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.data-cards-title .data-table-cell-text {
+  width: 100%;
+  font-weight: 600;
+}
+
+.data-cards-title .data-table-value {
+  font-weight: 600;
+}
+
+/* Locked, the badge is a pill rather than a bare word, so it still reads
+   as the row's status beside the title. */
+.data-cards-badge .data-table-value:not(:empty) {
+  min-height: 0;
+  padding: 2px 8px;
+  border-radius: var(--pill-radius);
+  background: var(--bg-inset);
+  font-size: calc(var(--editor-font-size) * 13 / 16);
+}
+
+.data-cards-field {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px;
+  align-items: center;
+  font-size: calc(var(--editor-font-size) * 13 / 16);
+}
+
+.data-cards-field-label {
+  color: var(--text-muted);
+}
+
+/* A card's labels are its column names, so they select where the grid's
+   headers do (data-table.css). */
+.data-table-form.is-read-only .data-cards-field-label {
+  user-select: text;
+}
+
+/* A wrapped value reads from its first line, with its label beside it.
+   Top-aligned with the label padded to that line, not baseline-aligned:
+   a check mark has no text, so it has no baseline to share. */
+.data-cards-field:has(> .data-cards-field-control > .data-table-value) {
+  align-items: start;
+}
+
+.data-cards-field:has(> .data-cards-field-control > .data-table-value) > .data-cards-field-label {
+  padding-block: 5px;
+  line-height: var(--cell-line-height);
+}
+
+.data-cards-field .data-table-cell-text {
+  width: 100%;
+}

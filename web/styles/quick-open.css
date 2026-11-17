@@ -1,0 +1,44 @@
+/* Quick Open is the shared menu at a fixed width with a scrolling list, not
+   one that hugs its widest row: a long folder path would otherwise stretch it
+   across the window. A long path is cut short; the name never is. */
+.context-menu.quick-open {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 60vh;
+}
+
+.quick-open .context-menu-search {
+  font-size: var(--control-font-size);
+}
+
+.quick-open .context-menu-items,
+.quick-open .context-menu-results {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.quick-open button {
+  flex: none;
+}
+
+/* A plain file has no glyph in the tree, so it has none here either: its
+   slot stays empty, sized and spaced like a glyph, so names line up. */
+.quick-open .context-menu-icon {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 4px;
+}
+
+.quick-open .context-menu-icon:not([data-entry-icon]) {
+  background-color: transparent;
+}
+
+/* A file Pragma can't open, a step lighter, as in the tree. */
+.quick-open button.cant-open {
+  color: var(--row-ink, var(--text-secondary));
+}
+
+.quick-open .context-menu-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

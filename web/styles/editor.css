@@ -1,0 +1,325 @@
+#editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  /* The editor pane's own surface, so the transparent document/reading/table
+     panes read as one --bg-primary shape with the active tab rather than
+     falling through to the browser canvas. The status bar overrides it
+     with --bg-secondary. */
+  background: var(--bg-primary);
+}
+
+/* The groups' row, under the header row that holds their tab strips: one
+   column per group. */
+#editor-groups {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* One editor group. Positioned, so its floating toolbar and its panes'
+   scoped dialogs anchor to the group rather than to the whole editor. Its
+   flex-grow is its share of the row, written by the divider's drag. */
+.editor-group {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Hidden across: the Format column slides in from past the right edge,
+     and a scrollbar would flash while it does. */
+  overflow: hidden auto;
+  /* A stacking context of its own, so a backdrop its pane raises (a
+     preview's, a scoped dialog's) ranks inside the group, never over the
+     resize strips that lie on its first 8px: the divider's, the sidebar's. */
+  isolation: isolate;
+}
+
+/* The same 1px edge as the second strip's, so the two rows divide alike and
+   each strip stays over its group. z-index for the reason #sidebar-resize-
+   handle has one: the group after the divider is positioned and later in DOM
+   order, so it would paint over the strip that overlaps it. */
+.editor-group-divider {
+  z-index: 1;
+}
+
+.editor-group-divider + .editor-group {
+  border-inline-start: 1px solid var(--border-color);
+}
+
+/* Where a document's page starts below the tabs: the title bar's top, or
+   with no title bar the text's own, so every page starts at one height
+   whether or not it shows a title. */
+:root {
+  --page-top-inset: 18px;
+}
+
+/* Edit view's page: the readable line length plus CodeMirror's 6px + 2px
+   line inset, centred, for the text (codemirror.css) and the title over it.
+   fountain.css sets a screenplay's width.
+
+   A pane too narrow to centre it keeps reading view's 24px inset, less the
+   line's own: 18px and 22px. With line numbers showing, the left margin is
+   the gutter's measured width (documentPane.ts) plus 19px instead, so the
+   numbers sit 24px in past their 5px padding. Reading view hides the gutter. */
+.editor-document-pane {
+  --page-width: calc(var(--readable-line-length) + 8px);
+  --page-start-inset: calc(var(--gutter-width, 0px) + 19px);
+  --page-end-inset: 22px;
+}
+
+.editor-document-pane.hide-line-numbers,
+.editor-document-pane.reading-view {
+  --page-start-inset: 18px;
+}
+
+/* The editor's title bar: a document's leading # heading lifted out of the
+   text, or the read-only name of a table or applet. Not chrome: it's the top
+   of the document, so it has no border or background and lives inside the
+   active pane's scroll region. Removed for panes that name their content
+   another way or have none. */
+.editor-title-bar {
+  flex-shrink: 0;
+  padding: var(--page-top-inset) 0 4px;
+  /* The prose size, which the title input below is sized from. */
+  font-size: var(--editor-font-size);
+}
+
+/* A note's title is set in its text's font, in edit view, reading view and
+   a previewed note alike. */
+.editor-document > .editor-title-bar,
+.editor-reading > .editor-title-bar,
+.note-page > .editor-title-bar {
+  font-family: var(--font-text);
+}
+
+/* An Applet's source shares a note's pane but is code, so whatever the
+   Editor's Font is, its title keeps the interface's font and its text takes
+   the Code page's. */
+.editor-applet-source {
+  --font-text: var(--font-default);
+}
+
+.editor-applet-source .editor-cm {
+  --font-text: var(--font-code);
+}
+
+/* Reading view's column: the readable line length inside a 24px inset, so
+   the title lines up with the body. The larger title input inside is
+   width: 100% of this box. */
+.editor-title-inner {
+  box-sizing: border-box;
+  max-width: calc(var(--readable-line-length) + 48px);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Edit view: .cm-content's page box and margins (codemirror.css), with the
+   6px inset .cm-line carries as padding, rather than reading view's. */
+.editor-document > .editor-title-bar > .editor-title-inner {
+  position: relative;
+  max-width: var(--page-width);
+  margin-left: max(var(--page-start-inset), 50% - var(--page-width) / 2);
+  margin-right: max(var(--page-end-inset), 50% - var(--page-width) / 2);
+  padding: 0 6px;
+}
+
+/* 1.35x the prose, a note's title larger (below). Borderless and transparent
+   so it reads as a title, not a field; read-only drops the text cursor. */
+.editor-title-input {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 1.35em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.editor-title-input:focus {
+  outline: none;
+}
+
+.editor-title-input:read-only {
+  cursor: default;
+}
+
+.editor-title-input::placeholder {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* A note's title is its leading # heading, standing in for the <h1> in
+   reading view, so it is sized among the headings (reading.css). An Applet's
+   source shares the pane, but its title is a file name. */
+.editor-document-pane:not(.editor-applet-source) .editor-title-input,
+.note-page > .editor-title-bar .editor-title-input {
+  font-size: calc(var(--title-scale) * 1em);
+}
+
+/* While a note's title is typed in, a faint # hangs left of it, as the text's
+   heading marks show where the caret is: the title is the note's # heading.
+   In the margin, never the field, so the title doesn't shift and the # can't
+   read as a character to delete. Set as the title is, to share its baseline;
+   the inner's 6px inset is the gap. */
+.editor-document > .editor-title-bar > .editor-title-inner:has(> .editor-title-input:focus:not(:read-only))::before {
+  content: "#" / "";
+  position: absolute;
+  top: 0;
+  right: 100%;
+  font-size: calc(var(--title-scale) * 1em);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-faint);
+}
+
+/* A table's grid is full-width, not the readable column, so align the title
+   to the pane's content edge instead of centring it. */
+.editor-table > .editor-title-bar > .editor-title-inner,
+.editor-class > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A folder view's title lines up with its first tiles or cards, and stops
+   short of the floating toolbar at the pane's top right, so a long name never
+   runs under it. */
+.gallery-scroll > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0 64px 0 16px;
+}
+
+/* A flow canvas has no reading column for the title to line up with — center
+   it across the full pane width instead, like a banner over the graph. */
+.editor-flow > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0 24px;
+}
+
+.editor-flow > .editor-title-bar > .editor-title-inner > .editor-title-input {
+  text-align: center;
+}
+
+/* App Mode: a document heading over the tile grid, left-aligned with it like
+   Table's rather than centred like the graph view's banner. */
+.flow-app-pane > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Centred at 70ch, not the readable line length, so the title lines up with
+   a default-style applet's own 70ch form. Two adjustments make the columns
+   coincide: match the applet body's 14px system-sans so 70ch resolves to the
+   same width, and drop the 24px inset, since the applet body's own padding
+   already shifts its centring context by that much. */
+.editor-applet-scroll > .editor-title-bar {
+  font-size: var(--ui-font-size);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.editor-applet-scroll > .editor-title-bar > .editor-title-inner {
+  max-width: 70ch;
+  padding: 0;
+}
+
+/* The document pane: the edit surface and the reading view, one showing at a
+   time. A flex column like the pane host, so each surface's flex: 1;
+   min-height: 0 behaves as it did directly under #editor. Positioned so a
+   proposal's bar floats over the pane rather than over the group's status
+   bar. */
+.editor-document-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* While the pointer is on the scroll sync disc of the other side's tab
+   (editor-tabs.css). An overlay: the page's own surfaces paint over any
+   background set here. */
+.editor-pane-host.sync-partner > .editor-document-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--pragma-green) 6%, transparent);
+  pointer-events: none;
+}
+
+/* Wraps title + text as one unit, so the two share a single scroll region
+   without pulling .editor-statusbar (a sibling, not a child) into the
+   scroll. Always its own overflow: auto rather than only under .has-title:
+   harmless either way, one condition fewer. */
+.editor-document {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.editor-cm {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Line numbers at three quarters of the text's size, every digit one width.
+   The empty ::before is set at the text's own size, so the line keeps the
+   text's baseline and the smaller number sits on it rather than riding at
+   the top of its row.
+
+   Both sizes come from --editor-font-size, never 75% and back again: that
+   division lands a hair under the text's size, and Chrome then sets a
+   screenplay's numbers a pixel high. */
+.editor-document .cm-lineNumbers .cm-gutterElement {
+  font-size: calc(var(--editor-font-size) * 0.75);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-document .cm-lineNumbers .cm-gutterElement::before {
+  content: "";
+  font-size: var(--editor-font-size);
+}
+
+/* Fold arrows get a lane of their own between the numbers and the text,
+   15px at the default 16px: with the numbers' 3px padding, the gutter's
+   1px divider and the line's 6px inset, a number ends 25px from the text.
+   In em, so a larger text's arrows still fit, since .cm-gutter clips. */
+.editor-document .cm-foldGutter {
+  width: 0.9375em;
+}
+
+/* The arrows show while the pointer is over the gutter, and always on a
+   folded line, so what's collapsed stays in sight. Where nothing hovers,
+   as on a touch screen, they always show. */
+.editor-document .cm-foldGutter .cm-gutterElement > span {
+  opacity: 0;
+}
+
+.editor-document .cm-gutters:hover .cm-foldGutter .cm-gutterElement > span,
+.editor-document .cm-foldGutter .cm-gutterElement > span[data-folded] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .editor-document .cm-foldGutter .cm-gutterElement > span {
+    opacity: 1;
+  }
+}
+
+/* Show fold markers off hides the arrows but keeps their lane, so the
+   numbers stay where they are. */
+#editor .hide-fold-markers .cm-foldGutter {
+  visibility: hidden;
+}

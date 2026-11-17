@@ -1,0 +1,95 @@
+/* Date-picker popover: .popover's box, as wide as its month grid. Imported
+   after popover.css so this width wins, and after controls.css so the month
+   and year fields' density beats .form-input's default. */
+.date-picker {
+  width: max-content;
+  font-family: var(--font-default);
+  color: var(--text-primary);
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.date-picker-nav::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-left) center / contain no-repeat;
+}
+
+.date-picker-next::before {
+  transform: scaleX(-1);
+}
+
+.date-picker-month,
+.date-picker-year {
+  font-family: inherit;
+  padding: 3px 6px;
+}
+
+.date-picker-month {
+  flex: 1;
+}
+
+.date-picker-year {
+  width: 5.5em;
+}
+
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  gap: 2px;
+  justify-content: center;
+}
+
+.date-picker-weekday {
+  padding: 4px 0;
+  font-weight: 600;
+  text-align: center;
+}
+
+.date-picker-day {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.date-picker-day.is-outside {
+  color: var(--text-faint);
+}
+
+.date-picker-day:hover {
+  background: var(--bg-hover);
+}
+
+.date-picker-day.is-today {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.date-picker-day[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+
+.date-picker-day:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.date-picker-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}

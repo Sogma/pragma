@@ -1,0 +1,339 @@
+/* loadImage's card: the chip's row on top keeps its height, and the
+   dropzone under it, flex: 1 1 auto, takes the card's growth. */
+.flow-node-image-picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The path pins share the chip's row, as on every Load node, and the row
+   takes the chip's spacing, so they centre on the chip. Wired, the row is
+   all the picker shows, so it takes no spacing. */
+.flow-node-image-picker:not(.wired) > .flow-path-row {
+  margin: 4px 0 8px;
+}
+
+/* With nothing picked there is no chip, so the pins centre on the zone,
+   whose prompt stands in for it: the row lies over the zone, out of the
+   flow, its insets the zone's margins. Only its pins take the pointer, so
+   a click or a drop still reaches the zone. */
+.flow-node-image-picker:not(.wired) > .flow-path-row:has(> .flow-space-drop[hidden]) {
+  position: absolute;
+  inset: 4px 0 8px;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.flow-node-image-picker:not(.wired) > .flow-path-row:has(> .flow-space-drop[hidden]) .handle {
+  pointer-events: auto;
+}
+
+/* The picked picture's box (pickerHud.ts), in the picture's own shape. On a
+   card that grows to its picture it takes the zone's width; in a sized
+   card's zone of fixed height, the most that fits, as object-fit: contain
+   would. Scaled up as well as down. App Mode's fills its zone instead
+   (app-mode.css). */
+/* Its one grid cell is fixed to the box, so a picture taller than the box
+   is contained in it rather than growing the cell past it. */
+.flow-picture {
+  flex: none;
+  width: 100%;
+  container-type: size;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+/* A click on a picture from the computer previews nothing: it has no file. */
+.flow-dropzone:has(> .flow-picture.unstored) {
+  cursor: default;
+}
+
+/* Not a path chip, though it is a dropzone too: sized this way it has no
+   content height and collapses to its padding. Containment also keeps the
+   picture out of the card's minimum height, so the zone has a floor of its
+   own, a text box's. */
+.flow-node.is-sized .flow-dropzone:not(.flow-space-drop) {
+  container-type: size;
+  min-height: 80px;
+}
+
+.flow-node.is-sized .flow-picture {
+  width: min(100cqw, 100cqh * var(--picture-ratio));
+}
+
+/* fill, not contain: the box already has the picture's shape, and contain
+   would let a rounding sliver of the zone show between picture and bars. */
+.flow-picture > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+/* The gallery's hover bars, in a type scale for a card rather than a pane. */
+.flow-picture > .media-hud > .media-hud-bar {
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: var(--small-font-size);
+}
+
+/* Shown only in an App Mode tile too narrow for the dimensions, which the
+   ratio alone stands in for there (app-mode.css). */
+.flow-picture-ratio {
+  display: none;
+}
+
+/* Smaller than this, the bars would cover most of the picture. */
+@container (max-width: 99px) or (max-height: 79px) {
+  .flow-picture > .media-hud {
+    display: none;
+  }
+}
+
+.flow-node-image-choose {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* One muted line describing what the node has loaded (a table's rows and
+   columns, a note's word count). Shared so every picker's stat line reads
+   alike. */
+.flow-node-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* An Applet node's frame, as tall as the Applet reports its content. */
+.flow-applet {
+  padding: 4px 10px 10px;
+}
+
+/* No border: the frame is set to the height its content reports, and under
+   border-box sizing a border takes its 2px out of that, so the content
+   scrolls by exactly the border's width. */
+.flow-applet-frame {
+  display: block;
+  width: 100%;
+  height: 160px;
+  border: none;
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+}
+
+.flow-applet-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+/* A Chart node's drawing, or the line that stands in for it before a run. */
+.flow-chart {
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.flow-chart .chart {
+  --plot-background: var(--bg-secondary);
+}
+
+/* Inside .flow-node-config, whose padding and gap already space it; its own
+   margins are for loadImage's wrapper, which has neither, and here they
+   would indent the drop target past the fields below it. */
+.flow-node-config > .flow-dropzone {
+  margin: 0;
+}
+
+/* Choose, and Clear while something is picked, side by side. */
+.flow-node-image-buttons {
+  display: flex;
+  gap: 6px;
+  margin: 0 10px 8px;
+}
+
+.flow-node-image-buttons > .flow-node-image-choose {
+  flex: 1;
+}
+
+.flow-node-image-choose:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.flow-node-result {
+  margin: 4px 10px 8px;
+  font-size: 11px;
+  color: var(--diff-add-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* A Generate Image node's last result, and what its run reported. A click
+   on the picture, or on a clip's, previews its file. */
+.flow-node-image-result {
+  display: block;
+  max-width: 100%;
+  margin: 6px 0;
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+
+/* A Generate Video node's clip, in the frame that lays the player over it
+   (web/lib/videoPlayer.ts). */
+.flow-node-video-result {
+  margin: 6px 0;
+  border-radius: var(--control-radius);
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.flow-node-video-result > video {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+
+.flow-node-report {
+  margin: 4px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+/* prompt and showText's text box: a dedicated flex: 1 textarea instead of the
+   small config-field one, so it grows when the card is resized. */
+.flow-node-textbox {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 10px 8px;
+}
+
+.flow-node-textbox-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Icon-only, matching .code-copy's shape and feedback. */
+.flow-node-textbox-copy {
+  width: 22px;
+  height: 22px;
+}
+
+.flow-node-textbox-copy.copied {
+  color: var(--color-accent);
+}
+
+/* Prompt's mention-syntax hint: same icon-only shape as the copy button, but
+   purely a hover/focus target for its title tooltip. */
+.flow-node-textbox-info {
+  width: 22px;
+  height: 22px;
+  cursor: default;
+}
+
+/* .flow-node-body has no horizontal padding (handles bleed to the card edge),
+   so every row supplies its own inset. This row has no label to carry it:
+   10px lands under the title bar and textbox's left edge, not the port rows'
+   14px. */
+.flow-node-mention-info-row {
+  padding-left: 10px;
+}
+
+/* Nudged down from the row's vertical center, closer to the textbox
+   directly below it. */
+.flow-node-mention-info-row .flow-node-textbox-info {
+  transform: translateY(4px);
+}
+
+.flow-node-textbox-info-icon {
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  mask: var(--icon-info) center / contain no-repeat;
+}
+
+/* flex-basis 0, not auto: a <textarea>'s natural size ignores its content,
+   but CodeMirror's .cm-content is a <div> as tall as its text, so auto let it
+   balloon the card to fit every line. 0 makes both take the available space
+   (floored at min-height) and scroll. */
+.flow-node-textbox-area {
+  flex: 1 1 0;
+  min-height: 80px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 6px 8px;
+  font-size: var(--small-font-size);
+  /* Overrides .flow-node's grab cursor, for both the plain <textarea> and the
+     CodeMirror box (its .cm-content inherits cursor). */
+  cursor: text;
+}
+
+/* A Prompt resized by hand may come down to two lines: two 16.8px lines, the
+   box's 12px of padding and its border. One never resized keeps the four
+   lines above, so the cards of a Flow already drawn keep their height. */
+.flow-node.is-sized[data-node-type="prompt"] .flow-node-textbox-area {
+  min-height: 48px;
+}
+
+/* Why a disabled node left this one out of the run: no failure, so muted. */
+.flow-node-skipped {
+  margin: 4px 10px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.flow-node-error {
+  margin: 4px 10px 8px;
+}
+
+/* An inline error at a node card's size: a run's failure, a chart that can't
+   draw, an Applet that can't load (styles/inline-error.css). */
+.flow-node .inline-error {
+  gap: 3px;
+  padding: 6px 8px 7px 7px;
+  font-size: 11.5px;
+}
+
+.flow-node .inline-error > .btn {
+  padding: 2px 8px;
+  font-size: 11.5px;
+}
+
+/* A card's error text and its run's notes are selectable so they can be
+   copied, past .flow-node's user-select: none. Each also carries `nodrag`;
+   without it the card's drag takes the mousedown and the selection never
+   starts. */
+.flow-node-error,
+.flow-node-report,
+.flow-chart.error,
+.flow-applet-status.error {
+  user-select: text;
+  cursor: text;
+}
+
+/* The corner grip for an explicit card width and height: faint until
+   pointed at. */
+.flow-node-resize-handle::before {
+  background: var(--bg-hover);
+}
+
+.flow-node-resize-handle:hover::before {
+  background: var(--color-accent);
+}

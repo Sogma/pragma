@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html data-format="table" data-format-version="1.0">
+<head>
+  <meta charset="utf-8">
+  <title>Query sheet</title>
+</head>
+<body>
+
+  <dl data-role="metadata">
+    <dt>description</dt><dd>Questions for the client about the source text, and their answers. Query client, in the Review toolkit, adds a row.</dd>
+    <dt>created</dt><dd>2026-11-06</dd>
+    <dt>modified</dt><dd>2026-11-06</dd>
+  </dl>
+
+  <table data-role="data">
+    <thead>
+      <tr>
+        <th data-field="passage" data-type="text">Passage</th>
+        <th data-field="question" data-type="text">Question</th>
+        <th data-field="answer" data-type="text">Answer</th>
+        <th data-field="status" data-type="select" data-options="Open,Answered">Status</th>
+        <th data-field="document" data-type="path">Document</th>
+        <th data-field="asked" data-type="timestamp" data-default="now">Asked</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>start your stay in the spa or over lunch in the Garden Room</td><td>Should the restaurant's name, the Garden Room, stay in English in the Spanish copy, or does it have a Spanish name?</td><td>It's Salón Jardín on our Spanish menus. Please use that.</td><td>Answered</td><td>brochure.md</td><td>2026-11-02T16:30:00Z</td></tr>
+    </tbody>
+  </table>
+
+</body>
+</html>

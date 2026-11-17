@@ -1,0 +1,310 @@
+/* Spacing between a table and the action row below it: a flex gap rather
+   than a divider. */
+.data-table-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.data-table-empty {
+  color: var(--text-muted);
+}
+
+/* Own overflow container, not the pane's — a wide table (many columns)
+   scrolls horizontally in place instead of pushing the whole pane. */
+.data-table-form > table.data-table {
+  display: block;
+  overflow-x: auto;
+}
+
+.data-table {
+  border-collapse: collapse;
+  font-size: var(--editor-font-size);
+}
+
+.data-table th,
+.data-table td {
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  text-align: start;
+}
+
+.data-table th {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  background: var(--bg-secondary);
+}
+
+/* Type icon, label and "⋮" menu button, side by side — the header cell's own
+   row, not the <th>'s padding box directly, so the menu button can be pinned
+   to the end regardless of how wide the label is.
+
+   Inset by the 7px a cell's text sits in from each edge (a value's
+   padding, an input's padding and border), so a header starts in line with
+   the text beneath it in every mode, with the same space on either side. */
+.data-table-column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 7px;
+}
+
+/* The column options menu trigger: same 20x20 shape as
+   .data-table-row-delete, with a kebab glyph. */
+.data-table-column-menu {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+}
+
+.data-table-column-menu-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-more-vertical) center / contain no-repeat;
+}
+
+/* While nothing in a Table or Class can be changed (reading view, a locked
+   file), column names select with the values. Otherwise a header is a
+   control: a Class's opens its field's menu. */
+.data-table-form.is-read-only .data-table-column-label {
+  user-select: text;
+}
+
+/* A column header's label, plain text: renaming is reached via the ⋮ menu,
+   not by clicking the label, so no click/hover treatment here.
+
+   The min-width is load-bearing: a percentage width counts for nothing
+   toward an auto-sized column, so a narrow one (an integer's) would shrink
+   to its cells and squeeze the input to a sliver. */
+.data-table-column-label-input {
+  font-size: inherit;
+  font-weight: inherit;
+  width: 100%;
+  min-width: 8em;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+/* A cell's control is a quiet field, boxed only on hover and focus, as a
+   Properties field is: the grid already draws a border around every cell. */
+.data-table-cell-text,
+.data-table-cell-select {
+  font-size: var(--cell-font-size);
+  width: 100%;
+  padding: 4px 6px;
+}
+
+.data-table-cell-select {
+  cursor: pointer;
+}
+
+/* A timestamp cell: its local date and time as text, opening the picker.
+   Text wraps where the browser's own date control would overflow a card. */
+.data-table-cell-timestamp {
+  font-size: var(--cell-font-size);
+  width: 100%;
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.data-table-cell-timestamp.is-empty {
+  color: var(--text-muted);
+}
+
+.data-table-cell-checkbox {
+  cursor: pointer;
+}
+
+/* A color cell: a color chip that opens the colour-picker popover. */
+.data-table-cell-color {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+/* A path cell or field: the entry it names, opened by a click as a link
+   is, then in Edit a chooser and a clear button; the whole thing is a drop
+   target. */
+.path-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px;
+  border: 1px dashed transparent;
+  border-radius: var(--control-radius);
+}
+
+.path-field.drag-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-faint);
+}
+
+/* The entry's name selects as a link's text does: a selection started beside
+   it takes it in, and a press on it still opens the entry, so a press never
+   starts one (web/lib/dom.ts). Firefox won't select a button's text unless
+   the button itself says `user-select: text`. */
+.path-field-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: calc(var(--editor-font-size) * 13 / 16);
+  cursor: pointer;
+  user-select: text;
+}
+
+.path-field-entry:disabled {
+  cursor: default;
+}
+
+.path-field-entry:hover:not(:disabled) .path-field-name {
+  text-decoration: underline;
+}
+
+.path-field-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-field.is-empty .path-field-name,
+.path-field.is-missing .path-field-name {
+  color: var(--text-muted);
+}
+
+/* "None", "Unreadable path" and "Missing: …" are the field's own words, not
+   a value, so a copy leaves them out. */
+.path-field:is(.is-empty, .is-missing, .is-unreadable) .path-field-entry {
+  user-select: none;
+}
+
+.path-field-choose,
+.path-field-clear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.path-field-choose::before,
+.path-field-clear::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-chevrons-up-down) left top / contain no-repeat;
+}
+
+.path-field-clear::before {
+  mask-image: var(--icon-x);
+}
+
+.path-field.is-empty .path-field-clear {
+  display: none;
+}
+
+/* A setting's path field is one dropdown: the whole name opens its chooser,
+   so it reads as a button, never a link. */
+.path-field.is-dropdown .path-field-entry:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.path-field-chevrons {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  background-color: var(--text-muted);
+  mask: var(--icon-chevrons-up-down) center / contain no-repeat;
+}
+
+.path-field-entry:disabled .path-field-chevrons {
+  display: none;
+}
+
+/* A locked value drawn as content. Its box matches an input's — the same
+   font, the padding plus the border it lacks, the height of one line — so
+   switching between Edit and a locked mode moves the grid as little as it
+   can; only a value too long for one line grows the row. */
+.data-table-value {
+  display: block;
+  box-sizing: border-box;
+  min-height: calc(var(--cell-line-height) + 10px);
+  padding: 5px 7px;
+  font-family: var(--font-default);
+  font-size: var(--cell-font-size);
+  line-height: var(--cell-line-height);
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+  user-select: text;
+}
+
+/* A row that wraps reads from its top line, not from its middle. */
+.data-table tr:has(.data-table-value) > td {
+  vertical-align: top;
+}
+
+/* An icon, so it keeps its size at every font size, centred on the line. */
+.data-table-value-check {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin-block: calc((var(--cell-line-height) - 16px) / 2);
+  background-color: currentColor;
+  mask: var(--icon-check) center / contain no-repeat;
+}
+
+.data-table-row-delete {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.data-table-row-delete:hover {
+  color: var(--color-danger);
+}
+
+.data-table-row-delete-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-trash) center / contain no-repeat;
+}
+
+.data-table-add-row {
+  align-self: flex-start;
+}
+
+/* The header's own + cell, shrink-to-content so it doesn't steal width from
+   real columns. */
+.data-table-add-column-cell {
+  width: 1%;
+}
+
+.data-table-add-column {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.data-table-add-column-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-plus) center / contain no-repeat;
+}

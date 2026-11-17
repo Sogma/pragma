@@ -1,0 +1,53 @@
+/* An error, a warning or a confirmation shown where it happened, with a bar
+   in its level's colour down its left edge, as a Console entry has.
+   lib/inlineError.ts draws an error with a title or a setting's button.
+
+   Its fill is a wash of the text colour, not a preset: it sits on panels,
+   dialogs, Settings cards and tinted nodes alike, and every solid preset
+   matches one of them. A surface sets only placement and size. */
+.inline-error,
+.inline-warning,
+.inline-success {
+  /* Named for a surface that must lay a solid colour under it. */
+  --inline-error-fill: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 9px 12px 10px 10px;
+  border-left: 3px solid var(--color-danger);
+  border-radius: 0 var(--box-radius) var(--box-radius) 0;
+  background: var(--inline-error-fill);
+  color: var(--text-primary);
+  font-size: var(--control-font-size);
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.inline-warning {
+  border-left-color: var(--color-warning);
+}
+
+.inline-success {
+  border-left-color: var(--color-success);
+}
+
+/* A line kept for a message that hasn't come is not an error yet. */
+.inline-error:empty {
+  display: none;
+}
+
+.inline-error-title {
+  font-weight: 600;
+}
+
+.inline-error-title + .inline-error-message {
+  color: var(--text-secondary);
+}
+
+.inline-error > .btn {
+  margin-top: 4px;
+  white-space: nowrap;
+}

@@ -1,0 +1,129 @@
+/* A proposed edit drawn over the text: what it would remove is struck through
+   in place, and what it would insert follows as a tinted run that is not
+   document text. The strike is in the text's colour, since a red one is
+   lost on the red fill. */
+.cm-proposal-delete {
+  background: var(--diff-del-bg);
+  text-decoration: line-through;
+  text-decoration-color: currentcolor;
+}
+
+.cm-proposal-insert {
+  background: var(--diff-add-bg);
+  white-space: pre-wrap;
+}
+
+/* Accept and reject sit right after the change they decide, small enough to
+   read as part of the line rather than as a toolbar. */
+.cm-proposal-actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-inline-start: 4px;
+  vertical-align: text-bottom;
+}
+
+.cm-proposal-accept,
+.cm-proposal-reject,
+.cm-proposal-prev,
+.cm-proposal-next {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.cm-proposal-accept::before,
+.cm-proposal-reject::before,
+.cm-proposal-prev::before,
+.cm-proposal-next::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: currentColor;
+  mask: var(--proposal-icon) center / 12px no-repeat;
+}
+
+.cm-proposal-accept {
+  --proposal-icon: var(--icon-check);
+}
+
+.cm-proposal-reject {
+  --proposal-icon: var(--icon-x);
+}
+
+.cm-proposal-prev {
+  --proposal-icon: var(--icon-chevron-left);
+}
+
+.cm-proposal-next {
+  --proposal-icon: var(--icon-chevron-right);
+}
+
+.cm-proposal-prev:hover,
+.cm-proposal-next:hover {
+  color: var(--text-primary);
+}
+
+/* Which alternative is showing, between the arrows that step it. A control,
+   so in the interface's font, not the note's it sits among. */
+.cm-proposal-position {
+  min-width: 3ch;
+  font-family: var(--font-default);
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-proposal-accept:hover {
+  color: var(--diff-add-fg);
+}
+
+.cm-proposal-reject:hover {
+  color: var(--diff-del-fg);
+}
+
+/* Reading view shows a proposal but decides none of it. */
+.cm-content[contenteditable="false"] .cm-proposal-actions {
+  display: none;
+}
+
+/* Floats over the foot of the pane rather than scrolling with the text, so
+   what is left to decide stays in reach wherever the writer has scrolled.
+   The box look is .floating-toolbar's. max-content because left: 50% alone
+   would leave the box only the right half of the pane to shrink into. */
+.edit-proposal-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-pane-toolbar);
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 4px 4px 4px 12px;
+}
+
+.edit-proposal-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.edit-proposal-bar .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.edit-proposal-bar .cm-proposal-prev,
+.edit-proposal-bar .cm-proposal-next {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+}

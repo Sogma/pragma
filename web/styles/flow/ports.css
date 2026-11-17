@@ -1,0 +1,342 @@
+.flow-port-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 22px;
+}
+
+/* A pin the card leaves out, such as a frame the picked model doesn't take:
+   [hidden] alone loses to the display above. */
+.flow-port-row[hidden] {
+  display: none;
+}
+
+.flow-port-row.input {
+  justify-content: flex-start;
+}
+
+.flow-port-row.output {
+  justify-content: flex-end;
+}
+
+.flow-port-label {
+  font-size: var(--small-font-size);
+  color: var(--text-primary);
+}
+
+/* Faded to match its pin while unconnected; full contrast once wired, and
+   always for a required input, whose handle never gets the class.
+   :not(.exposed) is load-bearing: :has() takes its argument's specificity, so
+   without it this selector (4 classes) would beat .flow-port-label.exposed.*
+   (3 classes) regardless of order and keep an exposed field muted.
+
+   Child combinators: a path pin's row holds the `path` output's row, whose
+   pin and name are its own. */
+.flow-port-row:has(> .handle.unconnected) > .flow-port-label:not(.exposed) {
+  color: var(--text-muted);
+}
+
+.flow-port-row.input > .flow-port-label {
+  padding-left: 14px;
+}
+
+.flow-port-row.output > .flow-port-label {
+  padding-right: 14px;
+}
+
+/* Expose tints the label by its pin type, so it always agrees with its pin.
+   Wins over the unconnected fade above by source order; an exposed field
+   stays coloured regardless of connection. */
+.flow-port-label.exposed {
+  color: var(--type-color);
+}
+
+/* A widget input's row: pin and label plus its fallback control, hidden once
+   something is wired in (native [hidden] works here; nothing forces display).
+   Taller than a plain port row to fit a real control. */
+.flow-port-row.has-widget {
+  height: auto;
+  min-height: 22px;
+  padding: 2px 10px 2px 0;
+  gap: 6px;
+}
+
+.flow-port-row.has-widget select,
+.flow-port-row.has-widget input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* A widget input's picker, a model's or a select's, at a field's density. */
+.flow-picker {
+  --picker-gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.flow-picker .provider-mark {
+  width: 11px;
+  height: 11px;
+}
+
+.flow-picker .picker-chevron {
+  width: 10px;
+  height: 10px;
+}
+
+/* Same grab-cursor override as .flow-config-field's inputs; scoped off the
+   shared rule since the select shouldn't get it. */
+.flow-port-row.has-widget input[type="text"] {
+  cursor: text;
+}
+
+/* An output row's control sits left of its pin, so the inset flips sides. */
+.flow-port-row.output.has-widget {
+  padding: 2px 14px 2px 8px;
+}
+
+/* Get Field's slot control: a dropdown or a text box, whichever is shown. */
+.flow-field-key {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+/* A boolean widget's fallback: no flex: 1 stretch; a checkbox has its own
+   natural size. */
+.flow-port-row.has-widget input[type="checkbox"] {
+  flex: none;
+}
+
+/* Template Variables' per-slot name field: unboxed, unlike .has-widget's
+   fallback control, since this text identifies which {{name}} placeholder the
+   pin feeds rather than standing in for its value. A focus underline is the
+   only edit affordance. */
+.flow-port-row.has-label {
+  height: auto;
+  min-height: 22px;
+  padding: 2px 10px 2px 0;
+}
+
+/* The name is written as its placeholder, {{name}}: muted braces round the
+   name in the label's color, all muted while the slot has no name. */
+.flow-variable-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  /* Left offset matches .flow-port-row.input .flow-port-label's 14px: the
+     handle is out of flow, so nothing reserves space for it. */
+  padding-left: 14px;
+  font-size: var(--small-font-size);
+  font-family: var(--font-default);
+  cursor: text;
+}
+
+.flow-variable-name-brace {
+  color: var(--text-muted);
+}
+
+/* As wide as its text, so the closing braces follow the name in every
+   browser: a hidden copy of the name (data-text) sizes the one grid cell the
+   field shares with it. A long name shrinks the field, which then scrolls. */
+.flow-variable-name-field {
+  display: inline-grid;
+  grid-template-columns: minmax(0, max-content);
+  min-width: 0;
+}
+
+.flow-variable-name-field::after,
+.flow-variable-name-input {
+  grid-area: 1 / 1;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  font: inherit;
+}
+
+/* A pixel wider than the name, so the caret has room after its last letter
+   and the text never scrolls under it. */
+.flow-variable-name-field::after {
+  content: attr(data-text);
+  padding-right: 1px;
+  visibility: hidden;
+  white-space: pre;
+}
+
+/* No width of its own: an input's default one, some 20 characters, would
+   size the cell instead of the name. It fills the cell the copy sized. */
+.flow-variable-name-input {
+  width: 0;
+  min-width: 100%;
+  background: none;
+  color: var(--text-primary);
+}
+
+.flow-variable-name-input::placeholder {
+  color: var(--text-muted);
+}
+
+.flow-variable-name-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+}
+
+/* Deliberately no display on the row, so native [hidden] hides it with no
+   override. */
+.flow-add-variable-row {
+  padding: 4px 0 2px;
+}
+
+.flow-add-variable-button {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}
+
+.flow-add-variable-icon {
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  mask: var(--icon-plus) center / contain no-repeat;
+}
+
+/* A Generate node's "+": one more pin to the eye, its disc centred on the pin
+   rail as a pin's dot is and its word where a pin's name goes. Under the
+   pointer the disc and the word take the accent together. */
+.flow-add-reference {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 22px;
+  padding: 0 0 0 14px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* The plus is cut out of the glyph, and the card's edge runs along the rail
+   through it, so a smaller disc behind fills the cut with the page's colour:
+   the plus reads solid, as the ring round a pin's dot does. */
+.flow-add-reference-icon {
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+}
+
+.flow-add-reference-icon::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  background-color: currentColor;
+  mask: var(--icon-circle-plus) center / contain no-repeat;
+}
+
+.flow-add-reference:hover {
+  color: var(--color-accent);
+}
+
+.flow-add-reference:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.flow-add-reference-label {
+  font-size: var(--small-font-size);
+}
+
+/* Per-slot removal, same shape as .flow-add-variable-button at the opposite
+   end of the row. Hover tints toward --color-danger, the one cue that this is
+   destructive. */
+.flow-remove-variable-button {
+  display: inline-flex;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.flow-remove-variable-button:hover {
+  color: var(--color-danger);
+}
+
+/* A reference pin's Remove sits just after its name: at the column's far
+   edge it would land on the output labels beside it, such as file_name. */
+.flow-reference-row .flow-remove-variable-button {
+  margin-left: 4px;
+}
+
+.flow-remove-variable-icon {
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  mask: var(--icon-trash) center / contain no-repeat;
+}
+
+/* The connector dot — a `var(--bg-primary)` ring rather than a fixed dark
+   one, so it reads as a cutout against the node card in both themes instead
+   of a hardcoded dark halo on a light-theme card. */
+.handle {
+  position: absolute;
+  top: 50%;
+  margin-top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  background: var(--type-color);
+  cursor: crosshair;
+}
+
+/* A pin for a wire naming a port its node lacks: it only disconnects, from
+   its right-click menu. */
+.handle.missing {
+  background: var(--color-danger);
+  cursor: context-menu;
+}
+
+/* The only label with a space in it; a fixed-height row can't take a wrap. */
+.flow-port-row.missing .flow-port-label {
+  color: var(--color-danger);
+  white-space: nowrap;
+}
+
+.handle.target {
+  left: -6px;
+}
+
+.handle.source {
+  right: -6px;
+}
+
+/* An unconnected pin: a widget input already has a value from its fallback
+   control, and a plain optional input or output has nothing wired, so neither
+   needs a connected pin's weight. Hover un-fades it, to keep signalling a
+   valid drop target. */
+.handle.unconnected {
+  opacity: 0.4;
+  transition: opacity 0.1s ease;
+}
+
+.handle.unconnected:hover {
+  opacity: 1;
+}
+
+/* Add Row's note of what an unwired timestamp gets, where another column's
+   row has its control: the Table's default, set on the Table. */
+.flow-port-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}

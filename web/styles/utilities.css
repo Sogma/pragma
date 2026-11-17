@@ -1,0 +1,54 @@
+/* The one rule for the `hidden` attribute. An author `display` beats the UA
+   stylesheet's `[hidden]` rule, so every component that sets a display would
+   otherwise need its own override; this layer sits above every component
+   instead, so one rule wins for all of them. It also reaches SVG, which the
+   UA rule (namespaced to HTML) never did. */
+[hidden] {
+  display: none;
+}
+
+/* The mark a reveal leaves on what it lands on (web/lib/flash.ts): find's
+   yellow and text colour, faded back to the item's own. The hold is the
+   animation's delay, which the reduced-motion reset leaves alone, so there
+   the mark still shows and only its fade is cut. The two times add up to
+   the script's FLASH_MS.
+
+   Only text that inherits its colour turns dark: a child that sets its own
+   keeps it, so an item's main text should inherit. */
+.flash {
+  animation: flash 0.8s ease-in-out 0.4s both;
+}
+
+@keyframes flash {
+  from {
+    background-color: var(--find-match-bg);
+    color: var(--find-match-fg);
+  }
+}
+
+/* The keyboard cursor's ring (web/lib/cursorRing.ts): a grey, not the focus
+   blue, so it still shows on a selected item, where the selection's own
+   would merge into the fill. In this layer so it outranks a component's own
+   outline on the item.
+
+   A list that keeps focus itself rings the row it marks `.cursor`. One whose
+   items take focus rings the focused one only while the browser counts that
+   focus as the keyboard's, so a ring left from an earlier visit stays off an
+   item a click focused. */
+.keyboard-cursor:focus .cursor,
+.keyboard-cursor > :focus-visible {
+  outline: 1px solid var(--text-faint);
+  outline-offset: -1px;
+}
+
+/* A scroller whose scrollbar's room is kept whether the bar shows or not
+   and stands in for its end padding, so its contents end as far from the
+   edge while it scrolls as while it doesn't. The room is the app's own 8px
+   bar (scrollbars.css), so it suits a scroller padded 8px at its end only.
+   Firefox draws its own bar, often over the text, and keeps the padding. */
+@supports selector(::-webkit-scrollbar) {
+  .scrollbar-room {
+    padding-inline-end: 0;
+    scrollbar-gutter: stable;
+  }
+}

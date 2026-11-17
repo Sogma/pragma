@@ -1,0 +1,97 @@
+/* A small floating overlay rather than a full-width bar: it only holds a
+   couple of action icons. Anchored to its group's position: relative, so it
+   floats over whichever pane is showing instead of reserving a row.
+   .floating-toolbar is the shared box look for this and
+   .editor-canvas-toolbar; only position/z-index stays per-toolbar. */
+.floating-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+}
+
+/* A line between a floating toolbar's groups, as Find's card draws one
+   before its Close: its margin and the box's 2px gap put it 5px from each
+   button. */
+.floating-toolbar-line {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--border-color);
+}
+
+/* The mounted pane's own controls sit in the toolbar's row as if they were
+   its own items, and an empty slot takes no gap. */
+.editor-toolbar-pane {
+  display: contents;
+}
+
+/* The toolbar's row: the mounted pane's aside, then the box with the pane's
+   overlay under it. The aside gives way first in a narrow group; the box
+   never does.
+
+   pointer-events: none on the row, or its empty corners, beside a box
+   shorter than the aside, would take clicks meant for the text under them. */
+.editor-toolbar {
+  position: absolute;
+  top: 18px;
+  inset-inline-end: 20px;
+  z-index: var(--z-pane-toolbar);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
+
+.editor-toolbar > * {
+  pointer-events: auto;
+}
+
+.editor-toolbar-aside {
+  display: contents;
+}
+
+/* The box, then the mounted pane's overlay under it, right edges together.
+   pointer-events as on the row: the corner beside the narrower of the two
+   is the text's. */
+.editor-toolbar-end {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.editor-toolbar-end > * {
+  pointer-events: auto;
+}
+
+.editor-toolbar-below {
+  display: contents;
+}
+
+/* The icon names where a click goes, not the mode you are in: a book while
+   editing, a pencil in reading view. aria-pressed adds only the highlight
+   that marks reading view. */
+.editor-toolbar-reading-toggle[aria-pressed="true"] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.editor-toolbar-toggle-icon {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-book-open) center / contain no-repeat;
+}
+
+.editor-toolbar-reading-toggle[aria-pressed="true"] .editor-toolbar-toggle-icon {
+  mask-image: var(--icon-pencil);
+}

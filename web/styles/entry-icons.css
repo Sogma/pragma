@@ -1,0 +1,134 @@
+/* Every entry's icon is painted here, on whatever element its surface marks
+   with data-entry-icon, plus data-scope on a folder a scope opens over: tree
+   rows, gallery tiles and cards, Quick Open rows, tabs, search
+   results, links, Flow file chips. A surface sizes and spaces its icon and
+   never paints it, so a change here reaches every one of them.
+
+   A plain file names no glyph, and most surfaces leave it bare; one that
+   must show something, a tile or a card, names file. Pragma's own formats
+   keep a hue of their own; other files are secondary text, a folder muted.
+   On a menu's filled row each paints in the row's --row-ink instead,
+   except the kinds drawn in the logo's colours.
+
+   A primitive placed after context-menu.css: a Quick Open row's icon is that
+   file's slot, whose fallback square and size must lose to an entry's at
+   equal specificity. */
+[data-entry-icon] {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  background-color: var(--row-ink, var(--text-secondary));
+  mask: var(--entry-glyph) center / contain no-repeat;
+}
+
+[data-entry-icon="file"] {
+  --entry-glyph: var(--icon-file);
+}
+
+[data-entry-icon="markdown"] {
+  --entry-glyph: var(--icon-markdown);
+}
+
+[data-entry-icon="readme"] {
+  --entry-glyph: var(--icon-info);
+}
+
+/* Media reads as one family, in the default colour. */
+[data-entry-icon="image"] {
+  --entry-glyph: var(--icon-image);
+}
+
+[data-entry-icon="video"] {
+  --entry-glyph: var(--icon-video);
+}
+
+[data-entry-icon="pdf"] {
+  --entry-glyph: var(--icon-pdf);
+}
+
+[data-entry-icon="fountain"] {
+  --entry-glyph: var(--icon-fountain);
+}
+
+/* Fixed green, so an Applet is known by colour alone. */
+[data-entry-icon="applet"] {
+  --entry-glyph: var(--icon-applet);
+  background-color: var(--row-ink, var(--color-applet-icon));
+}
+
+/* Violet, as an object pin is: what a Table gives a Flow is objects. */
+[data-entry-icon="table"] {
+  --entry-glyph: var(--icon-table);
+  background-color: var(--row-ink, var(--color-violet));
+}
+
+/* The accent the Flow editor's own text pin uses, rather than a new hue. */
+[data-entry-icon="flow"] {
+  --entry-glyph: var(--icon-flow);
+  background-color: var(--row-ink, var(--color-accent));
+}
+
+/* Pragma's yellow, which no other kind wears. */
+[data-entry-icon="class"] {
+  --entry-glyph: var(--icon-class);
+  background-color: var(--row-ink, var(--pragma-yellow));
+}
+
+/* Any other AGENTS.md wears the mark's shape in one colour: instructions for
+   agents, which a `pragma` key would make a Pragma scope. */
+[data-entry-icon="agents"] {
+  --entry-glyph: var(--icon-mark-pragma);
+}
+
+/* An AGENTS.md that opens a scope wears Pragma's mark: an image, not a mask. */
+[data-entry-icon="scope"] {
+  background: var(--icon-mark-pragma) center / contain no-repeat;
+  mask: none;
+}
+
+[data-entry-icon="json"] {
+  --entry-glyph: var(--icon-braces);
+}
+
+/* A JSON file Pragma reads: the braces in the logo's two halves, warm and
+   cool, each blending from the brace's top (12.5% of the box) to its foot. */
+[data-entry-icon="pragma-file"] {
+  --entry-glyph: var(--icon-braces);
+  --braces-warm: linear-gradient(var(--pragma-crimson) 12.5%, var(--pragma-orange), var(--pragma-yellow) 87.5%);
+  --braces-cool: linear-gradient(var(--pragma-green) 12.5%, var(--pragma-cyan), var(--pragma-blue) 87.5%);
+  background:
+    var(--braces-warm) left / 50% 100% no-repeat,
+    var(--braces-cool) right / 50% 100% no-repeat;
+}
+
+[data-entry-icon="folder"] {
+  --entry-glyph: var(--icon-folder);
+  background-color: var(--row-ink, var(--text-muted));
+}
+
+/* The folder a scope opens over wears the logo's colours, as its AGENTS.md's
+   mark does. */
+[data-entry-icon="folder"][data-scope] {
+  background: var(--scope-ring);
+}
+
+/* A site root's globe, whether or not it opens a scope. Simplified, since the
+   rail's fuller globe smudges at this size. */
+[data-entry-icon="site"] {
+  --entry-glyph: var(--icon-globe);
+  background-color: var(--row-ink, var(--pragma-blue));
+}
+
+/* The folder a scope's World setting names (docs/protocol.md, World names),
+   whatever it is called. */
+[data-entry-icon="world"] {
+  --entry-glyph: var(--icon-world);
+  background-color: var(--row-ink, var(--pragma-green));
+}
+
+[data-entry-icon="library"] {
+  --entry-glyph: var(--icon-library);
+  background-color: var(--row-ink, var(--view-library));
+}

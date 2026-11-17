@@ -1,0 +1,89 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    // .table.html/.class.html/.applet.html/.flow.html are pragma's own
+    // data-storage formats (docs/protocol.md), never rendered as a page in their
+    // own right — web a11y rules (lang attribute, etc.) don't apply to them the
+    // way they do to web/index.html, the one real page in this repo.
+    //
+    // _tags.json keeps the layout pragma writes it in, one tag a line, which
+    // the formatter would fold onto one line once it fits.
+    //
+    // Markdown (docs, and the notes in templates/) stays as written: the
+    // formatter rewrites emphasis and tables, and without frontmatter parsing
+    // it turns a note's YAML block into a heading.
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!**/*.table.html",
+      "!**/*.class.html",
+      "!**/*.applet.html",
+      "!**/*.flow.html",
+      "!**/_tags.json",
+      "!**/*.md"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "linter": {
+    "enabled": true,
+    // Biome runs its playwright rules repo-wide once @playwright/test is a
+    // dependency, and outside test/e2e they take any function named describe
+    // for Playwright's. The override below keeps them for the e2e suite.
+    "domains": {
+      "playwright": "none"
+    },
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        // This codebase's icon buttons (web/index.html) put the
+        // accessible name on the parent <button aria-label="...">, not
+        // inside the decorative <svg> itself — the same pattern this
+        // rule assumes isn't in use, so it flags every icon.
+        "noSvgWithoutTitle": "off"
+      },
+      "style": {
+        // The rule assumes a stylesheet ordered by specificity; web/styles/
+        // is ordered by component, one file each. It also compares selectors
+        // without reading declarations, so its hits are pairs sharing no
+        // property or a variant deliberately overriding its base — enough
+        // unactionable warnings to trip biome's diagnostic cap and hide a real
+        // error from CI.
+        "noDescendingSpecificity": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["test/e2e/**"],
+      "linter": {
+        "domains": {
+          "playwright": "recommended"
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

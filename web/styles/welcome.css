@@ -1,0 +1,99 @@
+/* The desktop app's welcome window (welcome.html): the registered spaces
+   down the left when there are any, and Settings' logo and wordmark over the
+   create and open pages. The window is a fixed size; only the list and the
+   pages scroll. */
+.welcome {
+  display: flex;
+  background: var(--bg-primary);
+}
+
+/* No bar to see: the header is the drag strip across the top, holding the
+   room the window's own controls are drawn in. Its fill is what Electron
+   paints them over (windowControls.ts), so it stays clear. */
+.welcome #app-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  background: none;
+  box-shadow: none;
+}
+
+.welcome #header-window-controls {
+  margin-inline: auto 0;
+}
+
+.welcome-spaces {
+  display: flex;
+  flex: 0 0 280px;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--header-height) 8px 8px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-inline-end: 1px solid var(--border-color);
+}
+
+.welcome-space-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The folder a space sits in: the name above completes the path, so a long
+   one wraps rather than losing its end. */
+.welcome-space-list .list-item-subtitle {
+  white-space: normal;
+  word-break: break-all;
+  line-height: 16px;
+}
+
+.welcome-space-list .list-item-menu {
+  align-self: flex-start;
+}
+
+.welcome-spaces-error {
+  margin: 0 10px;
+}
+
+.welcome-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding-top: var(--header-height);
+}
+
+.welcome-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 20px;
+}
+
+/* Settings' lockup at a larger size; the wordmark keeps its artwork's
+   733:218 ratio. */
+.welcome-brand .settings-logo {
+  width: 44px;
+  height: 44px;
+}
+
+.welcome-brand .settings-wordmark {
+  width: 148px;
+  height: 44px;
+}
+
+.welcome-version {
+  user-select: text;
+}
+
+/* A 540px column, the cards inset from its edges. */
+.welcome .space-form {
+  width: 100%;
+  max-width: 540px;
+}
+
+.welcome .space-form.settings-pages > section {
+  padding-inline: 36px;
+}

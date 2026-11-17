@@ -1,0 +1,144 @@
+/* A media cell or field: a thumbnail the file itself provides, its name,
+   and in Edit a clear button; the whole thing is a drop target. The
+   picture is a fixed box so a grid of them lines up whatever each file's
+   own shape is. */
+.media-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 2px;
+  border: 1px dashed transparent;
+  border-radius: var(--control-radius);
+}
+
+.media-field.drag-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-faint);
+}
+
+.media-field-thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.media-field-thumb:disabled {
+  cursor: default;
+}
+
+.media-field-picture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-field-name {
+  font-size: calc(var(--editor-font-size) * 13 / 16);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.media-field.is-empty .media-field-name,
+.media-field.is-missing .media-field-name {
+  color: var(--text-muted);
+}
+
+/* "None" and "Unreadable path" are the field's own words, not a value, so a
+   copy leaves them out. An offline file's name is still its value. */
+.media-field.is-empty .media-field-name {
+  user-select: none;
+}
+
+/* The picture's hover bars (thumbnail-hud.css) show while it is hovered. */
+.media-field-thumb:hover > .thumbnail-hud {
+  opacity: 1;
+}
+
+/* A file that has gone, marked as an editor marks media it can't reach:
+   the box filled in the problem colours. Its words follow the box's width,
+   as the hover bars' do: "Offline" in a row's thumbnail, "Media offline"
+   from 150px, in larger type from 248px. */
+.media-field.is-missing .media-field-thumb {
+  border-color: var(--problem-bg);
+  background: var(--problem-bg);
+  color: var(--problem-fg);
+}
+
+.media-field-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 6px;
+  font-family: var(--font-hud);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.media-field-offline > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-field-offline-long {
+  display: none;
+}
+
+@container thumbnail (width >= 150px) {
+  .media-field-offline {
+    font-size: var(--control-font-size);
+    line-height: 17px;
+  }
+
+  .media-field-offline-short {
+    display: none;
+  }
+
+  .media-field-offline-long {
+    display: block;
+  }
+}
+
+@container thumbnail (width >= 248px) {
+  .media-field-offline {
+    font-size: 15px;
+    line-height: 20px;
+  }
+}
+
+.media-field-clear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.media-field-clear::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-x) left top / contain no-repeat;
+}
+
+.media-field.is-empty .media-field-clear {
+  display: none;
+}

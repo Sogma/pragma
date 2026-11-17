@@ -1,0 +1,55 @@
+/* Applet pane: a sandboxed iframe in the scroll region below. */
+.editor-applet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Scrolls the title bar and the iframe together: the applet reports its
+   content height and the iframe grows to fit, rather than scrolling
+   internally under a pinned title. --bg-primary so any gap below a short
+   applet matches. */
+.editor-applet-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.editor-applet-frame {
+  /* Height set from the applet's reported content height; flex-shrink: 0 so a
+     tall applet overflows the scroller rather than being squeezed. min-height
+     covers the moment before the first report. */
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 160px;
+  border: none;
+  background: var(--bg-primary);
+}
+
+/* Why the Applet can't run, in place of its frame. */
+.editor-applet-notice {
+  margin: 16px;
+}
+
+/* Reload is a running Applet's primary action, as Run is a Flow's: an icon
+   button filled in the Applet icon's green. The hover restates the glyph's
+   colour, or .icon-button's hover would darken it into the fill. */
+.applet-reload-button {
+  background: var(--color-applet-icon);
+  color: var(--text-on-applet-icon);
+}
+
+.applet-reload-button:hover {
+  background: color-mix(in srgb, var(--color-applet-icon), var(--text-primary) 12%);
+  color: var(--text-on-applet-icon);
+}
+
+.applet-reload-icon {
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  mask: var(--icon-rotate-ccw) center / contain no-repeat;
+}

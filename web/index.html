@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frames may load only the video embed's player. An Applet frame
+         can navigate itself to any URL, carrying data out in it, and neither
+         its own CSP nor the sandbox attribute refuses that: only this page's
+         frame-src does. srcdoc frames are never fetched, so it spares them. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="frame-src https://www.youtube-nocookie.com https://www.youtube.com"
+    />
+    <title>Pragma</title>
+    <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/images/favicon.ico" sizes="any" />
+    <link rel="icon" href="/images/favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="icon" href="/images/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <!-- Sets data-theme synchronously, before the stylesheet below paints
+         its light-theme defaults — main.ts (a deferred module script) runs
+         too late to avoid a flash of the wrong theme, so this has to be an
+         inline, blocking script. Kept in sync with the `pragma:theme` key in
+         web/services/settings.ts and its resolution in web/view/theme.ts.
+
+         The desktop window's zoom (`pragma:zoom`) is set here for the same
+         reason: applied later, the window paints at 100% and then jumps.
+
+         So is the interface font (`pragma:interface-font`), or the window
+         paints in the system font and then reflows. It resolves a stored
+         font as web/view/fonts.ts does, and a test holds the two alike. -->
+    <script>
+      {
+        const theme = localStorage.getItem("pragma:theme");
+        const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      }
+      {
+        const zoom = Number(localStorage.getItem("pragma:zoom"));
+        if (window.pragmaElectron && zoom > 0) window.pragmaElectron.setZoomFactor(zoom / 100);
+      }
+      {
+        const font = localStorage.getItem("pragma:interface-font") ?? "";
+        const system = { serif: "var(--font-serif)", monospace: "var(--font-monospace)" };
+        const family = Object.hasOwn(system, font)
+          ? system[font]
+          : font.toLowerCase() === "segoe ui"
+            ? '"Segoe UI Centred", "Segoe UI", var(--font-system)'
+            : `"${font.replace(/["\\]/g, "\\$&")}", var(--font-system)`;
+        if (font.trim() && font !== "sans-serif") document.documentElement.style.setProperty("--font-interface", family);
+      }
+    </script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- In Electron this replaces the OS title bar, so the whole strip is the
+           drag region (web/styles/frame.css), and the window's own controls
+           sit over its ends: macOS's traffic lights, or the minimize, maximize
+           and close Electron draws, whose room #header-window-controls keeps.
+           Editor groups render their tab strips into #header-tabs;
+           #header-sidebar-spacer and #header-assistant track #sidebar's and
+           #assistant's widths so the strips start where the groups do. -->
+      <header id="app-header">
+        <button id="header-sidebar-toggle" type="button" class="icon-button" aria-label="Toggle sidebar" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <rect class="panel-toggle-fill" x="5" y="6" width="2.25" height="12" rx="1" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+        <div id="header-sidebar-spacer"></div>
+        <div id="header-tabs"></div>
+        <div id="header-assistant">
+          <div id="inspector-tabs" role="tablist" aria-label="Inspector">
+            <button id="inspector-tab-tools" type="button" class="icon-button rail-icon" role="tab" aria-controls="inspector-tools" aria-label="Tools">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+            </button>
+            <button id="inspector-tab-links" type="button" class="icon-button rail-icon" role="tab" aria-controls="inspector-links" aria-label="Links">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </button>
+            <button id="inspector-tab-properties" type="button" class="icon-button rail-icon" role="tab" aria-controls="inspector-properties" aria-label="Properties">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h.01" />
+                <path d="M3 12h.01" />
+                <path d="M3 18h.01" />
+                <path d="M8 6h13" />
+                <path d="M8 12h13" />
+                <path d="M8 18h13" />
+              </svg>
+            </button>
+            <button id="inspector-tab-info" type="button" class="icon-button rail-icon" role="tab" aria-controls="inspector-info" aria-label="Info">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="6.75" r="1.25" fill="currentColor" stroke="none" />
+                <path d="M10.5 10.5H12V17.75" />
+                <path d="M10.5 17.75H13.5" />
+              </svg>
+            </button>
+          </div>
+          <button id="header-assistant-toggle" type="button" class="icon-button" aria-label="Toggle assistant" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <rect class="panel-toggle-fill" x="16.75" y="6" width="2.25" height="12" rx="1" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+          <div id="header-window-controls" hidden></div>
+        </div>
+      </header>
+      <div id="workspace">
+      <!-- Covers the workspace while a git action is mid-flight: an edit typed
+           into a buffer that a pull is about to replace would be written
+           straight back over what was pulled. -->
+      <div id="workspace-scrim" hidden></div>
+      <nav id="rail" aria-label="Navigation rail">
+        <!-- View buttons are rendered here from the sidebar view registry
+             (web/view/sidebar/shell.ts), in registration order, before Settings. -->
+        <button id="rail-settings" type="button" class="icon-button rail-icon" data-tooltip-side="right" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </nav>
+      <div id="sidebar">
+        <nav id="tree" class="sidebar-panel file-tree">
+          <div id="tree-toolbar">
+            <button id="tree-space-name" type="button" aria-haspopup="true" aria-expanded="false">
+              <span class="space-name-chevron"></span>
+              <span id="tree-space-name-label"></span>
+            </button>
+            <div id="tree-toolbar-actions">
+              <button id="tree-new-file" type="button" class="icon-button" aria-label="New Note">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="M12 12v6" />
+                  <path d="M9 15h6" />
+                </svg>
+              </button>
+              <button id="tree-new-folder" type="button" class="icon-button" aria-label="New Folder">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <path d="M12 11v6" />
+                  <path d="M9 14h6" />
+                </svg>
+              </button>
+              <button id="tree-refresh" type="button" class="icon-button" aria-label="Refresh">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 4v6h-6" />
+                  <path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </button>
+              <button id="tree-collapse-all" type="button" class="icon-button" aria-label="Collapse All">
+                <span class="tree-collapse-all-icon"></span>
+              </button>
+            </div>
+          </div>
+          <div id="tree-nodes" class="scrollbar-room"></div>
+        </nav>
+        <section id="source-control" class="sidebar-panel" hidden>
+          <h2 class="sidebar-title">Source Control</h2>
+          <div id="git-not-repo" hidden>This space is not a git repository.</div>
+          <div id="git-restricted" hidden>
+            <p id="git-restricted-message"></p>
+            <button id="git-trust-button" type="button" class="btn">Trust space</button>
+          </div>
+          <div id="git-branch-info" hidden>
+            <svg class="git-branch-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="6.5" cy="5" r="2.3" />
+              <circle cx="6.5" cy="19" r="2.3" />
+              <circle cx="17.5" cy="8" r="2.3" />
+              <path d="M6.5 7.3v9.4" />
+              <path d="M17.5 10.3c0 4.2-3.4 5-11 6.4" />
+            </svg>
+            <span id="git-branch-name"></span>
+          </div>
+          <div id="git-primary-actions">
+            <button id="git-sync-button" type="button" class="primary-fill">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              <span id="git-sync-label">Sync Changes</span>
+            </button>
+            <button
+              id="git-advanced-toggle"
+              type="button"
+              class="icon-button"
+              aria-label="More actions"
+              aria-expanded="false"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none">
+                <circle cx="12" cy="5" r="1.75" />
+                <circle cx="12" cy="12" r="1.75" />
+                <circle cx="12" cy="19" r="1.75" />
+              </svg>
+            </button>
+          </div>
+          <div id="git-advanced" hidden>
+            <div id="git-commit-box">
+              <textarea id="git-commit-message" class="form-input" placeholder="Commit message"></textarea>
+              <button id="git-commit-button" type="button" class="btn">Commit all</button>
+            </div>
+            <div id="git-sync-actions">
+              <button id="git-pull-button" type="button" class="btn">Pull</button>
+              <button id="git-push-button" type="button" class="btn">Push</button>
+            </div>
+          </div>
+          <div id="git-status-message" class="inline-error" hidden></div>
+          <div id="git-file-list"></div>
+        </section>
+      </div>
+      <div id="sidebar-resize-handle" class="resize-handle ew through-header"></div>
+      <main id="editor">
+        <!-- One editor group per column, each built by web/editorArea.ts:
+             its floating toolbar, the title bar its panes take in, the host
+             its pane mounts in, and its status bar. -->
+        <div id="editor-groups"></div>
+        <div id="console-resize-handle" class="resize-handle ns" hidden></div>
+        <section id="console" hidden>
+          <div id="console-toolbar">
+            <span id="console-title">Console</span>
+            <div id="console-toolbar-actions">
+              <button id="console-clear" type="button" class="icon-button" aria-label="Clear Console">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                </svg>
+              </button>
+              <button id="console-close" type="button" class="icon-button" aria-label="Close Console">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6 6 18" />
+                  <path d="M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="console-entries"></div>
+        </section>
+      </main>
+      <div id="assistant-resize-handle" class="resize-handle ew through-header"></div>
+      <aside id="assistant">
+        <section id="assistant-inspector">
+          <div id="inspector-tools" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-tools" hidden>
+            <div id="context-panel" class="inspector-section context-panel" hidden></div>
+            <div id="button-list"></div>
+            <div id="action-results"></div>
+            <div id="inspector-tools-slot"></div>
+          </div>
+          <div id="inspector-links" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-links" hidden>
+            <div id="inspector-links-slot"></div>
+          </div>
+          <div id="inspector-properties" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-properties" hidden>
+            <div id="inspector-properties-slot"></div>
+          </div>
+          <div id="inspector-info" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-info">
+            <div id="inspector-pane-slot"></div>
+          </div>
+        </section>
+        <div id="assistant-split-handle" class="resize-handle ns"></div>
+        <section id="assistant-chat">
+          <div id="chat-messages" class="scrollbar-room"></div>
+          <form id="chat-form" class="form-input">
+            <textarea id="chat-input" rows="1" placeholder="Ask anything" autocomplete="off"></textarea>
+            <div class="chat-composer-toolbar">
+              <div class="chat-composer-chips">
+                <button id="chat-model-button" type="button" class="flat-button chat-model-chip picker model-picker" aria-haspopup="true" aria-expanded="false">
+                  <span class="provider-mark" aria-hidden="true"></span>
+                  <span class="picker-name"></span>
+                  <span class="model-picker-effort" hidden></span>
+                  <span class="picker-chevron" aria-hidden="true"></span>
+                </button>
+                <button id="chat-mode-button" type="button" class="flat-button chat-mode-chip" aria-haspopup="true" aria-expanded="false">
+                  <span class="chat-mode-icon" aria-hidden="true"></span>
+                  <span class="chat-mode-name">Suggesting</span>
+                  <span class="picker-chevron" aria-hidden="true"></span>
+                </button>
+              </div>
+              <button id="chat-send" type="submit" class="icon-button primary-fill" aria-label="Send" disabled>
+                <span class="chat-send-icon" aria-hidden="true"></span>
+              </button>
+            </div>
+          </form>
+        </section>
+      </aside>
+      </div>
+      <!-- Settings' content, handed to the dialog service on open; the
+           service supplies the scrim, the panel and its header. -->
+      <div id="settings-panel" hidden>
+          <div id="settings-main" class="settings-main">
+            <nav id="settings-nav" class="settings-nav" aria-label="Settings categories">
+              <button type="button" class="settings-nav-item active" data-settings-category="general">General</button>
+              <button type="button" class="settings-nav-item" data-settings-category="appearance">Appearance</button>
+              <button type="button" class="settings-nav-item" data-settings-category="editor">Editor</button>
+              <button type="button" class="settings-nav-item" data-settings-category="files">Files</button>
+              <button type="button" class="settings-nav-item" data-settings-category="shortcuts">Shortcuts</button>
+              <button type="button" class="settings-nav-item" data-settings-category="models">AI Models</button>
+              <button type="button" class="settings-nav-item" data-settings-category="mcp-servers">MCP Servers</button>
+              <button type="button" class="settings-nav-item" data-settings-category="publishing">Publishing</button>
+              <button type="button" class="settings-nav-item" data-settings-category="api">API Access</button>
+              <button type="button" class="settings-nav-item" data-settings-category="advanced">Advanced</button>
+            </nav>
+            <div id="settings-body" class="settings-body settings-pages">
+              <section class="settings-category" data-settings-category="general">
+                <div class="field-row settings-version-row">
+                  <div class="settings-about">
+                    <img class="settings-logo" src="/images/mark.svg" alt="" width="36" height="36" />
+                    <div class="settings-wordmark" role="img" aria-label="Pragma"></div>
+                  </div>
+                  <div class="field-row-control">
+                    <span id="setting-version-value" class="field-row-value"></span>
+                    <button id="setting-check-updates" type="button" class="btn">
+                      Check for updates
+                    </button>
+                  </div>
+                  <div id="setting-update-status" class="field-row-description" hidden></div>
+                  <div id="setting-release-notes-line" hidden>
+                    <button
+                      id="setting-release-notes"
+                      type="button"
+                      class="btn btn-external"
+                      data-tooltip="Opens this version's release on GitHub"
+                    >
+                      Release notes
+                    </button>
+                  </div>
+                </div>
+                <div id="setting-automatic-updates-group" class="settings-group" hidden>
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Automatic updates</div>
+                        <div class="field-row-description">Turn this off so Pragma won't check for updates at launch.</div>
+                      </div>
+                      <button
+                        id="setting-automatic-updates"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="appearance" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Color scheme</div>
+                        <div class="field-row-description">Color scheme for the app.</div>
+                      </div>
+                      <button id="setting-theme" type="button" class="form-input settings-select"></button>
+                    </div>
+                    <div id="setting-interface-font" hidden></div>
+                    <div id="setting-zoom-row" hidden></div>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="editor" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Readable line length</div>
+                        <div class="field-row-description">Limit the editor, reading view and App Mode to a comfortable width.</div>
+                      </div>
+                      <button
+                        id="setting-readable-line-length"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Line numbers</div>
+                        <div class="field-row-description">Show line numbers in the gutter.</div>
+                      </div>
+                      <button
+                        id="setting-line-numbers"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Folding markers</div>
+                        <div class="field-row-description">Show gutter icons for expanding and collapsing code blocks.</div>
+                      </div>
+                      <button
+                        id="setting-fold-markers"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div id="setting-editor-font" hidden></div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Font size</div>
+                        <div class="field-row-description">Font size in pixels for the editing area. Screenplays use Page zoom instead.</div>
+                      </div>
+                      <div class="field-row-control">
+                        <button
+                          id="setting-editor-font-size-reset"
+                          type="button"
+                          class="icon-button"
+                          data-tooltip="Reset to default"
+                          aria-label="Reset font size to default"
+                        >
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 4v6h6" />
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                          </svg>
+                        </button>
+                        <span id="setting-editor-font-size-value" class="field-row-value">16px</span>
+                        <input
+                          id="setting-editor-font-size"
+                          type="range"
+                          class="settings-slider"
+                          min="10"
+                          max="24"
+                          step="1"
+                          value="16"
+                          aria-label="Font size"
+                        />
+                      </div>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Bright selection</div>
+                        <div class="field-row-description">Make selected text easy to spot with a high-contrast color.</div>
+                      </div>
+                      <button
+                        id="setting-bright-selection"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Spellcheck</div>
+                        <div class="field-row-description">Underline misspelled words in notes, screenplays and text fields.</div>
+                      </div>
+                      <button
+                        id="setting-spellcheck"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <button id="setting-spellcheck-languages" type="button" class="list-item settings-open-row" hidden>
+                      <span class="settings-row-name">Spellcheck languages</span>
+                      <span class="settings-open-row-chevron" aria-hidden="true"></span>
+                    </button>
+                    <div id="setting-spellcheck-languages-mac" class="field-row" hidden>
+                      <div class="field-row-text">
+                        <div class="field-row-title">Spellcheck languages</div>
+                        <div class="field-row-description">macOS detects the language as you type.</div>
+                      </div>
+                    </div>
+                    <button id="setting-added-words" type="button" class="list-item settings-open-row" hidden>
+                      <span class="settings-row-name">Custom dictionary</span>
+                      <span class="settings-open-row-chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Use [[Wikilinks]]</div>
+                        <div class="field-row-description">Automatically format links as [[links]]. Turn this off to use Markdown links instead.</div>
+                      </div>
+                      <button
+                        id="setting-use-wikilinks"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Single line breaks</div>
+                        <div class="field-row-description">Keep a paragraph's line breaks in reading view. Turn this off to join its lines, as standard Markdown does.</div>
+                      </div>
+                      <button
+                        id="setting-single-line-breaks"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Hide format syntax</div>
+                        <div class="field-row-description">Hide marks like ** and # while you edit a note or a screenplay. Source mode still shows them.</div>
+                      </div>
+                      <button
+                        id="setting-hide-format-syntax"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <h3 class="section-label settings-group-title">Formats</h3>
+                  <div class="settings-card">
+                    <div id="settings-format-list" class="settings-card-list"></div>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="files" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Show all file types</div>
+                        <div class="field-row-description">Show files with any extension, including those Pragma can't open.</div>
+                      </div>
+                      <button
+                        id="setting-show-all-file-types"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Show extensions</div>
+                        <div class="field-row-description">Show file extensions in the file tree.</div>
+                      </div>
+                      <button
+                        id="setting-show-extensions"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Trash folder</div>
+                        <div class="field-row-description">Deleted files move to a .trash folder in your space instead of being permanently deleted.</div>
+                      </div>
+                      <button
+                        id="setting-move-to-trash"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">History</div>
+                        <div class="field-row-description">Keep earlier versions of your files for 7 days, outside your space.</div>
+                      </div>
+                      <button
+                        id="setting-keep-history"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="true"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Clear history</div>
+                        <div class="field-row-description">Delete every earlier version kept for this space. Your files stay as they are.</div>
+                      </div>
+                      <button id="setting-clear-history" type="button" class="btn">Clear</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Thumbnails</div>
+                        <div id="setting-thumbnails-usage" class="field-row-description">Kept outside your space, made as galleries show your images and clips.</div>
+                      </div>
+                      <button id="setting-clear-thumbnails" type="button" class="btn">Clear</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="shortcuts" hidden>
+                <p class="settings-intro">The commands in the command palette, and the keys that run them.</p>
+                <div class="shortcuts-search">
+                  <input
+                    id="shortcuts-filter"
+                    class="form-input settings-input shortcuts-filter"
+                    type="text"
+                    placeholder="Search commands"
+                    aria-label="Search commands"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button
+                    id="shortcuts-by-key"
+                    type="button"
+                    class="icon-button shortcuts-by-key"
+                    aria-label="Search by pressing a shortcut"
+                    aria-pressed="false"
+                  >
+                    <span class="shortcuts-by-key-icon"></span>
+                  </button>
+                </div>
+                <div class="settings-group">
+                  <div id="shortcuts-list" class="settings-card"></div>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="models" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Default text model</div>
+                      </div>
+                      <button id="setting-default-model" type="button" class="form-input settings-select settings-wide-picker picker model-picker" aria-haspopup="true" aria-expanded="false">
+                        <span class="provider-mark" aria-hidden="true"></span>
+                        <span class="picker-name"></span>
+                        <span class="picker-chevron" aria-hidden="true"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Default image model</div>
+                      </div>
+                      <button id="setting-default-image-model" type="button" class="form-input settings-select settings-wide-picker picker model-picker" aria-haspopup="true" aria-expanded="false">
+                        <span class="provider-mark" aria-hidden="true"></span>
+                        <span class="picker-name"></span>
+                        <span class="picker-chevron" aria-hidden="true"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Default video model</div>
+                      </div>
+                      <button id="setting-default-video-model" type="button" class="form-input settings-select settings-wide-picker picker model-picker" aria-haspopup="true" aria-expanded="false">
+                        <span class="provider-mark" aria-hidden="true"></span>
+                        <span class="picker-name"></span>
+                        <span class="picker-chevron" aria-hidden="true"></span>
+                      </button>
+                    </div>
+                  </div>
+                  <p id="setting-default-models-error" class="inline-error settings-group-note" hidden></p>
+                </div>
+                <div class="settings-group">
+                  <h3 class="section-label settings-group-title">Model Providers</h3>
+                  <div class="settings-card">
+                    <div id="providers-list" class="settings-card-list"></div>
+                    <button id="providers-add" type="button" class="list-item settings-add-row">
+                      <span class="settings-add-row-icon" aria-hidden="true"></span>
+                      Add provider
+                    </button>
+                  </div>
+                  <p id="providers-storage-note" class="settings-group-note" hidden></p>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="mcp-servers" hidden>
+                <p class="settings-intro">Servers whose tools the copilot and Flows can use.</p>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div id="mcp-server-list" class="settings-card-list"></div>
+                    <button id="mcp-add-server" type="button" class="list-item settings-add-row">
+                      <span class="settings-add-row-icon" aria-hidden="true"></span>
+                      Add server
+                    </button>
+                  </div>
+                  <p id="mcp-storage-note" class="settings-group-note" hidden></p>
+                  <p id="mcp-list-note" class="settings-group-note" hidden></p>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="publishing" hidden>
+                <p class="settings-intro">The services your websites publish to.</p>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div id="publishers-list" class="settings-card-list"></div>
+                    <button id="publishers-add" type="button" class="list-item settings-add-row">
+                      <span class="settings-add-row-icon" aria-hidden="true"></span>
+                      Add publisher
+                    </button>
+                  </div>
+                  <p id="publishers-storage-note" class="settings-group-note" hidden></p>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="api" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Enable access</div>
+                        <div class="field-row-description">Agents and scripts, over MCP or plain HTTP.</div>
+                      </div>
+                      <button id="api-enabled" type="button" class="toggle-switch" role="switch" aria-checked="false">
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Port</div>
+                        <div class="field-row-description">On this machine only.</div>
+                      </div>
+                      <input id="api-port" class="form-input settings-input settings-port" type="number" min="1" max="65535" />
+                    </div>
+                  </div>
+                  <p id="api-restart-note" class="settings-group-note" hidden></p>
+                </div>
+                <div class="settings-group">
+                  <h3 class="section-label settings-group-title">Tokens</h3>
+                  <div class="settings-card">
+                    <div id="api-token-list" class="settings-card-list"></div>
+                    <button id="api-add-token" type="button" class="list-item settings-add-row">
+                      <span class="settings-add-row-icon" aria-hidden="true"></span>
+                      Create token
+                    </button>
+                  </div>
+                  <p id="api-error" class="inline-error settings-group-note" hidden></p>
+                </div>
+              </section>
+              <section class="settings-category" data-settings-category="advanced" hidden>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Show Console</div>
+                        <div class="field-row-description">Log every LLM call's prompt and result below the editor.</div>
+                      </div>
+                      <button
+                        id="setting-console"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                    <div class="field-row">
+                      <div class="field-row-text">
+                        <div class="field-row-title">Show stats</div>
+                        <div class="field-row-description">Frames per second and the longest frame on every canvas.</div>
+                      </div>
+                      <button
+                        id="setting-stats"
+                        type="button"
+                        class="toggle-switch"
+                        role="switch"
+                        aria-checked="false"
+                        aria-label="Show stats"
+                      >
+                        <span class="toggle-knob"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="mcp-server" data-settings-parent="mcp-servers" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to MCP Servers">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    MCP Servers
+                  </button>
+                  <h3 id="mcp-form-title" class="settings-subpage-title">Add MCP server</h3>
+                </div>
+                <form id="mcp-server-form" class="settings-form-stack">
+                  <p id="mcp-form-trust" class="settings-intro">Only add servers you trust.</p>
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div id="mcp-form-name-row" class="settings-field" hidden>
+                        <label for="mcp-form-name">Name</label>
+                        <input id="mcp-form-name" class="form-input settings-input" autocomplete="off" />
+                      </div>
+                      <div class="settings-field">
+                        <label for="mcp-form-url">URL</label>
+                        <input id="mcp-form-url" class="form-input settings-input" autocomplete="off" placeholder="https://…/mcp" />
+                        <span id="mcp-form-url-text" class="mcp-form-url-text" data-tooltip="Remove the server and add it again to use another URL" hidden></span>
+                        <button id="mcp-form-test" type="button" class="btn" hidden>Test connection</button>
+                      </div>
+                      <div id="mcp-form-key-row" class="settings-field" hidden>
+                        <label for="mcp-form-key">Token</label>
+                        <input id="mcp-form-key" class="form-input settings-input" type="password" autocomplete="off" />
+                      </div>
+                    </div>
+                    <p id="mcp-form-name-hint" class="settings-group-note" hidden></p>
+                    <p id="mcp-form-status" class="settings-group-note" hidden></p>
+                  </div>
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div id="mcp-form-flows-row" class="field-row" hidden>
+                        <div class="field-row-text">
+                          <label for="mcp-form-flows" class="field-row-title">Enable in Flows</label>
+                          <div class="field-row-description">Allow Flows to use these tools.</div>
+                        </div>
+                        <button id="mcp-form-flows" type="button" class="toggle-switch" role="switch" aria-checked="false">
+                          <span class="toggle-knob"></span>
+                        </button>
+                      </div>
+                      <div class="field-row">
+                        <div class="field-row-text">
+                          <label for="mcp-form-copilot" class="field-row-title">Enable in Copilot</label>
+                          <div class="field-row-description">Allow the copilot to use these tools.</div>
+                        </div>
+                        <button id="mcp-form-copilot" type="button" class="toggle-switch" role="switch" aria-checked="false">
+                          <span class="toggle-knob"></span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="settings-form-actions">
+                    <button id="mcp-form-sign-in" type="button" class="btn" hidden>Sign in</button>
+                    <button id="mcp-form-set" type="submit" class="btn primary">Add</button>
+                  </div>
+                  <p id="mcp-form-error" class="inline-error settings-group-note" hidden></p>
+                </form>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <button id="mcp-form-remove" type="button" class="list-item settings-danger-row" hidden>Remove MCP server</button>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="publisher" data-settings-parent="publishing" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Publishing">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Publishing
+                  </button>
+                  <h3 id="publishers-form-title" class="settings-subpage-title">Add publisher</h3>
+                </div>
+                <form id="publishers-form" class="settings-form-stack">
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div class="settings-field">
+                        <label for="publishers-form-preset">Service</label>
+                        <button id="publishers-form-preset" type="button" class="form-input settings-select"></button>
+                      </div>
+                      <div class="settings-field settings-custom-only" hidden>
+                        <label for="publishers-form-name">Name</label>
+                        <input id="publishers-form-name" class="form-input settings-input" autocomplete="off" placeholder="e.g. Sogma (staging)" />
+                      </div>
+                      <div class="settings-field settings-custom-only" hidden>
+                        <label for="publishers-form-baseurl">Base URL</label>
+                        <input id="publishers-form-baseurl" class="form-input settings-input" autocomplete="off" placeholder="https://…/v1" />
+                      </div>
+                      <div class="settings-field">
+                        <label for="publishers-form-key">API key</label>
+                        <input id="publishers-form-key" class="form-input settings-input" type="password" autocomplete="off" />
+                        <button id="publishers-form-set" type="submit" class="btn primary">Set</button>
+                      </div>
+                    </div>
+                    <p class="settings-group-note settings-custom-only" hidden>Connect to any service that implements Sogma’s publishing API.</p>
+                    <p id="publishers-form-name-hint" class="settings-group-note" hidden></p>
+                    <p id="publishers-form-message" class="inline-error settings-group-note" hidden></p>
+                  </div>
+                </form>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <button id="publishers-form-remove" type="button" class="list-item settings-danger-row" hidden>Remove publisher</button>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="provider" data-settings-parent="models" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Model Providers">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Model Providers
+                  </button>
+                  <h3 id="providers-form-title" class="settings-subpage-title">Add provider</h3>
+                </div>
+                <form id="providers-form" class="settings-form-stack">
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div class="settings-field">
+                        <label for="providers-form-preset">Provider</label>
+                        <button id="providers-form-preset" type="button" class="form-input settings-select"></button>
+                      </div>
+                      <div class="settings-field settings-custom-only" hidden>
+                        <label for="providers-form-name">Name</label>
+                        <input id="providers-form-name" class="form-input settings-input" autocomplete="off" placeholder="e.g. LM Studio" />
+                      </div>
+                      <div class="settings-field settings-custom-only" hidden>
+                        <label for="providers-form-baseurl">Base URL</label>
+                        <input id="providers-form-baseurl" class="form-input settings-input" autocomplete="off" placeholder="https://…/v1" />
+                      </div>
+                      <div id="providers-form-key-row" class="settings-field">
+                        <label for="providers-form-key">API key</label>
+                        <input id="providers-form-key" class="form-input settings-input" type="password" autocomplete="off" />
+                        <button id="providers-form-set" type="submit" class="btn primary">Set</button>
+                      </div>
+                      <div id="providers-form-sign-in-row" class="settings-field" hidden>
+                        <label for="providers-form-continue">Account</label>
+                        <span id="providers-form-account" class="settings-sign-in-account"></span>
+                        <button id="providers-form-continue" type="button" class="btn primary">
+                          <span class="provider-mark" data-vendor="chatgpt" aria-hidden="true"></span>
+                          Continue with ChatGPT
+                        </button>
+                        <button id="providers-form-allow-plan" type="button" class="btn primary" hidden>Allow plan use</button>
+                        <button id="providers-form-sign-out" type="button" class="btn" hidden>Sign out</button>
+                      </div>
+                    </div>
+                    <p id="providers-form-sign-in-status" class="settings-group-note" hidden></p>
+                    <p class="settings-group-note settings-custom-only" hidden>Connect to any service that provides an OpenAI-compatible API, such as LM Studio or Ollama.</p>
+                    <p id="providers-form-name-hint" class="settings-group-note" hidden></p>
+                    <p id="providers-form-message" class="inline-error settings-group-note" hidden></p>
+                  </div>
+                  <div id="providers-form-models" class="settings-form-stack" hidden>
+                    <div class="settings-group">
+                      <div class="settings-group-head">
+                        <h4 class="section-label settings-group-title">Text models</h4>
+                        <button id="providers-form-refresh" type="button" class="btn">Refresh</button>
+                      </div>
+                      <div class="settings-card">
+                        <div id="providers-form-models-list" class="providers-form-models-list settings-block"></div>
+                        <div class="settings-block">
+                          <input id="providers-form-model-add" class="form-input settings-input" autocomplete="off" placeholder="add a model id, then Enter" />
+                        </div>
+                      </div>
+                    </div>
+                    <div id="providers-form-image-models" class="settings-group" hidden>
+                      <h4 class="section-label settings-group-title">Image models</h4>
+                      <div class="settings-card">
+                        <div id="providers-form-image-models-list" class="providers-form-models-list settings-block"></div>
+                        <div class="settings-block">
+                          <input id="providers-form-image-model-add" class="form-input settings-input" autocomplete="off" placeholder="add an image model id, then Enter" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <button id="providers-form-remove" type="button" class="list-item settings-danger-row" hidden>Remove provider</button>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="api-token" data-settings-parent="api" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Tokens">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Tokens
+                  </button>
+                  <h3 class="settings-subpage-title">Create token</h3>
+                </div>
+                <form id="api-token-form" class="settings-form-stack">
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div class="settings-field">
+                        <label for="api-token-name">Name</label>
+                        <input id="api-token-name" class="form-input settings-input" autocomplete="off" placeholder="e.g. Claude Desktop" />
+                      </div>
+                    </div>
+                    <p class="settings-group-note">Name it for the client that will use it.</p>
+                  </div>
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div class="field-row">
+                        <div class="field-row-text">
+                          <label for="api-token-read-only" class="field-row-title">Read-only</label>
+                          <div class="field-row-description">Off lets this token change the space and run documents.</div>
+                        </div>
+                        <button id="api-token-read-only" type="button" class="toggle-switch" role="switch" aria-checked="true">
+                          <span class="toggle-knob"></span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="settings-form-actions">
+                    <button id="api-token-create" type="submit" class="btn primary">Create</button>
+                  </div>
+                  <p id="api-token-error" class="inline-error settings-group-note" hidden></p>
+                </form>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="added-words" data-settings-parent="editor" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Editor">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Editor
+                  </button>
+                  <h3 class="settings-subpage-title">Custom dictionary</h3>
+                </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div id="added-words-list" class="settings-card-list"></div>
+                    <p id="added-words-empty" class="settings-intro" hidden>No added words.</p>
+                  </div>
+                  <p class="settings-group-note">Words you added with Add to Dictionary. A removed word counts as misspelled again.</p>
+                </div>
+              </section>
+              <section class="settings-subpage" data-settings-subpage="spellcheck-languages" data-settings-parent="editor" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Editor">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Editor
+                  </button>
+                  <h3 class="settings-subpage-title">Spellcheck languages</h3>
+                </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div id="spellcheck-language-list" class="settings-card-list"></div>
+                    <button id="spellcheck-language-add" type="button" class="list-item settings-add-row">
+                      <span class="settings-add-row-icon" aria-hidden="true"></span>
+                      Add language
+                    </button>
+                  </div>
+                  <p class="settings-group-note">A word passes if any language listed knows it.</p>
+                </div>
+              </section>
+            </div>
+          </div>
+      </div>
+    </div>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

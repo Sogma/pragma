@@ -1,0 +1,204 @@
+/* Rendered Markdown, wherever it shows: a note in reading view or a preview,
+   a chat reply. Each surface sets its own type, headings and page; these are
+   the blocks between. A denser surface (a chat reply) sets the spacing
+   variables lower and keeps every look.
+
+   Imported where reading view's rules were, in the components layer, so
+   each rule meets the rest of the cascade as it did there. */
+.prose {
+  --prose-gap: 1em;
+  --prose-indent: 1.5em;
+  --prose-item-gap: 0.25em;
+  --prose-quote-indent: 1em;
+  --prose-pre-padding: 1em;
+  --prose-cell-padding: 6px 10px;
+  --prose-rule-gap: 1.5em;
+}
+
+/* Inline code's chip, which edit view's formatting reads too, so code looks
+   the same written and read. */
+:root {
+  --code-chip-padding: 1px 4px;
+  --code-chip-border: 1px solid var(--border-color);
+  --code-chip-radius: 3px;
+  --code-chip-bg: var(--bg-inset);
+  --code-chip-font-family: monospace;
+  --code-chip-font-size: 0.9em;
+}
+
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose pre,
+.prose .code-block,
+.prose table {
+  margin: 0 0 var(--prose-gap);
+}
+
+.prose ul,
+.prose ol {
+  padding-inline-start: var(--prose-indent);
+}
+
+.prose li {
+  margin: var(--prose-item-gap) 0;
+}
+
+/* A tight list, written with no blank line between its items, sits as close
+   as edit view shows it: no margin around its items, the paragraph inside
+   each or a list nested in one. */
+.prose .tight-list > li,
+.prose .tight-list > li > p,
+.prose .tight-list > li > :is(ul, ol) {
+  margin: 0;
+}
+
+.prose blockquote {
+  padding-inline-start: var(--prose-quote-indent);
+  border-inline-start: 3px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.prose code {
+  padding: var(--code-chip-padding);
+  border: var(--code-chip-border);
+  border-radius: var(--code-chip-radius);
+  background: var(--code-chip-bg);
+  font-family: var(--code-chip-font-family);
+  font-size: var(--code-chip-font-size);
+}
+
+.prose mark {
+  background: var(--highlight-bg);
+  color: var(--highlight-fg);
+}
+
+/* Code inside a highlight keeps its own fill, so it keeps the theme's text
+   colour: the highlight's dark text is lost on the dark theme's fill. */
+.prose mark code {
+  color: var(--text-primary);
+}
+
+/* A link inside a highlight takes its dark text, as edit view's links do:
+   the accent is too light to read on the fill in the dark theme. */
+.prose mark a {
+  color: inherit;
+}
+
+.prose pre {
+  padding: var(--prose-pre-padding);
+  border: 1px solid var(--border-color);
+  border-radius: var(--control-radius);
+  background: var(--bg-inset);
+  line-height: 1.3;
+  overflow-x: auto;
+}
+
+/* Scoped so it beats the plain pre margin above. padding-inline-end keeps a
+   long first line out from under the copy button. */
+.prose .code-block pre {
+  margin: 0;
+  padding-inline-end: 44px;
+}
+
+.prose pre code {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.prose a {
+  color: var(--color-accent);
+}
+
+/* A [[wikilink]] with no (or an ambiguous) match, inert by design
+   (docs/protocol.md, Links): dashed and --color-danger, so it reads as
+   present but broken, not clickable. */
+.prose .wikilink-unresolved {
+  color: var(--color-danger);
+  border-bottom: 1px dashed var(--color-danger);
+}
+
+.prose hr {
+  margin: var(--prose-rule-gap) 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+.prose table {
+  border-collapse: collapse;
+}
+
+.prose th,
+.prose td {
+  padding: var(--prose-cell-padding);
+  border: 1px solid var(--border-color);
+  text-align: start;
+}
+
+.prose img {
+  max-width: 100%;
+}
+
+/* A span, since an embed sits inside a paragraph; display: block gives it
+   the column's width, and the 16:9 box holds its height before the
+   thumbnail loads, so text below doesn't jump. */
+.prose .video-embed {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 var(--prose-gap);
+  border-radius: var(--box-radius);
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.prose .video-embed-poster,
+.prose .video-embed iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.prose .video-embed-poster {
+  position: relative;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* hqdefault is 4:3 with letterbox bars baked in; cover crops them off. */
+.prose .video-embed-poster img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+/* A dark disc under a masked glyph: a shadow on the masked element itself
+   would be masked away with it. */
+.prose .video-embed-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--video-play-bg);
+  opacity: 0.85;
+}
+
+.prose .video-embed-play::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  background: var(--video-play-fg);
+  mask: var(--icon-play) center / contain no-repeat;
+}
+
+.prose .video-embed-poster:hover .video-embed-play,
+.prose .video-embed-poster:focus-visible .video-embed-play {
+  opacity: 1;
+}

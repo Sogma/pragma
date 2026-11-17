@@ -1,0 +1,107 @@
+/* Docked inside #editor as a flex child below whichever pane is active; the
+   id is #console rather than #editor-console since the dock may move later.
+   The height is a starting height the drag handle overwrites. */
+#console {
+  flex-shrink: 0;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+  /* --bg-primary rather than the chrome's --bg-secondary: an integrated
+     terminal shares the editor's background, not the status bar's. */
+  background: var(--bg-primary);
+}
+
+#console-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-inset);
+}
+
+#console-title {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+#console-toolbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+/* No padding or gap: an entry's hover tint and level border reach the
+   panel's edges, so the entries carry the spacing themselves. */
+#console-entries {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A real #console-entries child rather than a CSS :empty::before, since it
+   interpolates pragma's version, which content: can't. Not pinned: Clear
+   wipes it like any other entry. */
+.console-welcome {
+  padding: 8px 10px;
+  font-family: var(--font-monospace);
+  color: var(--text-faint);
+}
+
+/* level (border colour), kind (badge), label, content, in that order: level
+   is what you scan for, so it is the leftmost signal. No pending variant; an
+   entry is only written once its outcome is known. */
+.console-entry {
+  font-family: var(--font-monospace);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  border-left: 3px solid var(--border-muted);
+  /* The content's colour, set here so a flash's dark text reaches it. */
+  color: var(--text-primary);
+}
+
+.console-entry:hover {
+  background: var(--bg-hover);
+}
+
+.console-entry:last-child {
+  border-bottom: none;
+}
+
+.console-entry-level-warn {
+  border-left-color: var(--color-warning);
+}
+
+.console-entry-level-error {
+  border-left-color: var(--color-danger);
+}
+
+.console-entry-label {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+/* The entry's kind (LLM vs HTTP, more later) — a separate axis from level
+   above, never merged into one tag. */
+.console-entry-kind {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: var(--control-radius);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  vertical-align: middle;
+}
+
+.console-entry-content {
+  margin: 0;
+  white-space: pre-wrap;
+  user-select: text;
+}

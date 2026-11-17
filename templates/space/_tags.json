@@ -1,0 +1,7 @@
+{
+  "tags": [
+    { "name": "rewrite", "color": "#0189d2" },
+    { "name": "draft", "color": "#9b9a97" },
+    { "name": "translate", "color": "#0db14c" }
+  ]
+}

@@ -1,0 +1,9 @@
+/* The ⋮ on an icon button that opens a menu: a list row's, a toolkit
+   section's, the Graph's options. */
+.more-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-more-vertical) center / contain no-repeat;
+}

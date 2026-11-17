@@ -1,0 +1,259 @@
+/* The media panes, an image preview and a video player, and the overlay
+   they share with the gallery's preview and a Flow's image picker
+   (mediaHud.ts). */
+
+/* Read-only image preview, centred in the pane. Its details are in the
+   assistant's Info tab, the glanceable ones also in the hover overlay below. */
+.editor-image {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--bg-primary);
+}
+
+/* A size container, so the picture in its frame fits the scroller's
+   content box by container units. --hud-stick is its padding, which the
+   overlay's sticky bars reach back over to the scroller's own edge. */
+.editor-image-scroller {
+  --hud-stick: 24px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: var(--hud-stick);
+  container-type: size;
+}
+
+/* Centred both ways by auto margins, not the scroller's own centring, which
+   would push a picture bigger than the pane past its left or top edge, out
+   of scroll reach. */
+.editor-image-frame {
+  flex: none;
+  margin: auto;
+}
+
+.editor-image-frame > img {
+  max-width: 100cqw;
+  max-height: 100cqh;
+}
+
+.editor-image.is-zoomable img {
+  cursor: zoom-in;
+}
+
+.editor-image.is-actual-size img {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+
+/* A drag at actual size moves the picture (pictureZoom.ts). The scroller
+   holds the pointer for the drag, so it wears the closed hand too. */
+.editor-image-scroller.is-panning,
+.editor-image-scroller.is-panning img {
+  cursor: grabbing;
+}
+
+/* While a zoom runs, the picture moves by a transform over the layout it
+   ends in (pictureZoom.ts), and its overlay waits for it. */
+.editor-image.is-zooming .media-hud {
+  visibility: hidden;
+}
+
+/* Its scrollbars are hidden but keep their room, so nothing moves as the
+   run ends. Chromium repaints a thumb only when its scroller's own style
+   changes, so the thumb's mix (base.css) is zeroed there, at once. */
+.editor-image.is-zooming .editor-image-scroller {
+  --scrollbar-thumb-mix: 0%;
+  transition: none;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .editor-image.is-zooming .editor-image-scroller {
+    scrollbar-color: transparent transparent;
+  }
+}
+
+/* Zooming out, the picture still overflows by its transform, and a
+   scrollbar that grew from it would take room from the layout under it. */
+.editor-image.is-zooming:not(.is-actual-size) .editor-image-scroller {
+  overflow: hidden;
+}
+
+/* An SVG that sets no size of its own gives its frame nothing to hug, so it
+   is sized here from the stand-in web/lib/svgSize.ts reads: fitted to its
+   container like any picture, and the stand-in itself at actual size. */
+.media-frame > img.is-unsized {
+  aspect-ratio: var(--svg-ratio);
+  width: min(var(--svg-width), 100cqw, 100cqh * var(--svg-ratio));
+}
+
+.editor-image.is-actual-size img.is-unsized {
+  width: var(--svg-width);
+}
+
+/* On the picture's own box, never the pane's, so only the picture's area is
+   checkered and an opaque picture hides it (web/lib/mediaHud.ts). */
+.media-frame > img.shows-transparency {
+  background: repeating-conic-gradient(var(--border-color) 0 25%, var(--bg-primary) 0 50%) 0 0 / 20px 20px;
+}
+
+/* The media overlay (mediaHud.ts): bars over the picture while it is
+   hovered, along an image's top and bottom edges, along a video's top edge
+   only. It shares its frame's one grid cell with the media, so its box is
+   the media's; contain: size keeps its text from widening that cell.
+
+   At an image's actual size the bars stick to the scroller's edges, and
+   their outer facts to its sides, so they stay in view as the picture
+   scrolls. overflow: clip, not hidden, which would make each bar a scroll
+   container and hold its facts in place.
+
+   pointer-events: none keeps the hover, right-click, drag and the player's
+   controls on the media underneath — without it, the bars would end the
+   hover that shows them. */
+.media-frame {
+  display: grid;
+}
+
+.media-frame > * {
+  grid-area: 1 / 1;
+}
+
+/* Raised over a player's guides, which its positioned box would paint
+   across the bars. */
+.media-hud {
+  contain: size;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.media-frame > :is(img, video):hover + .media-hud {
+  opacity: 1;
+}
+
+.media-hud-bar {
+  position: sticky;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  overflow: clip;
+  padding: 6px 10px;
+  background: var(--media-hud-bg);
+  color: var(--media-hud-fg);
+  font-family: var(--font-hud);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A sticky box stops at its scroller's padding, so each offset reaches back
+   over it (--hud-stick) to the scroller's edge, where the picture is cut. */
+.media-hud-bar:first-child {
+  top: calc(-1 * var(--hud-stick, 0px));
+}
+
+.media-hud-bar:last-child:not(:first-child) {
+  bottom: calc(-1 * var(--hud-stick, 0px));
+}
+
+.media-hud-bar > :first-child {
+  position: sticky;
+  left: calc(10px - var(--hud-stick, 0px));
+}
+
+.media-hud-bar > :last-child:not(:first-child) {
+  position: sticky;
+  right: calc(10px - var(--hud-stick, 0px));
+}
+
+.media-hud-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A fact that hasn't arrived, or that the header didn't give, is an empty
+   cell: dropped, so the facts around it still spread evenly rather than
+   leaving a double gap. */
+.media-hud-bar > :empty {
+  display: none;
+}
+
+/* A badge names how the picture is shown, such as through a Look, rather
+   than a fact of the file, so it is drawn apart from the facts. A click
+   turns it off and on, so it takes the pointer the bars let through. */
+.media-hud-badge {
+  margin: 0;
+  padding: 0 5px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: var(--media-hud-badge-bg);
+  color: var(--media-hud-badge-fg);
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.media-hud-badge[aria-pressed="false"] {
+  background: var(--media-hud-badge-off-bg);
+}
+
+/* A three-fact bar centres its middle fact on the picture. space-between
+   centres it between its neighbours instead, so it drifts toward the
+   narrower one. */
+.media-hud-bar:has(> :nth-child(3):last-child) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.media-hud-bar:has(> :nth-child(3):last-child) > :nth-child(2) {
+  grid-column: 2;
+}
+
+.media-hud-bar:has(> :nth-child(3):last-child) > :last-child {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* Video pane: the image pane's column with a player where the picture goes,
+   in a frame with its overlay. A size container, so the player fits the pane
+   both ways by container units: its controls lie over the picture's foot,
+   which a clip taller than the pane would carry out of view.
+
+   Centred down the pane too, `safe` so a player taller than the pane starts
+   at its top rather than past it, out of scroll reach.
+
+   It holds focus for the player's keys, with no ring: the pane itself is
+   not a control. */
+.editor-video {
+  --hud-stick: 24px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
+  gap: 12px;
+  overflow: auto;
+  padding: var(--hud-stick);
+  background: var(--bg-primary);
+  container-type: size;
+  outline: none;
+}
+
+.editor-video video {
+  max-width: 100cqw;
+  max-height: 100cqh;
+}
+
+/* Shown only when the browser refuses the codec inside a container it
+   otherwise accepts — see the video pane. */
+.editor-video-error {
+  margin: 0;
+}

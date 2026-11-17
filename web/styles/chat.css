@@ -1,0 +1,176 @@
+/* A stacking context of its own, so the header's z-index over the transcript
+   stays inside the chat, under the resize strips at its edges (assistant.css). */
+#assistant-chat {
+  --chat-header-height: 32px;
+  --chat-header-gap: 8px;
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: var(--assistant-chat-min-height);
+  display: flex;
+  flex-direction: column;
+}
+
+/* The top padding clears the header, which lies over the transcript, by the
+   gap whose scroll the header's lift waits out (chat-header.css). */
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: calc(var(--chat-header-height) + var(--chat-header-gap)) 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+/* One chat's transcript: its messages lay out as the panel's own, so the
+   first one's auto margin still anchors a short chat to the bottom. */
+.chat-thread {
+  display: contents;
+}
+
+#chat-messages .chat-message {
+  white-space: pre-wrap;
+  padding: 6px 8px;
+  flex-shrink: 0;
+  user-select: text;
+}
+
+/* Bottom-anchors a short conversation without justify-content: flex-end,
+   which with overflow-y: auto on a flex column stops content overflowing past
+   the start edge from counting toward scrollHeight, leaving it unreachable.
+   margin-top: auto on the first message consumes leftover space instead and
+   has no such failure mode. */
+#chat-messages .chat-message:first-child {
+  margin-top: auto;
+}
+
+#chat-messages .chat-message.user {
+  border-radius: var(--box-radius);
+  background: var(--color-accent-bg);
+  align-self: flex-end;
+}
+
+/* A reply is a .card on the left, as wide as its text, its Markdown drawn
+   by .prose at the chat's density. max-width keeps a long code line
+   scrolling inside the card; without it the line widens the card past the
+   column. */
+#chat-messages .chat-message.assistant {
+  --prose-gap: 0.6em;
+  --prose-indent: 1.3em;
+  --prose-item-gap: 0.2em;
+  --prose-quote-indent: 0.8em;
+  --prose-pre-padding: 8px 10px;
+  --prose-cell-padding: 4px 8px;
+  --prose-rule-gap: 1em;
+  align-self: flex-start;
+  max-width: 100%;
+  /* Overrides the shared pre-wrap (needed for the plain-text user bubble):
+     this is rendered markdown, so block spacing comes from .prose. */
+  white-space: normal;
+}
+
+#chat-messages .chat-message.assistant :last-child {
+  margin-bottom: 0;
+}
+
+#chat-messages .chat-message.assistant h1,
+#chat-messages .chat-message.assistant h2,
+#chat-messages .chat-message.assistant h3,
+#chat-messages .chat-message.assistant h4,
+#chat-messages .chat-message.assistant h5,
+#chat-messages .chat-message.assistant h6 {
+  margin: 0.8em 0 0.3em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+#chat-messages .chat-message.assistant h1:first-child,
+#chat-messages .chat-message.assistant h2:first-child,
+#chat-messages .chat-message.assistant h3:first-child {
+  margin-top: 0;
+}
+
+/* No card, but a transparent border as wide as a card's, so the dots sit
+   where a reply's text will start. */
+#chat-messages .chat-message.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+}
+
+/* Each dot bounces 0.2s behind its left neighbour, written as negative
+   delays so the wave is already moving on the first frame. */
+#chat-messages .chat-message.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typing-bounce 1.5s ease-in-out infinite;
+}
+
+#chat-messages .chat-message.typing-indicator span:nth-child(2) {
+  animation-delay: -1.3s;
+}
+
+#chat-messages .chat-message.typing-indicator span:nth-child(3) {
+  animation-delay: -1.1s;
+}
+
+@keyframes typing-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* What the model's turn adds lands on the Find card's timing, fading in as
+   it rises 4px. The view marks a message only as it lands, so a chat shown
+   again doesn't replay it. */
+#chat-messages .chat-arriving:is(.assistant, .confirm):not(.typing-indicator) {
+  animation: chat-arrive var(--card-slide) both;
+}
+
+/* A reply's later blocks fade in 40ms apart, eight steps at most, so a long
+   reply unrolls without a long wait. The reduced-motion reset cuts
+   durations, not delays, so the steps stay out of it. */
+@media (prefers-reduced-motion: no-preference) {
+  #chat-messages .chat-arriving.assistant:not(.typing-indicator) > * + * {
+    animation: fade-in var(--card-slide) both;
+    animation-delay: calc(min(sibling-index() - 1, 8) * 40ms);
+  }
+}
+
+@keyframes chat-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+#chat-messages .chat-message.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  padding: 8px;
+}
+
+.chat-confirm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-confirm-actions .btn {
+  font-size: var(--ui-font-size);
+  padding: 4px 12px;
+}
+
+.chat-confirm-actions .btn:disabled {
+  opacity: 0.5;
+}

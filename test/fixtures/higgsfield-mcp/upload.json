@@ -1,0 +1,21 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Generated 1 upload URL. Run the curl command, then call media_confirm with the media_id.\n- 75e4ac19-3b0b-4b2a-8241-954298598ee9: Upload the file using: curl -X PUT -H \"Content-Type: image/png\" --data-binary @ref-red.png 'https://upload.higgsfield.test/user_TEST/upload.png?X-Amz-Signature=test Run that PUT where the bytes already are: the user's own machine for a path they supplied, or the same sandbox_exec command that creates a sandbox file. Never relay the bytes between environments as base64 or text chunks, and never upload through the higgsfield.ai web interface. After upload, call the media_confirm tool with type \"image\" and media_id \"75e4ac19-3b0b-4b2a-8241-954298598ee9\"."
+    }
+  ],
+  "structuredContent": {
+    "uploads": [
+      {
+        "upload_url": "https://upload.higgsfield.test/user_TEST/upload.png?X-Amz-Signature=test",
+        "media_id": "75e4ac19-3b0b-4b2a-8241-954298598ee9",
+        "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_TEST/75e4ac19-3b0b-4b2a-8241-954298598ee9.png",
+        "expires_in_seconds": 86400,
+        "method": "PUT",
+        "content_type": "image/png",
+        "instructions": "Upload the file using: curl -X PUT -H \"Content-Type: image/png\" --data-binary @ref-red.png 'https://upload.higgsfield.test/user_TEST/upload.png?X-Amz-Signature=test Run that PUT where the bytes already are: the user's own machine for a path they supplied, or the same sandbox_exec command that creates a sandbox file. Never relay the bytes between environments as base64 or text chunks, and never upload through the higgsfield.ai web interface. After upload, call the media_confirm tool with type \"image\" and media_id \"75e4ac19-3b0b-4b2a-8241-954298598ee9\"."
+      }
+    ]
+  }
+}

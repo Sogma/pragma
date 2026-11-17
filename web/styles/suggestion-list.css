@@ -1,0 +1,18 @@
+/* A text field's suggestion list: the shared menu, scrolling past a dozen
+   rows. */
+.context-menu.suggestion-list {
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.suggestion-list button {
+  flex: none;
+}
+
+/* The pointer moves the highlight rather than drawing a second one, so the
+   row that looks picked is the row Enter takes. The fill's white ink goes
+   with the fill. */
+.suggestion-list button:hover:not(.highlighted) {
+  background: none;
+  color: inherit;
+}

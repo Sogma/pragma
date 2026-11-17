@@ -1,0 +1,140 @@
+/* The inspector's Graph tab: the canvas edge to edge, the labels and the
+   scope outline drawn over it, and the Show switches behind a bare button in
+   its corner. The panel's own padding goes, so the canvas fills it. */
+.graph-panel.inspector-panel {
+  position: relative;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* The colours the scene reads: each kind as the tree paints its icon
+   (entry-icons.css), and the scope marks in the logo's hues. */
+.graph-panel {
+  --graph-hue-green: var(--pragma-green);
+  --graph-hue-cyan: var(--pragma-cyan);
+  --graph-hue-blue: var(--pragma-blue);
+  --graph-hue-yellow: var(--pragma-yellow);
+  --graph-hue-orange: var(--pragma-orange);
+  --graph-hue-red: var(--pragma-red);
+  --graph-hue-crimson: var(--pragma-crimson);
+  --graph-kind-class: var(--pragma-yellow);
+  --graph-kind-table: var(--color-violet);
+  --graph-kind-flow: var(--color-accent);
+  --graph-kind-applet: var(--color-applet-icon);
+  --graph-kind-plain: var(--text-secondary);
+  --graph-kind-faint: var(--text-muted);
+  --graph-line: var(--border-color);
+  --graph-highlight: var(--text-highlight);
+}
+
+/* The editor's own background, not the inspector's. The fog the far nodes
+   sink into is read from it as the scene starts, so the two always match. */
+.graph-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.graph-canvas,
+.graph-outline {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.graph-outline {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The renderer outlives each graph it draws, so with nothing to draw its
+   last frame would stay on screen. */
+.graph-host.empty > .graph-canvas {
+  visibility: hidden;
+}
+
+.graph-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.graph-label {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.graph-label.centre {
+  font-weight: 600;
+}
+
+/* Wears .canvas-stat for the box. With nothing drawn there are no frames
+   to count. */
+.graph-stat {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+.graph-host.empty > .graph-stat {
+  visibility: hidden;
+}
+
+.graph-status {
+  position: absolute;
+  inset: 0;
+  padding: 10px;
+}
+
+.graph-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+/* Backed by the canvas's own colour, invisible at rest, so a label passing
+   under it never shows through. */
+.graph-options-button {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  background: var(--bg-primary);
+}
+
+.graph-options-button:hover {
+  background: var(--bg-hover);
+}
+
+.graph-options {
+  position: absolute;
+  top: 38px;
+  inset-inline-end: 6px;
+  width: 220px;
+  max-height: calc(100% - 44px);
+  overflow-y: auto;
+  gap: 6px;
+}
+
+.graph-option-title {
+  margin: 0 0 2px;
+}
+
+.graph-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--small-font-size);
+  color: var(--text-secondary);
+}

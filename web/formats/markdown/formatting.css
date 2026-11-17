@@ -1,0 +1,336 @@
+/* A note formatted while it is edited, drawn as reading view draws it.
+   Imported without a layer, like codemirror.css (web/style.css): these rules
+   beat CodeMirror's runtime-injected styles, and the syntax colouring it draws
+   innermost, under every mark, so a rule that colours a mark reaches the token
+   inside it with its `*`. */
+
+/* Headings at reading view's sizes and weight (the tokens are in reading.css). */
+#editor .cm-line.cm-md-heading {
+  font-weight: var(--heading-weight);
+  line-height: var(--heading-line-height);
+}
+
+#editor .cm-line.cm-md-h1 {
+  font-size: calc(var(--h1-scale) * 1em);
+}
+
+#editor .cm-line.cm-md-h2 {
+  font-size: calc(var(--h2-scale) * 1em);
+}
+
+#editor .cm-line.cm-md-h3 {
+  font-size: calc(var(--h3-scale) * 1em);
+}
+
+#editor .cm-line.cm-md-h4 {
+  font-size: calc(var(--h4-scale) * 1em);
+}
+
+#editor .cm-line.cm-md-h5 {
+  font-size: calc(var(--h5-scale) * 1em);
+}
+
+#editor .cm-line.cm-md-h6 {
+  font-size: calc(var(--h6-scale) * 1em);
+}
+
+/* The gap under a heading, half its size, as reading view leaves it: below
+   the heading's line when text follows it, or as the height of a blank line
+   that follows it instead, a line too short to show its number. */
+#editor .cm-line.cm-md-gap-h1 {
+  --md-gap: calc(var(--h1-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-h2 {
+  --md-gap: calc(var(--h2-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-h3 {
+  --md-gap: calc(var(--h3-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-h4 {
+  --md-gap: calc(var(--h4-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-h5 {
+  --md-gap: calc(var(--h5-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-h6 {
+  --md-gap: calc(var(--h6-scale) * var(--editor-font-size) / 2);
+}
+
+#editor .cm-line.cm-md-gap-below {
+  padding-bottom: var(--md-gap);
+}
+
+#editor .cm-line.cm-md-gap-line {
+  line-height: var(--md-gap);
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-gap-line {
+  visibility: hidden;
+}
+
+/* A heading's line number and fold arrow sit on its baseline: the empty
+   ::before is set at the heading's size, as editor.css sets it at the text's
+   on every other line. */
+#editor .editor-document .cm-gutterElement.cm-md-heading::before {
+  content: "";
+  line-height: var(--heading-line-height);
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h1::before {
+  font-size: calc(var(--h1-scale) * var(--editor-font-size));
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h2::before {
+  font-size: calc(var(--h2-scale) * var(--editor-font-size));
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h3::before {
+  font-size: calc(var(--h3-scale) * var(--editor-font-size));
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h4::before {
+  font-size: calc(var(--h4-scale) * var(--editor-font-size));
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h5::before {
+  font-size: calc(var(--h5-scale) * var(--editor-font-size));
+}
+
+#editor .editor-document .cm-gutterElement.cm-md-h6::before {
+  font-size: calc(var(--h6-scale) * var(--editor-font-size));
+}
+
+#editor .cm-md-em {
+  font-style: italic;
+}
+
+#editor .cm-md-strong {
+  font-weight: bolder;
+}
+
+#editor .cm-md-strike {
+  text-decoration: line-through;
+}
+
+#editor .cm-md-sup {
+  vertical-align: super;
+  font-size: smaller;
+}
+
+#editor .cm-md-sub {
+  vertical-align: sub;
+  font-size: smaller;
+}
+
+#editor .cm-md-highlight {
+  background: var(--highlight-bg);
+  color: var(--highlight-fg);
+}
+
+/* A code span inside a highlight, a link's too, keeps its own fill, so it
+   keeps the theme's text colour: the highlight's dark text is lost on the
+   dark theme's fill. */
+#editor .cm-md-highlight .cm-md-code,
+#editor .cm-md-highlight .cm-md-code .cm-md-anchor {
+  color: var(--text-primary);
+}
+
+/* A link inside a highlight takes its dark text, as in reading view: the
+   accent reads 2.2:1 on the lime. Set on the underline's mark, the innermost
+   element: the link's own color comes from a span inside the highlight, so a
+   color set on the highlight never reaches it. */
+#editor .cm-md-highlight .cm-md-anchor {
+  color: var(--highlight-fg);
+}
+
+/* Under the grey selection, which paints over the highlight's fill, selected
+   text takes the theme's colour back: the highlight's dark text is lost on
+   the dark theme's grey. Not under Bright selection, whose own dark text
+   this would replace. */
+html:not(.bright-selection) #editor .cm-md-highlight {
+  --selection-fg: var(--text-primary);
+}
+
+/* Rendered code's chip (prose.css), so code looks the same written and
+   read. */
+#editor .cm-md-code {
+  padding: var(--code-chip-padding);
+  border: var(--code-chip-border);
+  border-radius: var(--code-chip-radius);
+  background: var(--code-chip-bg);
+  font-family: var(--code-chip-font-family);
+  font-size: var(--code-chip-font-size);
+}
+
+/* Holding selected text, a code span drops its fill: the selection marks the
+   text, not the span's padding, which would ring it in the fill. */
+#editor .cm-md-code:has(.cm-selected-text) {
+  background: none;
+}
+
+#editor .cm-md-anchor {
+  text-decoration: underline;
+}
+
+/* A link to a space file opens on a click, so it shows a web link's hand. */
+#editor .cm-md-link {
+  cursor: pointer;
+}
+
+/* A wikilink that names no file, marked as reading view marks it. */
+#editor .cm-md-unresolved,
+#editor .cm-md-unresolved * {
+  color: var(--color-danger);
+}
+
+#editor .cm-md-unresolved {
+  border-bottom: 1px dashed var(--color-danger);
+}
+
+/* A link reading view shows as text, its target no file, reads as text. */
+#editor .cm-md-plain,
+#editor .cm-md-plain * {
+  color: inherit;
+}
+
+/* A comment's text, which reading view leaves out, muted as a screenplay's
+   commented-out block is. */
+#editor .cm-md-comment {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* A bullet's character stays, see-through, so the caret moves over it as
+   over text; the bullet is drawn on it, in the line's text color, which a
+   see-through character can't pass on. A nested list's is a ring, the next
+   a square, as reading view's are. */
+#editor .cm-md-bullet {
+  position: relative;
+  color: transparent;
+}
+
+#editor .cm-md-bullet::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--md-bullet-color, var(--text-primary));
+  transform: translate(-50%, -50%);
+}
+
+#editor .cm-md-bullet-circle::after {
+  border: 1px solid var(--md-bullet-color, var(--text-primary));
+  background: none;
+}
+
+#editor .cm-md-bullet-square::after {
+  border-radius: 0;
+}
+
+/* A quote's bar, as reading view's, with the line's first `>` see-through
+   beside it. Each line draws its piece as a box, never a border: at 125% in
+   Firefox, two lines' borders leave a faint seam where they meet. */
+#editor .cm-line.cm-md-quote {
+  --md-bullet-color: var(--text-muted);
+  position: relative;
+  color: var(--text-muted);
+}
+
+#editor .cm-line.cm-md-quote::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--border-color);
+}
+
+#editor .cm-md-quote-mark {
+  color: transparent;
+}
+
+/* A code block as reading view's box. Its margins are .cm-line's own
+   padding, so it spans the text column; its padding is reading view's 1em
+   plus the border, at the note's text size, not the code's smaller one. It
+   outranks codemirror.css's current-line fill, so the box never breaks on
+   the cursor's line.
+
+   Each line draws its stretch of the border on a box over it that reaches
+   1px up into the line above, which it paints after, so the stretches
+   overlap: stretches that only meet leave a faint seam at 125% and 150%, as
+   does a border painted under the fill as a background. */
+#editor .editor-document .cm-line.cm-md-codeblock {
+  position: relative;
+  margin-inline: 6px 2px;
+  padding-inline: calc(var(--editor-font-size) + 1px);
+  background-color: var(--bg-inset);
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+#editor .editor-document .cm-line.cm-md-codeblock::after {
+  content: "";
+  position: absolute;
+  inset: -1px 0 0;
+  border-inline: 1px solid var(--border-color);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+#editor .editor-document .cm-line.cm-md-codeblock-start {
+  border-start-start-radius: var(--control-radius);
+  border-start-end-radius: var(--control-radius);
+}
+
+#editor .editor-document .cm-line.cm-md-codeblock-start::after {
+  top: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+#editor .editor-document .cm-line.cm-md-codeblock-end {
+  border-end-start-radius: var(--control-radius);
+  border-end-end-radius: var(--control-radius);
+}
+
+#editor .editor-document .cm-line.cm-md-codeblock-end::after {
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* A rule as reading view's line, its characters kept, see-through, under
+   it. The insets are .cm-line's own padding. */
+#editor .cm-line.cm-md-hr {
+  position: relative;
+  color: transparent;
+}
+
+#editor .cm-line.cm-md-hr::after {
+  content: "";
+  position: absolute;
+  inset-inline: 6px 2px;
+  top: 50%;
+  border-top: 1px solid var(--border-color);
+}
+
+/* A see-through character stays so when selected: the selection's text
+   colour (selection.css) would show it. A selected bullet is drawn in Bright
+   selection's text colour instead, as the text beside it is. */
+#editor :is(.cm-md-bullet, .cm-md-quote-mark, .cm-line.cm-md-hr) {
+  --selection-fg: transparent;
+}
+
+html.bright-selection #editor .cm-md-bullet:has(.cm-selected-text) {
+  --md-bullet-color: var(--selection-bright-fg);
+}
+
+#editor .cm-md-task {
+  cursor: pointer;
+}

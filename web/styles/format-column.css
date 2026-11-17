@@ -1,0 +1,94 @@
+/* The Format column (web/formatColumn.ts): a document's formatting buttons in
+   the toolbar box's look, one button wide, under the box with its right edge
+   on the box's. Positioned, as its handle hangs from its foot. */
+.format-column {
+  position: relative;
+  flex-direction: column;
+}
+
+/* The foot's handle: a short bar across the bottom border, gray until the
+   pointer is on it or drags it, then purple, fading as a panel edge does
+   (panel-resize.css). Its strip covers the box's bottom padding and border
+   only, never a button, and reaches 5px below the box. */
+.format-column-handle {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% - 3px);
+  height: 9px;
+  cursor: ns-resize;
+}
+
+/* Centred on the border, then a quarter pixel up. */
+.format-column-handle::after {
+  content: "";
+  position: absolute;
+  top: 1.75px;
+  left: 50%;
+  width: 16px;
+  height: 3px;
+  translate: -50% 0;
+  border-radius: var(--pill-radius);
+  background: var(--text-faint);
+  transition: background-color 200ms ease-in-out;
+}
+
+.format-column-handle:is(:hover, .dragging)::after {
+  background: var(--resize-handle-hover);
+}
+
+.format-column-glyph {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--format-glyph) center / contain no-repeat;
+}
+
+/* On, as Find's options are. */
+.format-column-button[aria-pressed="true"] {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.format-column-line {
+  width: 16px;
+  height: 1px;
+  margin: 3px 0;
+  background: var(--border-color);
+}
+
+/* The corner mark says the picker opens a menu: a column has no room for a
+   chevron beside its glyph. Bottom left, the side its menu opens on, not a
+   tool palette's bottom right. */
+.format-column-picker {
+  position: relative;
+}
+
+.format-column-picker::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  border-right: 4px solid transparent;
+  border-bottom: 4px solid currentColor;
+}
+
+/* The picker's and More's rows draw their action's glyph. */
+.context-menu .format-menu-row .context-menu-icon {
+  mask-image: var(--format-glyph);
+}
+
+/* The slide starts past the group's right edge, the box's 20px inset
+   beyond the column's own width, and the group clips it (editor.css). */
+.format-column.is-opening {
+  animation: format-column-slide var(--card-slide);
+}
+
+.format-column.is-closing {
+  animation: format-column-slide var(--card-slide) reverse forwards;
+}
+
+@keyframes format-column-slide {
+  from {
+    transform: translateX(calc(100% + 20px));
+  }
+}

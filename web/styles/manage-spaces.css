@@ -1,0 +1,80 @@
+/* Same two-pane shell as Settings (space list left, actions right), at
+   Settings' size, which holds the Create page whole; fixed, so the panel
+   doesn't resize as its pages change. Each pane scrolls on overflow. */
+.dialog-panel.dialog-manage-spaces {
+  width: 700px;
+  height: 500px;
+  max-height: calc(100vh - 80px);
+}
+
+.manage-spaces-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Left pane, mirroring .settings-nav's rail; rows use the shared .list-item
+   pattern below. */
+.manage-spaces-list {
+  display: flex;
+  flex: 0 0 240px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--border-muted);
+}
+
+/* Right pane: the create and open pages, or in a browser the command-line
+   hint, over the error row the ⋮ actions report to. */
+.manage-spaces-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.manage-spaces-hint {
+  margin: 0;
+  padding: 16px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.manage-spaces-hint code {
+  font-family: var(--font-monospace);
+  font-size: var(--control-font-size);
+}
+
+.manage-spaces-error {
+  margin: 0 16px 16px;
+}
+
+/* The create and open pages (spaceForm.ts), the same in Manage Spaces and
+   the welcome window: Settings' page stack, filling its pane. */
+.space-form {
+  flex: 1;
+  min-height: 0;
+}
+
+/* One width for every button down the cards' right edge. */
+.space-form-button {
+  min-width: 92px;
+  padding: 5px 14px;
+  font-size: inherit;
+}
+
+.space-form .settings-input {
+  width: 168px;
+}
+
+.space-form-path {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.space-form-actions {
+  display: flex;
+  justify-content: center;
+}

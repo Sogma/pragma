@@ -1,0 +1,20 @@
+* {
+  box-sizing: border-box;
+}
+
+/* Universal reduced-motion override (Eric Bailey's revised snippet) rather
+   than per-animation gating, so anything added later is covered too.
+   `!important` is deliberate: an accessibility override must beat any
+   component's own transition regardless of specificity. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: beating every animation is what the preference means. */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: end of the reduced-motion overrides. */
+  }
+}

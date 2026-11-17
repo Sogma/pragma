@@ -1,0 +1,57 @@
+/* A token's color, by the class web/lib/syntax.ts gives it for what it is.
+   Each class reads the token of the same name in tokens.css. */
+.syntax-bracket {
+  color: var(--syntax-bracket);
+}
+
+.syntax-tag {
+  color: var(--syntax-tag);
+}
+
+.syntax-attribute {
+  color: var(--syntax-attribute);
+}
+
+.syntax-attribute-value {
+  color: var(--syntax-attribute-value);
+}
+
+.syntax-string {
+  color: var(--syntax-string);
+}
+
+.syntax-comment {
+  color: var(--syntax-comment);
+}
+
+.syntax-selector {
+  color: var(--syntax-selector);
+}
+
+.syntax-value {
+  color: var(--syntax-value);
+}
+
+.syntax-number {
+  color: var(--syntax-number);
+}
+
+.syntax-function {
+  color: var(--syntax-function);
+}
+
+.syntax-keyword {
+  color: var(--syntax-keyword);
+}
+
+.syntax-control {
+  color: var(--syntax-control);
+}
+
+.syntax-variable {
+  color: var(--syntax-variable);
+}
+
+.syntax-type {
+  color: var(--syntax-type);
+}

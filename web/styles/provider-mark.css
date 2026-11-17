@@ -1,0 +1,29 @@
+/* A model provider's mark, keyed by `data-vendor` on the mark or an ancestor.
+   The server sets a vendor only for an entry on that vendor's own endpoint;
+   an empty one (LM Studio, OpenRouter, a proxy) draws the generic chip, never
+   the mark of the API it shares. */
+[data-vendor] {
+  --provider-mark: var(--icon-cpu);
+}
+
+[data-vendor="anthropic"] {
+  --provider-mark: var(--icon-mark-claude);
+}
+
+/* ChatGPT wears OpenAI's mark, which is the ChatGPT logo too. */
+[data-vendor="openai"],
+[data-vendor="chatgpt"] {
+  --provider-mark: var(--icon-mark-openai);
+}
+
+[data-vendor="google"] {
+  --provider-mark: var(--icon-mark-gemini);
+}
+
+.provider-mark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--provider-mark) center / contain no-repeat;
+}

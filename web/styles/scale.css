@@ -1,0 +1,116 @@
+/* The interface's sizes and timings, which rules read by name rather than
+   each restating a number: the scales the primitives use (text sizes,
+   corner radii, the stacking order), then a document's measures, the
+   panels' sizes and floors, and the slides' timings. A colour belongs in
+   tokens.css. */
+:root {
+  /* UI text: the base every native control inherits, then the two steps
+     below it the primitives use. A document's text sizes from
+     --editor-font-size instead. */
+  --ui-font-size: 14px;
+  --control-font-size: 13px;
+  --small-font-size: 12px;
+
+  /* Corners: a control or a row's fill; a small box, such as a menu or a
+     toolbar's action; a panel, such as a card, a popover or a dialog; a
+     pill. */
+  --control-radius: 4px;
+  --box-radius: 6px;
+  --panel-radius: 8px;
+  --pill-radius: 999px;
+
+  /* What lies over what, lowest first: a pane's floating toolbars, then a
+     dialog or preview scoped to that pane over them; the workspace's scrim;
+     popovers and previews over the page; dialogs; the menus a dialog can
+     open; the tooltip over everything. */
+  --z-pane-toolbar: 10;
+  --z-pane-overlay: 11;
+  --z-scrim: 50;
+  --z-popover: 100;
+  --z-dialog: 200;
+  --z-menu: 300;
+  --z-tooltip: 400;
+
+  /* Editor font size. The setting writes straight to this property; this
+     value is only the pre-JS paint default, so keep it in sync with the
+     setting's TS default by eye. */
+  --editor-font-size: 16px;
+  /* The readable line length: the text column prose wraps at, with each
+     surface's own inset outside it, so edit view and reading view break
+     lines alike. Pixels, not ch, so the column holds when the text size
+     changes. */
+  --readable-line-length: 700px;
+  /* A previewed note's text column: narrower than the editor's on purpose,
+     accepting that a preview breaks lines at other words than its note. */
+  --preview-line-length: 600px;
+  /* Prose's line height, shared by edit view and reading view so a
+     paragraph's lines sit the same distance apart in both. */
+  --prose-line-height: 1.5;
+  /* A value's text in a Table or Class, a step below the prose:
+     15px on an 18px line at the 16px default. Every other text size in
+     those panes is its default px times --editor-font-size / 16, so the
+     setting scales them all and keeps their proportions.
+
+     Derived on :root, so these follow a --editor-font-size set on :root,
+     where the setting writes it, and not one set lower down. */
+  --cell-font-size: calc(var(--editor-font-size) * 15 / 16);
+  --cell-line-height: calc(var(--editor-font-size) * 18 / 16);
+
+  /* Read by both #sidebar and #header-sidebar-spacer, so the tab strip's left
+     edge can't drift from where #editor starts. The sidebar drag writes to
+     this property, not to #sidebar's width, so both stay in sync. */
+  --sidebar-width: 280px;
+  /* The same arrangement on the right: read by #assistant and
+     #header-assistant, so the inspector's tabs sit over its column. */
+  --assistant-width: 300px;
+  /* The side panels' open/close slide. A panel and its header strip each run
+     their own transition on these, started together, so the two move in step
+     only while both read the same pair. The sections pinned under the space
+     tree slide on it too. */
+  --panel-slide-duration: 180ms;
+  --panel-slide-easing: cubic-bezier(0.25, 1, 0.5, 1);
+  /* A folder's slide open or shut in the space tree, which its chevron turns
+     in step with. The tree's script reads the pair here too, so no second
+     copy can drift. */
+  --folder-slide-duration: 100ms;
+  --folder-slide-easing: cubic-bezier(0.02, 0.01, 0.47, 1);
+  /* A tab carried along its strip: how the pills it passes step aside and
+     its gap opens and closes, and, quicker, how it settles into its slot once
+     let go. A quadratic ease-out, as a browser's tabs move. The drag's script
+     reads all three here too. */
+  --tab-move-duration: 200ms;
+  --tab-land-duration: 150ms;
+  --tab-move-easing: cubic-bezier(0.33, 0.67, 0.67, 1);
+  /* Read by both #rail and #header-sidebar-toggle, for the same reason as
+     --sidebar-width: a second hardcoded copy is what let the two drift
+     apart. */
+  --rail-width: 54px;
+  /* #app-header's height — the window's title bar row, which the editor
+     groups' tab strips share. */
+  --header-height: 40px;
+  /* The floor the sidebar drag clamps to, read via getComputedStyle. A fixed
+     token, not derived from --sidebar-width: that value is the drag's live
+     output, so a minimum computed from it would chase the drag instead of
+     constraining it. */
+  --sidebar-min-width: 200px;
+  /* Same fixed-floor role as --sidebar-min-width, for the assistant drag. */
+  --assistant-min-width: 240px;
+  /* And for the drag between two editor groups, on either side of it. */
+  --editor-group-min-width: 240px;
+  /* The least height the document keeps above a console restored from a
+     taller window. */
+  --editor-min-height: 160px;
+  /* An editor group's status bar, which sits between the two. */
+  --statusbar-height: 36px;
+  /* The console drag's floor, kept apart from its 200px starting height so
+     it can be dragged shorter than it opens. */
+  --console-min-height: 70px;
+  /* The two floors of the assistant's inspector/chat split, read by the drag
+     and by the stylesheet alike. */
+  --inspector-min-height: 96px;
+  --assistant-chat-min-height: 120px;
+  /* The floors of the Space panel's tree and the sections under it, read by
+     the section drag and by the stylesheet alike. */
+  --stack-scroller-min-height: 96px;
+  --stack-section-min-height: 80px;
+}

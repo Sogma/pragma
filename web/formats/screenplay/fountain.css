@@ -1,0 +1,268 @@
+/* Fountain screenplay formatting. Imported without a layer (web/style.css),
+   like codemirror.css: these rules override CodeMirror's runtime-injected,
+   unlayered stylesheet, which beats every layer.
+
+   Each rule draws a screenplay in the editor and on a preview's page
+   (web/notePreview.ts), which a link's preview puts outside #editor. The
+   :is() has #editor's specificity on both, which CodeMirror's rules need. */
+
+/* Screenplays use a fixed-width font. .fountain-editor raises specificity
+   past codemirror.css's #editor .cm-editor, so it wins for Fountain only,
+   without !important. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor {
+  font-family: var(--font-screenplay);
+}
+
+/* A screenplay is set at 12pt, 16px, never at the Editor's font size: the
+   format fixes a script's size. Every measure below is in characters or
+   lines, so the page keeps 60 characters a line at any size.
+
+   It redefines the token rather than setting font-size, so whatever reads
+   the token inside the editor, the list of cue names too, follows the page. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor {
+  --editor-font-size: 16px;
+}
+
+/* In the editor the Page zoom magnifies the page. A preview's page stays at
+   12pt: the preview fits the page to its frame, and a larger script would
+   only rewrap in it. */
+#editor .cm-editor.fountain-editor:not(.preview-page *) {
+  --editor-font-size: calc(16px * var(--screenplay-zoom, 1));
+}
+
+/* Same reason #editor .cm-scroller needs its own font-family: CodeMirror's
+   base theme declares font-family and line-height directly on .cm-scroller,
+   and a direct declaration beats the inherited one.
+
+   Line height 1 is the printed page's 6 lines per inch at 12pt. It only
+   reads well with Courier's small letters, so the font and the line height
+   change together: a code font this tight looks cramped. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor .cm-scroller {
+  font-family: var(--font-screenplay);
+  line-height: var(--screenplay-line-height, 1);
+}
+
+/* Courier Prime Sans has Courier Prime's small letters, so it keeps the
+   printed page's line height 1. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor[data-screenplay-font="courier-prime-sans"] {
+  --font-screenplay: "Courier Prime Sans", var(--font-monospace);
+}
+
+/* Settings → Editor → Formats → Screenplay's other fonts: the system's code
+   font, or an installed one, named in --screenplay-font-family. Each sets at
+   the 1.4 CodeMirror sets code in, in the rule that sets the font, so the
+   font never changes without its line height. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor[data-screenplay-font="system"] {
+  --font-screenplay: var(--font-monospace);
+  --screenplay-line-height: 1.4;
+}
+
+:is(#editor, .preview-page) .cm-editor.fountain-editor[data-screenplay-font="named"] {
+  --font-screenplay: var(--screenplay-font-family), var(--font-monospace);
+  --screenplay-line-height: 1.4;
+}
+
+/* CodeMirror's zero-width .cm-widgetBuffer images, which flank every mark
+   the page hides, are 1em tall from the text's top. At line height 1
+   that top sits above the line's own, so a line holding them would grow a
+   pixel taller than the rest; aligned to the line's top, they fit inside. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor .cm-widgetBuffer {
+  vertical-align: top;
+}
+
+/* A screenplay page is a fixed width: Courier 12pt at 10 characters per inch
+   on a 6in text column is 60 characters, regardless of pane width. Capping
+   and centring to that is what makes the ch-based indents below mean what
+   they should; percentage padding would scale with the pane.
+
+   The cap is 61 cells plus CodeMirror's 8px line inset. CodeMirror wraps
+   with break-spaces, so the space at a wrap stays on the line and takes a
+   cell: 60 characters need 61 cells. Every measure below has the same spare
+   cell, and a transition or centred line stops one cell short, to line up
+   with the 60. */
+:is(#editor, .preview-page) .cm-editor.fountain-editor {
+  --page-width: calc(61ch + 8px);
+}
+
+/* Indents and right margins in characters, as inches × 10 from the action
+   column's 1.5in left and 1in right page margins:
+     character     3.7in from the left       22 in
+     parenthetical 3.1in left, 2.9in right   16 in, 19 short: 25 wide
+     dialogue      2.5in left, 2.5in right   10 in, 15 short: 35 wide
+
+   Each padding replaces CodeMirror's 6px left and 2px right line inset, so
+   it adds that back, keeping the text on the action lines' character grid.
+
+   Scene heading, action, section, synopsis, and the title page stay at the
+   left margin; transitions are right-aligned rather than indented. */
+:is(#editor, .preview-page) .cm-fountain-scene-heading {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+/* A scene number prints in both margins beside its heading, as on the
+   printed page, three cells off the text either side. The line draws it,
+   out of flow, so the heading keeps its place on the character grid. The
+   line's box starts 6px before its text and ends 2px past its 61st cell.
+
+   With line numbers showing, the left one goes past them: the gutter covers
+   the margin next to the text.
+
+   language.ts measures the margins by these same offsets, to keep a number
+   in its line where they can't hold it: change both together. */
+:is(#editor, .preview-page) .cm-fountain-scene-heading[data-scene-number] {
+  position: relative;
+}
+
+:is(#editor, .preview-page) .cm-fountain-scene-heading[data-scene-number]::before,
+:is(#editor, .preview-page) .cm-fountain-scene-heading[data-scene-number]::after {
+  content: attr(data-scene-number);
+  position: absolute;
+  top: 0;
+  text-transform: none;
+  white-space: pre;
+}
+
+:is(#editor, .preview-page) .cm-fountain-scene-heading[data-scene-number]::before {
+  right: calc(100% + max(3ch - 6px, var(--gutter-width, 0px) + 1ch));
+}
+
+:is(#editor, .preview-page) .cm-fountain-scene-heading[data-scene-number]::after {
+  left: calc(100% + 2ch - 2px);
+}
+
+:is(#editor, .preview-page) .cm-content[contenteditable="true"] .cm-fountain-scene-heading[data-scene-number]::before,
+:is(#editor, .preview-page) .cm-content[contenteditable="true"] .cm-fountain-scene-heading[data-scene-number]::after {
+  cursor: pointer;
+}
+
+/* A number keeps its case, in the margins and as written: `1a` and `1A`
+   are two numbers. */
+:is(#editor, .preview-page) .cm-fountain-scene-number {
+  text-transform: none;
+}
+
+:is(#editor, .preview-page) .cm-fountain-character {
+  padding-left: calc(22ch + 6px);
+}
+
+/* Same indent as a normal cue — detected (trailing `^`) but not rendered
+   as real side-by-side dual-dialogue columns, which would be a much bigger
+   layout feature. The left border is just a "this is dual" marker; its 3px
+   comes out of the padding, so the name lines up with a normal cue. */
+:is(#editor, .preview-page) .cm-fountain-character-dual {
+  padding-left: calc(22ch + 3px);
+  border-left: 3px solid var(--text-muted);
+}
+
+:is(#editor, .preview-page) .cm-fountain-parenthetical {
+  padding-left: calc(16ch + 6px);
+  padding-right: calc(19ch + 2px);
+}
+
+:is(#editor, .preview-page) .cm-fountain-dialogue {
+  padding-left: calc(10ch + 6px);
+  padding-right: calc(15ch + 2px);
+}
+
+:is(#editor, .preview-page) .cm-fountain-transition {
+  padding-right: calc(1ch + 2px);
+  text-align: right;
+  text-transform: uppercase;
+}
+
+:is(#editor, .preview-page) .cm-fountain-centered {
+  padding-right: calc(1ch + 2px);
+  text-align: center;
+}
+
+:is(#editor, .preview-page) .cm-fountain-title-page {
+  color: var(--text-muted);
+}
+
+:is(#editor, .preview-page) .cm-fountain-section {
+  font-weight: bold;
+  color: var(--text-muted);
+}
+
+/* A synopsis never prints, so like a note it sits on a band, its text in
+   the band's colour. The band is an inset shadow, not a background: the
+   cursor line's highlight is a background on the same line, kept under this
+   one only by stylesheet order. A shadow paints over it either way. */
+:is(#editor, .preview-page) .cm-fountain-synopsis {
+  font-style: italic;
+  color: var(--synopsis-fg);
+  box-shadow: inset 0 0 0 100vmax var(--synopsis-bg);
+}
+
+:is(#editor, .preview-page) .cm-fountain-page-break {
+  border-top: 1px solid var(--border-input);
+}
+
+/* A commented-out block — hidden from the printed draft, so it reads as
+   muted, secondary text rather than a script line. */
+:is(#editor, .preview-page) .cm-fountain-boneyard {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Inline emphasis — mid-line marks, independent of the line-level classes
+   above. While editing, the delimiters themselves (`**`, `_`, `[[`/`]]`)
+   stay inside the styled span, same as CM6's own markdown mode. */
+:is(#editor, .preview-page) .cm-fountain-bold {
+  font-weight: bold;
+}
+
+:is(#editor, .preview-page) .cm-fountain-italic {
+  font-style: italic;
+}
+
+:is(#editor, .preview-page) .cm-fountain-bold-italic {
+  font-weight: bold;
+  font-style: italic;
+}
+
+:is(#editor, .preview-page) .cm-fountain-underline {
+  text-decoration: underline;
+}
+
+/* An author's note — meant to be seen by collaborators, not printed —
+   so it reads as an annotation, not part of the script. */
+:is(#editor, .preview-page) .cm-fountain-note {
+  background: var(--annotation-bg);
+  color: var(--annotation-fg);
+  border-radius: 2px;
+}
+
+/* A link note's text as written, never in a heading's or a transition's
+   capitals: its target is no part of the printed line. */
+:is(#editor, .preview-page) .cm-fountain-link-text {
+  text-transform: none;
+}
+
+/* A link note in the formatted view: the scene heading's glyph in lime on
+   the neutral grey, the same in both themes. */
+:is(#editor, .preview-page) .cm-fountain-link-note {
+  position: relative;
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: -0.25em;
+  border-radius: 3px;
+  background: var(--neutral-bg);
+}
+
+:is(#editor, .preview-page) .cm-fountain-link-note::before {
+  content: "";
+  position: absolute;
+  inset: 0.15em;
+  background-color: var(--link-note-glyph);
+  mask: var(--icon-clapperboard) center / contain no-repeat;
+}
+
+/* A name linked to its world file. Underlined, not recoloured: the page has
+   to keep reading as a printed script. */
+:is(#editor, .preview-page) .cm-fountain-link {
+  text-decoration: underline dotted var(--color-accent);
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,111 @@
+/* Generic two-line clickable row: an optional leading element (icon or
+   disclosure chevron) plus a title/subtitle stack. Used by Manage Spaces and
+   the sidebar accordions. */
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text-primary);
+  font-family: var(--font-default);
+  text-align: start;
+  cursor: pointer;
+}
+
+.list-item:hover:not(:disabled, .active, .is-missing, .is-unavailable) {
+  background: var(--bg-hover);
+}
+
+/* The "current"/non-clickable entry (Manage Spaces' currently-served
+   space) — highlighted and disabled, with an accent bar drawn inset so it
+   doesn't shift the row's content the way a real border would. */
+.list-item.active {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  cursor: default;
+}
+
+.list-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.list-item-title,
+.list-item-subtitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.list-item-title {
+  font-weight: 500;
+}
+
+/* Two states for "the registered folder isn't there", differing in what the
+   row is asking of the reader. Both stay listed and keep their "⋮" menu,
+   since Locate lives there, and both stop behaving like a live row. */
+
+.list-item.is-missing,
+.list-item.is-unavailable {
+  cursor: default;
+}
+
+/* .is-missing — a Manage Spaces space. Dimmed, because the thing this row
+   offers is switching to that space and it cannot be switched to. */
+.list-item.is-missing .list-item-title,
+.list-item.is-missing .list-item-subtitle {
+  color: var(--text-faint);
+}
+
+/* .is-unavailable is a library row. Warned rather than dimmed: outside
+   Electron the repair is a hand-edit to config.json's `libraries` that nothing
+   else prompts for, and dimming would read as "not right now" when it means
+   "needs fixing". The title stays at full strength, so the name identifying
+   it isn't buried. */
+.list-item.is-unavailable .list-item-subtitle {
+  color: var(--color-warning);
+}
+
+/* The folder a missing space or library looked for selects, for copying
+   into a fix: a press on either row does nothing. */
+.list-item:is(.is-missing, .is-unavailable) .list-item-subtitle {
+  cursor: text;
+  user-select: text;
+}
+
+.list-item-empty {
+  padding: 8px 10px;
+  color: var(--text-faint);
+}
+
+/* A .list-item's own ⋮ menu trigger, inside the row and pushed to the end by
+   .list-item-text's flex: 1. Same 24x24 shape and kebab glyph as the table
+   column header's menu button. */
+.list-item-menu {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+/* Neither unavailable state expands, so a chevron would promise something the
+   row won't do. A space row hides it (hidden, not removed, to keep the text
+   aligned). A library row swaps the chevron for a warning glyph, so the
+   warning lands where the eye already scans for row state. */
+.list-item.is-missing .list-item-disclosure {
+  visibility: hidden;
+}
+
+.list-item.is-unavailable .list-item-disclosure {
+  background-color: var(--color-warning);
+  /* A shut fold turns its chevron -90deg, which would lay this triangle on
+     its side. */
+  transform: none;
+  mask-image: var(--icon-triangle-alert);
+}

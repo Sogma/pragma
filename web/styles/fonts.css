@@ -1,0 +1,165 @@
+/* Bundled, never fetched from a font CDN: the app has to render offline and
+   inside Electron. OFL-licensed; each licence ships beside its files. swap,
+   so text never waits on a font. */
+@font-face {
+  font-family: "DINish";
+  src: url("/fonts/dinish/DINish-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Courier Prime keeps Courier's metrics, so a screenplay breaks lines and
+   pages where the industry-standard Courier does; Courier New ships only
+   with Windows and macOS. All four faces ship because Fountain marks bold
+   and italic, and the browser fakes any face that's missing. */
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/courier-prime/CourierPrime-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/courier-prime/CourierPrime-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/courier-prime/CourierPrime-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/courier-prime/CourierPrime-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Courier Prime without the serifs, every letter the same width, so a
+   screenplay set in it breaks lines and pages where Courier Prime does.
+
+   The fonts reserve their name, so these are upstream's TTFs compressed to
+   WOFF2 and nothing more: a subset or any other edit must be renamed. */
+@font-face {
+  font-family: "Courier Prime Sans";
+  src: url("/fonts/courier-prime-sans/CourierPrimeSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime Sans";
+  src: url("/fonts/courier-prime-sans/CourierPrimeSans-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime Sans";
+  src: url("/fonts/courier-prime-sans/CourierPrimeSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime Sans";
+  src: url("/fonts/courier-prime-sans/CourierPrimeSans-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Windows's Segoe UI, its line box re-split around the capitals. As
+   installed, the box keeps deep room above the letters, so text centred on
+   an icon or in a fixed-height box sits about a pixel low. The overrides
+   are (1.0791 + 0.2510 ± 0.7002) / 2 em: its ascent and descent shared out
+   around its cap height, so their sum, the line height, holds.
+
+   One face per weight the app sets, each with its italic, or the browser
+   fakes it; Semibold answers 500 too, as Windows's own matching does.
+   Where Segoe UI isn't installed none resolves, and --font-system moves
+   on to the system font. */
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Light");
+  font-weight: 300;
+  font-style: normal;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Light Italic");
+  font-weight: 300;
+  font-style: italic;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI");
+  font-weight: 400;
+  font-style: normal;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Italic");
+  font-weight: 400;
+  font-style: italic;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Semibold");
+  font-weight: 500 600;
+  font-style: normal;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Semibold Italic");
+  font-weight: 500 600;
+  font-style: italic;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Bold");
+  font-weight: 700;
+  font-style: normal;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}
+
+@font-face {
+  font-family: "Segoe UI Centred";
+  src: local("Segoe UI Bold Italic");
+  font-weight: 700;
+  font-style: italic;
+  ascent-override: 101.51%;
+  descent-override: 31.49%;
+}

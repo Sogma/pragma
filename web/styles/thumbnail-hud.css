@@ -1,0 +1,95 @@
+/* A thumbnail's hover bars (mediaHud.ts), on its box's own edges. The image
+   view's overlay colours and type (media-panes.css), so the two read as one
+   thing; pointer-events: none for the same reason as there: the bars must
+   not end the hover that shows them, or take the box's clicks and drags.
+   Each surface says which hover shows them.
+
+   What they hold follows the box's own width, whatever drew it: nothing
+   under 100px, the ratio alone under 150px, and larger type from 248px,
+   where the gallery's Large tiles start. */
+.thumbnail-box {
+  position: relative;
+  container: thumbnail / inline-size;
+}
+
+.thumbnail-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.thumbnail-hud-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  overflow: hidden;
+  padding: 2px 6px;
+  background: var(--media-hud-bg);
+  color: var(--media-hud-fg);
+  font-family: var(--font-hud);
+  font-size: var(--ui-font-size);
+  line-height: 19px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The dimensions at the left, a clip's frame rate or a still's color mode at
+   the right. A fact with no room beside the dimensions drops out whole,
+   never cut off: it wraps to a second line, which the bar's one-line height
+   hides. That height is its content box's, so the padding stays around it. */
+.thumbnail-hud-bar.is-top {
+  top: 0;
+  flex-wrap: wrap;
+  box-sizing: content-box;
+  height: 1lh;
+}
+
+.thumbnail-hud-ratio {
+  display: none;
+}
+
+.thumbnail-hud-bar.is-bottom {
+  bottom: 0;
+}
+
+/* The size keeps the right edge even alone, when a still has no duration. */
+.thumbnail-hud-bar.is-bottom > :last-child {
+  margin-left: auto;
+}
+
+.thumbnail-hud-bar > :empty {
+  display: none;
+}
+
+@container thumbnail (width < 100px) {
+  .thumbnail-hud {
+    display: none;
+  }
+}
+
+@container thumbnail (width < 150px) {
+  .thumbnail-hud-bar.is-bottom,
+  .thumbnail-hud-bar.is-top > :not(.thumbnail-hud-ratio) {
+    display: none;
+  }
+
+  .thumbnail-hud-bar.is-top {
+    justify-content: center;
+  }
+
+  .thumbnail-hud-ratio {
+    display: block;
+  }
+}
+
+@container thumbnail (width >= 248px) {
+  .thumbnail-hud-bar {
+    font-size: 15px;
+    line-height: 20px;
+  }
+}

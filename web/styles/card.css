@@ -1,0 +1,9 @@
+/* A box of content on a pane or a panel: a file's search results, a chat
+   reply, a Find Context match, a gallery or Table card. One border, one
+   radius, no shadow. A box on a canvas (a Flow node, an App Mode tile) draws
+   its own, raised off the canvas. */
+.card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--panel-radius);
+  background: var(--bg-primary);
+}

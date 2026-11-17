@@ -1,0 +1,71 @@
+/* Go to page's card (web/view/panes/pdfPane.ts): Find's card's look and place
+   (find-card.css), holding a page number, the count it is out of, and Close.
+   It never shrinks, being as small as its page number. */
+.page-card-host {
+  display: contents;
+}
+
+.page-card {
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  font-family: var(--font-default);
+  color: var(--text-primary);
+}
+
+/* Density only: .form-input draws the field and its focus. */
+.page-card-field {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 7px;
+}
+
+.page-card-field:focus-within {
+  border-color: var(--border-focus);
+}
+
+.page-card-input {
+  width: 4ch;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.page-card-count {
+  padding: 0 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.page-card-count.is-invalid {
+  color: var(--color-danger);
+}
+
+.page-card .icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+.page-card-close::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: var(--icon-x) center / contain no-repeat;
+}
+
+/* It slides as Find's card does, down out of the group's top edge. */
+.page-card.is-opening {
+  animation: find-card-slide var(--card-slide);
+}
+
+.page-card.is-closing {
+  animation: find-card-slide var(--card-slide) reverse forwards;
+}

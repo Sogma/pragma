@@ -1,0 +1,393 @@
+/* App Mode (docs/protocol.md): the fields marked Expose, as tiles on a grid.
+   Same absolute-fill footprint as .flow-pane; the two are never visible at
+   once. The pane keeps the editor's prose size for the title bar's em
+   sizing, and the grid takes the UI size back. No top padding: the title
+   bar's own sets the title's height, so it matches every other pane's. */
+.flow-app-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 24px 40px;
+  box-sizing: border-box;
+  font-size: var(--editor-font-size);
+}
+
+.flow-app-empty {
+  margin: auto;
+  max-width: 320px;
+  color: var(--text-muted);
+  font-size: var(--control-font-size);
+  text-align: center;
+}
+
+/* The grid's geometry, shared by the tiles and the cell guides beneath
+   them. */
+.flow-app-board {
+  --app-row: 80px;
+  --app-gap: 10px;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Never dense: a dense grid backfills an earlier hole, so a resize or a drop
+   would move tiles nobody touched. appModeGrid.ts sets the column count and
+   each tile's span, clamped to it. */
+.flow-app-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--app-columns), minmax(0, 1fr));
+  grid-auto-rows: var(--app-row);
+  grid-auto-flow: row;
+  gap: var(--app-gap);
+  font-size: 1rem;
+}
+
+.flow-app-grid > * {
+  grid-column: span var(--tile-columns);
+  grid-row: span var(--tile-rows);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The shadow is a list, so the node colour's top edge and a drop marker join
+   the card shadow rather than replace it. */
+.flow-app-node {
+  --tile-edge: inset 0 3px 0 var(--node-color, transparent);
+  --tile-drop: 0 0 transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow-card), var(--tile-edge), var(--tile-drop);
+}
+
+/* No title bar: the graph card's glyph, then the title. */
+.flow-app-node-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 18px;
+  margin: 0;
+  font-size: var(--ui-font-size);
+  font-weight: 400;
+  color: var(--text-primary);
+  cursor: grab;
+  user-select: none;
+}
+
+.flow-app-node-title:active {
+  cursor: grabbing;
+}
+
+.flow-app-node-title > .flow-node-dot {
+  opacity: 0.65;
+}
+
+.flow-app-node-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.flow-app-node-title > .flow-node-textbox-copy {
+  margin: -4px -6px -4px 0;
+}
+
+/* visibility, not display: the row keeps its height when the value fills in. */
+.flow-app-output:has(.flow-app-output-value.empty) .flow-node-textbox-copy,
+.flow-app-node:has(.flow-app-output-value.empty) > .flow-app-node-title > .flow-node-textbox-copy {
+  visibility: hidden;
+}
+
+.flow-app-node-fields {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* One field: the title already names it. */
+.flow-app-node-fields > :only-child > .flow-config-label,
+.flow-app-node-fields > :only-child > .flow-app-output-header {
+  display: none;
+}
+
+/* What can grow — a text box, a picture, a result — shares the tile's
+   height; a line or a dropdown keeps its own. */
+.flow-app-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-app-node-fields > .flow-app-field,
+.flow-app-node-fields > .flow-config-field:has(textarea) {
+  flex: 1;
+  min-height: 0;
+}
+
+.flow-app-node-fields textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* The picture fills the tile whole, as the gallery shows one: a reference's
+   edges matter. The graph's chip names the file, and so do the hover bars
+   here. */
+.flow-app-field .flow-node-image-picker {
+  gap: 6px;
+}
+
+.flow-app-field .flow-dropzone {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  container-type: size;
+}
+
+/* As on a gallery tile, the hover bars run along the frame's edges, not the
+   picture's, so every image tile's facts sit in the same place: the
+   picture's box fills the zone, and the picture is contained in it. */
+.flow-app-field .flow-picture {
+  width: 100%;
+  height: 100%;
+}
+
+.flow-app-field .flow-picture > img {
+  object-fit: contain;
+}
+
+/* A narrow tile keeps only the ratio, centred, as a compact gallery tile
+   does. */
+@container (max-width: 150px) {
+  .flow-app-field .flow-picture > .media-hud > .media-hud-bar:last-child,
+  .flow-app-field .flow-picture > .media-hud > .media-hud-bar:first-child > :first-child {
+    display: none;
+  }
+
+  .flow-app-field .flow-picture > .media-hud > .media-hud-bar:first-child {
+    justify-content: center;
+  }
+
+  .flow-app-field .flow-picture-ratio {
+    display: block;
+  }
+}
+
+.flow-app-field .flow-node-image-buttons {
+  flex: none;
+  margin: 0;
+}
+
+.flow-app-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flow-app-output-value {
+  user-select: text;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--control-radius);
+  padding: 8px 10px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.flow-app-output-value.empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* A failure is an inline error filling the value's box, so the box drops
+   its own frame rather than drawing a card inside a card. */
+.flow-app-output-value.error {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.flow-app-output-value:has(> img) {
+  padding: 0;
+  background: var(--bg-inset);
+}
+
+.flow-app-output-value > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* A Generate node's result, picture or clip, previews its file on a click. */
+.flow-app-output-value > img.is-previewable,
+.flow-app-clip > video {
+  cursor: pointer;
+}
+
+/* A Generate Video node's clip, whole in its tile under the player. The
+   tile sizes the frame, never the clip: an auto row would grow to the
+   video's own height and push its bottom, and the controls, out of view. */
+.flow-app-output-value.has-clip,
+.flow-app-clip {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.flow-app-output-value.has-clip {
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.flow-app-clip > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.flow-app-output > .btn {
+  flex: none;
+  align-self: flex-start;
+}
+
+/* The frame is its tile's height, not its content's: an Applet here fits
+   itself to its frame, and scrolls itself when it needs more. */
+.flow-app-applet .flow-applet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.flow-app-applet .flow-applet-frame {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+/* A Chart's exposed rows, drawn straight onto the tile: the tile's card
+   already frames the chart, and the output box would frame it twice. Its
+   placeholder sits centred in the space the chart will fill. */
+.flow-app-output-value.flow-app-chart {
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.flow-app-chart.empty {
+  display: grid;
+  place-items: center;
+}
+
+.flow-app-chart .chart {
+  --plot-background: var(--bg-primary);
+}
+
+/* A boolean-only tile is its switch (appMode.ts): lit while on, its title
+   wrapping to two lines over the switch in the corner. */
+.flow-app-toggle,
+.flow-app-toggle > .flow-app-node-title {
+  cursor: pointer;
+}
+
+.flow-app-toggle {
+  user-select: none;
+}
+
+.flow-app-toggle.on {
+  background: var(--color-accent-bg-faint);
+  border-color: var(--color-accent);
+}
+
+.flow-app-toggle > .flow-app-node-title {
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: space-between;
+  row-gap: 6px;
+}
+
+.flow-app-toggle .flow-app-node-name {
+  flex: 1 1 calc(100% - 22px);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.flow-app-toggle .toggle-switch {
+  margin-left: auto;
+}
+
+/* Run is an action tile: the primary fill, its icon beside its label, and
+   the count of runs going over its foot. Run fills the tile, so the whole
+   tile is the button and hovers as one. Placed after .flow-run-button, so
+   these win by source order. */
+.flow-app-run-item {
+  --tile-drop: 0 0 transparent;
+  position: relative;
+  display: flex;
+  border-radius: var(--panel-radius);
+  box-shadow: var(--tile-drop);
+  cursor: grab;
+}
+
+.flow-app-run-item:active {
+  cursor: grabbing;
+}
+
+.flow-app-run-button {
+  flex: 1 1 auto;
+  height: auto;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: inherit;
+  font-size: 18px;
+  cursor: inherit;
+}
+
+.flow-app-run-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* The label rises clear of the count while it shows. */
+.flow-app-run-item:has(> .flow-run-count:not([hidden])) > .flow-app-run-button {
+  padding-bottom: 28px;
+}
+
+.flow-app-run-item > .flow-run-count {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  translate: -50% 0;
+  height: 24px;
+  background: var(--bg-primary);
+  font-size: var(--small-font-size);
+  white-space: nowrap;
+}

@@ -1,0 +1,103 @@
+/* A path named in running text: one piece that moves to the next line whole,
+   the punctuation after it included, the tooltip keeping the path. The name
+   reads darker than the text around it, where it is and its folder a step
+   quieter, as the status bar's path does. */
+.path-label {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.path-label > *,
+.path-label-box > * {
+  flex-shrink: 0;
+}
+
+/* The path set apart as a note's inline code is (reading.css): a muted box
+   in a monospace face. It narrows with its line; the punctuation after it
+   stays outside. */
+.path-label-box {
+  display: flex;
+  align-items: baseline;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-inset);
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.path-label-root,
+.path-label-more,
+.path-label-folder,
+.path-label-separator {
+  color: var(--text-muted);
+}
+
+.path-label-name {
+  color: var(--text-primary);
+}
+
+/* A path standing alone takes the type around it: the box only sets a path
+   apart from running text, and in a dropdown it would be a box inside a
+   box. */
+.path-label-standalone .path-label-box {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* What follows where the path is. On a line too narrow for it even folded,
+   it gives way from its start, its folder first, then the start of the name,
+   so the end of the name, which tells files apart, stays. Laid out right to
+   left for the ellipsis to fall at the start; the run keeps its characters
+   in order, or a name starting with digits would come out turned.
+
+   clip, not hidden: hidden clips both axes, cutting off the descenders. */
+.path-label-tail {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  direction: rtl;
+  color: var(--text-muted);
+}
+
+.path-label-run {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.path-label-separator {
+  margin-inline: 0.1em;
+}
+
+/* The entry's icon, painted by entry-icons.css. */
+.path-label-icon {
+  margin-inline-end: 0.3em;
+  align-self: center;
+}
+
+/* A known kind's extension, shown as the tree shows it: only under Settings'
+   Show extensions. The tooltip keeps it. */
+.path-label-ext {
+  display: none;
+}
+
+.show-extensions .path-label-ext {
+  display: inline;
+}
+
+.path-label-root-icon {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.3em;
+  align-self: center;
+  background: var(--view-library);
+  mask: var(--icon-library) center / contain no-repeat;
+}

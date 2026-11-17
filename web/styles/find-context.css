@@ -1,0 +1,116 @@
+.editor-find-context {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.find-context-header {
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.find-context-empty {
+  color: var(--text-muted);
+}
+
+.find-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.find-context-card.best {
+  border-color: var(--color-accent);
+}
+
+.find-context-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.find-context-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.find-context-card-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.find-context-best-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: var(--pill-radius);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.find-context-score {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.find-context-card-path {
+  color: var(--text-muted);
+  user-select: all;
+}
+
+.find-context-bar {
+  height: 4px;
+  border-radius: var(--pill-radius);
+  background: var(--border-input);
+  overflow: hidden;
+}
+
+.find-context-bar-fill {
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.find-context-reasoning {
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  user-select: text;
+}
+
+.find-context-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.find-context-card:not(.best) .find-context-card-actions {
+  visibility: hidden;
+}
+
+.find-context-card:not(.best):hover .find-context-card-actions {
+  visibility: visible;
+}
+
+.find-context-open-button {
+  font-family: var(--font-default);
+  padding: 4px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.find-context-open-button:hover {
+  background: var(--bg-hover);
+}

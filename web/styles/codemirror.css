@@ -1,0 +1,399 @@
+/* Rules that must beat CodeMirror's own stylesheet, imported without a layer
+   (web/style.css): CodeMirror injects its styles at runtime, unlayered, and an
+   unlayered rule beats every layer. Fountain's screenplay rules are the same
+   kind and live in fountain.css. */
+
+/* CodeMirror's base theme sets a monospace font and size on .cm-editor and is
+   injected after this stylesheet, so a bare .cm-editor rule loses the tie; the
+   #editor scope wins. This is prose, and should read like a note. */
+#editor .cm-editor {
+  height: 100%;
+  font-family: var(--font-default);
+  font-size: var(--editor-font-size);
+}
+
+/* CodeMirror's base theme also puts a direct font-family: monospace on
+   .cm-scroller, and a direct declaration beats an inherited one regardless of
+   the ancestor rule's specificity, so the rule above alone leaves everything
+   inside in monospace. .fountain-editor overrides this back in fountain.css. */
+#editor .cm-scroller {
+  font-family: var(--font-default);
+}
+
+/* A note is set in the Editor's Font, line numbers included so they sit on
+   the text's baselines. A format's own font outranks this by specificity
+   (fountain.css). */
+#editor .editor-document .cm-scroller {
+  font-family: var(--font-text);
+}
+
+/* The base theme's line-height sits directly on .cm-scroller too. Scoped to
+   .editor-document so the Flow pane's Prompt/Note boxes, also under #editor,
+   keep CodeMirror's own; a screenplay sets its own in fountain.css. */
+#editor .editor-document .cm-editor:not(.fountain-editor) .cm-scroller {
+  line-height: var(--prose-line-height);
+}
+
+/* CodeMirror's base theme outlines a focused editor with 1px dotted, traced
+   around the whole box including the bottom edge, right where
+   .editor-statusbar's border sits, so the border appeared to darken on any
+   click. Pragma uses no focus ring in the content area; the caret and
+   selection already show focus. */
+#editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Readable line length: prose in editor.css's page box, centred like a page
+   where the pane has room, else held at the page's narrowest margins. The
+   title bar takes the same box and margins, so the two line up. A document
+   on a preview's page is centred the same way (note-preview.css).
+
+   The centring is why #editor .cm-gutters below leaves the flex row: in
+   flow, the text would centre on the pane minus the gutter, half a gutter
+   off the title bar, which centres on the true pane width. */
+:is(#editor, .preview-page) .cm-editor .cm-content {
+  max-width: var(--page-width);
+  margin-left: max(var(--page-start-inset), 50% - var(--page-width) / 2);
+  margin-right: max(var(--page-end-inset), 50% - var(--page-width) / 2);
+}
+
+/* A document on a preview's page (web/notePreview.ts), in its locked editor:
+   at the editor's font size, which its format may redefine, as tall as its
+   text, so the page is what scrolls, and inset as a note's page is. A link's
+   page sits outside #editor; the gallery's sits inside, where the #editor
+   form outranks the 100% height above. */
+#editor .preview-page .cm-editor,
+.preview-page .cm-editor {
+  height: auto;
+  font-size: var(--editor-font-size);
+}
+
+.preview-page .cm-editor .cm-content {
+  padding: var(--page-top-inset) 0 24px;
+}
+
+/* A note's text starts as far below its title as reading view's page does
+   (reading.css), so a switch between the two moves nothing at the top. */
+#editor .editor-document-pane:not(.editor-applet-source) .editor-document.has-title .cm-content {
+  padding-top: 24px;
+}
+
+/* With no title bar the text is the top of the page, so its first line
+   starts where a title would (editor.css), not at CodeMirror's 4px. */
+#editor .editor-document:not(.has-title) .cm-content {
+  padding-top: var(--page-top-inset);
+}
+
+/* The Flow pane is inside #editor, so every #editor .cm-* rule above (font
+   size, the readable column's centring) leaks into Prompt/Note's CodeMirror
+   instance too. Keyed on #editor to match their specificity; it wins by
+   source order. */
+#editor .editor-flow .flow-node-textbox-area {
+  font-size: var(--small-font-size);
+}
+
+#editor .editor-flow .flow-node-textbox-area .cm-content {
+  max-width: none;
+  margin: 0;
+}
+
+/* Flattens CodeMirror's panel-style gutter: faint numbers and fold arrows on
+   the page background, the divider made transparent (not removed, so the
+   width holds). Dark mode stays flat too: under a short note the gutter runs
+   to the page's bottom, so a fill or a divider would draw a strip there.
+   id+class specificity beats CM's injected rule.
+
+   position: absolute takes the gutter out of the flex row .cm-content centres
+   in, spanning .cm-scroller top to bottom. Safe only because line wrapping is
+   always on, so .cm-scroller never scrolls horizontally.
+
+   right: the scroller's width less .cm-content's left margin sits the
+   gutter flush against its left edge, its shrink-to-fit width growing
+   leftward as digits are added. left: auto cancels the base theme's
+   inset-inline-start: 0, which would stretch the box instead. */
+#editor .cm-gutters {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: calc(100% - max(var(--page-start-inset), 50% - var(--page-width) / 2));
+  background: var(--bg-primary);
+  color: var(--text-faint);
+  border-right-color: transparent;
+}
+
+#editor .cm-activeLineGutter {
+  background: transparent;
+}
+
+/* Solid: activeLine.ts marks the line only while nothing is selected, since
+   this fill would hide a selection on it. */
+#editor .cm-activeLine {
+  background: var(--bg-secondary);
+}
+
+/* Readable line length toggled off: .wide-editor on a pane drops the cap
+   on edit view, reading view and the title bar so each fills its pane with
+   a 24px inset, as flow/canvas.css does for App Mode and file-preview.css
+   for a previewed note. The gutter goes back in flow. Not covered:
+   .fountain-editor (a page format, not a preference), the applet's title. */
+#editor .wide-editor .editor-document.has-title {
+  padding-inline: 24px;
+}
+
+/* Without a title bar (raw code) .cm-scroller is the scroll region, so the
+   inset goes inside it: on .editor-document it would hold the scrollbar
+   24px off the pane's edge. A screenplay's page keeps its own margins: an
+   inset here would add to them and part its text from the gutter. */
+#editor .wide-editor .editor-document:not(.has-title) .cm-editor:not(.fountain-editor) .cm-scroller {
+  padding-inline: 24px;
+}
+
+#editor .wide-editor .cm-editor:not(.fountain-editor) .cm-content {
+  max-width: none;
+  margin: 0;
+}
+
+#editor .wide-editor .cm-editor:not(.fountain-editor) .cm-gutters {
+  position: static;
+}
+
+#editor .wide-editor .editor-document > .editor-title-bar > .editor-title-inner,
+#editor .wide-editor .editor-reading > .editor-title-bar > .editor-title-inner {
+  max-width: none;
+  margin: 0;
+}
+
+#editor .wide-editor .editor-reading-content {
+  max-width: none;
+  margin: 0;
+}
+
+/* A web link opens on a click, so it shows the hand reading view's links do. */
+#editor .cm-web-link {
+  cursor: pointer;
+}
+
+/* Syntax a formatted view shows where the selection reaches it: faint, the
+   same in every format. Before the formats' stylesheets, whose colors for a
+   broken link or plain text still win inside it. */
+#editor .cm-shown-syntax,
+#editor .cm-shown-syntax * {
+  color: var(--text-faint);
+}
+
+/* CodeMirror ships a light-only base theme for the editor and cursor; pragma
+   styles these only in dark mode, so this is a dark-only override at the same
+   #editor specificity as above. */
+html[data-theme="dark"] #editor .cm-editor {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] #editor .cm-gutters {
+  color: var(--text-muted);
+}
+
+html[data-theme="dark"] #editor .cm-cursor {
+  border-left-color: var(--text-primary);
+}
+
+/* Find's matches, in solid fills: the selection CodeMirror draws beneath the
+   text doesn't show through them. */
+#editor .cm-searchMatch {
+  background-color: var(--find-match-bg);
+  color: var(--find-match-fg);
+}
+
+#editor .cm-searchMatch.cm-searchMatch-selected {
+  background-color: var(--find-current-bg);
+}
+
+/* CodeMirror's own panels along the editor's foot, Go to line among them;
+   find has a card of its own (find-card.css). CodeMirror's chrome for them
+   is light-only here, since the editor never sets CodeMirror's dark facet,
+   so it is skinned from the theme tokens and follows either theme. #editor
+   outranks the injected rules, including their :active state.
+
+   `background`, never `background-color`, on .cm-button: the shorthand is
+   what clears the base theme's gradient background-image. */
+#editor .cm-panels-bottom {
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#editor .cm-textfield,
+#editor .cm-button {
+  font-family: var(--font-default);
+  font-size: var(--control-font-size);
+  padding: 3px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#editor .cm-textfield:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+#editor .cm-button {
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+}
+
+#editor .cm-button:hover {
+  background: var(--bg-hover);
+}
+
+/* Editor tooltips, the `[[` suggester's list among them, skinned like the
+   context menu for the same reason as the panels above: CodeMirror's own
+   colors are light-only here. The list's rows are the menu's rows, with the
+   keyboard-selected one shown as hovered, and a row's detail (the
+   suggester's folder) on a faded line under its name.
+
+   CodeMirror's kind icons are font glyphs, which Pragma doesn't use, and a
+   file has no kind to show, so they're hidden. */
+#editor .cm-tooltip {
+  border: 1px solid var(--border-input);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-menu);
+}
+
+#editor .cm-tooltip.cm-tooltip-autocomplete {
+  padding: 4px;
+}
+
+#editor .cm-tooltip-autocomplete > ul {
+  font-family: var(--font-default);
+  font-size: var(--editor-font-size);
+  max-height: 22em;
+}
+
+#editor .cm-tooltip-autocomplete > ul > li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: var(--control-radius);
+}
+
+#editor .cm-tooltip-autocomplete > ul > li:hover,
+#editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+#editor .cm-completionIcon {
+  display: none;
+}
+
+#editor .cm-completionLabel,
+#editor .cm-completionDetail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#editor .cm-completionDetail {
+  margin: 0;
+  font-size: 0.85em;
+  font-style: normal;
+  color: var(--text-muted);
+}
+
+/* CodeMirror's own gutter stylesheet sets `.cm-gutter { display: flex
+   !important }` (to prevent margin collapsing) — anything less than
+   `!important` here loses to that regardless of selector specificity. */
+#editor .hide-line-numbers .cm-lineNumbers {
+  /* biome-ignore lint/complexity/noImportantStyles: see the CodeMirror note above. */
+  display: none !important;
+}
+
+/* .editor-document's overflow becomes the single scrollbar for the title bar
+   and the body together, instead of CodeMirror scrolling internally under a
+   separately scrolled title. On this wrapper, not .editor-group, or
+   .editor-statusbar scrolls away with the document.
+
+   .cm-scroller's overflow assumes .editor-cm owns the scroll, so it is
+   overridden and CodeMirror grows to its content, still drawing only the
+   lines .editor-document shows. Every markdown document has the title bar; a
+   screenplay has none and scrolls inside CodeMirror.
+
+   .editor-cm also grows to the page's bottom, so .cm-editor's height: 100%
+   and the base theme's own 100% heights stretch .cm-content over a short
+   note's empty space: a click there is CodeMirror's, which puts the caret at
+   the end of the document. */
+.editor-document.has-title .editor-cm {
+  flex: 1 0 auto;
+}
+
+.editor-document.has-title .editor-cm .cm-scroller {
+  overflow: visible;
+}
+
+/* Reading view drops the text caret (editing is already off) so the pointer
+   reads as locked. The class sits on the document pane, so raw code under
+   Edit code is never locked. */
+.editor-document-pane.reading-view .cm-content {
+  cursor: default;
+}
+
+/* A screenplay is the one document reading view leaves in CodeMirror, and it
+   should read like a rendered note: no line numbers or fold arrows. The
+   gutter is out of flow, so hiding it moves no text. */
+.editor-document-pane.reading-view .cm-gutters {
+  display: none;
+}
+
+/* CodeMirror renders into this same box for Prompt/Note, so its base theme
+   needs overriding as #editor's instance does above: CM6's theme is injected
+   after this stylesheet and wins a same-specificity tie. The three-class
+   prefix buys the specificity, since no per-node element has an id.
+
+   .cm-editor zeroes the shared padding so it can move onto .cm-content, where
+   CM6 expects it. */
+.flow-node-textbox-area.cm-editor {
+  padding: 0;
+}
+
+.flow-node-textbox .flow-node-textbox-area .cm-scroller {
+  font-family: var(--font-default);
+  /* CM6's base theme sets overflow-x but not overflow-y on .cm-scroller,
+     expecting an ancestor to scroll. This box has a fixed, resizable height
+     and must scroll itself like a <textarea>, so opt in explicitly. */
+  overflow-y: auto;
+}
+
+.flow-node-textbox .flow-node-textbox-area .cm-content {
+  padding: 6px 8px;
+}
+
+/* .form-input's focus, which the CodeMirror box never matches itself: focus
+   lands on the nested .cm-content. */
+.flow-node-textbox .flow-node-textbox-area.cm-focused {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* generate's @image_N mentions, rendered as a chip while staying real,
+   cursor-navigable text. Colour matches .handle.image's --color-warning, so a
+   mention ties back to the amber image pins. */
+.cm-image-mention {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-radius: var(--control-radius);
+  padding: 0 3px;
+}
+
+/* {{name}} template variables: blue, matching .handle.text's accent, the text
+   port's pin colour, by the same chip-mirrors-port convention. */
+.cm-variable-mention {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-radius: var(--control-radius);
+  padding: 0 3px;
+}

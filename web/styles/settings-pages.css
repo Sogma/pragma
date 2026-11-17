@@ -1,0 +1,331 @@
+/* Settings' pages: each category and subpage is a column of groups, a group
+   an optional title over a card of rows with dividers between rows only.
+   Site Settings uses the same groups inside its one scroller. */
+
+/* Settings' own body stacks its pages, each scrolling on its own, so a
+   subpage slides in over its category with both painted. clip, not hidden:
+   a hidden box still scrolls sideways when focus lands in a page mid-slide. */
+.settings-pages {
+  position: relative;
+  overflow: clip;
+  padding: 0;
+}
+
+.settings-category,
+.settings-subpage {
+  --card-inset: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-category > *,
+.settings-subpage > * {
+  flex-shrink: 0;
+}
+
+.settings-pages > .settings-category,
+.settings-pages > .settings-subpage {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  background: var(--bg-primary);
+}
+
+.settings-pages > .settings-subpage {
+  padding-top: 4px;
+}
+
+/* Pinned while the page scrolls under it. -4px meets the edge through the
+   subpage's top padding, and the negative margin sets the first group 12px
+   below, inside the page's gap.
+
+   The two 1fr columns keep the title centered over the cards while it fits;
+   a longer one takes the room after Back and truncates. */
+.settings-subpage-head {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr minmax(0, max-content) 1fr;
+  align-items: center;
+  column-gap: 6px;
+  margin-bottom: -8px;
+  padding: 10px 0 2px;
+  background: var(--bg-primary);
+}
+
+/* Back is a .flat-button naming the list the subpage was opened from, in
+   that list's title style (.section-label). Its fill reaches back past the
+   page's edge, so the chevron's point, a third of the way into its box,
+   lines up with the text below. */
+.settings-subpage-back {
+  justify-self: start;
+  min-height: 28px;
+  margin-inline-start: -10px;
+  padding: 0 11px 0 5px;
+  border-radius: var(--pill-radius);
+  white-space: nowrap;
+}
+
+.settings-subpage-back-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-left) center / contain no-repeat;
+}
+
+/* A long name gives way, never Back. */
+.settings-subpage-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What a page holds, over its first group, inset to the cards' text. The
+   negative margin sets it 8px above what follows, inside the page's gap. */
+.settings-intro {
+  margin: 0 var(--card-inset) -12px;
+  color: var(--text-muted);
+}
+
+/* A form whose fields span several groups. */
+.settings-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: -8px;
+}
+
+/* A form's own message, 6px under its actions like a group's note. */
+.settings-form-stack > .settings-group-note {
+  margin-top: -14px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* A group with no row showing, like Remove before its item exists. */
+.settings-group:not(:has(.settings-card > :not([hidden]))) {
+  display: none;
+}
+
+.settings-group-title {
+  margin: 0;
+  padding: 0 var(--card-inset) 6px;
+}
+
+/* A title with an action at its end, like Refresh over a model list. */
+.settings-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--card-inset) 6px;
+}
+
+.settings-group-head > .settings-group-title {
+  padding: 0;
+}
+
+.settings-group-head > .btn {
+  padding: 2px 8px;
+  font-size: var(--small-font-size);
+}
+
+/* A note's text lines up with the card's content. An inline error, warning
+   or confirmation in a note's place is a box, so it lines up with the card's
+   edges instead, and takes only placement: its type and colours are the
+   primitive's, which this components layer would outrank. */
+.settings-group-note {
+  margin: 6px var(--card-inset) 0;
+}
+
+.settings-group-note:is(.inline-error, .inline-warning, .inline-success) {
+  margin-inline: 0;
+}
+
+.settings-group-note:not(.inline-error, .inline-warning, .inline-success) {
+  font-size: var(--control-font-size);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* An id a note gives (a custom provider's), selected whole on one click. */
+.settings-group-note code {
+  font-family: var(--font-monospace);
+  font-size: var(--small-font-size);
+  user-select: all;
+}
+
+/* clip rounds the rows' hover fill into the corners. */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--panel-radius);
+  background: var(--bg-card);
+  overflow: clip;
+}
+
+.settings-card-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-card > *,
+.settings-card-list > * {
+  position: relative;
+}
+
+/* A divider over every row with a row showing before it. Hidden rows and an
+   empty list are skipped, so no divider ever tops a card. */
+.settings-card > :not([hidden], :empty) ~ :not([hidden])::before,
+.settings-card-list > :not([hidden]) ~ :not([hidden])::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline: var(--card-inset);
+  border-top: 1px solid var(--border-card);
+}
+
+/* A hover fill or focus ring draws the row's own edges, so the dividers
+   along it give way, the one under a list's last row included. */
+.settings-card :is(.settings-open-row, .settings-add-row, .settings-danger-row):is(:hover, :focus-visible)::before,
+.settings-card :is(.settings-open-row, .settings-add-row, .settings-danger-row):is(:hover, :focus-visible) + *::before,
+.settings-card-list:has(> :last-child:is(:hover, :focus-visible)) + *::before {
+  border-top-color: transparent;
+}
+
+.settings-card > .field-row,
+.settings-card-list > .settings-list-row,
+.settings-card > .settings-intro {
+  margin: 0;
+  padding: 12px var(--card-inset);
+  border-bottom: none;
+}
+
+/* A labelled field: the label in the row's title style, the control filling
+   the rest. */
+.settings-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--card-inset);
+}
+
+.settings-field > label {
+  flex: none;
+  width: 84px;
+}
+
+.settings-field .settings-input,
+.settings-field .settings-select {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.settings-field .btn {
+  flex-shrink: 0;
+}
+
+/* A signed-in account, filling the row before its buttons. One click
+   selects the whole address, cut or not. */
+.settings-sign-in-account {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+/* The ChatGPT mark leads Continue with ChatGPT, as OpenAI's guidelines ask. */
+.settings-field .btn .provider-mark {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-inline-end: 6px;
+}
+
+/* A row given over to one control at full width: a checklist, an id field. */
+.settings-block {
+  padding: 12px var(--card-inset);
+}
+
+.settings-block .settings-input {
+  width: 100%;
+}
+
+/* A checklist with nothing listed yet takes no room. */
+.settings-block:empty {
+  display: none;
+}
+
+/* Rows that are buttons, on .list-item: one opens its item's subpage, one
+   adds an item, one removes the item a subpage shows. */
+.settings-open-row,
+.settings-add-row,
+.settings-danger-row {
+  gap: 12px;
+  padding: 12px var(--card-inset);
+  border-radius: 0;
+}
+
+.settings-open-row:hover,
+.settings-add-row:hover,
+.settings-danger-row:hover {
+  background: var(--bg-card-hover);
+}
+
+.settings-open-row:focus-visible,
+.settings-add-row:focus-visible,
+.settings-danger-row:focus-visible {
+  outline-offset: -2px;
+}
+
+.settings-open-row-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-inline-start: auto;
+  background-color: var(--text-faint);
+  mask: var(--icon-chevron-right) center / contain no-repeat;
+}
+
+.settings-open-row:hover .settings-open-row-chevron {
+  background-color: var(--text-muted);
+}
+
+/* The plus takes a provider mark's width, so Add lines up with the names. */
+.settings-add-row {
+  gap: 10px;
+  color: var(--color-accent);
+}
+
+.settings-add-row-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: var(--icon-plus) center / 16px no-repeat;
+}
+
+.settings-danger-row {
+  color: var(--color-danger);
+}

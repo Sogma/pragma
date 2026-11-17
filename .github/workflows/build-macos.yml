@@ -1,0 +1,62 @@
+name: Build macOS app
+
+# A Mac test build of any ref, kept as a run artifact. Releases build macOS in
+# release.yml, so a tag doesn't start this one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag/branch/SHA to build (blank = default branch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      # electron-builder skips signing without CSC_LINK, and notarizing without
+      # all three APPLE_* secrets, with only a warning, so a missing one fails
+      # the job here instead. CSC_IDENTITY_AUTO_DISCOVERY=false skips signing
+      # even with CSC_LINK set, so it stays unset.
+      #
+      # The secrets sit on this step alone, never job-wide: npm ci runs
+      # dependencies' install scripts.
+      - name: Package, sign and notarize
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+          npm run package
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pragma-macos
+          path: |
+            release/*.dmg
+            release/*.zip
+          retention-days: 7

@@ -1,0 +1,348 @@
+/* Every tree host is selected by .file-tree alone (the sidebar's tree and
+   the Websites/Libraries accordion bodies), so the node look is written once.
+   The #tree-nodes rule is deliberately not part of that: it makes its host
+   the one full-height scroller and flattens its root indent, which fits the
+   single space tree but would nest scrollbars inside an accordion. */
+.file-tree {
+  --tree-indent-root: 14px;
+}
+
+#tree-nodes {
+  flex: 1;
+  min-height: var(--stack-scroller-min-height);
+  overflow-y: auto;
+  padding-right: 8px;
+  --tree-indent-root: 0px;
+}
+
+.file-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Only the host's root indent: depth pads the row's label (.node-label). */
+.file-tree .tree-row {
+  padding-inline-start: var(--tree-indent-root);
+}
+
+/* A set line, not the font's: the tree spaces rows a whole number of pixels
+   apart (fileTreeView.ts), and the font's own line falls between pixels at
+   150%, so rows would alternate a screen pixel taller and shorter. 20px
+   makes a 24px row, whole at 125%, 150% and 175% too. */
+.file-tree .tree-row {
+  line-height: 20px;
+}
+
+/* A tree draws only the rows near its viewport (web/view/fileTreeView.ts),
+   in order, with a spacer for each run it leaves out: every row is the
+   measured pitch tall, so spacers and rows add up to the whole tree. A row
+   is positioned for its indent guides; a descendant selector, so a
+   transition row's rows take the same height.
+
+   Out of scroll anchoring: when rows above the viewport come or go, the
+   browser would otherwise scroll to hold the visible ones still.
+
+   Isolated, so a pinned folder's z-index ranks it among the rows only:
+   without that it outranks #rail too, and shows over the rail while the
+   sidebar slides behind it. */
+.file-tree .tree-list {
+  position: relative;
+  overflow-anchor: none;
+  isolation: isolate;
+}
+
+.file-tree .tree-list .tree-row {
+  position: relative;
+  height: var(--tree-row-height);
+}
+
+/* A folder opening or shutting: one row after the folder whose height
+   animates, so the layout moves every row below it. Its rows ride its
+   bottom edge, sliding out from under the folder rather than being
+   uncovered in place, and it clips them as it shrinks. */
+.file-tree .tree-transition {
+  position: relative;
+  overflow: clip;
+}
+
+.file-tree .tree-transition > ul {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+}
+
+/* A pinned folder's row sticks under the pins above it, in a box as tall as
+   the rows it holds, so the browser keeps it there while they pass under it
+   and pushes it out as they end, in the same frame as the scroll. Its place
+   holds its row's room in the list; the box lets the rows below take their
+   own clicks. */
+.file-tree .tree-pin {
+  position: relative;
+  height: var(--tree-row-height);
+}
+
+.file-tree .tree-pin > ul {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: clip;
+}
+
+/* Opaque, or the rows passing under it would show through. */
+.file-tree .tree-list .tree-pin .tree-row {
+  position: sticky;
+  top: calc(var(--depth) * var(--tree-row-height));
+  background: var(--bg-secondary);
+  pointer-events: auto;
+}
+
+/* Its background reaches a pixel above it too, since at 125% to 175%
+   Chromium rounds two stacked rows a device pixel apart. A strip, not a box
+   shadow, which costs the row's text its subpixel smoothing; the box clips
+   it off a row resting in its own place. */
+.file-tree .tree-list .tree-pin .tree-row::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0 auto;
+  height: 1px;
+  background: var(--bg-secondary);
+}
+
+/* Flex so the name is the one child that shrinks: the glyphs before it and
+   the badges after it stay whole while a long name ellipsizes.
+
+   Depth pads the label, not its row, so every row's fill starts at the same
+   edge and a nested row's guides lie over its fill. */
+.file-tree .node-label {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  padding-inline-start: calc(4px + var(--depth, 0) * 10px);
+  border-radius: var(--control-radius);
+  white-space: nowrap;
+}
+
+.file-tree .node-label::before,
+.file-tree .node-label > .node-icon,
+.file-tree .node-label > .node-sort-badge {
+  flex-shrink: 0;
+}
+
+.file-tree .node-name {
+  min-width: 0;
+  overflow-x: clip;
+  text-overflow: ellipsis;
+}
+
+/* A file Pragma can't open reads a step lighter than the files it opens, and
+   still darker than the Trash's, which are on their way out. */
+.file-tree .cant-open > .node-label {
+  color: var(--text-secondary);
+}
+
+.file-tree .node-label:hover {
+  background: var(--bg-hover);
+}
+
+/* Grey, not the accent: architecture.md's Visual system rule makes the open file's
+   row and rows selected together its exception. Among them the open file
+   keeps its brighter text. */
+.file-tree .node-label:is(.active, .selected) {
+  background: var(--bg-selected);
+}
+
+.file-tree .node-label.active {
+  color: var(--text-highlight);
+}
+
+/* A drag of several rows shows their count by the pointer (fileTreeView.ts):
+   drawn off-screen, where the browser copies it from. */
+.tree-drag-count {
+  position: fixed;
+  top: -100px;
+  left: 0;
+}
+
+/* The list takes focus so the keyboard cursor can rest on a row scrolled off
+   the page; the ring belongs to the cursor's row (utilities.css), never the
+   whole list. */
+.file-tree .tree-list:focus {
+  outline: none;
+}
+
+.file-tree .node-label.drag-over {
+  background: var(--color-accent-bg);
+  outline: 1px dashed var(--color-accent);
+  outline-offset: -1px;
+}
+
+.file-tree .node-label.drag-over-top {
+  box-shadow: inset 0 2px 0 0 var(--color-accent);
+}
+
+.file-tree .node-label.drag-over-bottom {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+/* Every row leads with its chevron's column, blank on a file's, so the icons
+   after it share a column: one for a depth's folders, one for its files. */
+.file-tree .node-label::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 2px;
+}
+
+/* A file's blank column is 6px narrower, pulling its icon 6px closer to its
+   folder's than a full step. Files then sit 6px left of the folders beside
+   them, on purpose: lining them up would put each file's icon a full step
+   right of its folder's. */
+.file-tree .file > .node-label::before {
+  width: calc(1em - 6px);
+}
+
+/* Mask chevron, rotated to point right when collapsed rather than swapped for
+   a second glyph. */
+.file-tree .directory > .node-label::before {
+  /* --text-muted rather than currentColor: a bit faded relative to the folder
+     name, and not tracking the row's active/hover colour. */
+  background-color: var(--text-muted);
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+  transition: transform var(--folder-slide-duration) ease;
+}
+
+.file-tree .directory.collapsed > .node-label::before {
+  transform: rotate(-90deg);
+}
+
+/* The icon after it, blank for a plain file, so names line up. */
+.file-tree .node-label > .node-icon {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 4px;
+}
+
+/* A mask, not an emoji, so it paints with currentColor. */
+.node-sort-badge {
+  width: 0.85em;
+  height: 0.85em;
+  margin-inline-start: 4px;
+  background-color: currentColor;
+  mask: var(--icon-sort) center / contain no-repeat;
+}
+
+/* A folder's Open button, at the row's end while the pointer is on the row.
+   In the flow, so a long name ellipsizes clear of it; stretched to the line
+   rather than sized, so showing it never makes the row taller than the
+   pitch every row is measured at. */
+.file-tree .node-open {
+  display: none;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: calc(1em + 4px);
+  height: auto;
+  margin-inline-start: auto;
+  color: var(--text-faint);
+}
+
+.file-tree .node-label:hover > .node-open {
+  display: flex;
+}
+
+/* Whatever comes before it keeps a badge's 4px from it. */
+.file-tree .node-label:hover > :has(+ .node-open) {
+  margin-inline-end: 4px;
+}
+
+.file-tree .node-open::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  mask: var(--icon-circle-arrow-right) center / contain no-repeat;
+}
+
+/* The row under it already wears --bg-hover, which an icon button's own
+   hover fill would vanish into. The colour is restated because this layer
+   outranks the icon button's own hover. */
+.file-tree .node-open:hover {
+  background: color-mix(in srgb, var(--bg-hover), var(--text-primary) 7%);
+  color: var(--text-primary);
+}
+
+/* The input's padding and border make up the label's 2px, so an editing
+   row is exactly a row's height and fits the tree's fixed pitch. */
+.file-tree .node-label.editing {
+  cursor: default;
+  padding-block: 0;
+}
+
+.file-tree .node-label input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 1px 4px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--control-radius);
+  background: var(--bg-primary);
+  color: inherit;
+}
+
+.file-tree .node-label input:focus {
+  outline: none;
+}
+
+/* The Trash section's entries read muted, as things on their way out. */
+.file-tree .trash-list .node-label {
+  color: var(--text-muted);
+}
+
+.file-tree .tree-loading {
+  margin: 0;
+  padding: 2px 4px;
+  padding-inline-start: calc(4px + var(--depth, 0) * 10px);
+  color: var(--text-muted);
+}
+
+/* Indent guides: a line under each open folder's chevron, down everything
+   listed under it. The 10px step and the 4px padding are the label's own,
+   above.
+
+   Borders, not one repeating gradient: a 1px gradient stripe lands one or
+   two device pixels wide at 125% and 150%, so a row's lines would differ. */
+.file-tree .tree-guides {
+  position: absolute;
+  inset-block: 0;
+  /* The label's padding plus half the chevron, less half the line. */
+  inset-inline-start: calc(var(--tree-indent-root) + 4px + 0.5em - 0.5px);
+  display: flex;
+  pointer-events: none;
+}
+
+.file-tree .tree-guides > span {
+  flex: none;
+  width: 10px;
+  border-inline-start: 1px solid var(--indent-guide);
+}
+
+/* The open file's folder: its guide darker, and shown while the pointer is
+   off the tree too, so the open file's place stays marked. */
+.file-tree .tree-guides > .active {
+  border-color: var(--indent-guide-active);
+}
+
+/* Shown while the pointer is over the tree, on the scrollbars' timing
+   (base.css) so the two arrive together. */
+.file-tree .tree-guides > span {
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+
+.file-tree:hover .tree-guides > span,
+.file-tree .tree-guides > .active {
+  opacity: 1;
+  transition-duration: 250ms;
+}

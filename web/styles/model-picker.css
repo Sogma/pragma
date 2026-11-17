@@ -1,0 +1,47 @@
+/* A model picker is a picker (picker.css) naming a model by its provider's
+   mark and its own name: the chat composer's chip, Settings' default models
+   and a Flow's model fields, each drawing its own surface. */
+
+/* The effort after the name, kept whole while the name gives way. */
+.model-picker-effort {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* No mark until the model list says whose model it is. */
+.model-picker:not([data-vendor]) .provider-mark {
+  display: none;
+}
+
+/* A stored model no provider lists any more: flagged, not swapped for
+   another, so the writer sees what they had and changes it deliberately. */
+.model-picker.unconfigured {
+  --provider-mark: var(--icon-triangle-alert);
+  color: var(--color-warning);
+}
+
+.context-menu.model-menu {
+  min-width: 220px;
+}
+
+/* A provider heading wears its mark; each model under it keeps the mark's
+   slot empty, so the names line up with the provider's. */
+.model-menu .context-menu-label {
+  gap: 8px;
+  font-size: var(--small-font-size);
+}
+
+.model-menu .context-menu-icon {
+  background-color: currentColor;
+  mask-image: var(--provider-mark);
+}
+
+.model-menu button .context-menu-icon {
+  visibility: hidden;
+}
+
+/* A server whose list couldn't be read: a warning in its models' place. */
+.model-menu .model-menu-note {
+  --provider-mark: var(--icon-triangle-alert);
+  font-style: italic;
+}

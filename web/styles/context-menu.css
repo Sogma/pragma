@@ -1,0 +1,339 @@
+/* Above a dialog (--z-menu): both mount on <body>, so a menu opened from
+   inside a dialog would otherwise render behind it. A menu is always the most
+   transient thing on screen. */
+.context-menu {
+  position: fixed;
+  z-index: var(--z-menu);
+  display: flex;
+  flex-direction: column;
+}
+
+.context-menu,
+.context-submenu {
+  min-width: 140px;
+  padding: 3px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--box-radius);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-menu);
+}
+
+/* A picker's list holds focus itself; its highlighted row shows where the
+   keys are, as a search box's does. */
+.context-menu:focus {
+  outline: none;
+}
+
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-default);
+  min-height: 25px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--control-radius);
+  background: none;
+  color: inherit;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The row under the pointer, or under the keys in a list they move through;
+   there the pointer moves the keys' highlight rather than filling a second
+   row.
+
+   Everything on a filled row paints in --row-ink, or --row-ink-faint for a
+   faint part, over its own colour. The selector must outrank the checked
+   row's rule, or that row's tint and accent would replace the fill.
+
+   White on --color-primary is 4.1:1, short of the 4.5:1 text needs: a
+   deliberate pick of the brighter blue over --color-primary-hover, which
+   passes. */
+.context-menu button:not(:disabled, .danger, .context-menu-tile):is(.highlighted, :hover:not(:has(> .highlighted) > *)),
+.context-menu-item.has-submenu:hover {
+  --row-ink: var(--text-on-primary);
+  --row-ink-faint: color-mix(in srgb, var(--text-on-primary) 40%, transparent);
+  background: var(--color-primary);
+  color: var(--text-on-primary);
+}
+
+.context-menu button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.context-menu button.danger {
+  color: var(--color-danger);
+}
+
+/* Delete is the one destructive action on this menu, so it alone gets the
+   solid-red hover. */
+.context-menu button.danger:hover {
+  background: var(--color-danger);
+  color: var(--text-on-danger);
+}
+
+/* A hover flyout: a <div>, not a <button>, since it isn't itself an action
+   and a <button> can't validly contain the nested button leaves. */
+.context-menu-item.has-submenu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 3px 8px;
+  border-radius: var(--control-radius);
+  cursor: default;
+  white-space: nowrap;
+}
+
+/* Spaced as a button row's icon is, by its gap. */
+.context-menu-item.has-submenu > .context-menu-icon {
+  margin-inline-end: 8px;
+}
+
+.context-menu-item.has-submenu::after {
+  content: "▸";
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--row-ink, var(--text-muted));
+}
+
+/* Inside its parent row, whose fill would hand the flyout its white ink. */
+.context-submenu {
+  --row-ink: initial;
+  --row-ink-faint: initial;
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  flex-direction: column;
+  color: var(--text-primary);
+}
+
+/* Shown while hovered, and while a value in it has focus, which the click
+   selecting the value gives (view/contextMenu.ts): hidden, a selection
+   copies nothing, so a pointer drifting off before Ctrl+C would lose it. */
+.context-menu-item.has-submenu:hover > .context-submenu,
+.context-menu-item.has-submenu:has(> .context-submenu .context-menu-detail:focus) > .context-submenu {
+  display: flex;
+}
+
+/* Set by the menu when it opens, whenever the viewport has no room to the
+   right of it; the flyout's side is never decided by the stylesheet alone. */
+.context-menu-item.has-submenu.opens-left > .context-submenu {
+  left: auto;
+  right: 100%;
+}
+
+/* At the right edge of every row of a list with a checkable row, after any
+   trailing value, and shown only when checked, so those values keep one
+   column whichever row is checked. Shared by every checkmark-style menu. */
+.context-menu .menu-item-check {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-check) center / contain no-repeat;
+  visibility: hidden;
+}
+
+.context-menu button[aria-checked="true"] .menu-item-check {
+  visibility: visible;
+}
+
+/* A checked row wears the accent, the colour of selection: its label and
+   check, over a tint of it. Not --color-primary: an action's fill, it falls
+   short of 4.5:1 as text on the menu in both themes. */
+.context-menu button[aria-checked="true"]:not(:disabled, .context-menu-tile) {
+  background: var(--bg-menu-checked);
+  color: var(--color-accent);
+}
+
+/* A trailing value has already taken the row's free space: a second auto
+   margin would split it and pull the value in from the edge. */
+.context-menu .context-menu-detail + .menu-item-check {
+  margin-inline-start: 0;
+}
+
+/* A menu with nothing in it yet (the sidebar rows' ⋮ menus) shows inert
+   text, not a button: no hover, no pointer cursor. A static row inside a
+   menu (a notice, a heading) reads the same way. */
+.context-menu-empty {
+  padding: 4px 8px;
+  font-size: var(--control-font-size);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.context-menu-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 25px;
+  padding: 3px 8px;
+  color: var(--text-muted);
+  cursor: default;
+  white-space: nowrap;
+}
+
+/* A row that starts a new group: a line across the whole menu, 5px either
+   side of it. Drawn in the gap above the row, so the row's hover fill keeps
+   its size; inset-inline is minus the menu's 3px padding, so the line meets
+   the border. */
+.context-menu .menu-item-separated {
+  position: relative;
+  margin-top: 11px;
+}
+
+.context-menu .menu-item-separated::before {
+  content: "";
+  position: absolute;
+  inset-inline: -3px;
+  top: -6px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* The search box atop a searchable menu (the add-node palette, Quick Open). */
+.context-menu-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  padding-bottom: 8px;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--small-font-size);
+  font-family: var(--font-default);
+}
+
+.context-menu-search:focus {
+  outline: none;
+  border-bottom-color: var(--border-focus);
+}
+
+/* A searchable menu wraps its rows in these; as plain blocks they would let
+   each <button> shrink to its label, cutting the hover short of the menu's
+   width. */
+.context-menu-items,
+.context-menu-results {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A row's icon slot. The flow node types and the tree's file kinds each key
+   their own glyph onto this class, so there is no second copy of an SVG.
+   background-color is the fallback for a type with no rule yet: a muted
+   square. */
+.context-menu-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background-color: var(--row-ink, var(--text-muted));
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+.context-menu button:disabled .context-menu-icon {
+  background-color: var(--text-faint);
+}
+
+/* The text menu's glyphs (lib/textMenu.ts), keyed by action onto the icon
+   slot as the Flow palette keys its node types. */
+.context-menu [data-text-action="cut"] .context-menu-icon {
+  mask-image: var(--icon-scissors);
+}
+
+.context-menu [data-text-action="copy"] .context-menu-icon {
+  mask-image: var(--icon-copy);
+}
+
+.context-menu [data-text-action="paste"] .context-menu-icon {
+  mask-image: var(--icon-clipboard);
+}
+
+.context-menu [data-text-action="select-all"] .context-menu-icon {
+  mask-image: var(--icon-text-select);
+}
+
+.context-menu [data-text-action="replace-word"] .context-menu-icon {
+  mask-image: var(--icon-replace);
+}
+
+.context-menu [data-text-action="add-word"] .context-menu-icon {
+  mask-image: var(--icon-plus);
+}
+
+/* A row with a second line saying what picking it means (the copilot's
+   modes). The line wraps inside a fixed measure rather than widening the
+   menu, and the icon and check sit level with the label, not between lines. */
+.context-menu button.has-description {
+  align-items: flex-start;
+}
+
+.context-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* A label drawn in its own font, in a font picker: a long name gives way
+   before its row's trailing value and check. */
+.context-menu-font {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A row's mark: a dot set close after the label, in a box wider than the
+   dot, so its tooltip is easy to reach. A row colours it with --menu-mark. */
+.context-menu-mark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-inline-start: -5px;
+  background: radial-gradient(circle, var(--menu-mark, var(--row-ink, var(--text-muted))) 2.5px, transparent 3px);
+}
+
+.context-menu-description {
+  max-width: 240px;
+  color: var(--row-ink, var(--text-muted));
+  white-space: normal;
+}
+
+/* A sort's direction, just after its label: both arrows, the one in effect
+   lit. The glyph keeps each arrow in its own half, so a hard stop at the
+   middle colours them apart. */
+.context-menu-direction {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: linear-gradient(to right, currentColor 50%, var(--row-ink-faint, var(--text-faint)) 50%);
+  mask: var(--icon-sort-direction) left top / contain no-repeat;
+}
+
+.context-menu-direction.is-descending {
+  background: linear-gradient(to right, var(--row-ink-faint, var(--text-faint)) 50%, currentColor 50%);
+}
+
+/* A row's trailing value (a node menu's Info flyout, a shortcut). */
+.context-menu-detail {
+  margin-inline-start: auto;
+  padding-inline-start: 16px;
+  color: var(--row-ink, var(--text-muted));
+}
+
+/* A static row's value selects whole on one click, for copying. Not `text`:
+   a double-click would take half of an id like `generateImage-3`. A row
+   that picks keeps its value unselectable, since a press there picks it. */
+.context-menu-label > .context-menu-detail {
+  cursor: text;
+  user-select: all;
+}

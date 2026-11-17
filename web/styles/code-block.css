@@ -1,0 +1,28 @@
+/* Copy button on a rendered code block; reading view and chat replies both
+   wrap their <pre> in a .code-block that anchors it. Always visible but
+   muted; the block's hover lifts it to full contrast. */
+.code-block {
+  position: relative;
+}
+
+.code-block .code-copy {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 24px;
+  height: 24px;
+  background: var(--bg-inset);
+  opacity: 0.55;
+  transition:
+    opacity 0.1s ease,
+    color 0.1s ease;
+}
+
+.code-block:hover .code-copy {
+  opacity: 1;
+}
+
+.code-block .code-copy.copied {
+  opacity: 1;
+  color: var(--color-accent);
+}
