@@ -27,6 +27,7 @@ import {
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../core/apiClient.ts";
 import {
   desktopFiles,
+  isEntryDrop,
   readDraggedPath,
   readDraggedSpacePath,
   stripExtension,
@@ -567,7 +568,7 @@ export function createPickers(deps: PickerDeps): Pickers {
       }
     }
 
-    function pickStoredPath(storedPath: string): void {
+    function pickStoredPath(storedPath: string, consented: boolean): void {
       node.config.imagePath = storedPath;
       showLocation(storedPath);
       deps.persistGraph();
@@ -578,8 +579,9 @@ export function createPickers(deps: PickerDeps): Pickers {
           zone.textContent = "Couldn't save before requesting permission.";
           return;
         }
-        // Only a tree drag reaches here, and that drag named this exact file.
-        await loadFromPath(storedPath, true);
+        // A drag from Pragma's own tree named this exact file; any other
+        // drop asks first.
+        await loadFromPath(storedPath, consented);
       })();
     }
 
@@ -601,7 +603,7 @@ export function createPickers(deps: PickerDeps): Pickers {
         refuse(`Not a raster image: ${formatRootedPath(dragged)}`);
         return;
       }
-      pickStoredPath(dropPath(dragged));
+      pickStoredPath(dropPath(dragged), isEntryDrop(event));
     }
 
     // A click on the picture previews the file the chip names, and one on
@@ -741,6 +743,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     }
 
     target.onDrop((event) => {
+      const consented = isEntryDrop(event);
       const path = readDrop(event, target.showMessage);
       if (path === undefined) return;
       if (!isTableFile(path)) {
@@ -751,10 +754,11 @@ export function createPickers(deps: PickerDeps): Pickers {
       node.config.tablePath = path;
       target.setPath(path);
       deps.persistGraph();
-      // The drag named this exact table, so its read needs no prompt — but
-      // the grant is checked against the graph on disk, so save first.
+      // A drag from Pragma's own tree named this exact table, so its read
+      // needs no prompt, and any other drop asks; the grant is checked
+      // against the graph on disk, so save first.
       void (async () => {
-        if (await deps.saveGraphNow()) await refresh(true);
+        if (await deps.saveGraphNow()) await refresh(consented);
       })();
     });
 
@@ -840,6 +844,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     }
 
     target.onDrop((event) => {
+      const consented = isEntryDrop(event);
       const path = readDrop(event, target.showMessage);
       if (path === undefined) return;
       if (!isTableFile(path)) {
@@ -849,10 +854,11 @@ export function createPickers(deps: PickerDeps): Pickers {
       node.config.tablePath = path;
       target.setPath(path);
       deps.persistGraph();
-      // The drag named this exact table, so its read needs no prompt — but
-      // the grant is checked against the graph on disk, so save first.
+      // A drag from Pragma's own tree named this exact table, so its read
+      // needs no prompt, and any other drop asks; the grant is checked
+      // against the graph on disk, so save first.
       void (async () => {
-        if (await deps.saveGraphNow()) await refresh(true);
+        if (await deps.saveGraphNow()) await refresh(consented);
       })();
     });
 
@@ -895,6 +901,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     }
 
     target.onDrop((event) => {
+      const consented = isEntryDrop(event);
       const path = readDrop(event, target.showMessage);
       if (path === undefined) return;
       if (isTableFile(path)) {
@@ -914,9 +921,9 @@ export function createPickers(deps: PickerDeps): Pickers {
       deps.persistGraph();
       void (async () => {
         // The grant is checked against the graph on disk, so this edit has to
-        // land there first. The drag named this exact note, so recording it
-        // needs no prompt.
-        if (await deps.saveGraphNow()) await refresh(true);
+        // land there first. A drag from Pragma's own tree named this exact
+        // note, so recording it needs no prompt; any other drop asks.
+        if (await deps.saveGraphNow()) await refresh(consented);
       })();
     });
 
@@ -1094,6 +1101,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     }
 
     target.onDrop((event) => {
+      const consented = isEntryDrop(event);
       const path = readDrop(event, target.showMessage);
       if (path === undefined) return;
       if (!isTableFile(path)) {
@@ -1104,8 +1112,8 @@ export function createPickers(deps: PickerDeps): Pickers {
       target.setPath(path);
       deps.persistGraph();
       void (async () => {
-        // Save before the grant, and the drag is the consent — as for loadRow.
-        if (await deps.saveGraphNow()) await refresh(true);
+        // Save before the grant; only Pragma's own drag is consent, as for loadRow.
+        if (await deps.saveGraphNow()) await refresh(consented);
       })();
     });
 

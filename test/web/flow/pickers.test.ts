@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RootedPath } from "../../../src/protocol/rootedPath.ts";
 import type { FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../../../web/core/apiClient.ts";
-import { DRAGGED_ENTRY_TYPE } from "../../../web/core/paths.ts";
+import { DRAGGED_ENTRY_TYPE, noteDragInFlight } from "../../../web/core/paths.ts";
 import type { WritePathOptions } from "../../../web/core/spaceTree.ts";
 import { createPickers, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
 import { fakeDrag } from "../support/drag.ts";
@@ -69,10 +69,15 @@ function setup(overrides: Partial<PickerDeps> = {}) {
   return { deps, pickers: createPickers(deps) };
 }
 
-function drop(zone: Element, path: string): void {
+// A drop of an entry dragged from Pragma's own tree, whose row notes the path
+// in flight until the drag ends. `foreign` drops the same text with no such
+// drag, as a link dragged out of a note or another app's drag does.
+function drop(zone: Element, path: string, foreign = false): void {
   const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
   Object.defineProperty(event, "dataTransfer", { value: { getData: () => path, files: [] } });
+  if (!foreign) noteDragInFlight(path);
   zone.dispatchEvent(event);
+  noteDragInFlight(undefined);
 }
 
 const zoneOf = (el: HTMLElement) => el.querySelector(".flow-dropzone") as HTMLElement;
@@ -783,6 +788,31 @@ describe("pickers", () => {
     expect(deps.persistGraph).toHaveBeenCalled();
     expect(deps.read).not.toHaveBeenCalled();
     expect(deps.ensureCapability).not.toHaveBeenCalled();
+  });
+
+  it("the image dropzone asks before reading an image that only text named, not Pragma's own drag", async () => {
+    const image: SandboxReadResult = { kind: "image", mediaType: "image/png", data: "AAAA" };
+    const { deps, pickers } = setup({ read: vi.fn(async () => image) });
+    const zone = pictureOf(pickers.createDropzone(node("loadImage")).el);
+    drop(zone, "journal/private.png", true);
+    await tick();
+    await tick();
+    expect(deps.ensureCapability).toHaveBeenCalledWith({ type: "readFile", path: "journal/private.png" }, false);
+  });
+
+  // A link dragged out of a note reads as a path too, but nobody picked it
+  // from what Pragma shows: only Pragma's own drag skips the prompt.
+  it("the note picker takes a dropped note as consent only when Pragma's own drag brought it", async () => {
+    const { deps, pickers } = setup();
+    const chip = chipOf(pickers.createLoadNotePicker(node("loadNote")).el);
+    const consent = async (foreign: boolean) => {
+      vi.mocked(deps.ensureCapability).mockClear();
+      drop(chip, "journal/private.md", foreign);
+      await vi.waitFor(() => expect(deps.ensureCapability).toHaveBeenCalled());
+      return vi.mocked(deps.ensureCapability).mock.calls.at(-1)?.[1];
+    };
+    expect(await consent(true)).toBe(false);
+    expect(await consent(false)).toBe(true);
   });
 
   it("the image dropzone takes a library image, storing the rooted path and asking to read that address", async () => {

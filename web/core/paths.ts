@@ -5,6 +5,7 @@ import type { FolderEntry } from "../../src/protocol/api.ts";
 import type { PragmaFileRole } from "../../src/protocol/pragmaFiles.ts";
 import {
   basenameOf,
+  formatRootedPath,
   isLibraryPath,
   isLibraryRoot,
   parseRootedPath,
@@ -412,6 +413,16 @@ export function draggedPathInFlight(): RootedPath | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Whether a drop is one of Pragma's own entry drags, which name a file a
+ * person picked from what this window shows, rather than text that only reads
+ * as a path: a link dragged out of a note, or a drag from another app. Only
+ * the first stands for consent. Read during the drop: its drag end clears it. */
+export function isEntryDrop(event: DragEvent): boolean {
+  const dropped = readDraggedPath(event);
+  const own = draggedPathInFlight();
+  return dropped !== undefined && own !== undefined && formatRootedPath(dropped) === formatRootedPath(own);
 }
 
 /** What a drop target that only understands the space should say when it is
