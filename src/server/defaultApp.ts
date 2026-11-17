@@ -1,13 +1,15 @@
 // Handing a space file to the system's default app, which the desktop app
 // offers for a file Pragma can't open. The system runs a program rather than
-// showing it, so a file that could be one never goes: a risky type below,
-// a type the platform's PATHEXT runs, or a file set to run as a program.
-// A space nobody has trusted hands over nothing, as git runs nothing there.
+// showing it, so a file that could be one never goes: a risky type below, a
+// type the platform's PATHEXT runs, a file set to run as a program, or one
+// whose first bytes are a program's. A space nobody trusted hands over none.
 //
 // The type is read as the system reads it: the last extension, in any case,
-// after the trailing dots and spaces Windows ignores.
+// after the trailing dots and spaces Windows ignores. Linux picks the app by
+// a file's contents when its name gives no type, so a file with no extension
+// never goes there.
 import type { Stats } from "node:fs";
-import { lstat } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import path from "node:path";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
 import { isLibraryRoot } from "../protocol/rootedPath.ts";
@@ -86,6 +88,41 @@ export async function systemTarget(spaceRoot: string, input: string): Promise<Sy
   }
 }
 
+// The first bytes of a program, which a system choosing an app by contents
+// runs whatever the file is called: Windows and DOS, Linux and AppImage,
+// macOS (single and universal), a script, and a Windows shortcut. A desktop
+// launcher is text, so it is matched by its first section instead.
+const PROGRAM_HEADS: readonly (readonly number[])[] = [
+  [0x4d, 0x5a],
+  [0x7f, 0x45, 0x4c, 0x46],
+  [0xfe, 0xed, 0xfa, 0xce],
+  [0xfe, 0xed, 0xfa, 0xcf],
+  [0xce, 0xfa, 0xed, 0xfe],
+  [0xcf, 0xfa, 0xed, 0xfe],
+  [0xca, 0xfe, 0xba, 0xbe],
+  [0xca, 0xfe, 0xba, 0xbf],
+  [0x23, 0x21],
+  [0x4c, 0x00, 0x00, 0x00, 0x01, 0x14, 0x02, 0x00],
+];
+const DESKTOP_ENTRY = /^\s*(?:#[^\n]*\n\s*)*\[Desktop Entry\]/;
+
+/** Whether `head`, the first bytes of a file, are a program's. */
+export function isProgramHead(head: Uint8Array): boolean {
+  if (PROGRAM_HEADS.some((magic) => magic.every((byte, index) => head[index] === byte))) return true;
+  return DESKTOP_ENTRY.test(Buffer.from(head).toString("latin1"));
+}
+
+async function readHead(file: string): Promise<Uint8Array> {
+  const handle = await open(file, "r");
+  try {
+    const head = new Uint8Array(1024);
+    const { bytesRead } = await handle.read(head, 0, head.length, 0);
+    return head.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 /** The file at `input` if it may go to the default app, or why not, worded
  * for the menu that offers it. Asked again right before each open, since
  * the file can change while the menu is up. */
@@ -98,6 +135,10 @@ export async function defaultAppTarget(spaceRoot: string, input: string, host: D
   if (host.platform !== "win32" && (target.stats.mode & 0o111) !== 0) {
     return { refusal: "Blocked: this file is set to run as a program" };
   }
+  if (host.platform === "linux" && !systemExtension(path.basename(target.file))) {
+    return { refusal: "Blocked: on Linux, a file without an extension can run code" };
+  }
+  if (isProgramHead(await readHead(target.file))) return { refusal: "Blocked: this file holds a program" };
   if (!host.trusted) return { refusal: "Only in a trusted space" };
   return target;
 }

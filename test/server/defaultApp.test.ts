@@ -29,10 +29,10 @@ afterEach(() => {
   rmSync(configDir, { recursive: true, force: true });
 });
 
-function file(name: string, mode = 0o644): string {
+function file(name: string, mode = 0o644, contents: string | Uint8Array = "bytes"): string {
   const target = path.join(space, name);
   mkdirSync(path.dirname(target), { recursive: true });
-  writeFileSync(target, "bytes");
+  writeFileSync(target, contents);
   chmodSync(target, mode);
   return target;
 }
@@ -126,6 +126,37 @@ describe("defaultAppTarget", () => {
       expect(await defaultAppTarget(space, name, trusted)).toEqual({
         refusal: "Blocked: this file is set to run as a program",
       });
+    }
+  });
+
+  // Each named so no extension gives it away, the way a system choosing an
+  // app by contents still finds the program in it.
+  it("refuses a program by its first bytes, whatever its name, on every platform", async () => {
+    const programs: Record<string, string | Uint8Array> = {
+      "setup.xyz": Uint8Array.from([0x4d, 0x5a, 0x90, 0x00]),
+      "tool.dat": Uint8Array.from([0x7f, 0x45, 0x4c, 0x46, 0x02]),
+      "app.blob": Uint8Array.from([0xcf, 0xfa, 0xed, 0xfe, 0x07]),
+      "notes.xyz": "#!/bin/sh\nrm -rf ~\n",
+      "readme.xyz": Uint8Array.from([0x4c, 0x00, 0x00, 0x00, 0x01, 0x14, 0x02, 0x00, 0x00]),
+      "launcher.xyz": "# launcher\n[Desktop Entry]\nExec=run-me\n",
+    };
+    for (const [name, contents] of Object.entries(programs)) file(name, 0o644, contents);
+    for (const platform of ["linux", "darwin", "win32"] as const) {
+      for (const name of Object.keys(programs)) {
+        expect(await defaultAppTarget(space, name, { ...trusted, platform })).toEqual({
+          refusal: "Blocked: this file holds a program",
+        });
+      }
+    }
+  });
+
+  it("refuses on Linux a file without an extension, which it would open by its contents", async () => {
+    const target = file("README", 0o644, "Plain words.\n");
+    expect(await defaultAppTarget(space, "README", trusted)).toEqual({
+      refusal: "Blocked: on Linux, a file without an extension can run code",
+    });
+    for (const platform of ["darwin", "win32"] as const) {
+      expect(await defaultAppTarget(space, "README", { ...trusted, platform })).toMatchObject({ file: target });
     }
   });
 
