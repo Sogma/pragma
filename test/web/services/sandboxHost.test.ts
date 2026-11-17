@@ -10,33 +10,8 @@ function manifest(overrides: Partial<AppletManifest> = {}): AppletManifest {
 const POLICY = /<meta http-equiv="Content-Security-Policy" content="[^"]*">/.source;
 
 describe("injectAppletRuntime", () => {
-  it("inserts the client script right after <head>", () => {
-    const html = "<html><head><title>x</title></head><body></body></html>";
-    const result = injectAppletRuntime(html, manifest());
-    const headIndex = result.indexOf("<head>");
-    const scriptIndex = result.indexOf("<script>");
-    const titleIndex = result.indexOf("<title>");
-    expect(headIndex).toBeGreaterThanOrEqual(0);
-    expect(scriptIndex).toBeGreaterThan(headIndex);
-    expect(scriptIndex).toBeLessThan(titleIndex);
-  });
-
-  it("preserves attributes on an existing <head> tag", () => {
-    const html = '<html><head data-x="1"><title>x</title></head></html>';
-    const result = injectAppletRuntime(html, manifest());
-    expect(result).toContain('<head data-x="1"><script>');
-  });
-
-  it("wraps a <head>-less document in a synthesized <head> right after <html>", () => {
-    const html = "<html><body>hi</body></html>";
-    const result = injectAppletRuntime(html, manifest());
-    expect(result).toMatch(
-      new RegExp(`^${POLICY}<html><head><script>[\\s\\S]*</script></head><body>hi</body></html>$`),
-    );
-  });
-
-  it("prefixes the tags, after the policy, when there's neither <head> nor <html>", () => {
-    const html = "<body>just a body</body>";
+  it("leads with the policy and the client script, then the guest's markup untouched", () => {
+    const html = '<html lang="fr"><head data-x="1"><title>x</title></head><body>hi</body></html>';
     const result = injectAppletRuntime(html, manifest());
     expect(result).toMatch(new RegExp(`^${POLICY}<script>`));
     expect(result.endsWith(html)).toBe(true);
@@ -55,23 +30,23 @@ describe("injectAppletRuntime", () => {
   it("puts the policy ahead of every guest byte, a <script src> above <head> included", () => {
     const html = '<script src="https://example.com/x.js"></script><html><head></head></html>';
     const result = injectAppletRuntime(html, manifest());
-    expect(result).toMatch(new RegExp(`^${POLICY}<script src=`));
+    expect(result).toMatch(new RegExp(`^${POLICY}<script>`));
+    expect(result.endsWith(html)).toBe(true);
   });
 
-  it("keeps a leading doctype, and any comment before it, ahead of the policy", () => {
-    const html =
-      '<!-- hi -->\n<!DOCTYPE html><script src="https://example.com/x.js"></script><html><head></head></html>';
+  it("leads with a doctype of its own when the guest declares one, keeping standards mode", () => {
+    const html = "<!-- hi -->\n<!DOCTYPE html><html><head></head><body></body></html>";
     const result = injectAppletRuntime(html, manifest());
-    expect(result).toMatch(new RegExp(`^<!-- hi -->\\n<!DOCTYPE html>${POLICY}<script src=`));
+    expect(result).toMatch(new RegExp(`^<!DOCTYPE html>${POLICY}`));
+    expect(result.endsWith(html)).toBe(true);
+    expect(injectAppletRuntime("<html><body></body></html>", manifest())).toMatch(new RegExp(`^${POLICY}`));
   });
 
   it("maps each import to a data: URL in an import map between the policy and the guest's markup", () => {
     const html = '<!doctype html><script type="module">import "three";</script><html><head></head></html>';
     const source = "export const label = 'café ✓';";
     const result = injectAppletRuntime(html, manifest(), [{ specifier: "three", path: "lib/three.js", source }]);
-    const map = new RegExp(
-      `^<!doctype html>${POLICY}<script type="importmap">(.*?)</script><script type="module">`,
-    ).exec(result);
+    const map = new RegExp(`^<!DOCTYPE html>${POLICY}<script type="importmap">(.*?)</script><script>`).exec(result);
     expect(map).not.toBeNull();
     const url: string = JSON.parse(map?.[1] ?? "{}").imports.three;
     expect(url.startsWith("data:text/javascript;base64,")).toBe(true);
@@ -144,7 +119,7 @@ describe("injectAppletNodeRuntime", () => {
       [{ specifier: "three", path: "lib/three.js", source: "" }],
       {},
     );
-    expect(result).toMatch(new RegExp(`^<!doctype html>${POLICY}<script type="importmap">`));
+    expect(result).toMatch(new RegExp(`^<!DOCTYPE html>${POLICY}<script type="importmap">`));
     for (const call of ["setState:", "setOutputs:", "onInputs:"]) expect(result).toContain(call);
     for (const call of ["readNote:", "writeNote:", "generate:", "pickImage:"]) expect(result).not.toContain(call);
   });

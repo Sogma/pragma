@@ -128,28 +128,25 @@ const SANDBOX_CSP_TAG = `<meta http-equiv="Content-Security-Policy" content="${[
   "style-src 'unsafe-inline' data: blob:",
 ].join("; ")}">`;
 
-// A policy governs only what the parser reaches after it, so it goes ahead of
-// every guest byte, a <script src> above <head> included. After the doctype,
-// though: anything before one puts the document in quirks mode.
-const LEADING_DOCTYPE = /^(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
+// Whether the guest declares a doctype, judged only to keep its rendering
+// mode. It never decides where the policy goes: this regex and the HTML
+// parser disagree on what may come before a doctype (a no-break space, a
+// comment closed by "--!>"), and a guest that wrote such a prefix ahead of
+// the policy could run script or knock the policy out of <head>.
+const DECLARES_DOCTYPE = /^(?:\s|<!--[\s\S]*?-->)*<!doctype\s/i;
 
-// Inserts the tags right after <head> (else after <html>, else as a prefix —
-// the last resort, since content before <!DOCTYPE html> can trip quirks mode)
-// so window.pragma exists before any guest script runs, and an applet's own
-// later <style> wins the cascade without specificity fights.
+// The policy, the import map and the host's tags lead the document, ahead of
+// every guest byte and so of any guest script or <style>, which wins the
+// cascade. Their own doctype goes first when the guest declares one, keeping
+// standards mode; the guest's then reads as a stray doctype and is ignored.
 //
 // Inlined, not fetched: a passphrase deployment's SameSite=Lax session cookie
 // (passphraseAuth.ts) never rides a sandboxed iframe's cross-site subresource
 // request, so a URL back to pragma would 302 to login on the remote-access
 // target.
 function injectIntoDocument(html: string, tags: string, afterPolicy = ""): string {
-  const policyAt = LEADING_DOCTYPE.exec(html)?.[0].length ?? 0;
-  const policy = html.slice(0, policyAt) + SANDBOX_CSP_TAG + afterPolicy;
-  const rest = html.slice(policyAt);
-  if (/<head[\s>]/i.test(rest)) return policy + rest.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${tags}`);
-  if (/<html[\s>]/i.test(rest))
-    return policy + rest.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${tags}</head>`);
-  return policy + tags + rest;
+  const doctype = DECLARES_DOCTYPE.test(html) ? "<!DOCTYPE html>" : "";
+  return doctype + SANDBOX_CSP_TAG + afterPolicy + tags + html;
 }
 
 // The client an Applet sees as a Flow node: it touches nothing; it reports
