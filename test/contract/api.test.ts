@@ -671,6 +671,14 @@ describe("API contract", () => {
     expect(res.status).toBe(405);
   });
 
+  it("keeps other sites from framing the app or any file it serves", async () => {
+    for (const pathname of ["/", "/index.html"]) {
+      const res = await fetch(`${testServer.baseUrl}${pathname}`);
+      expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+      expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'self'");
+    }
+  });
+
   it("rejects a cross-origin request", async () => {
     const res = await fetch(`${testServer.baseUrl}/api/space/info`, {
       headers: { origin: "http://evil.example.com" },

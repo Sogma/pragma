@@ -18,6 +18,11 @@ const MEDIA_TYPES: Record<string, string> = {
  * path escaping staticRoot (`..` traversal) must never resolve to a real
  * file. There is no client-side routing, so the only fallback is "/" ->
  * index.html; every other path is an exact file or nothing. */
+// No other site's page may frame the app: on loopback it needs no login, so a
+// framing page could trick a click on Delete, Trust, a permission prompt or
+// Run. Its own origin may still frame it.
+export const FRAME_HEADERS = { "x-frame-options": "SAMEORIGIN", "content-security-policy": "frame-ancestors 'self'" };
+
 export async function readStaticFile(
   staticRoot: string,
   pathname: string,
@@ -50,5 +55,6 @@ export async function serveStaticFile(staticRoot: string, req: IncomingMessage, 
   }
   res.setHeader("content-type", file.type);
   res.setHeader("content-length", file.content.length);
+  for (const [name, value] of Object.entries(FRAME_HEADERS)) res.setHeader(name, value);
   res.end(req.method === "HEAD" ? undefined : file.content);
 }
