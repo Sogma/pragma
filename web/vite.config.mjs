@@ -1,6 +1,7 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
+import { writeThirdPartyNotices } from "../scripts/third-party-notices.ts";
 
 // Records when a build started and every file it read, for the freshness
 // check in src/server/builtApp.ts. The module graph alone misses files the
@@ -30,6 +31,37 @@ function recordBuildInputs() {
   };
 }
 
+// A worker is bundled on its own, without the page's plugins, so its modules
+// are gathered here for the notices; every worker finishes before the page
+// is written.
+const workerModuleIds = new Set();
+function gatherWorkerModules() {
+  return {
+    name: "pragma-worker-modules",
+    buildEnd() {
+      for (const id of this.getModuleIds()) workerModuleIds.add(id);
+    },
+  };
+}
+
+// Writes third-party-notices.txt into the build, which both the desktop app
+// and the npm package ship, and fails the build on a licence a GPL program
+// can't carry. Only this build knows which packages the bundle took in.
+function thirdPartyNotices() {
+  let root = "";
+  return {
+    name: "pragma-third-party-notices",
+    apply: "build",
+    configResolved(config) {
+      root = config.root;
+    },
+    writeBundle(options) {
+      const outFile = path.join(options.dir ?? path.dirname(options.file ?? ""), "third-party-notices.txt");
+      writeThirdPartyNotices(path.dirname(root), [...this.getModuleIds(), ...workerModuleIds], outFile);
+    },
+  };
+}
+
 // Auto-discovered by both `vite build web` and the editor server's
 // programmatic Vite instance (src/server/createServer.ts), each merging it
 // with inline options — the one place a setting covers dev and the build.
@@ -38,7 +70,8 @@ function recordBuildInputs() {
 // imports then deletes, and Node's --watch (the VS Code debug launch) treats
 // the deletion as a change and restarts — an infinite restart loop.
 export default defineConfig({
-  plugins: [recordBuildInputs()],
+  plugins: [recordBuildInputs(), thirdPartyNotices()],
+  worker: { plugins: () => [gatherWorkerModules()] },
   // MathJax's HTML output imports its default font, New Computer Modern, by
   // this name whatever font it is given; math here is in the TeX font
   // (web/mathJax.ts), so the default is that one and the 3 MB font stays out.

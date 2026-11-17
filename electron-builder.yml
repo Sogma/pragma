@@ -36,6 +36,10 @@ files:
   - dist/web/**/*
   - dist/electron/**/*
   - package.json
+  # Pragma's licence travels with every copy, as the npm package's does;
+  # the third-party notices are inside dist/web.
+  - LICENSE
+  - COPYRIGHT
   # Every production dependency is packed too, so a package the frontend
   # bundles into dist/web belongs in devDependencies, or it ships twice. It
   # still reaches users inside the bundle, so an audit that omits dev

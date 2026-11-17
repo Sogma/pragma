@@ -12,6 +12,7 @@ export default defineConfig({
       "test/contract/**/*.test.ts",
       "test/electron/**/*.test.ts",
       "test/protocol/**/*.test.ts",
+      "test/scripts/**/*.test.ts",
       "test/server/**/*.test.ts",
       "test/web/**/*.test.ts",
     ],

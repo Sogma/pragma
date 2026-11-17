@@ -19,6 +19,10 @@ const windows = process.platform === "win32";
 // are found from the same root as the files the steps below read.
 const READ_LATER = ["docs/protocol.md", "docs/flow-nodes.md", "src/server/modelSupport.json"];
 
+// Never read by the app, but every copy has to carry them: Pragma's licence,
+// and the notices the bundled packages' licences ask for.
+const NOTICES = ["LICENSE", "COPYRIGHT", "dist/web/third-party-notices.txt"];
+
 const [tarballArg] = process.argv.slice(2);
 if (!tarballArg) {
   console.error("usage: node scripts/smoke-npm.mjs <tarball>");
@@ -104,7 +108,8 @@ try {
   check(templates.ok, `GET /api/templates answered ${templates.status}.`);
   check((await templates.json()).templates.length > 0, "GET /api/templates listed none of Pragma's own templates.");
 
-  for (const file of READ_LATER) check(existsSync(path.join(installed, file)), `The package has no ${file}.`);
+  for (const file of [...READ_LATER, ...NOTICES])
+    check(existsSync(path.join(installed, file)), `The package has no ${file}.`);
 
   console.log(`${NAME}@${version} installs, reports its version, makes a space, serves the app and its routes.`);
 } catch (error) {
