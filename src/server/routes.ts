@@ -94,25 +94,35 @@ export function spaceRoutes(served: ServedSpace, options: RouteOptions): () => S
   return () => app;
 }
 
+// Origin, when sent, must be this server's own, scheme included: a
+// plain-http page on the external URL's host is another origin, and so is a
+// sandboxed frame's "null". Routes parse JSON whatever the content-type, so
+// a no-cors text/plain POST from any page could otherwise write.
+//
+// A missing Origin passes, as navigation and many same-origin requests send
+// none; a browser's Sec-Fetch-Site still marks a request another site's page
+// sent, an image's GET with side effects among them.
+export function isCrossOriginRequest(req: IncomingMessage, externalUrl?: URL): boolean {
+  const site = req.headers["sec-fetch-site"];
+  if (site === "cross-site" || site === "same-site") return true;
+  const origin = req.headers.origin;
+  if (!origin) return false;
+  const host = req.headers.host?.toLowerCase();
+  if (!host) return true;
+  // Loopback is served over plain HTTP; only the external URL is https.
+  const external = externalUrl !== undefined && host.replace(/:443$/, "") === externalUrl.host.toLowerCase();
+  const own = external ? externalUrl.origin : `http://${host}`;
+  return origin.toLowerCase() !== own.toLowerCase();
+}
+
+export function refuseCrossOrigin(res: ServerResponse): void {
+  res.statusCode = 403;
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify({ message: "Cross-origin request blocked" }));
+}
+
 // The checkpoint every /api/* request passes, before the Hono app so a
 // rejected caller can't tell a real route from a missing one.
-//
-// Origin must match Host when present, including the literal "null" of a
-// sandboxed iframe. Routes parse JSON whatever the content-type, so a no-cors
-// text/plain POST from any page can perform a blind state-changing write.
-// A missing Origin passes: top-level navigation and many same-origin
-// requests never send one.
-function isSameOriginRequest(req: IncomingMessage): boolean {
-  const origin = req.headers.origin;
-  if (!origin) return true;
-  const host = req.headers.host;
-  if (!host) return false;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 export async function dispatchApiRequest(
   app: SpaceApp,
@@ -135,10 +145,8 @@ export async function dispatchApiRequest(
     return;
   }
 
-  if (!isSameOriginRequest(req)) {
-    res.statusCode = 403;
-    res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ message: "Cross-origin request blocked" }));
+  if (isCrossOriginRequest(req, externalUrl)) {
+    refuseCrossOrigin(res);
     return;
   }
 

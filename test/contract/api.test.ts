@@ -678,6 +678,23 @@ describe("API contract", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects an Origin of another scheme, and a request a browser marks as another site's", async () => {
+    const { port } = new URL(testServer.baseUrl);
+    const statusOf = (headers: Record<string, string>) =>
+      new Promise<number | undefined>((resolve, reject) => {
+        const req = request({ host: "127.0.0.1", port, path: "/api/space/info", headers }, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        });
+        req.on("error", reject);
+        req.end();
+      });
+    expect(await statusOf({ origin: `https://127.0.0.1:${port}` })).toBe(403);
+    expect(await statusOf({ "sec-fetch-site": "cross-site" })).toBe(403);
+    expect(await statusOf({ "sec-fetch-site": "same-site" })).toBe(403);
+    expect(await statusOf({ origin: `http://127.0.0.1:${port}`, "sec-fetch-site": "same-origin" })).toBe(200);
+  });
+
   // DNS rebinding: the page's own domain now resolves to 127.0.0.1, so Origin
   // and Host agree and only the Host name gives it away. fetch() can't set
   // Host, hence node:http.

@@ -3,7 +3,7 @@ import type { AgentEndpoint } from "./apiServer.ts";
 import { type AuthCheck, alwaysAuthorized } from "./auth.ts";
 import { hasLoopbackHost } from "./loopback.ts";
 import { hasExternalHost } from "./remoteAccess.ts";
-import { dispatchApiRequest, spaceRoutes } from "./routes.ts";
+import { dispatchApiRequest, isCrossOriginRequest, refuseCrossOrigin, spaceRoutes } from "./routes.ts";
 import type { ServedSpace } from "./servedSpace.ts";
 import { serveStaticFile } from "./staticFiles.ts";
 
@@ -61,6 +61,12 @@ export function createProductionServer(options: ProductionServerOptions): Produc
         return;
       }
       if (req.method === "POST" && pathname === "/api/auth/login" && auth.handleLoginSubmit) {
+        // Only this server's own page signs in: a page elsewhere could post
+        // wrong guesses blind and hold every new device at the longest wait.
+        if (isCrossOriginRequest(req, externalUrl)) {
+          refuseCrossOrigin(res);
+          return;
+        }
         await auth.handleLoginSubmit(req, res);
         return;
       }

@@ -119,6 +119,15 @@ describe("a server behind an HTTPS proxy", () => {
     expect(res.status).toBe(200);
   });
 
+  it("refuses a plain-http page on the external URL's own host", async () => {
+    const res = await send(server, "/api/space/info", {
+      host: EXTERNAL.host,
+      origin: `http://${EXTERNAL.host}`,
+      ...PROXY_HEADERS,
+    });
+    expect(res.status).toBe(403);
+  });
+
   it("still refuses any other name", async () => {
     const res = await send(server, "/api/space/info", { host: "evil.example.com", ...PROXY_HEADERS });
     expect(res.status).toBe(403);
@@ -200,6 +209,20 @@ describe("signing in through the proxy", () => {
     const held = await signIn("correct horse");
     expect(held.status).toBe(429);
     expect(held.retryAfter).toBe("1");
+  });
+
+  // Refused before the count, so a page elsewhere posting wrong guesses
+  // unseen can't hold new devices at the wait.
+  it("refuses a sign-in another origin or site sent, without counting it", async () => {
+    for (let i = 0; i < 6; i++) {
+      expect(
+        (await send(server, "/api/auth/login", { ...LOGIN_HEADERS, origin: "https://evil.example.com" }, "{}")).status,
+      ).toBe(403);
+      expect(
+        (await send(server, "/api/auth/login", { ...LOGIN_HEADERS, "sec-fetch-site": "cross-site" }, "{}")).status,
+      ).toBe(403);
+    }
+    expect((await signIn("correct horse")).status).toBe(204);
   });
 
   it("leaves a device that signed in before a count of its own", async () => {
