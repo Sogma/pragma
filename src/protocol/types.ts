@@ -412,6 +412,21 @@ export function hasKnownKind(filePath: string): boolean {
 export const RASTER_IMAGE_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 export type RasterImageMediaType = (typeof RASTER_IMAGE_MEDIA_TYPES)[number];
 
+/** Whether `text` is base64, the only form an image's bytes travel in. */
+export const isBase64 = (text: string): boolean => /^[A-Za-z0-9+/]*={0,2}$/.test(text);
+
+/** Whether a media type and data make an image a port or a generation can
+ * carry: one of the raster types, as base64. A URL in its place would be
+ * fetched by whoever it was handed to, so it is refused, never passed on. */
+export function isInlineImage(mediaType: unknown, data: unknown): boolean {
+  return (
+    typeof mediaType === "string" &&
+    (RASTER_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType) &&
+    typeof data === "string" &&
+    isBase64(data)
+  );
+}
+
 // Space-tree image files (as opposed to the applet-picker upload case above) — deliberately
 // case-insensitive, unlike OPENABLE_EXTENSIONS' case-sensitive Set.has in
 // tree.ts: phone/camera exports are routinely `.JPG`/`.PNG`, and there's no

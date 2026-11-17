@@ -7,6 +7,7 @@ import {
   appletRefusal,
   type FlowGraph,
   type FlowPort,
+  isBase64,
   RASTER_IMAGE_MEDIA_TYPES,
 } from "./types.ts";
 
@@ -94,7 +95,7 @@ function portValue(port: FlowPort, raw: unknown): PortValue | string {
       const match = typeof raw === "string" ? DATA_URL.exec(raw) : undefined;
       const image = match
         ? { mediaType: match[1], data: match[2] }
-        : isRecord(raw) && typeof raw.mediaType === "string" && typeof raw.data === "string"
+        : isRecord(raw) && typeof raw.mediaType === "string" && typeof raw.data === "string" && isBase64(raw.data)
           ? { mediaType: raw.mediaType, data: raw.data }
           : undefined;
       if (!image) return `"${port.id}" takes an image as a base64 data URL`;

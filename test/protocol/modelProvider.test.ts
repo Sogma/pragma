@@ -100,6 +100,26 @@ describe("createModelProvider", () => {
     expect(parts[1]).toEqual({ type: "text", text: "Describe @image_1" });
   });
 
+  it("never hands a model an image whose data reads as a URL", async () => {
+    // A model that takes URLs, so a URL would reach it as one, unfetched.
+    const model = new MockLanguageModelV4({ doGenerate: replying("seen"), supportedUrls: { "image/*": [/.*/] } });
+    const provider = createModelProvider(model);
+
+    const complete = provider.complete({
+      model: "m",
+      system: "",
+      content: [
+        { type: "image", mediaType: "image/png", data: "https://img.example/t?d=secret" },
+        { type: "text", text: "Describe @image_1" },
+      ],
+      maxTokens: 100,
+    });
+
+    // Read as inline data, it isn't base64, so the call stops there.
+    await expect(complete).rejects.toThrow();
+    expect(model.doGenerateCalls).toHaveLength(0);
+  });
+
   // Each step a model takes: a call to a tool by its name, or a reply.
   function stepping(steps: string[]): DoGenerate {
     let index = 0;

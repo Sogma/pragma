@@ -84,6 +84,9 @@ describe("appletOutputsFrom", () => {
     expect(appletOutputsFrom(ports, { frame: "https://example.com/x.png" })).toEqual({
       error: '"frame" takes an image as a base64 data URL',
     });
+    expect(appletOutputsFrom(ports, { frame: { mediaType: "image/png", data: "https://img.example/x" } })).toEqual({
+      error: '"frame" takes an image as a base64 data URL',
+    });
     expect(appletOutputsFrom(ports, { frame: "data:image/svg+xml;base64,PHN2Zz4=" })).toEqual({
       error: '"frame" takes JPEG, PNG, GIF or WebP, not image/svg+xml',
     });
@@ -163,6 +166,21 @@ describe("an Applet node in a run", () => {
     expect(await NODE_EXECUTORS.applet(node, {}, context())).toEqual({
       description: { type: "text", value: "Close-up" },
     });
+  });
+
+  it("gives a saved image only when it is a raster image as base64, never a URL", async () => {
+    const saved = (data: string) =>
+      appletNode({
+        appletPath: "a.applet.html",
+        ports,
+        outputs: { frame: { type: "image", mediaType: "image/png", data } },
+      });
+    expect(await NODE_EXECUTORS.applet(saved("iVBORw0KGgo="), {}, context())).toEqual({
+      frame: { type: "image", mediaType: "image/png", data: "iVBORw0KGgo=" },
+    });
+    await expect(NODE_EXECUTORS.applet(saved("https://img.example/t?d=secret"), {}, context())).rejects.toThrow(
+      "hasn't reported its outputs yet",
+    );
   });
 
   it("fails without an Applet, or before it has reported any output", async () => {

@@ -60,6 +60,7 @@ import {
   type FlowCapabilityDeclaration,
   type FlowNodeInstance,
   holdsPath,
+  isInlineImage,
   isMarkdownFile,
   isTableFile,
   notARasterImage,
@@ -596,7 +597,10 @@ const applet: NodeExecutor = async (node) => {
   const outputs: Record<string, PortValue> = {};
   for (const port of declared) {
     const value = config.outputs?.[port.id];
-    if (value?.type === port.type) outputs[port.id] = value;
+    // A saved image meets the check a reported one does: the Flow file is
+    // anyone's to write, and what it holds here goes on to a model.
+    if (value?.type !== port.type) continue;
+    if (value.type !== "image" || isInlineImage(value.mediaType, value.data)) outputs[port.id] = value;
   }
   if (declared.length > 0 && Object.keys(outputs).length === 0) {
     throw new Error("This Applet hasn't reported its outputs yet: open the Flow so it can");

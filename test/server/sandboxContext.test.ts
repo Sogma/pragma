@@ -108,6 +108,23 @@ describe("a generation's effort", () => {
   });
 });
 
+describe("a generation's images", () => {
+  it("refuses one that isn't a raster image as base64, before any model is asked", async () => {
+    const doc = await readSandboxDocument(space, "flow", "tools/unwired.flow.html");
+    await grantCapability(space, doc.subject, "generateText");
+    for (const image of [
+      { mediaType: "image/png", data: "https://img.example/t?d=secret" },
+      { mediaType: "image/svg+xml", data: "PHN2Zz4=" },
+    ]) {
+      const body = { instruction: "Go.", images: { image_1: image } };
+      expect(await statusOf(performSandboxGenerate(space, doc, body))).toBe(400);
+      expect(await statusOf(performSandboxGenerateOptions(space, doc, { ...body, numOptions: 2 }))).toBe(400);
+    }
+    expect(runGenerate).not.toHaveBeenCalled();
+    expect(runGenerateOptions).not.toHaveBeenCalled();
+  });
+});
+
 describe("a generation's context", () => {
   it("may be asked for, per scope, only while the Flow wires its context pin", async () => {
     const wired = await readSandboxDocument(space, "flow", "tools/wired.flow.html");

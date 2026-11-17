@@ -289,11 +289,13 @@ export function imageModelFor(
 
 type UserContent = Extract<ModelMessage, { role: "user" }>["content"];
 
+// An image goes tagged as inline data: a bare string that parses as a URL
+// is fetched instead, by the provider or by the SDK on its behalf.
 function toModelContent(content: PromptContent): UserContent {
   if (typeof content === "string") return content;
   return content.map((block) =>
     block.type === "image"
-      ? { type: "file" as const, mediaType: block.mediaType, data: block.data }
+      ? { type: "file" as const, mediaType: block.mediaType, data: { type: "data" as const, data: block.data } }
       : { type: "text" as const, text: block.text },
   );
 }

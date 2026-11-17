@@ -61,6 +61,7 @@ import {
   flowCapabilityKey,
   holdsPath,
   isFlowFile,
+  isInlineImage,
   isMarkdownFile,
   isNewerFormatVersion,
   isTableFile,
@@ -534,6 +535,14 @@ function requireEffort(effort: unknown): void {
   }
 }
 
+function requireImages(images: GenerateRequestBody["images"]): void {
+  for (const [key, image] of Object.entries(images ?? {})) {
+    if (!isInlineImage(image?.mediaType, image?.data)) {
+      throw new SandboxRequestError(400, `images.${key} must be a JPEG, PNG, GIF or WebP image as base64`);
+    }
+  }
+}
+
 export async function performSandboxGenerate(
   spaceRoot: string,
   doc: SandboxDocument,
@@ -542,6 +551,7 @@ export async function performSandboxGenerate(
 ): Promise<GenerateResponse> {
   await requireGenerate(spaceRoot, doc);
   requireEffort(body.effort);
+  requireImages(body.images);
   const context = await requestContext(spaceRoot, doc, body);
   if (!context) return runGenerate(body, signal);
   const result = await generateLooking(context, (look) => runGenerate(body, signal, context.files, look));
@@ -556,6 +566,7 @@ export async function performSandboxGenerateOptions(
 ): Promise<GenerateOptionsResponse> {
   await requireGenerate(spaceRoot, doc);
   requireEffort(body.effort);
+  requireImages(body.images);
   const context = await requestContext(spaceRoot, doc, body);
   if (!context) return runGenerateOptions(body, signal);
   const result = await generateLooking(context, (look) => runGenerateOptions(body, signal, context.files, look));
