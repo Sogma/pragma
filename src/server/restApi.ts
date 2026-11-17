@@ -231,11 +231,15 @@ export async function handleRestRequest(
         if (!res.writableFinished) caller.abort();
       });
       try {
-        send(
-          res,
-          200,
-          await runFlowHeadless(spaceRoot, relativePath, { unattended: true, inputs, signal: caller.signal }),
-        );
+        // What the flow exposes and what failed, as MCP answers: every node's
+        // value would hand over whatever the run read, a private note's text
+        // or a library image among them.
+        const outcome = await runFlowHeadless(spaceRoot, relativePath, {
+          unattended: true,
+          inputs,
+          signal: caller.signal,
+        });
+        send(res, 200, { results: outcome.results, errors: outcome.errors });
       } catch (error) {
         if (error instanceof FlowAlreadyRunningError) {
           send(res, 409, { error: error.message });

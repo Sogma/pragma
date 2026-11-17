@@ -231,6 +231,8 @@ describe("the REST surface", () => {
     expect(body.results).toEqual([
       { nodeId: "load-1", nodeType: "loadNote", port: "raw", value: { type: "text", value: "the note body" } },
     ]);
+    // Only what the flow exposes: every node's value would carry all it read.
+    expect(Object.keys(body).sort()).toEqual(["errors", "results"]);
   });
 
   it("lists the flows allowed to run unattended, to any token", async () => {
