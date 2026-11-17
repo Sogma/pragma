@@ -175,4 +175,5 @@ sudo systemctl restart pragma
 - One shared git identity for all edits — no per-user attribution.
 - Chats stay in the window they were typed in: another device doesn't see them.
 - One passphrase for the whole household, not per-person accounts.
+- Anyone with the passphrase can make the host contact any address on its network, entered as a model provider, MCP server or publisher, so share it only with people you'd let onto that network.
 - Agents can't reach the MCP endpoint through the proxy: it listens on loopback only (`agent-api.md`).

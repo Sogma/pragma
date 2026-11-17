@@ -34,6 +34,7 @@ The boundaries Pragma does enforce, and which reports should be about:
 - Anything that requires already having the user's OS account or a local shell.
 - A Flow doing what the user explicitly approved it to do.
 - A proxy that rewrites `Host` to a loopback name and sends no forwarding header, in front of a target without `--external-url`. Nothing marks such a request as proxied; serve through a proxy only with `--external-url`, as [docs/deployment.md](docs/deployment.md) describes.
+- A remote-access passphrase holder making the host contact an address on its network, entered as a model provider, MCP server or publisher. Whoever holds the passphrase is trusted with what the host can reach.
 - Gatekeeper or SmartScreen warnings on unsigned builds.
 - Traffic to model providers or publishers made with the user's own keys.
 - The app's own `/api/*` routes treated as a public API. They are the app's private wire contract, not a supported surface.
