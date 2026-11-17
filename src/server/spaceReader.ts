@@ -14,6 +14,7 @@ import { formatRootedPath, isWithin, parseRootedPath } from "../protocol/rootedP
 import { type ContextFile, type ContextMessage, isMarkdownFile } from "../protocol/types.ts";
 import { entryDescription } from "./descriptions.ts";
 import { documentIndex } from "./documentIndex.ts";
+import { aliasedOnWindows, hiddenBelow, pathOnDisk } from "./entryOnDisk.ts";
 import {
   anchorKey,
   findSection,
@@ -136,6 +137,7 @@ const unseen = (error: unknown) =>
 // A written path as a space path: "" for the space's own folder, undefined
 // for one that climbs out of it.
 function spacePathOf(written: string): string | undefined {
+  if (aliasedOnWindows(written)) return undefined;
   const normal = path.posix.normalize(written.trim().replace(/^\/+/, "") || ".");
   if (normal === ".." || normal.startsWith("../")) return undefined;
   return normal === "." ? "" : normal.replace(/\/+$/, "");
@@ -166,7 +168,9 @@ export function createSpaceReader(options: SpaceReaderOptions): SpaceReader {
   let listingOptions: ReturnType<typeof spaceListing> | undefined;
   const listed = (spacePath: string) => {
     listingOptions ??= spaceListing();
-    return !isHiddenPath(spacePath) && isSpaceListedFile(path.posix.basename(spacePath), listingOptions);
+    const filePath = path.join(spaceRoot, ...spacePath.split("/"));
+    if (isHiddenPath(spacePath) || hiddenBelow(spaceRoot, filePath)) return false;
+    return isSpaceListedFile(path.basename(pathOnDisk(filePath)), listingOptions);
   };
 
   // A file written as it is on disk needs no listing; anything else is
@@ -197,7 +201,7 @@ export function createSpaceReader(options: SpaceReaderOptions): SpaceReader {
   const linked = (spacePath: string, folder = false) => `${show(spacePath, folder)}${linkNote(spacePath, folder)}`;
 
   async function isPrivate(spacePath: string): Promise<boolean> {
-    return isPrivateFile(path.join(spaceRoot, ...spacePath.split("/")));
+    return isPrivateFile(pathOnDisk(path.join(spaceRoot, ...spacePath.split("/"))));
   }
 
   // Paths the reads may show the model: inside the scope, listed where only

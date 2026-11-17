@@ -9,6 +9,7 @@
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
+import { aliasedOnWindows, hiddenBelow, pathOnDisk } from "./entryOnDisk.ts";
 import { readSpaceFile, resolveWithinSpace } from "./spaceFiles.ts";
 import { createSpaceReader, type SpaceReader } from "./spaceReader.ts";
 import { buildTree, filterPrivateNodes, isPrivateFile, isSpaceListedFile, spaceListing } from "./tree.ts";
@@ -40,9 +41,11 @@ export async function visiblePaths(spaceRoot: string): Promise<string[]> {
  * this to the listing. */
 export async function isVisible(spaceRoot: string, relativePath: string): Promise<boolean> {
   const filePath = inSpace(spaceRoot, relativePath);
-  if (filePath === undefined || !isSpaceListedFile(path.posix.basename(relativePath), spaceListing())) return false;
+  if (filePath === undefined) return false;
+  const onDisk = pathOnDisk(filePath);
+  if (!isSpaceListedFile(path.basename(onDisk), spaceListing())) return false;
   const entry = await lstat(filePath).catch(() => undefined);
-  return entry?.isFile() === true && !(await isPrivateFile(filePath));
+  return entry?.isFile() === true && !(await isPrivateFile(onDisk));
 }
 
 /** Whether `relativePath` is a folder this surface admits to having. */
@@ -52,8 +55,10 @@ export async function isVisibleFolder(spaceRoot: string, relativePath: string): 
 }
 
 // The absolute path of a space path written as the listing writes it, under
-// no dotted folder and through no link; undefined for any other.
+// no dotted folder, by the disk's names as well as by its spelling, and
+// through no link; undefined for any other.
 function inSpace(spaceRoot: string, relativePath: string): string | undefined {
+  if (aliasedOnWindows(relativePath)) return undefined;
   let absolute: string;
   try {
     absolute = resolveWithinSpace(spaceRoot, relativePath);
@@ -61,7 +66,8 @@ function inSpace(spaceRoot: string, relativePath: string): string | undefined {
     return undefined;
   }
   const written = path.relative(spaceRoot, absolute).split(path.sep).join("/");
-  return written === relativePath && !isHiddenPath(written) ? absolute : undefined;
+  if (written !== relativePath || isHiddenPath(written) || hiddenBelow(spaceRoot, absolute)) return undefined;
+  return absolute;
 }
 
 /** One document's text, or undefined when the surface does not admit to it.

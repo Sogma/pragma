@@ -19,6 +19,7 @@ import {
   splitDocumentName,
   videoMediaTypeForPath,
 } from "../protocol/types.ts";
+import { aliasedOnWindows, hiddenBelow, pathOnDisk } from "./entryOnDisk.ts";
 import {
   escapesRoot,
   namedEntryPath,
@@ -304,21 +305,25 @@ export function absent(filePath: string): Error {
  * credentials. Find in context's scan and search_space_files check privacy
  * inline instead, since they must skip a private file and keep going. */
 export async function readSpaceFile(spaceRoot: string, relativePath: string): Promise<string> {
+  if (aliasedOnWindows(relativePath)) throw absent(relativePath);
   const filePath = resolveWithinSpace(spaceRoot, relativePath);
-  if (isHiddenPath(path.relative(spaceRoot, filePath).split(path.sep).join("/"))) throw absent(filePath);
-  if (rasterImageMediaTypeForPath(filePath) !== undefined) {
+  const spelled = path.relative(spaceRoot, filePath).split(path.sep).join("/");
+  if (isHiddenPath(spelled) || hiddenBelow(spaceRoot, filePath)) throw absent(filePath);
+  // What the file is, and so whether it is private, by the disk's name for it.
+  const onDisk = pathOnDisk(filePath);
+  if (rasterImageMediaTypeForPath(onDisk) !== undefined) {
     throw new Error("This is a raster image file. Its contents can't be read as text.");
   }
-  if (videoMediaTypeForPath(filePath) !== undefined) {
+  if (videoMediaTypeForPath(onDisk) !== undefined) {
     throw new Error("This is a video file. Its contents can't be read as text.");
   }
-  if (pdfMediaTypeForPath(filePath) !== undefined) {
+  if (pdfMediaTypeForPath(onDisk) !== undefined) {
     throw new Error("This is a PDF file. Its text can't be read yet.");
   }
   const bytes = await readFile(filePath);
   if (bytes.subarray(0, 8000).includes(0)) throw new Error("This file isn't text, so it can't be read.");
   const content = bytes.toString("utf8");
-  if (isMarkdownFile(filePath)) {
+  if (isMarkdownFile(onDisk)) {
     const { data, error } = readFrontmatter(content);
     if (error !== undefined) {
       throw new Error(
@@ -326,7 +331,7 @@ export async function readSpaceFile(spaceRoot: string, relativePath: string): Pr
       );
     }
     if (isPrivate(data)) throw new Error(PRIVATE_REFUSAL);
-  } else if (isPrivateContent(filePath, content)) {
+  } else if (isPrivateContent(onDisk, content)) {
     throw new Error(PRIVATE_REFUSAL);
   }
   return content;

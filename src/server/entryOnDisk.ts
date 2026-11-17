@@ -34,14 +34,15 @@ export function linkBelow(dir: string, absolutePath: string): string | undefined
  * `GIT~1` opens `.git`. Past the deepest entry that exists, the path is read
  * as spelled, since nothing there has a second name yet. */
 export function hiddenBelow(dir: string, absolutePath: string): boolean {
-  return isHiddenPath(path.relative(onDisk(dir), onDisk(absolutePath)).split(path.sep).join("/"));
+  return isHiddenPath(path.relative(pathOnDisk(dir), pathOnDisk(absolutePath)).split(path.sep).join("/"));
 }
 
-// The deepest entry the disk can name, by the names it gives it, then the
-// rest as spelled. Node's native realpath, not its JS one, which keeps a
-// short name as typed. Any failure reads as absent, so a volume that can't
-// name its paths reads wholly as spelled rather than refusing every write.
-function onDisk(absolutePath: string): string {
+/** `absolutePath` as the disk names it: the deepest entry that exists by its
+ * own names, then the rest as spelled. What an entry is, its kind and so its
+ * privacy, is read from this, since a Windows short name such as BUDGET~1.HTM
+ * opens budget.flow.html. Node's native realpath, as its JS one keeps a short
+ * name as typed; a failure reads as absent, so the path reads as spelled. */
+export function pathOnDisk(absolutePath: string): string {
   const rest: string[] = [];
   for (let at = absolutePath; ; at = path.dirname(at)) {
     try {
@@ -65,4 +66,11 @@ export function namedEntryPath(dir: string, name: string): string {
     // A folder that can't be listed holds nothing to find.
   }
   return path.join(dir, spellingIn(names, name) ?? name);
+}
+
+/** Whether a space path names its entry by another name than its own on
+ * Windows, where `\` separates folders and `:` opens a drive or a file's
+ * other stream. Such a path is refused, never judged as spelled. */
+export function aliasedOnWindows(spacePath: string, platform: NodeJS.Platform = process.platform): boolean {
+  return platform === "win32" && /[\\:]/.test(spacePath);
 }
