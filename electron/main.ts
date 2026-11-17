@@ -56,6 +56,7 @@ import { pragmaVersion } from "../src/server/version.ts";
 import { openAboutWindow } from "./aboutWindow.ts";
 import { checkForUpdates, setupAutoUpdater } from "./autoUpdate.ts";
 import { menuBarTemplate } from "./menuBar.ts";
+import { framePermits } from "./permissions.ts";
 import { windowBackground } from "./windowBackground.ts";
 import { boundsOnScreen } from "./windowBounds.ts";
 
@@ -575,6 +576,19 @@ app.whenReady().then(async () => {
     }),
   );
   setCredentialHost("desktop");
+
+  // Permissions by who asks (permissions.ts): the window's own page, judged
+  // as the navigation guard judges an origin, or a frame inside it. No device
+  // is ever offered to a page.
+  const ownPage = (contents: WebContents | null, url: string | undefined, mainFrame: boolean): boolean =>
+    contents !== null && mainFrame && url !== undefined && sameOrigin(url, contents.getURL());
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) =>
+    callback(framePermits(permission, ownPage(contents, details.requestingUrl, details.isMainFrame))),
+  );
+  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) =>
+    framePermits(permission, ownPage(contents, details.requestingUrl ?? requestingOrigin, details.isMainFrame)),
+  );
+  session.defaultSession.setDevicePermissionHandler(() => false);
 
   // Not the configured `spacePath` directly: a space whose folder has gone (an
   // unmounted share, a removable disk) would be opened anyway, and every read
