@@ -30,10 +30,10 @@ const REFERENCE_SECTION = "Reference implementation";
 // Raise a limit deliberately, in the same change that needs it.
 const SIZE_LIMITS = {
   "architecture.md": 27_900,
-  "protocol.md": 99_500,
+  "protocol.md": 99_650,
   "flow-nodes.md": 29_880,
   "publishing.md": 16_700,
-  "deployment.md": 10_400,
+  "deployment.md": 10_430,
   "README.md": 6_000,
 };
 const DEFAULT_LIMIT = 24_000;

@@ -700,7 +700,7 @@ A report is checked against the declared ports, and one value of the wrong type,
 
 #### Network
 
-An Applet's script has no network access, and no other way out. A host refuses every request the frame can cause, not just script's own `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon`: an image, script, stylesheet or font URL, and the frame navigating itself, each carry data out in the URL, and a remote script would also run code the node's recorded hash never covered. Only `data:` and `blob:` URLs, which never leave the frame, load. The exception no host can close is a WebRTC peer connection, which browsers give a page no way to deny a frame.
+An Applet's script has no network access. A host refuses every request the frame can cause, not just script's own `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon`: an image, script, stylesheet or font URL, and the frame navigating itself, each carry data out in the URL, and a remote script would also run code the node's recorded hash never covered. Only `data:` and `blob:` URLs, which never leave the frame, load. A frame may navigate itself wherever the page holding it lets a frame load, so that page lets frames load only a [video embed](#text-embeds)'s player. Two ways out remain: navigating to that player's site, and a WebRTC peer connection, which browsers give a page no way to deny a frame.
 
 #### Standard style
 

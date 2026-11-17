@@ -36,7 +36,7 @@ npm run pragma -- passphrase
 
 All three are required. `--external-url` refuses to start without the passphrase, whatever the proxy in front restricts, so auth can't end up silently unconfigured; and it refuses a space with no `spaces` entry, for the reason below.
 
-Saving a passphrase signs every device out. After 5 wrong passphrases, each doubles the next wait, from 1 second to 15 minutes, until an hour passes without one. New devices share that count; one that has signed in before keeps its own.
+A new passphrase applies once Pragma restarts, and signs every device out. After 5 wrong passphrases, each doubles the next wait, from 1 second to 15 minutes, until an hour passes without one. New devices share that count; one that has signed in before keeps its own.
 
 ### The space registry
 

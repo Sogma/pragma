@@ -16,13 +16,13 @@ Pragma is a single-user, local-first tool. The trust boundary is the operating-s
 
 The boundaries Pragma does enforce, and which reports should be about:
 
-- **Space content vs. the host.** Applets and Flows arrive in a space, written by anyone, a model included. An Applet runs sandboxed and reaches nothing: not the network, the host or the space. A Flow reaches the space and model providers only through capabilities the user approved, pinned to what the Flow does, the code of any Applet it uses included.
+- **Space content vs. the host.** Applets and Flows arrive in a space, written by anyone, a model included. An Applet runs sandboxed and reaches neither the host nor the space, and the network only the two ways [docs/protocol.md](docs/protocol.md#network) names: a WebRTC peer connection, and its frame navigating to the video embed's site. A file from outside reaches it only when the user hands one over, as by picking it in the browser's own file picker. A Flow reaches the space and model providers only through capabilities the user approved, pinned to what the Flow does, the code of any Applet it uses included.
 - **The agent endpoint vs. the network.** The MCP/REST listener is loopback only, refuses browser origins, requires a bearer token, and a read-only token cannot write. See [docs/agent-api.md](docs/agent-api.md).
 - **Remote access vs. other devices.** Pragma listens on loopback only. Under `--external-url`, the passphrase gate is the only thing between whoever reaches the HTTPS proxy and the space; every other target refuses requests a proxy forwarded. See [docs/deployment.md](docs/deployment.md).
 
 ## In scope
 
-- Sandbox escape: an Applet reaching the network, the host or the space at all, or a Flow reaching the space without a granted capability, or beyond the path it was granted.
+- Sandbox escape: an Applet reaching the network, the host or the space in any way not named above, or a Flow reaching the space without a granted capability, or beyond the path it was granted.
 - Bypassing the approval pin: a Flow running under approvals given before what it does, or the code of an Applet it uses, changed.
 - The agent endpoint: token or origin checks bypassed, a read-only token writing, or the endpoint reached from a web page (DNS rebinding).
 - Forging or extending a remote-access session, or reaching a space through a proxy in front of a target started without `--external-url`.
