@@ -5,6 +5,7 @@ import type { Context, Hono } from "hono";
 import {
   findSpaceId,
   loadGlobalConfig,
+  type PragmaGlobalConfig,
   rememberKnownSpace,
   saveGlobalConfig,
   showsAllFileTypes,
@@ -100,7 +101,18 @@ async function fileRevisions(spaceRoot: string, paths: readonly string[]): Promi
   return revisions;
 }
 
-export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnails, changes }: RouteContext): void {
+export function mountSpaceRoutes(
+  app: Hono,
+  { spaceRoot, spaceSwitcher, ownMachine, thumbnails, changes }: RouteContext,
+): void {
+  // A target serving other devices serves one space (docs/architecture.md's
+  // Runtime and hosting section), so the rest of the registry is unknown to
+  // it: no route here lists, switches to or changes another space, the
+  // desktop app's among them when the service shares that account. A lookup
+  // rather than a filtered config: these routes save the config they read.
+  const knownSpace = (config: PragmaGlobalConfig, id: string | undefined) =>
+    id !== undefined && (ownMachine || id === findSpaceId(config, spaceRoot)) ? config.spaces?.[id] : undefined;
+
   app.all("/api/space/info", (c) => {
     const config = loadGlobalConfig();
     const id = findSpaceId(config, spaceRoot);
@@ -127,17 +139,20 @@ export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnai
         label: currentId ? spaces[currentId]?.label : undefined,
         trusted: currentId ? spaces[currentId]?.trusted : undefined,
       },
-      spaces: registeredSpaces(config),
-      recent: (config.recentSpaceIds ?? []).map((id) => spaceRef(config, id)).filter(isRef),
+      spaces: registeredSpaces(config).filter((ref) => knownSpace(config, ref.id)),
+      recent: (config.recentSpaceIds ?? [])
+        .filter((id) => knownSpace(config, id))
+        .map((id) => spaceRef(config, id))
+        .filter(isRef),
     });
   });
 
   // Switches the live space, only ever to a registered path, never an
-  // arbitrary one: the remote-access target exposes this route to other
-  // devices.
+  // arbitrary one a request names. A target serving other devices refuses
+  // outright, since it serves one space.
   app.all("/api/space/switch", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    if (!spaceSwitcher) return c.text("Space switching is not available in this mode", 501);
+    if (!spaceSwitcher || !ownMachine) return c.text("Space switching is not available in this mode", 501);
 
     try {
       const body = (await c.req.json()) as SwitchSpaceRequestBody;
@@ -171,7 +186,7 @@ export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnai
     try {
       const body = (await c.req.json()) as SpaceLabelRequestBody;
       const config = loadGlobalConfig();
-      const record = config.spaces?.[body.id];
+      const record = knownSpace(config, body.id);
       if (!record) return c.text("Not a known space", 400);
 
       const label = body.label.trim();
@@ -199,7 +214,7 @@ export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnai
         return c.text("Expected a space id and a boolean", 400);
       }
       const config = loadGlobalConfig();
-      const record = config.spaces?.[body.id];
+      const record = knownSpace(config, body.id);
       if (!record) return c.text("Not a known space", 400);
 
       saveGlobalConfig({ ...config, spaces: { ...config.spaces, [body.id]: { ...record, trusted: body.trusted } } });
@@ -217,7 +232,7 @@ export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnai
 
     try {
       const body = (await c.req.json()) as SpaceIdRequestBody;
-      if (!loadGlobalConfig().spaces?.[body.id]) return c.text("Not a known space", 400);
+      if (!knownSpace(loadGlobalConfig(), body.id)) return c.text("Not a known space", 400);
       await clearSpaceGrants(body.id);
       return c.body(null, 204);
     } catch (error) {
@@ -238,7 +253,7 @@ export function mountSpaceRoutes(app: Hono, { spaceRoot, spaceSwitcher, thumbnai
     try {
       const body = (await c.req.json()) as SpaceIdRequestBody;
       const config = loadGlobalConfig();
-      if (!config.spaces?.[body.id]) return c.text("Not a known space", 400);
+      if (!knownSpace(config, body.id)) return c.text("Not a known space", 400);
       if (body.id === findSpaceId(config, spaceRoot)) return c.text("Cannot forget the current space", 400);
 
       const spaces = { ...config.spaces };

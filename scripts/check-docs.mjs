@@ -33,7 +33,7 @@ const SIZE_LIMITS = {
   "protocol.md": 99_650,
   "flow-nodes.md": 29_880,
   "publishing.md": 16_700,
-  "deployment.md": 10_430,
+  "deployment.md": 10_470,
   "README.md": 6_000,
 };
 const DEFAULT_LIMIT = 24_000;

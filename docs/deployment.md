@@ -22,7 +22,7 @@ As the account systemd will run the service as (see `User=` below, not necessari
 npm run pragma -- space add /path/to/your-space   # a new one: init /path/to/your-space
 ```
 
-That wrote a `spaces` entry to the account's `~/.config/pragma/config.json`; set `spacePath` there too:
+That wrote a `spaces` entry to the account's `~/.config/pragma/config.json`; set `spacePath` there too, the one space the service serves:
 
 ```json
 { "spacePath": "/path/to/your-space" }

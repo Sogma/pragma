@@ -164,10 +164,12 @@ describe("API contract", () => {
       expect((await fetch(`${testServer.baseUrl}/api/space/trust`)).status).toBe(405);
     });
 
-    it("POST /api/space/switch refuses a path that is not a registered space", async () => {
+    // The test server, like the production server unless its host says
+    // otherwise, serves other devices, so it switches to no space at all.
+    it("POST /api/space/switch is refused on a server for other devices", async () => {
       const res = await postJson("/api/space/switch", { path: "/etc" });
-      expect(res.status).toBe(400);
-      expect(await res.text()).toBe("Not a known space");
+      expect(res.status).toBe(501);
+      expect(await res.text()).toBe("Space switching is not available in this mode");
     });
   });
 
