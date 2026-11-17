@@ -54,6 +54,16 @@ afterEach(() => {
   rmSync(configDir, { recursive: true, force: true });
 });
 
+// The error code a read raises, or undefined when it resolves.
+function readCode(run: () => unknown): string | undefined {
+  try {
+    run();
+    return undefined;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code;
+  }
+}
+
 function status(run: () => unknown): number | undefined {
   try {
     run();
@@ -99,12 +109,11 @@ describe("resolving a rooted path", () => {
     expect(resolveRootedPath(space, "lib:footage/x.png", "write").filePath).toBe(path.join(library, "x.png"));
   });
 
-  // The protocol keeps a leading dot out of anything a host writes; the
-  // doorway is where that holds for every root at once, so a root's `.git`,
-  // another app's settings folder and a `.trash` are out of reach of a hand-made
-  // request. Reads stay open — the rule is about writing what a host would
-  // then decline to show.
-  it("refuses a write under a hidden segment in either root, and still reads it", () => {
+  // No path names a hidden entry; the doorway is where that holds for every
+  // root at once, so a root's `.git`, another app's settings folder and a
+  // `.trash` are out of reach of a hand-made request. A read finds nothing
+  // there, as every surface shows it, and a write is refused.
+  it("refuses a write under a hidden segment in either root, and reads it as missing", () => {
     register({ id: "footage", label: "Footage", path: library, access: "read-write" });
     for (const input of [
       ".settings/workspace.json",
@@ -119,7 +128,10 @@ describe("resolving a rooted path", () => {
         status(() => resolveRootedPath(space, input, "write")),
         input,
       ).toBe(403);
-      expect(() => resolveRootedPath(space, input, "read"), input).not.toThrow();
+      expect(
+        readCode(() => resolveRootedPath(space, input, "read")),
+        input,
+      ).toBe("ENOENT");
     }
     // The root itself has no segment to hide.
     expect(() => resolveRootedPath(space, "", "write")).not.toThrow();
@@ -135,7 +147,7 @@ describe("resolving a rooted path", () => {
 
   // On Windows a short name such as `GIT~1` opens `.git`. This suite runs
   // where no disk does that, so the disk's answer is stood in for.
-  it("refuses a write that reaches a hidden entry by another name", () => {
+  it("refuses a write, and finds nothing for a read, that reaches a hidden entry by another name", () => {
     mkdirSync(path.join(space, ".git"));
     const realpath = realpathSync.native;
     const alias = `${path.sep}GIT~1`;
@@ -146,7 +158,7 @@ describe("resolving a rooted path", () => {
     try {
       expect(status(() => resolveRootedPath(space, "GIT~1/config", "write"))).toBe(403);
       expect(status(() => resolveHeldPath(space, "GIT~1/hooks/pre-commit", "write"))).toBe(403);
-      expect(() => resolveRootedPath(space, "GIT~1/config", "read")).not.toThrow();
+      expect(readCode(() => resolveRootedPath(space, "GIT~1/config", "read"))).toBe("ENOENT");
       // A name that only looks like a short name is an ordinary one.
       expect(() => resolveRootedPath(space, "draft~2/a.md", "write")).not.toThrow();
     } finally {
@@ -179,12 +191,11 @@ describe("resolving a rooted path", () => {
   });
 
   // The containment check tests the `..` prefix exactly, so an entry that
-  // merely starts with those two characters is a normal name, not an escape.
-  it("resolves an entry at the root whose name begins with ..", () => {
-    expect(resolveRootedPath(space, "..drafts/a.md", "read").filePath).toBe(path.join(space, "..drafts/a.md"));
-    expect(resolveRootedPath(space, "lib:footage/..raw/x.png", "read").filePath).toBe(
-      path.join(library, "..raw/x.png"),
-    );
+  // merely starts with those two characters is a name, not an escape; a
+  // hidden one, like any name with a leading dot, so a read finds nothing.
+  it("reads an entry whose name begins with .. as a hidden name, not an escape", () => {
+    expect(readCode(() => resolveRootedPath(space, "..drafts/a.md", "read"))).toBe("ENOENT");
+    expect(readCode(() => resolveRootedPath(space, "lib:footage/..raw/x.png", "read"))).toBe("ENOENT");
   });
 });
 

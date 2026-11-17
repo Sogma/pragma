@@ -629,6 +629,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       return c.body(null, 405);
     } catch (error) {
       if (error instanceof PathAccessError) return c.text(error.message, error.status);
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
       return c.text(error instanceof Error ? error.message : "Internal error", 500);
     }
   });

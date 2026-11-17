@@ -8,7 +8,8 @@
 import path from "node:path";
 import type { SpaceTreeNode } from "../protocol/api.ts";
 import { isWithin } from "../protocol/rootedPath.ts";
-import { absent, readSpaceFile, resolveWithinSpace } from "./spaceFiles.ts";
+import { absent } from "./rootedFiles.ts";
+import { readSpaceFile, resolveWithinSpace } from "./spaceFiles.ts";
 import { buildTree, filterPrivateNodes, type SpaceSearchMatch, searchSpaceFiles, spaceListing } from "./tree.ts";
 
 /** The scope's folder as the space tree shows it, private files left out. */

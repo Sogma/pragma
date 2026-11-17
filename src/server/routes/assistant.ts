@@ -39,9 +39,17 @@ const FILE_VIEW_PARAMS = [
 
 // An image resolves against whichever root it names, as its pane's does. A
 // library's file reaches the copilot only as a raster image to look at: its
-// other tools read the space.
+// other tools read the space. One that isn't there to see, a hidden one
+// included, leaves the copilot nothing on screen rather than failing the chat.
 function imageContext(spaceRoot: string, named: string): EditorContext {
-  const { filePath, rooted } = resolveRootedPath(spaceRoot, named, "read");
+  let resolved: ReturnType<typeof resolveRootedPath>;
+  try {
+    resolved = resolveRootedPath(spaceRoot, named, "read");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { view: "none" };
+    throw error;
+  }
+  const { filePath, rooted } = resolved;
   if (isLibraryRoot(rooted.root) && !rasterImageMediaTypeForPath(filePath)) return { view: "none" };
   return { view: "image", filePath, path: formatRootedPath(rooted) };
 }

@@ -18,6 +18,16 @@ import {
 import { hiddenBelow, linkBelow, namedEntryPath } from "./entryOnDisk.ts";
 import { readLibraries } from "./libraries.ts";
 
+/** The error a read of something that isn't there raises, for a path that
+ * names nothing a caller may see, so it reads exactly as a missing file. */
+export function absent(filePath: string): Error {
+  return Object.assign(new Error(`ENOENT: no such file or directory, open '${filePath}'`), {
+    code: "ENOENT",
+    syscall: "open",
+    path: filePath,
+  });
+}
+
 export { linkBelow, namedEntryPath };
 
 /** A refusal with the status it should become. Same shape and reasoning as
@@ -211,11 +221,12 @@ function resolveIn(spaceRoot: string, input: string, access: Access, spelling: S
         ? (heldEntry(rootDir, input, rooted.path, access) ?? resolved)
         : spelledEntry(rootDir, rooted.path, resolved, access);
     refuseLink(rootDir, filePath);
-    // The tree lists no hidden entry, so a write to one is a hand-made request,
-    // and what sits under a dot is where a write does the most damage: a
-    // root's `.git`, another app's settings, a `.trash` of the only copies.
-    // Judged on the entry the write would reach, the same way for every root.
-    if (access === "write" && hiddenBelow(rootDir, filePath)) {
+    // No path names a hidden entry (docs/protocol.md): a read finds nothing,
+    // as every surface shows it, and a write is refused. A dot is where either
+    // does the most harm: a root's `.git` with a remote's credentials, another
+    // app's settings, a `.trash` of the only copies. Judged on the disk's name.
+    if (hiddenBelow(rootDir, filePath)) {
+      if (access === "read") throw absent(filePath);
       throw new PathAccessError(403, `Hidden entries can't be written to: "${input}"`);
     }
     if (filePath === resolved) return { filePath, rooted, rootDir };

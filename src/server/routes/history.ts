@@ -63,6 +63,7 @@ export function mountHistoryRoutes(app: Hono, { spaceRoot }: RouteContext): void
       const current = isLibraryRoot(rooted.root) ? undefined : await readFile(filePath, "utf8").catch(() => undefined);
       return c.json<HistoryVersionResponse>(current === undefined ? { content } : { content, current });
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
       return c.text(failed(error), 500);
     }
   });

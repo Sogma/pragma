@@ -655,6 +655,18 @@ describe("API contract", () => {
   // A traversal is refused while the path is being parsed, before any root
   // is consulted — so it reads as the client error it is rather than as a
   // server failure.
+  // What sits under a dot can hold credentials wider than the space, a
+  // remote's token in `.git/config` above all, so it reads as missing.
+  it("finds nothing at a hidden path, whatever route reads it", async () => {
+    await mkdir(path.join(testServer.spaceRoot, ".git"), { recursive: true });
+    await writeFile(path.join(testServer.spaceRoot, ".git", "config"), "url = https://user:secret@example.com/x\n");
+    for (const route of ["/api/file", "/api/file/info", "/api/file/sha256"]) {
+      const res = await fetch(`${testServer.baseUrl}${route}?path=${encodeURIComponent(".git/config")}`);
+      expect(res.status, route).toBe(404);
+      expect(await res.text(), route).not.toContain("secret");
+    }
+  });
+
   it("rejects a path that escapes the space", async () => {
     const res = await fetch(`${testServer.baseUrl}/api/file?path=${encodeURIComponent("../../etc/passwd")}`);
     expect(res.status).toBe(400);

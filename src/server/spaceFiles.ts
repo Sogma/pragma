@@ -21,6 +21,7 @@ import {
 } from "../protocol/types.ts";
 import { aliasedOnWindows, hiddenBelow, pathOnDisk } from "./entryOnDisk.ts";
 import {
+  absent,
   escapesRoot,
   namedEntryPath,
   PathAccessError,
@@ -286,13 +287,6 @@ const PRIVATE_REFUSAL = "This document is marked `visibility: private` and can't
 
 // What reading a file that isn't there throws, word for word, so refusing a
 // hidden file never confirms that it exists.
-export function absent(filePath: string): Error {
-  return Object.assign(new Error(`ENOENT: no such file or directory, open '${filePath}'`), {
-    code: "ENOENT",
-    syscall: "open",
-    path: filePath,
-  });
-}
 
 /** Reads any space-relative file as text, whatever its extension — the tree's
  * filter is display, not security — but refuses raster images, video, PDFs
@@ -344,8 +338,7 @@ export async function readRasterImage(
   spaceRoot: string,
   input: string,
 ): Promise<{ mediaType: RasterImageMediaType; data: Uint8Array }> {
-  const { filePath, rooted } = resolveRootedPath(spaceRoot, input, "read");
-  if (isHiddenPath(rooted.path)) throw absent(filePath);
+  const { filePath } = resolveRootedPath(spaceRoot, input, "read");
   const mediaType = rasterImageMediaTypeForPath(filePath);
   if (mediaType === undefined) throw new Error(notARasterImage(input));
   return { mediaType, data: await readFile(filePath) };
