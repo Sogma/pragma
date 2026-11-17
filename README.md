@@ -53,6 +53,8 @@ Classes connect documents to tools. A Class selects documents by folder, tag, or
 
 Download the Mac disk image, Windows installer, or Linux AppImage from the [latest release](https://github.com/sogma/pragma/releases/latest).
 
+The Windows installer isn't signed during the beta, so Windows may stop it with "Windows protected your PC". Choose **More info**, then **Run anyway**.
+
 Windows and Linux check for updates at launch; you can also use Settings → General → Check for updates. On a Mac, Check for updates reports new releases, which you download and install yourself.
 
 ### From source
