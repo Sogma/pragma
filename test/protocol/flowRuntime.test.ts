@@ -84,7 +84,7 @@ describe("a stopped run", () => {
         { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text: "hi" } },
         { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: {} },
       ],
-      edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" }],
+      edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" }],
     };
     await runFlow(
       graph,
@@ -114,7 +114,7 @@ describe("a failure a setting fixes", () => {
       { id: "show-1", type: "showText", position: { x: 0, y: 0 }, config: {} },
     ],
     edges: [
-      { id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" },
+      { id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" },
       { id: "e2", source: "gen-1", sourcePort: "text", target: "show-1", targetPort: "text" },
     ],
   };
@@ -213,7 +213,7 @@ describe("the finish hook", () => {
       ],
       edges: [
         { id: "e1", source: "prompt-1", sourcePort: "text", target: "show-1", targetPort: "text" },
-        { id: "e2", source: "show-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" },
+        { id: "e2", source: "show-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" },
       ],
     };
     const finished = new Map<string, unknown>();
@@ -252,7 +252,7 @@ describe("holding a result", () => {
         { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text } },
         { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: { reuse } },
       ],
-      edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" }],
+      edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" }],
     };
   }
 

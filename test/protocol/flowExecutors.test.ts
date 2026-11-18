@@ -248,13 +248,13 @@ describe("the Generate Options node", () => {
     position: { x: 0, y: 0 },
     config: count === undefined ? {} : { count },
   });
-  const instruction = { instruction: { type: "text" as const, value: "Rhyme it" } };
+  const prompt = { prompt: { type: "text" as const, value: "Rhyme it" } };
 
   it("makes the host's options call and outputs the parsed list", async () => {
     const generateOptions = vi.fn(async () => ({ options: ["a", "b"], model: "m" }));
     const outputs = await NODE_EXECUTORS.generateOptions(
       optionsNode(),
-      instruction,
+      prompt,
       context({
         sandbox: {
           read: sandboxRead,
@@ -294,7 +294,7 @@ describe("the Generate Options node", () => {
       generateVideo: vi.fn(),
     };
     for (const count of ["4", "99", "lots", "0"]) {
-      await NODE_EXECUTORS.generateOptions(optionsNode(count), instruction, context({ sandbox }));
+      await NODE_EXECUTORS.generateOptions(optionsNode(count), prompt, context({ sandbox }));
     }
     expect(counts).toEqual([4, 20, 10, 10]);
   });
@@ -1378,7 +1378,7 @@ describe("the Generate Text node's images", () => {
     const generate = vi.fn(async () => ({ reply: "Similar.", model: "m" }));
     await NODE_EXECUTORS.generateText(
       textNode,
-      { instruction: { type: "text", value: "Compare @image_2 with @image_12" }, image_2: picture, image_12: picture },
+      { prompt: { type: "text", value: "Compare @image_2 with @image_12" }, image_2: picture, image_12: picture },
       context({
         sandbox: {
           read: sandboxRead,
@@ -1406,15 +1406,15 @@ describe("the Generate Text node's images", () => {
     );
   });
 
-  it("refuses an instruction naming an empty pin before asking for the grant", async () => {
+  it("refuses a prompt naming an empty pin before asking for the grant", async () => {
     const ensureCapability = vi.fn(async () => true);
     await expect(
       NODE_EXECUTORS.generateText(
         textNode,
-        { instruction: { type: "text", value: "Describe @image_3" }, image_1: picture },
+        { prompt: { type: "text", value: "Describe @image_3" }, image_1: picture },
         context({ ensureCapability }),
       ),
-    ).rejects.toThrow("The instruction names @image_3, but no image is connected to image_3");
+    ).rejects.toThrow("The prompt names @image_3, but no image is connected to image_3");
     expect(ensureCapability).not.toHaveBeenCalled();
   });
 });
@@ -1422,7 +1422,7 @@ describe("the Generate Text node's images", () => {
 // One record of each settled call, for the Console and the run's surface.
 describe("a text generation as it settles", () => {
   const textNode: FlowNodeInstance = { id: "text-1", type: "generateText", position: { x: 0, y: 0 }, config: {} };
-  const instruction = { instruction: { type: "text" as const, value: "Name a kite." } };
+  const prompt = { prompt: { type: "text" as const, value: "Name a kite." } };
   const withGenerate = (generate: NodeExecutionContext["sandbox"]["generate"]) => ({
     read: sandboxRead,
     write: vi.fn(),
@@ -1438,7 +1438,7 @@ describe("a text generation as it settles", () => {
     const generated = vi.fn();
     const run = context({ generated, sandbox: withGenerate(vi.fn(async () => ({ reply: "Hawk", model: "m" }))) });
     vi.mocked(run.beginLlmActivity).mockImplementation(() => expect(generated).not.toHaveBeenCalled());
-    await NODE_EXECUTORS.generateText(textNode, instruction, run);
+    await NODE_EXECUTORS.generateText(textNode, prompt, run);
     expect(generated).toHaveBeenCalledWith("text-1", { failed: false, result: { reply: "Hawk", model: "m" } });
     expect(run.beginLlmActivity).toHaveBeenCalledTimes(1);
     expect(run.endLlmActivity).toHaveBeenCalledTimes(1);
@@ -1448,7 +1448,7 @@ describe("a text generation as it settles", () => {
     const generated = vi.fn();
     const refused = new Error("The model refused.");
     const run = context({ generated, sandbox: withGenerate(vi.fn(async () => Promise.reject(refused))) });
-    await expect(NODE_EXECUTORS.generateText(textNode, instruction, run)).rejects.toBe(refused);
+    await expect(NODE_EXECUTORS.generateText(textNode, prompt, run)).rejects.toBe(refused);
     expect(generated).toHaveBeenCalledWith("text-1", { failed: true, error: refused });
     expect(run.endLlmActivity).toHaveBeenCalledTimes(1);
   });
@@ -1459,8 +1459,8 @@ describe("a text generation as it settles", () => {
       model: "m",
     }));
     const run = context({ sandbox: withGenerate(generate) });
-    await NODE_EXECUTORS.generateText({ ...textNode, config: { effort: "high" } }, instruction, run);
-    await NODE_EXECUTORS.generateText(textNode, instruction, run);
+    await NODE_EXECUTORS.generateText({ ...textNode, config: { effort: "high" } }, prompt, run);
+    await NODE_EXECUTORS.generateText(textNode, prompt, run);
     expect(generate.mock.calls[0][2]).toMatchObject({ effort: "high" });
     expect(generate.mock.calls[1][2]).not.toHaveProperty("effort");
   });
@@ -1473,7 +1473,7 @@ describe("a text generation as it settles", () => {
       throw new DOMException("The operation was aborted.", "AbortError");
     });
     const run = context({ generated, signal: stop.signal, sandbox: withGenerate(generate) });
-    await expect(NODE_EXECUTORS.generateText(textNode, instruction, run)).rejects.toThrow("aborted");
+    await expect(NODE_EXECUTORS.generateText(textNode, prompt, run)).rejects.toThrow("aborted");
     expect(generated).not.toHaveBeenCalled();
   });
 });

@@ -48,7 +48,7 @@ const node = (id: string, type: string, config: Record<string, unknown> = {}): F
 function promptToText(prompt: string): FlowGraph {
   return {
     nodes: [node("prompt-1", "prompt", { text: prompt }), node("generate-2", "generateText")],
-    edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "generate-2", targetPort: "instruction" }],
+    edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "generate-2", targetPort: "prompt" }],
   };
 }
 

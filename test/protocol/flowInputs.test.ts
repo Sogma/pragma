@@ -24,7 +24,7 @@ const graph: FlowGraph = {
     { id: "image-1", type: "loadImage", position: { x: 0, y: 0 }, config: {}, exposed: ["imagePath"] },
     { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: {}, exposed: ["model"] },
     // Connect-only sockets are never inputs, even if a hand-edited file says so.
-    { id: "gen-2", type: "generateText", position: { x: 0, y: 0 }, config: {}, exposed: ["instruction"] },
+    { id: "gen-2", type: "generateText", position: { x: 0, y: 0 }, config: {}, exposed: ["prompt"] },
   ],
   edges: [],
 };
@@ -58,9 +58,7 @@ describe("applyRunInputs", () => {
 
   it("refuses a name the flow does not take, listing the ones it does", () => {
     expect(() => applyRunInputs(graph, { "join-1.separator": "; " })).toThrow(FlowInputError);
-    expect(() => applyRunInputs(graph, { "gen-2.instruction": "x" })).toThrow(
-      /takes no input.*It takes: toggle-1\.true/,
-    );
+    expect(() => applyRunInputs(graph, { "gen-2.prompt": "x" })).toThrow(/takes no input.*It takes: toggle-1\.true/);
   });
 
   it("refuses a value of the wrong type", () => {

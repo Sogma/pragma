@@ -184,7 +184,7 @@ function heldFlow(prompt: string): FlowFileResponse {
     source: "prompt-1",
     sourcePort: "text",
     target: "generate-2",
-    targetPort: "instruction",
+    targetPort: "prompt",
   };
   return flowFile("flows/held.flow.html", [promptNode(prompt), generate], [wire]);
 }

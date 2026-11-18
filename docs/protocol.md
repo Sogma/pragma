@@ -303,7 +303,7 @@ Any directory with a `README.md` at its root is a boundary; what a space chooses
 
 ### Context of a path
 
-A generation can send the files around a path with its call, through a [`generateText`](flow-nodes.md#generatetext) node's `context`: the path says where to look, the instruction what matters. That path's **context** starts with, in this order:
+A generation can send the files around a path with its call, through a [`generateText`](flow-nodes.md#generatetext) node's `context`: the path says where to look, the prompt what matters. That path's **context** starts with, in this order:
 
 1. the `AGENTS.md` of the scope it sits in, the space's own at its root;
 2. the `README.md` [Project context](#project-context) resolves for it, a folder starting the walk at itself;

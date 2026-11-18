@@ -281,7 +281,7 @@ describe("an unattended run in flight", () => {
             { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text: "hi" } },
             { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: { model: "hung/m" } },
           ],
-          edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" }],
+          edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" }],
         },
       }),
     );

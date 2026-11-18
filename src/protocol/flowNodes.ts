@@ -261,10 +261,10 @@ export const IMAGE_REFERENCE_SLOTS: SlotSpec = {
   portId: (slot) => `image_${slot}`,
 };
 
-function imageReferencePorts(text: "prompt" | "instruction"): FlowPort[] {
+function imageReferencePorts(): FlowPort[] {
   return Array.from({ length: IMAGE_REFERENCES_MAX }, (_, index) => {
     const id = IMAGE_REFERENCE_SLOTS.portId(index + 1);
-    return { ...imagePort(id, `The ${text} can name it as @${id}.`), required: false };
+    return { ...imagePort(id, `The prompt can name it as @${id}.`), required: false };
   });
 }
 
@@ -643,14 +643,14 @@ const reuseField: FlowNodeConfigField = {
 /** Calls the model through the host's generation call
  * (docs/flow-nodes.md's "generateText" section). Each image port's id
  * (`image_1`…) is also the mention text inserted before that image in the
- * model call, so an instruction can name one as `@image_2`.
+ * model call, so a prompt can name one as `@image_2`.
  *
  * Renaming a port id orphans every saved edge naming it; the run fails such
  * a node rather than dropping the wire unseen. */
 const generateText: FlowNodeTypeDefinition = {
   type: "generateText",
   label: "Generate Text (AI)",
-  description: "A model's reply to an instruction.",
+  description: "A model's reply to a prompt.",
   category: "AI",
   keywords: ["ai", "llm", "model", "claude"],
   // --color-violet's light-theme value (web/styles/tokens.css): the closest
@@ -660,12 +660,12 @@ const generateText: FlowNodeTypeDefinition = {
   version: "1.0",
   reuse: "optional",
   inputs: [
-    textPort("instruction", "It can name an image as @image_1."),
+    textPort("prompt", "It can name an image as @image_1."),
     {
-      ...textPort(CONTEXT_PORT, "A path, such as a Button's: the files around it go with the instruction."),
+      ...textPort(CONTEXT_PORT, "A path, such as a Button's: the files around it go with the prompt."),
       required: false,
     },
-    ...imageReferencePorts("instruction"),
+    ...imageReferencePorts(),
     textPort("model"),
   ],
   outputs: [textPort("text")],
@@ -708,7 +708,7 @@ const generateImage: FlowNodeTypeDefinition = {
   reuse: "always",
   inputs: [
     textPort("prompt", "It can name a reference as @image_1."),
-    ...imageReferencePorts("prompt"),
+    ...imageReferencePorts(),
     textPort("model"),
     textPort("aspect_ratio"),
     textPort("prefix", "The start of the result's file name. Never a path, so it stays in the folder."),
@@ -761,7 +761,7 @@ const generateVideo: FlowNodeTypeDefinition = {
     textPort("prompt", "It can name a reference as @image_1."),
     { ...imagePort("start_frame"), required: false },
     { ...imagePort("end_frame"), required: false },
-    ...imageReferencePorts("prompt"),
+    ...imageReferencePorts(),
     textPort("model"),
     textPort("aspect_ratio"),
     textPort("resolution", "The clip's short side."),

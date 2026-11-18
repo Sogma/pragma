@@ -163,7 +163,7 @@ function setCardHeight(el: HTMLDivElement, height: number | undefined): void {
   el.classList.toggle("is-sized", height !== undefined);
 }
 
-// Two mention vocabularies a Prompt/Note instruction can reference, each
+// Two mention vocabularies a Prompt's or Comment's text can reference, each
 // highlighted as a live chip. A mention, `@image_2`, takes the scan a run
 // reads it with (referenceMentions.ts), so a chip marks exactly the pins a
 // Generate node would read.

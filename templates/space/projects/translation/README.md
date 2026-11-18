@@ -22,7 +22,7 @@ A worked example for professional translators: one job, a hotel's spring brochur
 4. Select the copy of the rates line and click **Query client**: is $120 per room or per person? The question goes into `queries.table.html` beside the document, after the first click asks to write there. Note the client's answer in its row when it comes, then add what you learn to the glossary, as the answered query about the restaurant's name was.
 5. Open [[jobs.class.html]] to see the job, and change its status there.
 
-To change what the AI is told, open a toolkit in [[tools/]]: each button's instruction is the text of a Prompt node.
+To change what the AI is told, open a toolkit in [[tools/]]: each button's prompt is the text of a Prompt node.
 
 ## Use it for another client
 

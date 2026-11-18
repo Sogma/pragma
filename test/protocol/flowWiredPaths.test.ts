@@ -531,7 +531,7 @@ describe("a path wired into a generation's context", () => {
 
     const outputs = await NODE_EXECUTORS.generateText(
       node("generateText"),
-      { instruction: text("List the shots."), context: text(scene) },
+      { prompt: text("List the shots."), context: text(scene) },
       run,
     );
 
@@ -563,7 +563,7 @@ describe("a path wired into a generation's context", () => {
 
     await NODE_EXECUTORS.generateOptions(
       node("generateOptions"),
-      { instruction: text("Two titles."), context: text("notes/a.md") },
+      { prompt: text("Two titles."), context: text("notes/a.md") },
       run,
     );
 
@@ -580,7 +580,7 @@ describe("a path wired into a generation's context", () => {
       await expect(
         NODE_EXECUTORS.generateText(
           node("generateText"),
-          { instruction: text("Go."), context: text(path) },
+          { prompt: text("Go."), context: text(path) },
           context({ ensureCapability, scopes }),
         ),
       ).rejects.toThrow(message);
@@ -594,7 +594,7 @@ describe("a path wired into a generation's context", () => {
     );
     const run = context({ ensureCapability, scopes });
     await expect(
-      NODE_EXECUTORS.generateText(node("generateText"), { instruction: text("Go."), context: text(scene) }, run),
+      NODE_EXECUTORS.generateText(node("generateText"), { prompt: text("Go."), context: text(scene) }, run),
     ).rejects.toThrow('Permission denied to send files from "/projects/forbidden/story/"');
     expect(run.sandbox.generate).not.toHaveBeenCalled();
   });

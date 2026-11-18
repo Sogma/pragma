@@ -325,14 +325,10 @@ function wiredReferences(inputs: Record<string, PortValue>): ReferenceImagePaylo
 }
 
 // Fails a mention of an empty pin before anything is asked or spent.
-function checkMentions(
-  text: string,
-  references: readonly ReferenceImagePayload[],
-  field: "prompt" | "instruction" = "prompt",
-): void {
+function checkMentions(text: string, references: readonly ReferenceImagePayload[]): void {
   for (const pin of mentionedImagePins(text)) {
     if (!references.some((reference) => reference.pin === pin)) {
-      throw new Error(`The ${field} names @image_${pin}, but no image is connected to image_${pin}`);
+      throw new Error(`The prompt names @image_${pin}, but no image is connected to image_${pin}`);
     }
   }
 }
@@ -788,23 +784,23 @@ const loadFolderImage: NodeExecutor = async (node, _inputs, context) => {
 };
 
 // What both generation nodes send through the host's generation call, with
-// no envelope of Flow's own: the instruction, the connected images, and the
+// no envelope of Flow's own: the prompt, the connected images, and the
 // node's model. Granted before anything is sent.
 async function generationRequest(
   node: FlowNodeInstance,
   inputs: Record<string, PortValue>,
   context: NodeExecutionContext,
 ): Promise<GenerateRequestBody> {
-  const instruction = inputs.instruction?.type === "text" ? inputs.instruction.value : "";
-  if (!instruction.trim()) throw new Error(`${node.type} node has no instruction connected`);
+  const prompt = inputs.prompt?.type === "text" ? inputs.prompt.value : "";
+  if (!prompt.trim()) throw new Error(`${node.type} node has no prompt connected`);
   const references = wiredReferences(inputs);
-  checkMentions(instruction, references, "instruction");
+  checkMentions(prompt, references);
 
   const granted = await context.ensureCapability({ type: "generateText" });
   if (!granted) throw new Error("Permission denied to run an AI generation");
 
   // Keyed by port id: dispatchAction.ts inserts the key as the `@image_1`
-  // mention right before the image, the name an instruction types.
+  // mention right before the image, the name a prompt types.
   const images: Record<string, { mediaType: string; data: string }> = {};
   for (const { pin, mediaType, data } of references) images[IMAGE_REFERENCE_SLOTS.portId(pin)] = { mediaType, data };
 
@@ -813,7 +809,7 @@ async function generationRequest(
   // Sent as written: the host refuses one that names no level.
   const effort = configString(node, EFFORT_KEY) as EffortLevel;
   return {
-    instruction,
+    instruction: prompt,
     values: {},
     images,
     model,

@@ -16,7 +16,7 @@ const graph: FlowGraph = {
     { id: "b", source: "load-1", sourcePort: "image", target: "gen-1", targetPort: "image_2" },
     { id: "c", source: "gen-1", sourcePort: "reply", target: "show-1", targetPort: "text" },
     { id: "d", source: "old-1", sourcePort: "out", target: "gen-1", targetPort: "model" },
-    { id: "e", source: "gone-1", sourcePort: "text", target: "gen-1", targetPort: "instruction" },
+    { id: "e", source: "gone-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" },
   ],
 };
 
@@ -64,7 +64,7 @@ describe("flowAuthoringProblems", () => {
     expect(
       flowAuthoringProblems({
         nodes: [node("p", "prompt", { text: "hi" }), node("g", "generateText", { model: "m" }), node("s", "showText")],
-        edges: [wire("p", "text", "g", "instruction"), wire("g", "text", "s", "text")],
+        edges: [wire("p", "text", "g", "prompt"), wire("g", "text", "s", "text")],
       }),
     ).toEqual([]);
   });

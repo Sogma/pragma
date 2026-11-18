@@ -106,7 +106,7 @@ const asking: FlowGraph = {
     node("gen", "generateText", 0, { label: "Answer", config: { model: "anthropic/claude-haiku-4-5" } }),
     node("put", "replaceSelection", 0),
   ],
-  edges: [edge("ask", "selection", "gen", "instruction"), edge("gen", "text", "put", "text")],
+  edges: [edge("ask", "selection", "gen", "prompt"), edge("gen", "text", "put", "text")],
 };
 
 describe("runToolkitAction", () => {
@@ -248,7 +248,7 @@ describe("runToolkitAction", () => {
             node("show", "showResult", 0),
           ],
           edges: [
-            edge("ask", "selection", "gen", "instruction"),
+            edge("ask", "selection", "gen", "prompt"),
             edge("ask", "path", "gen", "context"),
             edge("gen", "text", "show", "text"),
           ],
@@ -344,7 +344,7 @@ describe("runToolkitAction", () => {
             node("opts", "generateOptions", 0, { config: { count: "2" } }),
             node("put", "replaceSelection", 0),
           ],
-          edges: [edge("rhyme", "selection", "opts", "instruction"), edge("opts", "options", "put", "options")],
+          edges: [edge("rhyme", "selection", "opts", "prompt"), edge("opts", "options", "put", "options")],
         },
       });
 
@@ -385,7 +385,7 @@ describe("runToolkitAction", () => {
           edges: [
             edge("guide", "body", "ask", "text_1"),
             edge("rhyme", "selection", "ask", "text_2"),
-            edge("ask", "text", "opts", "instruction"),
+            edge("ask", "text", "opts", "prompt"),
             edge("opts", "options", "put", "options"),
           ],
         },

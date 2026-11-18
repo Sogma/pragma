@@ -232,16 +232,16 @@ Has no ports and does nothing at run time.
 
 ### `generateText`
 
-**Generate Text (AI)**: a model's reply to an instruction.
+**Generate Text (AI)**: a model's reply to a prompt.
 
-- **Inputs:** `instruction: text`, `context: text` (optional), `image_1`–`image_30: image` (optional), `model: text` (text-model select widget)
+- **Inputs:** `prompt: text`, `context: text` (optional), `image_1`–`image_30: image` (optional), `model: text` (text-model select widget)
 - **Outputs:** `text: text`
 - **Config:** `reuse`, `imageSlots`, `effort`
 - **Capability:** generateText, and searchContext while `context` is wired
 
-Makes the host's generation call: the instruction, each connected image with its pin's mention before it, such as `@image_2`, so the instruction can name it, and the chosen model. Unconnected `model` falls back to the host default. An editor shows the image pins one at a time; `imageSlots` lists those it shows, as numbers, and a run reads every pin whatever it holds. An instruction naming an empty pin fails the node.
+Makes the host's generation call: the prompt, each connected image with its pin's mention before it, such as `@image_2`, so the prompt can name it, and the chosen model. Unconnected `model` falls back to the host default. An editor shows the image pins one at a time; `imageSlots` lists those it shows, as numbers, and a run reads every pin whatever it holds. A prompt naming an empty pin fails the node.
 
-A path wired into `context`, such as a [`button`](#button)'s, sends that path's [context](protocol.md#context-of-a-path) ahead of the instruction and lets the model look further in its scope before it replies, asked for once per scope. What went and what the model searched for are reported to whoever started the run, and while `context` is wired the node never reuses.
+A path wired into `context`, such as a [`button`](#button)'s, sends that path's [context](protocol.md#context-of-a-path) ahead of the prompt and lets the model look further in its scope before it replies, asked for once per scope. What went and what the model searched for are reported to whoever started the run, and while `context` is wired the node never reuses.
 
 `effort` is how hard the model reasons: blank for its default, else `low`, `medium`, `high` or `xhigh`, sent as the nearest level the model takes, or not at all to one taking none; a host may let a look reach further at a higher level. One naming no level fails the node.
 
@@ -251,7 +251,7 @@ With `reuse` set, a host that remembers the node's last reply may hand it back w
 
 **Generate Options (AI)**: a list of alternatives from a model.
 
-- **Inputs:** `instruction: text`, `context: text` (optional), `image_1`–`image_30: image` (optional), `model: text` (text-model select widget)
+- **Inputs:** `prompt: text`, `context: text` (optional), `image_1`–`image_30: image` (optional), `model: text` (text-model select widget)
 - **Outputs:** `options: object` (a list of text)
 - **Config:** `count`, `reuse`, `imageSlots`, `effort`
 - **Capability:** generateText, and searchContext while `context` is wired

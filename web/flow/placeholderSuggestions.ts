@@ -66,7 +66,7 @@ export function promptPins(graph: FlowGraph, nodeId: string): PlaceholderChoice[
         continue;
       }
       const definition = FLOW_NODE_REGISTRY[target.type];
-      if (!definition?.referenceSlots || (edge.targetPort !== "instruction" && edge.targetPort !== "prompt")) continue;
+      if (!definition?.referenceSlots || edge.targetPort !== "prompt") continue;
       for (let pin = 1; pin <= IMAGE_REFERENCES_MAX; pin++) {
         const port = IMAGE_REFERENCE_SLOTS.portId(pin);
         const text = `@${port}`;
