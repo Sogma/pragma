@@ -4442,12 +4442,12 @@ describe("API contract — tags", () => {
   it("keeps the keys it doesn't read, in the file and in each entry", async () => {
     await writeFile(
       tagsFile(),
-      JSON.stringify({ $comment: "mine", tags: [{ name: "draft", color: "#9b9a97", owner: "lucas" }] }),
+      JSON.stringify({ $comment: "mine", tags: [{ name: "draft", color: "#9b9a97", owner: "alice" }] }),
     );
     expect((await change({ name: "draft", color: "#0db14c" })).status).toBe(200);
     expect(JSON.parse(await readFile(tagsFile(), "utf8"))).toEqual({
       $comment: "mine",
-      tags: [{ name: "draft", color: "#0db14c", owner: "lucas" }],
+      tags: [{ name: "draft", color: "#0db14c", owner: "alice" }],
     });
   });
 
