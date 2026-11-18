@@ -31,6 +31,9 @@ interface StagedFile {
 interface Stub {
   server: Server;
   baseUrl: string;
+  /** Its own publisher id: schemas are cached per publisher for the life of
+   * the process, so one test's stand-in must never answer for another's. */
+  id: string;
   staged: StagedFile[];
   documents: Array<Record<string, unknown>>;
   /** How many times bytes actually crossed the wire. */
@@ -41,14 +44,23 @@ interface Stub {
   /** Runs before the service answers a document create or update — the
    * window in which an editor save can land on the file being published. */
   beforeDocumentAnswer?: () => Promise<void>;
+  /** The API description it serves; without one, its openapi.json is a 404. */
+  description?: unknown;
+  /** Set to make the API description answer this status instead. */
+  descriptionStatus?: number;
+  /** Set to make document creates and updates fail with this error. */
+  rejectDocument?: { status: number; error: Record<string, unknown> };
 }
+
+let stubCount = 0;
 
 // Deduplicates the way the real service does: a staged digest matching a
 // file whose bytes already arrived comes back with no upload target.
 async function startStub(): Promise<Stub> {
   const staged: StagedFile[] = [];
   const documents: Array<Record<string, unknown>> = [];
-  const stub = { staged, documents, uploads: 0 } as Stub;
+  stubCount += 1;
+  const stub = { id: `stub-${stubCount}`, staged, documents, uploads: 0 } as Stub;
 
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -64,10 +76,31 @@ async function startStub(): Promise<Stub> {
       // them, so a body still carrying the retired `markdown` field is
       // refused here the same way it would be there.
       const acceptsDocumentBody = (body: Record<string, unknown>): boolean => {
+        if (stub.rejectDocument) {
+          json(stub.rejectDocument.status, { error: stub.rejectDocument.error });
+          return false;
+        }
+        // Only a publisher whose description lists `DocumentParams` takes
+        // the member; any other refuses it as an unknown field.
+        const description = stub.description as { components?: { schemas?: Record<string, unknown> } } | undefined;
+        if ("params" in body && description?.components?.schemas?.DocumentParams === undefined) {
+          json(400, { error: { code: "malformed_request", message: "Unknown field 'params'.", field: "/params" } });
+          return false;
+        }
         if (typeof body.content === "string" && !("markdown" in body)) return true;
         json(400, { error: { code: "malformed_request", message: "content is required; markdown is not a field" } });
         return false;
       };
+
+      if (request.method === "GET" && url.pathname === "/v1/openapi.json") {
+        if (stub.descriptionStatus) return json(stub.descriptionStatus, {});
+        if (stub.description !== undefined) {
+          if (request.headers["if-none-match"] === '"d1"') return response.writeHead(304).end();
+          response.writeHead(200, { "content-type": "application/json", etag: '"d1"' });
+          response.end(JSON.stringify(stub.description));
+          return;
+        }
+      }
 
       // Stage: reserve a file and hand back where to PUT it.
       if (request.method === "POST" && url.pathname === "/v1/files") {
@@ -178,7 +211,7 @@ afterEach(async () => {
 });
 
 function publisher(): PublisherConnection {
-  return { id: "stub", label: "Stub", kind: "sogma", baseURL: `${stub.baseUrl}/v1`, apiKey: "sk-test" };
+  return { id: stub.id, label: "Stub", kind: "sogma", baseURL: `${stub.baseUrl}/v1`, apiKey: "sk-test" };
 }
 
 async function space(files: Record<string, string | Buffer>): Promise<string> {
@@ -622,5 +655,137 @@ describe("recording a push", () => {
     const written = await readFile(path.join(root, "blog/post.md"), "utf8");
     expect(written).toContain("pushed: 2026-01-02T00:00:00Z");
     expect(written).not.toContain("url:");
+  });
+});
+
+describe("publishing a page's params", () => {
+  const takesAnchor = {
+    components: {
+      schemas: {
+        DocumentParams: {
+          type: "object",
+          properties: { anchor: { type: "string", title: "Anchor" } },
+          additionalProperties: false,
+        },
+      },
+    },
+  };
+
+  it("sends the frontmatter keys the publisher lists, and no others", async () => {
+    stub.description = takesAnchor;
+    const root = await space({
+      "blog/_site.json": siteFile,
+      "blog/post.md": "---\ndate: 2026-11-17\ntags: [release]\nanchor: v0.6.1\n---\n# A post\n",
+    });
+
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+
+    expect(stub.documents[0].params).toEqual({ anchor: "v0.6.1" });
+    expect(stub.documents[0].published_at).toBe("2026-11-17");
+    expect(stub.documents[0]).not.toHaveProperty("anchor");
+    expect(stub.documents[0]).not.toHaveProperty("tags");
+  });
+
+  it("sends them whole on every update, so a key taken out of the frontmatter leaves the page", async () => {
+    stub.description = takesAnchor;
+    const root = await space({ "blog/_site.json": siteFile, "blog/post.md": "---\nanchor: v0.6.1\n---\n# A post\n" });
+    const file = path.join(root, "blog/post.md");
+
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+    await writeFile(file, (await readFile(file, "utf8")).replace("anchor: v0.6.1\n", ""));
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+
+    expect(stub.documents.map((body) => body.params)).toEqual([{ anchor: "v0.6.1" }, { anchor: "v0.6.1" }, {}]);
+  });
+
+  it("sends no params to a publisher that serves no description, or whose description lists none", async () => {
+    const root = await space({
+      "blog/_site.json": siteFile,
+      "blog/post.md": "---\nanchor: v0.6.1\n---\n# A post\n",
+      "blog/other.md": "---\nanchor: v0.6.2\n---\n# Another\n",
+    });
+
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+    stub.description = { components: { schemas: { SiteSettings: { type: "object", properties: {} } } } };
+    expect((await runPublish(root, publisher(), "blog/other.md")).ok).toBe(true);
+
+    expect(stub.documents.map((body) => "params" in body)).toEqual([false, false]);
+  });
+
+  it("refuses the publish when the publisher's description can't be read, sending nothing", async () => {
+    stub.descriptionStatus = 500;
+    const root = await space({
+      "blog/_site.json": siteFile,
+      "blog/posts/post.md": "---\nanchor: v0.6.1\n---\n# A post\n\n![Hero](hero.png)\n",
+      "blog/posts/hero.png": PNG,
+    });
+
+    const result = await runPublish(root, publisher(), "blog/posts/post.md");
+
+    expect(result).toMatchObject({
+      ok: false,
+      message: "Couldn't read the publisher's API description. Sogma rejected the request (500).",
+      status: 400,
+    });
+    // Neither the image nor the section went out, and no section index.md was made.
+    expect(stub.documents).toEqual([]);
+    expect(stub.staged).toEqual([]);
+    expect((await readdir(path.join(root, "blog/posts"))).sort()).toEqual(["hero.png", "post.md"]);
+  });
+
+  it("goes on with the description read earlier when it can't be read again", async () => {
+    stub.description = takesAnchor;
+    const root = await space({ "blog/_site.json": siteFile, "blog/post.md": "---\nanchor: v0.6.1\n---\n# A post\n" });
+
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+    stub.descriptionStatus = 500;
+    expect((await runPublish(root, publisher(), "blog/post.md")).ok).toBe(true);
+
+    expect(stub.documents.map((body) => body.params)).toEqual([{ anchor: "v0.6.1" }, { anchor: "v0.6.1" }]);
+  });
+
+  it("names the property a refused value came from", async () => {
+    stub.description = takesAnchor;
+    stub.rejectDocument = {
+      status: 400,
+      error: {
+        code: "malformed_request",
+        message: "'params.anchor' must not be null: leave the key out to unset it.",
+        field: "/params/anchor",
+      },
+    };
+    const root = await space({ "blog/_site.json": siteFile, "blog/post.md": "---\nanchor: #v0.6.1\n---\n# A post\n" });
+
+    expect(await runPublish(root, publisher(), "blog/post.md")).toMatchObject({
+      ok: false,
+      message:
+        "The publisher refused the anchor property. 'params.anchor' must not be null: leave the key out to unset it.",
+      status: 400,
+    });
+  });
+
+  it("tells an anchor conflict in the page's terms", async () => {
+    stub.description = takesAnchor;
+    const root = await space({ "blog/_site.json": siteFile, "blog/post.md": "---\nanchor: v0.6.1\n---\n# A post\n" });
+
+    stub.rejectDocument = {
+      status: 409,
+      error: { code: "anchor_conflict", message: "'params.anchor' is taken.", field: "/params/anchor" },
+    };
+    expect(await runPublish(root, publisher(), "blog/post.md")).toMatchObject({
+      ok: false,
+      message: 'Another page at the same level already has the anchor "v0.6.1".',
+    });
+
+    stub.rejectDocument = {
+      status: 409,
+      error: { code: "anchor_conflict", message: "'slug' is taken.", field: "/slug" },
+    };
+    expect(await runPublish(root, publisher(), "blog/post.md")).toMatchObject({
+      ok: false,
+      message:
+        'Another page at the same level uses "post", this page\'s name on the site, as its anchor. Give this page an anchor of its own, or rename it.',
+    });
   });
 });

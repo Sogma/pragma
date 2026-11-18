@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { PublishNote, PublishWriteBack } from "../protocol/api.ts";
+import { documentParamKeys, documentParams, paramKeyOf } from "../protocol/documentParams.ts";
 import { isNamed } from "../protocol/entryName.ts";
 import {
   editFrontmatter,
@@ -22,6 +23,7 @@ import {
 import { splitDocumentName } from "../protocol/types.ts";
 import { writeDocument } from "./history.ts";
 import { collectPublishImages, describeImageNotes, rewriteImageEmbeds, uploadPublishImages } from "./publishAssets.ts";
+import { resolvePublisherSchemas } from "./publisherSchemas.ts";
 import { namedEntryPath, PathAccessError, resolveRootedPath } from "./rootedFiles.ts";
 import { addPendingEntry, parentIndexPath, removePendingEntry, resolveSiteForPath } from "./sites.ts";
 import { resolveWithinSpace, revisionOf, writeFileAtomic } from "./spaceFiles.ts";
@@ -68,6 +70,25 @@ function publicationDate(data: Record<string, unknown>): { ok: true; value: stri
   if (raw === null || raw === undefined) return { ok: true, value: null };
   if (typeof raw !== "string") return { ok: false };
   return { ok: true, value: raw.trim() || null };
+}
+
+// The service's message names its own fields (`'params.anchor'`, `'slug'`),
+// which an author never sees. A refusal it pins on one is told in the page's
+// terms instead: the property the value came from, or the page's name on the
+// site when that is what stands in for an anchor.
+function refusalMessage(
+  refusal: { message: string; code?: string; field?: string },
+  slug: string,
+  params: Record<string, unknown> | undefined,
+): string {
+  const key = paramKeyOf(refusal.field);
+  if (refusal.code === "anchor_conflict" && key !== undefined) {
+    return `Another page at the same level already has the ${key} "${String(params?.[key])}".`;
+  }
+  if (refusal.code === "anchor_conflict" && refusal.field === "/slug") {
+    return `Another page at the same level uses "${slug}", this page's name on the site, as its anchor. Give this page an anchor of its own, or rename it.`;
+  }
+  return key === undefined ? refusal.message : `The publisher refused the ${key} property. ${refusal.message}`;
 }
 
 type ParentResult =
@@ -183,6 +204,22 @@ export async function runPublish(
     return { ok: false, message: "The date property must be a date, like 2026-09-23.", status: 400 };
   }
 
+  // Read before anything is sent, a section or an image included: a page
+  // can't go out without the `params` its publisher takes, since an update
+  // without them clears the page's keys on the site.
+  const described = await resolvePublisherSchemas(publisher);
+  if (!described.ok) {
+    return {
+      ok: false,
+      message: described.httpCall
+        ? `Couldn't read the publisher's API description. ${described.message}`
+        : described.message,
+      status: described.httpCall ? 400 : 502,
+    };
+  }
+  const paramKeys = documentParamKeys(described.schemas.documentParams);
+  const params = paramKeys && documentParams(data, paramKeys);
+
   const parent: ParentResult = isHomePage
     ? { ok: true }
     : await ensurePublishedParent(spaceRoot, publisher, relativeFilePath, target.siteDir);
@@ -212,6 +249,7 @@ export async function runPublish(
         content: publishedMarkdown,
         visibility,
         publishedAt: date.value,
+        params,
       })
     : await createSogmaDocument(publisher, {
         siteId: target.site.id,
@@ -221,13 +259,14 @@ export async function runPublish(
         content: publishedMarkdown,
         visibility,
         publishedAt: date.value ?? undefined,
+        params,
       });
 
   if (!result.ok) {
     // httpCall present ⇔ Sogma actually responded (and rejected the
     // request) — absent means the fetch itself never got a response. Same
     // 400-vs-502 distinction /api/space/site's New Site route makes.
-    return { ok: false, message: result.message, status: result.httpCall ? 400 : 502 };
+    return { ok: false, message: refusalMessage(result, slug, params), status: result.httpCall ? 400 : 502 };
   }
 
   // `pushed` mirrors Sogma's own `updated_at`. The published URL is not

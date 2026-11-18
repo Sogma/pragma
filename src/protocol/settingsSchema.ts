@@ -103,7 +103,8 @@ export function flattenSettingsSchema(schema: unknown): { fields: SettingsFieldD
   return { fields, skipped };
 }
 
-function pointerSegments(pointer: string): string[] {
+/** A JSON Pointer's keys, unescaped (`/a~1b/c` → `["a/b", "c"]`). */
+export function pointerSegments(pointer: string): string[] {
   return pointer
     .split("/")
     .slice(1)

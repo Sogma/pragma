@@ -1,6 +1,5 @@
 import type { SiteImagePreview, SiteSettingsField, SiteSettingsTextField } from "../protocol/api.ts";
 import {
-  fetchSogmaSettingsSchema,
   fetchSogmaSiteSettings,
   listSogmaFiles,
   type PublisherConnection,
@@ -16,36 +15,20 @@ import {
   toSettingsPatch,
 } from "../protocol/settingsSchema.ts";
 import { readPublishableImage, uploadImage } from "./publishAssets.ts";
+import { resolvePublisherSchemas } from "./publisherSchemas.ts";
 import { readSiteFile } from "./sites.ts";
 
 export type SiteSettingsResult =
   | { ok: true; siteName: string; fields: SiteSettingsField[]; skipped: number; assetsFolder: string }
   | { ok: false; message: string; field?: string; status: 400 | 404 | 502 };
 
-// Each publisher's settings schema, cached for the life of the process
-// against the ETag it served it with. It changes only on a publisher deploy,
-// and every site on one publisher shares it, so re-fetching it per dialog
-// open would be a round trip to learn nothing. A revalidation still happens
-// on every open; the conditional request just answers 304 with no body.
-//
-// Keyed by publisher: two publishers serve two schemas, and one that can't
-// be reached must never fall back to, or revalidate against, the other's.
-const cachedSchemas = new Map<string, { etag?: string; schema: unknown }>();
-
 async function resolveSchema(publisher: PublisherConnection): Promise<SogmaSettingsResult<{ schema: unknown }>> {
-  const cached = cachedSchemas.get(publisher.id);
-  const result = await fetchSogmaSettingsSchema(publisher, cached?.etag);
-  if (!result.ok) {
-    // A publisher that can't be reached still has a usable form if its
-    // schema was fetched earlier this session: the values call below is
-    // what actually needs the network, and it will report its own failure.
-    if (cached) return { ok: true, schema: cached.schema };
-    return result;
+  const resolved = await resolvePublisherSchemas(publisher);
+  if (!resolved.ok) return resolved;
+  if (resolved.schemas.settings === undefined) {
+    return { ok: false, message: "The publisher's API description carries no settings schema." };
   }
-  if (result.notModified && cached) return { ok: true, schema: cached.schema };
-  if (result.schema === undefined) return { ok: false, message: "The publisher served no settings schema." };
-  cachedSchemas.set(publisher.id, { etag: result.etag, schema: result.schema });
-  return { ok: true, schema: result.schema };
+  return { ok: true, schema: resolved.schemas.settings };
 }
 
 // Descriptors and current values are read together and handed over as one

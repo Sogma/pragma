@@ -140,18 +140,29 @@ export type SogmaSettingsResult<T> =
   // was rejected instead of showing one message for the whole dialog.
   | { ok: false; message: string; field?: string; httpCall?: HttpCallMeta };
 
-// The settings schema — `components.schemas.SiteSettings` out of Sogma's
-// OpenAPI description. Fetched, not hardcoded: it is generated from the
-// server's own validation, so it can't describe a shape the API would
-// reject, and a setting added service-side needs no release here.
+/** The schemas Pragma reads out of a publisher's API description. */
+export interface SogmaApiSchemas {
+  /** `SiteSettings`: the fields of the Site Settings dialog. */
+  settings?: unknown;
+  /** `DocumentParams`: the frontmatter keys a page sends as `params`. */
+  documentParams?: unknown;
+}
+
+// The schemas out of Sogma's OpenAPI description. Fetched, not hardcoded:
+// they are generated from the server's own validation, so they can't
+// describe a shape the API would reject, and a setting or a param added
+// service-side needs no release here.
+//
+// A 404 is an answer, not a failure: a publisher that serves no description
+// describes no settings and takes no params, and it still publishes.
 //
 // Unauthenticated by spec; the bearer goes along so no call assembles its own
 // headers. `etag` in and out is the whole caching story: a caller holding one
-// gets a 304 with nothing to parse (`schema` absent, `notModified` true).
-export async function fetchSogmaSettingsSchema(
+// gets a 304 with nothing to parse (`schemas` absent, `notModified` true).
+export async function fetchSogmaApiSchemas(
   publisher: PublisherConnection,
   etag?: string,
-): Promise<SogmaSettingsResult<{ schema?: unknown; etag?: string; notModified: boolean }>> {
+): Promise<SogmaSettingsResult<{ schemas?: SogmaApiSchemas; etag?: string; notModified: boolean }>> {
   let call: Awaited<ReturnType<typeof httpCall>>;
   try {
     call = await httpCall(`${sogmaBase(publisher)}/openapi.json`, {
@@ -163,6 +174,7 @@ export async function fetchSogmaSettingsSchema(
 
   const { response, meta } = call;
   if (response.status === 304) return { ok: true, notModified: true, etag };
+  if (response.status === 404) return { ok: true, notModified: false, schemas: {} };
   if (!response.ok) {
     return { ok: false, message: `Sogma rejected the request (${response.status}).`, httpCall: meta };
   }
@@ -170,9 +182,16 @@ export async function fetchSogmaSettingsSchema(
   const document = (await response.json().catch(() => undefined)) as
     | { components?: { schemas?: Record<string, unknown> } }
     | undefined;
-  const schema = document?.components?.schemas?.SiteSettings;
-  if (!schema) return { ok: false, message: "The publisher's API description carries no settings schema." };
-  return { ok: true, notModified: false, schema, etag: response.headers.get("etag") ?? undefined };
+  if (!document || typeof document !== "object") {
+    return { ok: false, message: "The publisher's API description couldn't be read." };
+  }
+  const schemas = document.components?.schemas;
+  return {
+    ok: true,
+    notModified: false,
+    schemas: { settings: schemas?.SiteSettings, documentParams: schemas?.DocumentParams },
+    etag: response.headers.get("etag") ?? undefined,
+  };
 }
 
 // `GET /v1/sites/{id}/settings` — every known field always present, `null`
@@ -257,28 +276,36 @@ export interface SogmaDocument {
 export type PublishSogmaDocumentResult =
   | { ok: true; document: SogmaDocument }
   // Same httpCall-present-or-not distinction as CreateSogmaSiteResult above.
-  | { ok: false; message: string; httpCall?: HttpCallMeta };
+  // `code` and `field` are the error envelope's, for a caller that tells the
+  // refusal in the document's own terms.
+  | { ok: false; message: string; code?: string; field?: string; httpCall?: HttpCallMeta };
 
-/** Both useful members of the error envelope. `code` is the stable string
- * the spec says to branch on; `message` is human-readable, may change between
- * versions, and is explicitly not to be parsed — so it is carried through to
- * be shown, never mined for the values inside it. */
+/** The useful members of the error envelope. `code` is the stable string
+ * the spec says to branch on, and `field` the JSON Pointer to the value to
+ * blame; `message` is human-readable, may change between versions, and is
+ * explicitly not to be parsed — so it is carried through to be shown, never
+ * mined for the values inside it. */
 async function readSogmaError(
   response: Response,
   fallback: string,
-): Promise<{ message: string; code?: string; limitBytes?: number }> {
+): Promise<{ message: string; code?: string; field?: string; limitBytes?: number }> {
   const body = (await response.json().catch(() => undefined)) as
-    | { error?: { message?: string; code?: string; limit_bytes?: number } }
+    | { error?: { message?: string; code?: string; field?: string; limit_bytes?: number } }
     | undefined;
   return {
     message: body?.error?.message ?? fallback,
     ...(body?.error?.code ? { code: body.error.code } : {}),
+    ...(body?.error?.field ? { field: body.error.field } : {}),
     ...(typeof body?.error?.limit_bytes === "number" ? { limitBytes: body.error.limit_bytes } : {}),
   };
 }
 
-async function readSogmaDocumentError(response: Response, fallback: string): Promise<string> {
-  return (await readSogmaError(response, fallback)).message;
+async function readSogmaDocumentError(
+  response: Response,
+  fallback: string,
+): Promise<{ message: string; code?: string; field?: string }> {
+  const { message, code, field } = await readSogmaError(response, fallback);
+  return { message, ...(code ? { code } : {}), ...(field ? { field } : {}) };
 }
 
 function parseSogmaDocument(raw: {
@@ -305,6 +332,9 @@ export async function createSogmaDocument(
     content: string;
     visibility: "public" | "unlisted";
     publishedAt?: string;
+    // Absent for a publisher that takes no `params`, which would refuse the
+    // member as an unknown field.
+    params?: Record<string, unknown>;
   },
 ): Promise<PublishSogmaDocumentResult> {
   let call: Awaited<ReturnType<typeof httpCall>>;
@@ -327,6 +357,7 @@ export async function createSogmaDocument(
         content_format: "markdown",
         visibility: input.visibility,
         published_at: input.publishedAt,
+        params: input.params,
       }),
     });
   } catch {
@@ -337,7 +368,7 @@ export async function createSogmaDocument(
   if (!response.ok) {
     return {
       ok: false,
-      message: await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`),
+      ...(await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`)),
       httpCall: meta,
     };
   }
@@ -359,7 +390,8 @@ export async function createSogmaDocument(
 //
 // `published_at` is sent the same way: the PUT is a full replacement, so
 // omitting it clears the stored date just as `null` does, and naming it keeps
-// that visible.
+// that visible. `params` too, whole on every update to a publisher that takes
+// them: a key left out of it is cleared.
 export async function updateSogmaDocument(
   publisher: PublisherConnection,
   documentId: string,
@@ -370,6 +402,7 @@ export async function updateSogmaDocument(
     content: string;
     visibility: "public" | "unlisted";
     publishedAt: string | null;
+    params?: Record<string, unknown>;
   },
 ): Promise<PublishSogmaDocumentResult> {
   let call: Awaited<ReturnType<typeof httpCall>>;
@@ -385,6 +418,7 @@ export async function updateSogmaDocument(
         content_format: "markdown",
         visibility: input.visibility,
         published_at: input.publishedAt,
+        params: input.params,
       }),
     });
   } catch {
@@ -395,7 +429,7 @@ export async function updateSogmaDocument(
   if (!response.ok) {
     return {
       ok: false,
-      message: await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`),
+      ...(await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`)),
       httpCall: meta,
     };
   }
