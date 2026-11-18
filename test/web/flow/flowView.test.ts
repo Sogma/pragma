@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { XYHandle } from "@xyflow/system";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { parseFlowFile } from "../../../src/protocol/flowFile.ts";
 import { FLOW_NODE_REGISTRY } from "../../../src/protocol/flowNodes.ts";
@@ -838,5 +839,29 @@ describe("flowView Regenerate on a disabled node", () => {
     await tick();
     expect(file.graph.nodes[1].config.seed).toBe("7");
     expect(calls()).toBe(before);
+  });
+});
+
+describe("flowView wiring", () => {
+  // Generate Image's output back into the Join Text that writes its prompt:
+  // each would wait on the other, so neither could run.
+  it("refuses a wire that would close a loop, and no other", () => {
+    const pointerDown = vi.spyOn(XYHandle, "onPointerDown").mockImplementation(() => {});
+    onTestFinished(() => pointerDown.mockRestore());
+    const { view, elements } = runnableView();
+    const file = imageFlow("a fox");
+    file.graph.nodes.push({ id: "joinText-3", type: "joinText", position: { x: 150, y: 0 }, config: {} });
+    file.graph.edges = [
+      { id: "e1", source: "prompt-1", sourcePort: "text", target: "joinText-3", targetPort: "text_1" },
+      { id: "e2", source: "joinText-3", sourcePort: "text", target: "generateImage-2", targetPort: "prompt" },
+    ];
+    view.render(file);
+    const pin = elements.pane.querySelector('[data-id="null-generateImage-2-file_name-source"]');
+    pin?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    const accepts = (source: string, sourceHandle: string, target: string, targetHandle: string) =>
+      pointerDown.mock.calls[0]?.[1].isValidConnection?.({ source, sourceHandle, target, targetHandle });
+    expect(accepts("generateImage-2", "file_name", "joinText-3", "text_2")).toBe(false);
+    expect(accepts("joinText-3", "text", "joinText-3", "text_2")).toBe(false);
+    expect(accepts("prompt-1", "text", "joinText-3", "text_2")).toBe(true);
   });
 });

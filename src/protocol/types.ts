@@ -637,8 +637,8 @@ export interface GenerateOptionsEnvelope {
  * job, visible in the graph, never an implicit edge behavior. */
 export type FlowPortType = "text" | "image" | "boolean" | "object" | "number";
 
-// The one place "can this pin connect to that one" is decided, for the
-// editor's drag validation. Exact match, no coercion (see FlowPortType
+// The one place "can this pin connect to that one" is decided by type, for
+// the editor's drag validation. Exact match, no coercion (see FlowPortType
 // above); a named function rather than an inline `===` so a conversion rule
 // has one place to land.
 export function flowPortTypesCompatible(sourceType: FlowPortType, targetType: FlowPortType): boolean {

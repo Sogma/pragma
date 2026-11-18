@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   affixModeOf,
+  closesLoop,
   computeFlowCapabilities,
   FLOW_NODE_REGISTRY,
   intValue,
@@ -440,6 +441,37 @@ describe("nodesLeftOut", () => {
     delete source.mode;
     expect(computeFlowCapabilities(graph, "f.flow.html")).toEqual([{ type: "writeDocument", path: "space:n.md" }]);
     expect([...wiredPathAccess(graph)]).toEqual(["write"]);
+  });
+});
+
+describe("closesLoop", () => {
+  const wire = (source: string, target: string) => ({
+    id: `${source}>${target}`,
+    source,
+    sourcePort: "text",
+    target,
+    targetPort: "text",
+  });
+  // a → b → c, and a → d: a chain with a branch off its start.
+  const graph: FlowGraph = { nodes: [], edges: [wire("a", "b"), wire("b", "c"), wire("a", "d")] };
+
+  it("is a wire back into a node that feeds its source, however far", () => {
+    expect(closesLoop(graph, "b", "a")).toBe(true);
+    expect(closesLoop(graph, "c", "a")).toBe(true);
+    expect(closesLoop(graph, "c", "b")).toBe(true);
+  });
+
+  it("is a wire from a node into itself", () => {
+    expect(closesLoop(graph, "b", "b")).toBe(true);
+    expect(closesLoop({ nodes: [], edges: [] }, "a", "a")).toBe(true);
+  });
+
+  // Reaching one node by two routes is no loop: a run still finds an order.
+  it("is no other wire", () => {
+    expect(closesLoop(graph, "a", "c")).toBe(false);
+    expect(closesLoop(graph, "d", "c")).toBe(false);
+    expect(closesLoop(graph, "c", "d")).toBe(false);
+    expect(closesLoop(graph, "c", "e")).toBe(false);
   });
 });
 

@@ -17,7 +17,7 @@ import {
   type HandleType as XYHandleType,
 } from "@xyflow/system";
 import type { GenerationSpend } from "../../src/protocol/flowExecutors.ts";
-import { FLOW_NODE_REGISTRY, nodePorts } from "../../src/protocol/flowNodes.ts";
+import { closesLoop, FLOW_NODE_REGISTRY, nodePorts } from "../../src/protocol/flowNodes.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowEdgeInstance,
@@ -390,6 +390,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
         renderConnectionLine();
       },
       isValidConnection: (edgeOrConnection) => {
+        if (closesLoop(graph, edgeOrConnection.source, edgeOrConnection.target)) return false;
         const sourceType = portTypeOf(edgeOrConnection.source, edgeOrConnection.sourceHandle ?? null, "source");
         const targetType = portTypeOf(edgeOrConnection.target, edgeOrConnection.targetHandle ?? null, "target");
         return sourceType !== null && targetType !== null && flowPortTypesCompatible(sourceType, targetType);

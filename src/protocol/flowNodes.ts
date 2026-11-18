@@ -1403,6 +1403,24 @@ export function nodesLeftOut(graph: FlowGraph): Map<string, string> {
   return leftOut;
 }
 
+/** Whether a wire from `source` into `target` would close a loop: `target`
+ * already feeds `source`, however far, or is `source` itself. A run never
+ * starts a node in a loop (docs/protocol.md, Run order and failure), so an
+ * editor refuses the wire. */
+export function closesLoop(graph: FlowGraph, source: string, target: string): boolean {
+  const reached = new Set([target]);
+  const pending = [target];
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    if (id === source) return true;
+    for (const edge of graph.edges) {
+      if (edge.source !== id || reached.has(edge.target)) continue;
+      reached.add(edge.target);
+      pending.push(edge.target);
+    }
+  }
+  return false;
+}
+
 /** Derives a Flow graph's capability set from its nodes' config, resolved
  * and deduped by key — a Flow never declares one (docs/protocol.md's
  * "Capabilities and grants" section). A path that names nothing asks for
