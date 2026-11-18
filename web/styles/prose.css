@@ -15,13 +15,13 @@
   --prose-rule-gap: 1.5em;
 }
 
-/* Inline code's chip, which edit view's formatting reads too, so code looks
-   the same written and read. */
+/* Inline code's chip, which edit view's formatting and a path label's box
+   read too, so code looks the same written and read and a path matches it. */
 :root {
-  --code-chip-padding: 1px 4px;
-  --code-chip-border: 1px solid var(--border-color);
+  --code-chip-padding: 2px 5px;
+  --code-chip-border: none;
   --code-chip-radius: 3px;
-  --code-chip-bg: var(--bg-inset);
+  --code-chip-bg: var(--bg-hover);
   --code-chip-font-family: monospace;
   --code-chip-font-size: 0.9em;
 }

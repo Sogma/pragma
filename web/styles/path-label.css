@@ -14,20 +14,20 @@
   flex-shrink: 0;
 }
 
-/* The path set apart as a note's inline code is (reading.css): a muted box
-   in a monospace face. It narrows with its line; the punctuation after it
-   stays outside. */
+/* The path set apart in inline code's chip (prose.css), so it matches the
+   code beside it. It narrows with its line; the punctuation after it stays
+   outside. */
 .path-label-box {
   display: flex;
   align-items: baseline;
   flex-shrink: 1;
   min-width: 0;
-  padding: 1px 4px;
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  background: var(--bg-inset);
-  font-family: monospace;
-  font-size: 0.9em;
+  padding: var(--code-chip-padding);
+  border: var(--code-chip-border);
+  border-radius: var(--code-chip-radius);
+  background: var(--code-chip-bg);
+  font-family: var(--code-chip-font-family);
+  font-size: var(--code-chip-font-size);
 }
 
 .path-label-root,
