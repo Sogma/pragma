@@ -41,6 +41,6 @@ npm run test:e2e
 
 The README's "From source" section covers creating a space and the desktop app. The docs in `docs/` describe formats and boundaries, never implementation; `docs/README.md` has the rules, and `npm run check:docs` enforces them.
 
-## Licence
+## License
 
-Anything you send, in an issue or otherwise, comes under Pragma's own licence, the [GNU General Public License v3.0 or later](LICENSE). A change to the protocol documents or the templates comes under their licences instead, which [COPYRIGHT](COPYRIGHT) lists. Nothing further is asked of you: there is no contributor agreement to sign.
+Anything you send, in an issue or otherwise, comes under Pragma's own license, the [GNU General Public License v3.0 or later](LICENSE). A change to the protocol documents or the templates comes under their licenses instead, which [COPYRIGHT](COPYRIGHT) lists. Nothing further is asked of you: there is no contributor agreement to sign.
