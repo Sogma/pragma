@@ -4,9 +4,11 @@ Reacting to a design question — including answering a clarifying question, or 
 
 This applies especially when the user answers an AskUserQuestion by choosing "Other" (free text) instead of one of the listed options — that only answers *which approach*, not whether to build it now. Always ask to confirm before implementing in that case.
 
-## Discuss backwards compatibility before building it
+## Discuss compatibility before building or breaking it
 
 Code that keeps old data or old names working is a design decision, not part of the feature it comes with: reading a superseded file, setting or cache shape, upgrading stored data in place, a fallback for a renamed key or format. Before writing it, label it as compatibility, say what breaks without it, and give the clean-slate version beside it (old data read as unknown, a cache rebuilt, a setting reset) with its cost. Build it only on an explicit yes to that path: a yes to the feature is not one.
+
+Before making a breaking change, raise it through the same process. Explain what would break and who would be affected. Present the clean break alongside an option that preserves compatibility, and spell out what preserving compatibility would cost.
 
 ## Keep docs at contract altitude
 
