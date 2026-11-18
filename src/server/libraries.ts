@@ -46,9 +46,9 @@ const locatedAt = (location: LibraryLocation | undefined): string | undefined =>
  * declares that this host has located. */
 export function readLibraries(spaceRoot: string): LibraryEntry[] {
   const locations = libraryLocations(spaceRoot);
-  return libraryDeclarations(readLibrariesFile(spaceRoot).file).flatMap(({ id, label }) => {
-    const path = locatedAt(locations[id]);
-    return path === undefined ? [] : [{ id, label, path, access: locations[id].access }];
+  return libraryDeclarations(readLibrariesFile(spaceRoot).file).flatMap((declared) => {
+    const path = locatedAt(locations[declared.id]);
+    return path === undefined ? [] : [{ ...declared, path, access: locations[declared.id].access }];
   });
 }
 
@@ -58,10 +58,10 @@ export function libraryRows(spaceRoot: string): SpaceLibrariesResponse {
   const { file, problem } = readLibrariesFile(spaceRoot);
   if (problem !== undefined) return { libraries: [], problem };
   const locations = libraryLocations(spaceRoot);
-  const libraries = libraryDeclarations(file).map<LibraryRow>(({ id, label }) => {
-    const path = locatedAt(locations[id]);
-    if (path === undefined) return { id, label, access: "read-only", missing: true };
-    return { id, label, path, access: locations[id].access, missing: !existsSync(path) };
+  const libraries = libraryDeclarations(file).map<LibraryRow>((declared) => {
+    const path = locatedAt(locations[declared.id]);
+    if (path === undefined) return { ...declared, access: "read-only", missing: true };
+    return { ...declared, path, access: locations[declared.id].access, missing: !existsSync(path) };
   });
   return { libraries };
 }

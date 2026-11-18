@@ -121,7 +121,7 @@ For a missing folder, Electron and local servers may choose the most recent surv
 | Portable content | Documents, templates and declarations in the space. `.pragma/` holds only app state every machine opening the space should share, such as bookmarks: never an approval, one machine's view or a cache. |
 | Registry/configuration | Host config directory, overridable with `PRAGMA_CONFIG_DIR`. |
 | Approvals | Separate host `grants.json`, keyed by space id. |
-| Library locations/access | Host registry; space `_libraries.json` contains only ids and labels. |
+| Library locations/access | Host registry; space `_libraries.json` names no folder or access. |
 | Credentials/sign-ins | Dedicated host records, never config: OS-keychain-encrypted on desktop, owner-only plain files on CLI. Neither reads the other's. |
 | Space layout | Host state keyed by space id: tabs, groups, modes, focus, folds and entry layouts. Unreadable layouts reset; absent groups open root `README.md`. |
 | Browser preferences | Settings service or format module. Panel dimensions belong to the browser. |

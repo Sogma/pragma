@@ -98,14 +98,14 @@ export function spaceLibrary(spaceRoot: string, id: string): LibraryRow {
   return row;
 }
 
-/** Declares a library for a folder, under the id and label `named` gives
- * when that id is free here, else an id minted from the folder's name, and
- * locates it there, read-only until a person says otherwise: it is someone's
- * photo archive or a sibling repo. */
+/** Declares a library for a folder, under the id, label and description
+ * `named` gives when that id is free here, else an id minted from the
+ * folder's name, and locates it there, read-only until a person says
+ * otherwise: it is someone's photo archive or a sibling repo. */
 export async function addSpaceLibrary(
   spaceRoot: string,
   folder: string,
-  named?: { id: string; label: string },
+  named?: { id: string; label: string; description?: string },
 ): Promise<LibraryEntry> {
   const declared = declaredLibraries(spaceRoot);
   const locations = libraryLocations(spaceRoot);
@@ -120,16 +120,23 @@ export async function addSpaceLibrary(
   const label = named?.label ?? path.basename(folder);
   const ids = declared.map((library) => library.id);
   const id = named && !ids.includes(named.id) ? named.id : mintLibraryId(path.basename(folder), ids);
-  await changeSpaceLibrary(spaceRoot, { add: { id, label } });
-  const library: LibraryEntry = { id, label, path: folder, access: "read-only" };
+  const description = named?.description?.trim();
+  await changeSpaceLibrary(spaceRoot, { add: { id, label, description } });
+  const library: LibraryEntry = {
+    id,
+    label,
+    ...(description ? { description } : {}),
+    path: folder,
+    access: "read-only",
+  };
   saveLocation(spaceRoot, id, { path: folder, access: library.access });
   return library;
 }
 
 /** The folders this host located for other spaces' libraries, each once and
  * there now, that the space at `spaceRoot` hasn't got: what adding a library
- * offers besides a picker, by label. Each keeps the id and label it has in
- * the first space found holding it. */
+ * offers besides a picker, by label. Each keeps the id, label and
+ * description it has in the first space found holding it. */
 export function libraryOffers(spaceRoot: string): LibraryOffer[] {
   const config = loadGlobalConfig();
   const here = findSpaceId(config, spaceRoot);
@@ -137,9 +144,9 @@ export function libraryOffers(spaceRoot: string): LibraryOffer[] {
   const offers: LibraryOffer[] = [];
   for (const [space, record] of Object.entries(config.spaces ?? {})) {
     if (space === here || !existsSync(record.path)) continue;
-    for (const { id, label, path: folder } of readLibraries(record.path)) {
+    for (const { id, label, description, path: folder } of readLibraries(record.path)) {
       if (held.has(folder) || offers.some((offer) => offer.path === folder) || !existsSync(folder)) continue;
-      offers.push({ space, id, label, path: folder });
+      offers.push({ space, id, label, ...(description ? { description } : {}), path: folder });
     }
   }
   return offers.sort(
@@ -148,9 +155,9 @@ export function libraryOffers(spaceRoot: string): LibraryOffer[] {
 }
 
 /** Adds the library an offer names, by its space's id and its own: the same
- * folder and label, and the same id where that is free here, so a link
- * copied from the other space still resolves. Read-only, as any new library
- * starts, whatever the other space allows. */
+ * folder, label and description, and the same id where that is free here, so
+ * a link copied from the other space still resolves. Read-only, as any new
+ * library starts, whatever the other space allows. */
 export async function addOfferedLibrary(
   spaceRoot: string,
   from: { space?: unknown; id?: unknown },
@@ -159,7 +166,8 @@ export async function addOfferedLibrary(
     (candidate) => candidate.space === from.space && candidate.id === from.id,
   );
   if (offer === undefined) throw new Error("No other space on this computer has that library");
-  return addSpaceLibrary(spaceRoot, offer.path, { id: offer.id, label: offer.label });
+  const { id, label, description } = offer;
+  return addSpaceLibrary(spaceRoot, offer.path, { id, label, description });
 }
 
 /** Points a library the space declares at a folder a person just picked,
@@ -194,6 +202,15 @@ export async function relabelSpaceLibrary(spaceRoot: string, id: string, label: 
   const row = spaceLibrary(spaceRoot, id);
   const next = label.trim() || (row.path === undefined ? id : path.basename(row.path));
   await changeSpaceLibrary(spaceRoot, { relabel: id, label: next });
+}
+
+/** Gives a library a description in the space's file, or takes it away when
+ * blank. No length is enforced here: the 80-character limit is the Libraries
+ * panel's, for typing and for its tooltip, and the format sets none. */
+export async function describeSpaceLibrary(spaceRoot: string, id: string, description: unknown): Promise<void> {
+  if (typeof description !== "string") throw new Error("A library's description must be text");
+  spaceLibrary(spaceRoot, id);
+  await changeSpaceLibrary(spaceRoot, { describe: id, description });
 }
 
 /** Takes a library out of the space, here and wherever the space is opened,

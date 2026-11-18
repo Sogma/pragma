@@ -71,6 +71,7 @@ import type {
   LayoutRequestBody,
   LayoutResponse,
   LibraryAccessRequestBody,
+  LibraryDescriptionRequestBody,
   LibraryEntry,
   LibraryLabelRequestBody,
   LibraryOffer,
@@ -570,6 +571,14 @@ export async function postLibraryLabel(id: string, label: string): Promise<void>
     method: "POST",
     body: { label } satisfies LibraryLabelRequestBody,
     fallback: "Failed to rename the library",
+  });
+}
+
+export async function postLibraryDescription(id: string, description: string): Promise<void> {
+  await requestVoid(`/api/space/libraries/${encodeURIComponent(id)}/description`, {
+    method: "POST",
+    body: { description } satisfies LibraryDescriptionRequestBody,
+    fallback: "Failed to save the library's description",
   });
 }
 

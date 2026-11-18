@@ -266,6 +266,25 @@ describe("dialog service", () => {
       primary.click();
       await expect(answer).resolves.toEqual({ name: "Blog", notes: "line" });
     });
+
+    it("caps what a text field takes at its maxLength, and leaves a dropdown uncapped", () => {
+      service().form({
+        title: "Library properties",
+        fields: [
+          { id: "description", label: "Description", maxLength: 80 },
+          { id: "notes", multiline: true, maxLength: 12 },
+          { id: "access", choices: [{ value: "read-only", label: "Read only" }], maxLength: 5 },
+          { id: "name" },
+        ],
+      });
+      const [panel] = panels();
+      const control = (id: string) =>
+        panel.querySelector(`#dialog-field-${id}`) as HTMLElement & { maxLength?: number };
+      expect(control("description").maxLength).toBe(80);
+      expect(control("notes").maxLength).toBe(12);
+      expect(control("access").hasAttribute("maxlength")).toBe(false);
+      expect(control("name").hasAttribute("maxlength")).toBe(false);
+    });
   });
 
   describe("pick", () => {

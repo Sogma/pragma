@@ -22,6 +22,7 @@ import type {
   LayoutResponse,
   LayoutTab,
   LibraryAccessRequestBody,
+  LibraryDescriptionRequestBody,
   LibraryLabelRequestBody,
   LocalSortRequestBody,
   RootPathsResponse,
@@ -63,6 +64,7 @@ import { formatWithinRoot, isSpaceTarget, PathAccessError, resolveRootedPath } f
 import { listSites } from "../sites.ts";
 import { currentRevision } from "../spaceFiles.ts";
 import {
+  describeSpaceLibrary,
   LibrariesFileError,
   relabelSpaceLibrary,
   removeSpaceLibrary,
@@ -545,6 +547,23 @@ export function mountSpaceRoutes(
       const body = (await c.req.json()) as Incoming<LibraryLabelRequestBody>;
       if (typeof body.label !== "string") return c.text("Expected a label", 400);
       await relabelSpaceLibrary(spaceRoot, id, body.label);
+      return c.body(null, 204);
+    } catch (error) {
+      return libraryRefusal(c, error);
+    }
+  });
+
+  // Gives a library a description in the space's `_libraries.json`, or takes
+  // it away when blank. An id and a string, never a path, as the label is.
+  app.all("/api/space/libraries/:id/description", async (c) => {
+    if (c.req.method !== "POST") return c.body(null, 405);
+
+    try {
+      const id = c.req.param("id");
+      spaceLibrary(spaceRoot, id);
+      const body = (await c.req.json()) as Incoming<LibraryDescriptionRequestBody>;
+      if (typeof body.description !== "string") return c.text("Expected a description", 400);
+      await describeSpaceLibrary(spaceRoot, id, body.description);
       return c.body(null, 204);
     } catch (error) {
       return libraryRefusal(c, error);

@@ -1505,6 +1505,24 @@ describe("API contract — libraries", () => {
     expect(stills?.children).toEqual([{ name: "frame.png", path: "stills/frame.png", type: "file" }]);
   });
 
+  // A path-free write: an id and a string, as the label's route is.
+  it("describes a library in the space's file, a blank description taking it away", async () => {
+    const describe = (id: string, body: unknown) =>
+      fetch(`${testServer.baseUrl}/api/space/libraries/${id}/description`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const listed = async () => (await (await fetch(`${testServer.baseUrl}/api/space/libraries`)).json()).libraries;
+
+    expect((await describe("lib", { description: "  Stills and clips  " })).status).toBe(204);
+    expect((await listed())[0].description).toBe("Stills and clips");
+    expect((await describe("lib", { description: 1 })).status).toBe(400);
+    expect((await describe("nope", { description: "x" })).status).toBe(404);
+    expect((await describe("lib", { description: "" })).status).toBe(204);
+    expect((await listed())[0]).not.toHaveProperty("description");
+  });
+
   // The Libraries panel lists a library a folder at a time: one folder's
   // own entries, its subfolders unlisted until they are asked for.
   it("lists one folder's own entries, paths still from the library's root", async () => {

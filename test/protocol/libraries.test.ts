@@ -18,6 +18,21 @@ describe("the libraries a space declares", () => {
     ]);
   });
 
+  it("read a description trimmed, and a blank or non-text one as none", () => {
+    const file = {
+      libraries: [
+        { id: "footage", label: "Footage", description: "  Reels from the shoot  " },
+        { id: "stills", label: "Stills", description: "   " },
+        { id: "refs", label: "Refs", description: 7 },
+      ],
+    };
+    expect(libraryDeclarations(file)).toStrictEqual([
+      { id: "footage", label: "Footage", description: "Reels from the shoot" },
+      { id: "stills", label: "Stills" },
+      { id: "refs", label: "Refs" },
+    ]);
+  });
+
   // The id is what `lib:<id>/…` names, so an entry no such path could name
   // declares nothing: it is left in the file, never read as a library.
   it("leave out an entry whose id no lib: path can name", () => {
@@ -40,6 +55,33 @@ describe("changing one library", () => {
     expect(withLibraryChange(undefined, { add: { id: "stills", label: "Stills" } })).toEqual({
       libraries: [{ id: "stills", label: "Stills" }],
     });
+  });
+
+  it("declares a new id with its description, and with none when it is blank", () => {
+    expect(
+      withLibraryChange(undefined, { add: { id: "stills", label: "Stills", description: " Frames " } }),
+    ).toStrictEqual({ libraries: [{ id: "stills", label: "Stills", description: "Frames" }] });
+    expect(withLibraryChange(undefined, { add: { id: "stills", label: "Stills", description: " " } })).toStrictEqual({
+      libraries: [{ id: "stills", label: "Stills" }],
+    });
+  });
+
+  it("describes by id, in place, a blank description taking the key out", () => {
+    const described = {
+      libraries: [{ id: "footage", label: "Footage", description: "Old", note: "kept" }, { id: "Bad" }],
+    };
+    const [changed] = withLibraryChange(described, { describe: "footage", description: " Reels " })
+      .libraries as object[];
+    expect(changed).toStrictEqual({ id: "footage", label: "Footage", description: "Reels", note: "kept" });
+    expect(Object.keys(changed)).toEqual(["id", "label", "description", "note"]);
+    expect(withLibraryChange(described, { describe: "footage", description: "  " }).libraries).toStrictEqual([
+      { id: "footage", label: "Footage", note: "kept" },
+      { id: "Bad" },
+    ]);
+    expect(withLibraryChange(file, { describe: "footage", description: "New" }).libraries).toStrictEqual([
+      { id: "footage", label: "Footage", note: "kept", description: "New" },
+      { id: "Bad" },
+    ]);
   });
 
   it("relabels or removes by id, keeping every other key and entry", () => {

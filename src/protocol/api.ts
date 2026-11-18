@@ -299,6 +299,7 @@ export type Access = "read-only" | "read-write";
 export interface LibraryEntry {
   id: string;
   label: string;
+  description?: string;
   path: string;
   access: Access;
 }
@@ -321,6 +322,7 @@ export interface LibraryOffer {
   space: string;
   id: string;
   label: string;
+  description?: string;
   path: string;
 }
 
@@ -339,6 +341,11 @@ export interface LibraryAccessRequestBody {
 // POST /api/space/libraries/:id/label. Blank means the folder's own name.
 export interface LibraryLabelRequestBody {
   label: string;
+}
+
+// POST /api/space/libraries/:id/description. Blank takes it away.
+export interface LibraryDescriptionRequestBody {
+  description: string;
 }
 
 // The persisted projection of an open tab (the space's saved layout) — just

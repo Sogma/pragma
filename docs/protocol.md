@@ -141,12 +141,13 @@ A heading promoted to the title is not also rendered as body content. An editor 
 
 ### Descriptions
 
-A **description** is a one-line account a host may show beside a file's name:
+A **description** is a one-line account a host may show beside a file's or library's name:
 
 - Markdown: a non-empty string in frontmatter `description`.
 - Fountain: the first `=` synopsis line containing text outside a boneyard, note, or title page. Insert a new synopsis at the top, below any title page.
 - Table, Class, Flow: [metadata](#metadata) `description`.
 - Applet: manifest `meta.description`.
+- Library: its `_libraries.json` entry's `description`.
 - Folder: its `README.md`'s description. Other files have none.
 
 For Fountain, only an empty line is blank; spaces are content. A title page ends at the first empty line. A note runs from `[[` through the next `]]`, over multiple lines but never across an empty line, which leaves `[[` as text.
@@ -220,7 +221,7 @@ All document kinds share [addresses and libraries](#addresses-and-libraries) and
 
 ### Addresses and libraries
 
-A path stored in a document is either an **address**, naming its root explicitly, or a **reference**, resolved from that document. A library is declared in `_libraries.json` at the space root as a `libraries` list of `{ id, label }` entries. The host keeps each library's filesystem location outside the space (see [Space content and host state](#space-content-and-host-state)).
+A path stored in a document is either an **address**, naming its root explicitly, or a **reference**, resolved from that document. A library is declared in `_libraries.json` at the space root as a `libraries` list of `{ id, label, description }` entries. The host keeps each library's filesystem location outside the space (see [Space content and host state](#space-content-and-host-state)).
 
 | Form | Resolution |
 |---|---|

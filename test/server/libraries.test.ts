@@ -7,6 +7,7 @@ import { isAccess, libraryRows, mintLibraryId, readLibraries } from "../../src/s
 import {
   addOfferedLibrary,
   addSpaceLibrary,
+  describeSpaceLibrary,
   libraryOffers,
   locateSpaceLibrary,
   moveLibrariesOntoSpaces,
@@ -234,6 +235,27 @@ describe("offering other spaces' libraries", () => {
     });
   });
 
+  it("carries a library's description into the offer and into the space that adds it", async () => {
+    const other = folder("pragma-libraries-other-");
+    declare(other, { libraries: [{ id: "stills", label: "Stills", description: "Frames from the shoot" }] });
+    const otherId = register(other, { stills: { path: stills, access: "read-only" } });
+    register(space);
+
+    expect(libraryOffers(space)).toEqual([
+      { space: otherId, id: "stills", label: "Stills", description: "Frames from the shoot", path: stills },
+    ]);
+    expect(await addOfferedLibrary(space, { space: otherId, id: "stills" })).toEqual({
+      id: "stills",
+      label: "Stills",
+      description: "Frames from the shoot",
+      path: stills,
+      access: "read-only",
+    });
+    expect(JSON.parse(declared(space))).toEqual({
+      libraries: [{ id: "stills", label: "Stills", description: "Frames from the shoot" }],
+    });
+  });
+
   it("refuses an offer that isn't one, rather than taking a folder from the request", async () => {
     const other = folder("pragma-libraries-other-");
     declare(other, { libraries: [{ id: "stills", label: "Stills" }] });
@@ -277,6 +299,27 @@ describe("changing a library", () => {
     await relabelSpaceLibrary(space, "stills", "");
     expect(libraryRows(space).libraries.map((row) => row.label)).toEqual([path.basename(footage), "stills"]);
     await expect(relabelSpaceLibrary(space, "footage", 1)).rejects.toThrow(/must be text/);
+  });
+
+  // The 80-character limit is the panel's, for typing and its tooltip: the
+  // file keeps a longer one whole.
+  it("describes in the space's file, located here or not, a blank description taking it away", async () => {
+    register(space, { footage: { path: footage, access: "read-only" } });
+    await describeSpaceLibrary(space, "footage", "  Reels from the shoot  ");
+    const long = "x".repeat(200);
+    await describeSpaceLibrary(space, "stills", long);
+    expect(libraryRows(space).libraries.map((row) => row.description)).toEqual(["Reels from the shoot", long]);
+    expect(readLibraries(space).map((entry) => entry.description)).toEqual(["Reels from the shoot"]);
+
+    await describeSpaceLibrary(space, "footage", " ");
+    expect(JSON.parse(declared(space))).toEqual({
+      libraries: [
+        { id: "footage", label: "Footage" },
+        { id: "stills", label: "Stills", description: long },
+      ],
+    });
+    await expect(describeSpaceLibrary(space, "footage", 1)).rejects.toThrow(/must be text/);
+    await expect(describeSpaceLibrary(space, "nope", "x")).rejects.toThrow(/Not one of this space's libraries/);
   });
 
   it("removes a library from the space and this host, leaving its folder alone", async () => {

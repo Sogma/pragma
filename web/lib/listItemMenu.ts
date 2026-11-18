@@ -14,9 +14,18 @@ export type ListItemTarget =
   | { kind: "site"; path: string }
   // A Libraries row. Keyed by the library's id, for the same reason a space
   // row is: Locate exists precisely for the case where no recorded path
-  // points at anything. The path, absent until this computer locates the
-  // library, and access ride along for Properties to show, never to act on.
-  | { kind: "library"; id: string; label: string; path?: string; access: Access; missing: boolean }
+  // points at anything. The description, the path (absent until this
+  // computer locates the library) and access ride along for Properties to
+  // show, never to act on.
+  | {
+      kind: "library";
+      id: string;
+      label: string;
+      description?: string;
+      path?: string;
+      access: Access;
+      missing: boolean;
+    }
   // A Manage Spaces row. Carries the registry id — never the path — because
   // every action here acts on the registry entry, including for a space
   // whose folder has moved or gone.

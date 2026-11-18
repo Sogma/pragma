@@ -100,6 +100,8 @@ export interface FormField {
   /** Values a text field offers as it's typed into, without limiting it to
    * them. */
   suggestions?: readonly string[];
+  // The most characters a person can type or paste into a text field.
+  maxLength?: number;
   // A line of help under the control, for a field whose label can't carry
   // the whole story — a setting described by whoever defined it, say.
   description?: string;
@@ -479,6 +481,8 @@ export function createDialogService(root: HTMLElement = document.body, deps?: Di
           if (field.choices) control.value = field.value ?? field.choices[0]?.value ?? "";
           else control.value = field.value ?? "";
           if (field.placeholder && !(control instanceof HTMLSelectElement)) control.placeholder = field.placeholder;
+          if (field.maxLength !== undefined && !(control instanceof HTMLSelectElement))
+            control.maxLength = field.maxLength;
           controls.set(field.id, control);
           wrapper.append(control);
           if (field.description) {

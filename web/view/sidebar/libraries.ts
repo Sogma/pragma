@@ -26,6 +26,7 @@ import {
   postCreateEntry,
   postDeleteEntry,
   postLibraryAccess,
+  postLibraryDescription,
   postLibraryLabel,
   postUploadFile,
   type SpaceLibrariesResponse,
@@ -57,6 +58,18 @@ const ICON = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke
   <path d="M3 12 12 16.5 21 12"/>
   <path d="M3 17.5 12 22 21 17.5"/>
 </svg>`;
+
+// A library's description is one short line: Properties stops typing at this
+// many characters, and the header's tooltip shows no more, so one written by
+// hand past it is cut there, never in the file.
+const DESCRIPTION_LIMIT = 80;
+
+function tooltipDescription(text: string): string {
+  const chars = Array.from(text);
+  if (chars.length <= DESCRIPTION_LIMIT) return text;
+  const kept = chars.slice(0, DESCRIPTION_LIMIT - 1).join("");
+  return `${kept.trimEnd()}…`;
+}
 
 const LOADING_DELAY_MS = 150;
 
@@ -205,6 +218,8 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   empty.className = "sidebar-panel-empty";
   const list = document.createElement("div");
   list.className = "sidebar-list";
+  // Its rows' hints wait their delay, as the tree's do.
+  list.dataset.tooltipWait = "";
   list.hidden = true;
   panel.append(titleRow, empty, list);
 
@@ -629,6 +644,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
           kind: "library",
           id: library.id,
           label: library.label,
+          description: library.description,
           path: library.path,
           access: library.access,
           missing: library.missing,
@@ -643,6 +659,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
         },
       );
       if (library.missing) header.classList.add("is-unavailable");
+      if (library.description) header.dataset.tooltip = tooltipDescription(library.description);
       list.append(item);
       rows.set(library.id, { header, body, writable: library.access === "read-write" });
     }
@@ -710,6 +727,7 @@ export interface LibraryManagerDeps {
   // without a server.
   setLibraryAccess(id: string, access: Access): Promise<void>;
   setLibraryLabel(id: string, label: string): Promise<void>;
+  setLibraryDescription(id: string, description: string): Promise<void>;
   removeLibrary(id: string): Promise<void>;
   // The open library's tree, for the row actions to drive and re-read.
   tree: LibraryTreeActions;
@@ -856,37 +874,55 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
   deps.commands.register({
     id: "library.properties",
     label: "Properties…",
-    // Offered for a missing library too, since an access set while the drive
-    // is unplugged holds once it is back; never for one this computer hasn't
-    // located, which has no folder here to set it on.
-    when: (_, arg: ListItemTarget | undefined) => arg?.kind === "library" && arg.path !== undefined,
+    // Offered for every library: the description is the space's, as the
+    // label is. Permission needs a folder on this computer, so a library
+    // never located here shows none; a missing one keeps it, since an access
+    // set while the drive is unplugged holds once it is back.
+    when: (_, arg: ListItemTarget | undefined) => arg?.kind === "library",
     run: async (_, arg: ListItemTarget) => {
       const target = libraryTarget(arg);
+      const located = target.path !== undefined;
       let changed = false;
       await deps.dialog().form({
         title: "Library properties",
         icon: { glyph: "library" },
-        message: `${target.label} (${target.path})`,
+        message: `${target.label} (${target.path ?? "Not located on this computer"})`,
         fields: [
           {
-            id: "access",
-            label: "Permission",
-            choices: ACCESS_CHOICES,
-            value: target.access,
+            id: "description",
+            label: "Description",
+            value: target.description ?? "",
+            maxLength: DESCRIPTION_LIMIT,
           },
+          ...(located
+            ? [
+                {
+                  id: "access",
+                  label: "Permission",
+                  choices: ACCESS_CHOICES,
+                  value: target.access,
+                  description: "This computer only.",
+                },
+              ]
+            : []),
         ],
         submitLabel: "Save",
         busyLabel: "Saving…",
         failureMessage: "Failed to save the library's properties.",
         submit: async (values) => {
+          const description = (values.description ?? "").trim();
+          if (description !== (target.description ?? "")) {
+            await deps.setLibraryDescription(target.id, description);
+            changed = true;
+          }
           const access = ACCESS_CHOICES.find((choice) => choice.value === values.access)?.value;
-          if (access === undefined || access === target.access) return;
+          if (!located || access === undefined || access === target.access) return;
           await deps.setLibraryAccess(target.id, access);
           changed = true;
         },
       });
-      // The row carries its access into the next Properties open, so it
-      // has to be rebuilt from the listing once that changed.
+      // The row carries its description and access into the next Properties
+      // open, so it has to be rebuilt from the listing once either changed.
       if (changed) await deps.refresh();
     },
   });
@@ -1056,7 +1092,14 @@ export interface LibrariesPanelDeps
     >,
     Omit<
       LibraryManagerDeps,
-      "refresh" | "reveal" | "setLibraryAccess" | "setLibraryLabel" | "removeLibrary" | "tree" | "deleteEntry"
+      | "refresh"
+      | "reveal"
+      | "setLibraryAccess"
+      | "setLibraryLabel"
+      | "setLibraryDescription"
+      | "removeLibrary"
+      | "tree"
+      | "deleteEntry"
     > {
   // Both menus this panel opens are built from it: the row's own "⋮" and
   // the tree's context menu.
@@ -1101,6 +1144,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     ...deps,
     setLibraryAccess: postLibraryAccess,
     setLibraryLabel: postLibraryLabel,
+    setLibraryDescription: postLibraryDescription,
     removeLibrary: deleteLibrary,
     deleteEntry: postDeleteEntry,
     tree: view.tree,

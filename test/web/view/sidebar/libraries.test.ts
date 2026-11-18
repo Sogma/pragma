@@ -105,6 +105,29 @@ describe("createLibrariesView", () => {
     expect(view.label).toBe("Libraries");
   });
 
+  // Properties stops typing at 80 characters; one written by hand past that
+  // is cut in the tooltip alone, never in the file.
+  it("shows a library's description as its row's tooltip, cut at 80 characters", async () => {
+    const long = `${"word ".repeat(20)}end`;
+    const d = deps({
+      fetchLibraries: vi.fn(async () => ({
+        libraries: [
+          { ...library("one"), description: "Frames from the shoot" },
+          { ...library("two"), description: long },
+          library("three"),
+        ],
+      })),
+    });
+    const { view } = await shown(d);
+    const [described, cut, plain] = headers(view.panel);
+
+    expect(described.dataset.tooltip).toBe("Frames from the shoot");
+    expect(cut.dataset.tooltip).toBe(`${long.slice(0, 79).trimEnd()}…`);
+    expect(Array.from(cut.dataset.tooltip ?? "").length).toBeLessThanOrEqual(80);
+    expect(plain.dataset.tooltip).toBeUndefined();
+    expect(vi.mocked(d.createMenuButton).mock.calls[0][1]).toMatchObject({ description: "Frames from the shoot" });
+  });
+
   // A library root lives outside the space, so it can vanish while the space
   // is perfectly intact — an unmounted drive, a moved folder, or a space
   // synced to a second machine where none of the paths exist. The row has to
@@ -616,19 +639,28 @@ describe("createLibraryManager", () => {
   }
 
   // A dialog that answers the way the real one does: the form runs `submit`
-  // with the chosen values and resolves them (`choose` undefined stands for
-  // Cancel), and confirm resolves `confirmed`.
+  // with every field's value and resolves them, and confirm resolves
+  // `confirmed`. `choose` is the permission chosen, undefined standing for
+  // Cancel, and `describeAs` is typed into the description.
+  //
   // `renameTo` is what the Rename prompt is answered with: null cancels it,
   // and undefined submits the name it opened with.
   function manager(
     choose: string | undefined,
-    { withBridge = true, confirmed = true, renameTo = undefined as string | null | undefined } = {},
+    {
+      withBridge = true,
+      confirmed = true,
+      renameTo = undefined as string | null | undefined,
+      describeAs = undefined as string | undefined,
+    } = {},
   ) {
     const commands = createCommands();
     const menus = createMenus(commands);
     const form = vi.fn(async (options: FormOptions) => {
       if (choose === undefined) return null;
-      const values = { access: choose };
+      const values = Object.fromEntries(options.fields.map((field) => [field.id, field.value ?? ""]));
+      if ("access" in values) values.access = choose;
+      if (describeAs !== undefined) values.description = describeAs;
       await options.submit?.(values);
       return values;
     });
@@ -640,6 +672,7 @@ describe("createLibraryManager", () => {
       return value;
     });
     const setLibraryLabel = vi.fn(async () => undefined);
+    const setLibraryDescription = vi.fn(async () => undefined);
     const bridge: LibraryLocationBridge = {
       libraryOffers: vi.fn(async () => []),
       addLibrary: vi.fn(async () => undefined),
@@ -668,6 +701,7 @@ describe("createLibraryManager", () => {
       contextMenu,
       setLibraryAccess,
       setLibraryLabel,
+      setLibraryDescription,
       removeLibrary,
       deleteEntry,
       moveToTrash: () => trash.on,
@@ -685,6 +719,7 @@ describe("createLibraryManager", () => {
       prompt,
       setLibraryAccess,
       setLibraryLabel,
+      setLibraryDescription,
       removeLibrary,
       refresh,
       deleteEntry,
@@ -802,13 +837,13 @@ describe("createLibraryManager", () => {
     expect(commands.isEnabled("library.properties", context, target())).toBe(true);
     expect(commands.isEnabled("library.properties", context, { kind: "site", path: "x" })).toBe(false);
     expect(commands.isEnabled("library.properties", context, undefined)).toBe(false);
-    // A missing library still has a folder on this computer, which is what
-    // Properties edits; one never located here has none.
+    // The description is the space's, so even a library never located here
+    // has Properties to edit it in.
     expect(commands.isEnabled("library.properties", context, target({ missing: true }))).toBe(true);
-    expect(commands.isEnabled("library.properties", context, target({ missing: true, path: undefined }))).toBe(false);
+    expect(commands.isEnabled("library.properties", context, target({ missing: true, path: undefined }))).toBe(true);
     expect(
       menus.resolve("listItem", context, target({ missing: true, path: undefined })).map((item) => item.label),
-    ).toEqual(["Rename…", "Locate…", "Remove from list"]);
+    ).toEqual(["Rename…", "Locate…", "Properties…", "Remove from list"]);
     expect(menus.resolve("listItem", context, target()).map((item) => item.label)).toEqual([
       "Rename…",
       "Properties…",
@@ -871,18 +906,50 @@ describe("createLibraryManager", () => {
     expect(tree.startCreate).toHaveBeenCalledWith({ libraryId: "one", node: null }, "directory");
   });
 
-  it("opens on the row's current access with both choices on offer", async () => {
+  it("opens on the row's description and access, both permission choices on offer", async () => {
     const { commands, form } = manager(undefined);
-    await commands.run("library.properties", context, target({ access: "read-write" }));
+    await commands.run("library.properties", context, target({ access: "read-write", description: "Frames" }));
 
     const options = form.mock.calls[0][0];
     expect(options.title).toBe("Library properties");
     expect(iconOf(options)).toBe("library");
-    expect(options.message).toContain("/media/one");
-    expect(options.fields).toHaveLength(1);
-    expect(options.fields[0].id).toBe("access");
-    expect(options.fields[0].value).toBe("read-write");
-    expect(options.fields[0].choices?.map((choice) => choice.value)).toEqual(["read-only", "read-write"]);
+    expect(options.message).toBe("Library one (/media/one)");
+    const [description, access] = options.fields;
+    expect(options.fields).toHaveLength(2);
+    expect(description).toMatchObject({ id: "description", label: "Description", value: "Frames", maxLength: 80 });
+    expect(access).toMatchObject({ id: "access", value: "read-write", description: "This computer only." });
+    expect(access.choices?.map((choice) => choice.value)).toEqual(["read-only", "read-write"]);
+  });
+
+  it("opens on the description alone for a library this computer hasn't located", async () => {
+    const { commands, form } = manager(undefined);
+    await commands.run("library.properties", context, target({ missing: true, path: undefined }));
+
+    const options = form.mock.calls[0][0];
+    expect(options.message).toBe("Library one (Not located on this computer)");
+    expect(options.fields.map((field) => field.id)).toEqual(["description"]);
+  });
+
+  it("saves a changed description, trimmed, then re-reads the panel", async () => {
+    const { commands, setLibraryDescription, setLibraryAccess, refresh } = manager("read-only", {
+      describeAs: "  Frames from the shoot  ",
+    });
+    await commands.run("library.properties", context, target());
+
+    expect(setLibraryDescription).toHaveBeenCalledWith("one", "Frames from the shoot");
+    expect(setLibraryAccess).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a description away when it is emptied, located here or not", async () => {
+    const { commands, setLibraryDescription } = manager("read-only", { describeAs: " " });
+    await commands.run("library.properties", context, target({ description: "Frames" }));
+    await commands.run("library.properties", context, target({ description: "Reels", path: undefined }));
+
+    expect(setLibraryDescription.mock.calls).toEqual([
+      ["one", ""],
+      ["one", ""],
+    ]);
   });
 
   it("saves a changed permission, then re-reads the panel", async () => {
@@ -895,19 +962,21 @@ describe("createLibraryManager", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("writes nothing when the permission is left as it was", async () => {
-    const { commands, setLibraryAccess, refresh } = manager("read-only");
-    await commands.run("library.properties", context, target());
+  it("writes nothing when the description and permission are left as they were", async () => {
+    const { commands, setLibraryAccess, setLibraryDescription, refresh } = manager("read-only");
+    await commands.run("library.properties", context, target({ description: "Frames" }));
 
     expect(setLibraryAccess).not.toHaveBeenCalled();
+    expect(setLibraryDescription).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it("writes nothing on cancel", async () => {
-    const { commands, setLibraryAccess, refresh } = manager(undefined);
+    const { commands, setLibraryAccess, setLibraryDescription, refresh } = manager(undefined, { describeAs: "New" });
     await commands.run("library.properties", context, target());
 
     expect(setLibraryAccess).not.toHaveBeenCalled();
+    expect(setLibraryDescription).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
