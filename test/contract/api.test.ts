@@ -236,12 +236,12 @@ describe("API contract", () => {
     });
   });
 
-  it("GET /api/applet/info returns pragma's version and its changelog page", async () => {
+  it("GET /api/applet/info returns pragma's version and its changelog entry", async () => {
     const res = await fetch(`${testServer.baseUrl}/api/applet/info`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.version).toEqual(expect.any(String));
-    expect(body.releaseNotesUrl).toBe("https://pragma.sogma.com/changelog");
+    expect(body.releaseNotesUrl).toBe(`https://pragma.sogma.com/changelog#desktop-v${body.version}`);
   });
 
   it("GET /api/space/tree lists the fixture space's real files", async () => {

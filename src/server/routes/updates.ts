@@ -17,7 +17,10 @@ function isNewerVersion(latest: string, current: string): boolean {
 
 export function mountUpdateRoutes(app: Hono, _context: RouteContext): void {
   // One changelog page holds every release's notes; the app keeps no copy.
-  const releaseNotesUrl = "https://pragma.sogma.com/changelog";
+  // The fragment is the anchor every entry on it carries (`desktop-v0.6.1`),
+  // so the link opens at this version's entry, or at the top of the page for
+  // an entry without one.
+  const releaseNotesUrl = `https://pragma.sogma.com/changelog#desktop-v${pragmaVersion}`;
   app.all("/api/applet/info", (c) => c.json<AppletInfoResponse>({ version: pragmaVersion, releaseNotesUrl }));
 
   // "Check for updates" for targets that don't auto-install: the CLI targets

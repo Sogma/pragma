@@ -57,7 +57,7 @@ afterEach(() => {
 });
 
 describe("Release notes", () => {
-  const RELEASE = "https://pragma.sogma.com/changelog";
+  const RELEASE = "https://pragma.sogma.com/changelog#desktop-v0.4.0";
 
   it("names the version and opens its release notes in the browser", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
