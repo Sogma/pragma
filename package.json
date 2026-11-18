@@ -94,6 +94,6 @@
   },
   "allowScripts": {
     "electron-winstaller": false,
-    "esbuild": false
+    "esbuild": true
   }
 }
