@@ -79,6 +79,7 @@ function setup(overrides: Partial<SiteDialogsDeps> = {}, api: Partial<SiteSettin
     createSite: vi.fn(),
     publishers: () => [publisher("sogma", "Sogma CMS")],
     onSiteCreated: vi.fn(async () => {}),
+    showInSpace: vi.fn(),
     ...overrides,
   };
   const dialogs = createSiteDialogs(deps);
@@ -94,11 +95,21 @@ beforeEach(() => {
   document.body.replaceChildren();
 });
 
-describe("createSiteDialogs: the Settings command", () => {
-  it("contributes one item to the listItem menu", () => {
+describe("createSiteDialogs: a site row's menu", () => {
+  it("contributes Settings, then Show in space, to the listItem menu", () => {
     const { menus } = setup();
     const items = menus.resolve("listItem", context, { kind: "site", path: "blog" });
-    expect(items.map((item) => item.label)).toEqual(["Settings"]);
+    expect(items.map((item) => item.label)).toEqual(["Settings", "Show in space"]);
+  });
+
+  it("offers Show in space on any site row, publisher key or not, and reveals the site's folder", () => {
+    const keyless = setup({ publishers: () => [] });
+    const items = keyless.menus.resolve("listItem", context, { kind: "site", path: "blog" });
+    expect(items.map((item) => item.label)).toEqual(["Show in space"]);
+    expect(keyless.commands.isEnabled("site.showInSpace", context, undefined)).toBe(false);
+
+    void keyless.commands.run("site.showInSpace", context, { kind: "site", path: "blog" });
+    expect(keyless.deps.showInSpace).toHaveBeenCalledWith("blog");
   });
 
   it("applies to a site row only, and only with a publisher key stored", () => {

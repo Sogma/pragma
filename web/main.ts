@@ -631,6 +631,7 @@ async function main(): Promise<void> {
     dialog,
     settings: siteSettingsApi,
     onSiteFileChanged: () => void Promise.all([space.refresh(), websitesView.refresh()]),
+    showInSpace: space.revealFolder,
     siteImages: spaceTree.imagesUnder,
     createSite: postCreateSite,
     publishers: () => publishers.get(),
