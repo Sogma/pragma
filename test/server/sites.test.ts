@@ -1,13 +1,16 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  forgetPendingPaths,
+  movePendingPaths,
   normalizeAssetsFolder,
   parentIndexPath,
   readSiteFile,
   resolveSiteForPath,
-  writeSiteAssetsFolder,
+  updateSiteFile,
 } from "../../src/server/sites.ts";
 
 // Site resolution over a real directory, since both resolvers read
@@ -30,6 +33,9 @@ async function space(files: Record<string, string>): Promise<string> {
 }
 
 const siteFile = (name: string) => JSON.stringify({ id: `ste_${name}`, slug: name, name });
+const queue = (entries: object[]) => JSON.stringify(entries);
+const queueIn = async (root: string, siteDir: string) =>
+  JSON.parse(await readFile(path.join(root, siteDir, "_queue.json"), "utf8"));
 
 describe("resolving which site a document belongs to", () => {
   it("finds the site a document sits directly inside", async () => {
@@ -119,11 +125,172 @@ describe("a site's assets folder", () => {
     const root = await space({ "my-blog/_site.json": siteFile("my-blog") });
     const siteDir = path.join(root, "my-blog");
 
-    await writeSiteAssetsFolder(siteDir, "media/images");
+    await updateSiteFile(siteDir, { assetsFolder: "media/images" });
     expect(readSiteFile(siteDir)).toMatchObject({ id: "ste_my-blog", assetsFolder: "media/images" });
     expect((await stat(path.join(siteDir, "media/images"))).isDirectory()).toBe(true);
 
-    await writeSiteAssetsFolder(siteDir, "");
+    await updateSiteFile(siteDir, { assetsFolder: "" });
     expect(JSON.parse(await readFile(path.join(siteDir, "_site.json"), "utf8"))).not.toHaveProperty("assetsFolder");
+  });
+});
+
+describe("a site's name in _site.json", () => {
+  it("is rewritten alone, every other key kept as written", async () => {
+    const before = {
+      id: "ste_1",
+      slug: "my-blog",
+      name: "Old",
+      assetsFolder: "media",
+      publisherId: "sogma",
+      later: { kept: true },
+    };
+    const root = await space({ "my-blog/_site.json": JSON.stringify(before) });
+
+    await updateSiteFile(path.join(root, "my-blog"), { name: "New" });
+
+    expect(JSON.parse(await readFile(path.join(root, "my-blog/_site.json"), "utf8"))).toEqual({
+      ...before,
+      name: "New",
+    });
+  });
+});
+
+describe("a queued path following a move", () => {
+  async function move(root: string, from: string, to: string): Promise<void> {
+    await mkdir(path.dirname(path.join(root, to)), { recursive: true });
+    await rename(path.join(root, from), path.join(root, to));
+    await movePendingPaths(root, from, to);
+  }
+
+  it("follows a renamed site folder, in order, leaving id entries as they are", async () => {
+    const root = await space({
+      "old-name/_site.json": siteFile("old-name"),
+      "old-name/draft.md": "# Draft\n",
+      "old-name/posts/new.md": "# New\n",
+      "old-name/_queue.json": queue([
+        { op: "publish", path: "old-name/draft.md" },
+        { op: "publish", id: "doc_1" },
+        { op: "publish", path: "old-name/posts/new.md" },
+      ]),
+    });
+
+    await move(root, "old-name", "new-name");
+
+    expect(await queueIn(root, "new-name")).toEqual([
+      { op: "publish", path: "new-name/draft.md" },
+      { op: "publish", id: "doc_1" },
+      { op: "publish", path: "new-name/posts/new.md" },
+    ]);
+  });
+
+  it("follows a folder moved inside its site, and only what was under it", async () => {
+    const root = await space({
+      "blog/_site.json": siteFile("blog"),
+      "blog/posts/x.md": "# X\n",
+      "blog/posts-2/y.md": "# Y\n",
+      "blog/_queue.json": queue([
+        { op: "publish", path: "blog/posts/x.md" },
+        { op: "publish", path: "blog/posts-2/y.md" },
+      ]),
+    });
+
+    await move(root, "blog/posts", "blog/archive");
+
+    expect(await queueIn(root, "blog")).toEqual([
+      { op: "publish", path: "blog/archive/x.md" },
+      { op: "publish", path: "blog/posts-2/y.md" },
+    ]);
+  });
+
+  it("carries a draft moved into another site over to that site's queue", async () => {
+    const root = await space({
+      "a/_site.json": siteFile("a"),
+      "b/_site.json": siteFile("b"),
+      "a/d.md": "# D\n",
+      "a/_queue.json": queue([{ op: "publish", path: "a/d.md" }]),
+    });
+
+    await move(root, "a/d.md", "b/d.md");
+
+    expect(existsSync(path.join(root, "a/_queue.json"))).toBe(false);
+    expect(await queueIn(root, "b")).toEqual([{ op: "publish", path: "b/d.md" }]);
+  });
+
+  it("drops a draft moved out of every site", async () => {
+    const root = await space({
+      "a/_site.json": siteFile("a"),
+      "a/d.md": "# D\n",
+      "a/_queue.json": queue([
+        { op: "publish", path: "a/d.md" },
+        { op: "publish", id: "doc_1" },
+      ]),
+    });
+
+    await move(root, "a/d.md", "notes/d.md");
+
+    expect(await queueIn(root, "a")).toEqual([{ op: "publish", id: "doc_1" }]);
+  });
+
+  it("follows a site carried inside a moved folder", async () => {
+    const root = await space({
+      "projects/blog/_site.json": siteFile("blog"),
+      "projects/blog/d.md": "# D\n",
+      "projects/blog/_queue.json": queue([{ op: "publish", path: "projects/blog/d.md" }]),
+    });
+
+    await move(root, "projects", "work");
+
+    expect(await queueIn(root, "work/blog")).toEqual([{ op: "publish", path: "work/blog/d.md" }]);
+  });
+
+  it("keeps one entry when a rename lands on a path a stale entry names", async () => {
+    const root = await space({
+      "s/_site.json": siteFile("s"),
+      "s/a.md": "# A\n",
+      "s/_queue.json": queue([
+        { op: "publish", path: "s/b.md" },
+        { op: "publish", path: "s/a.md" },
+      ]),
+    });
+
+    await move(root, "s/a.md", "s/b.md");
+
+    expect(await queueIn(root, "s")).toEqual([{ op: "publish", path: "s/b.md" }]);
+  });
+});
+
+describe("a queued path whose page was deleted", () => {
+  it("goes, with those under a deleted folder, and nothing else", async () => {
+    const root = await space({
+      "s/_site.json": siteFile("s"),
+      "s/posts/x.md": "# X\n",
+      "s/posts-2/y.md": "# Y\n",
+      "s/_queue.json": queue([
+        { op: "publish", path: "s/posts/x.md" },
+        { op: "publish", path: "s/posts-2/y.md" },
+        { op: "publish", id: "doc_1" },
+      ]),
+    });
+
+    await rm(path.join(root, "s/posts"), { recursive: true });
+    forgetPendingPaths(root, "s/posts");
+
+    expect(await queueIn(root, "s")).toEqual([
+      { op: "publish", path: "s/posts-2/y.md" },
+      { op: "publish", id: "doc_1" },
+    ]);
+  });
+
+  it("takes the queue file along with its last entry", async () => {
+    const root = await space({
+      "s/_site.json": siteFile("s"),
+      "s/draft.md": "# Draft\n",
+      "s/_queue.json": queue([{ op: "publish", path: "s/draft.md" }]),
+    });
+
+    await rm(path.join(root, "s/draft.md"));
+    forgetPendingPaths(root, "s/draft.md");
+
+    expect(existsSync(path.join(root, "s/_queue.json"))).toBe(false);
   });
 });

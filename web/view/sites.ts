@@ -5,18 +5,20 @@
 // Site Settings registers its own command and menu item, so its visibility
 // rule lives next to the action it guards; New Site's stays with the rest of
 // the tree menu in sidebar/space.ts and only calls in here.
+import { SITE_ASSETS_FOLDER_FIELD, SITE_NAME_FIELD } from "../../src/protocol/api.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import {
   CreateSiteError,
   type CreateSiteResponse,
   type ExistingSogmaSite,
   fetchSiteSettings,
-  postSiteAssetsFolder,
   postSiteImage,
   postSiteSettings,
   rawFileUrl,
+  type SaveSiteSettingsResponse,
   type SiteImagePreview,
   type SiteImageUploadResponse,
+  type SiteSettingsChanges,
   type SiteSettingsField,
   type SiteSettingsResponse,
 } from "../core/apiClient.ts";
@@ -201,9 +203,10 @@ export interface SiteDialogsDeps {
   menus: MenuRegistry;
   dialog: DialogService;
   settings: SiteSettingsApi;
-  // The tree that pastes resolve a site's assets folder against, refreshed
-  // after the folder is saved.
-  onAssetsFolderSaved(): void;
+  // The views that read `_site.json` (the tree, which pastes resolve a
+  // site's assets folder against, and the Websites list, which shows its
+  // name), reloaded after the dialog changes it.
+  onSiteFileChanged(): void;
   // The space images under a site's folder, for an image setting to offer.
   siteImages(sitePath: string): string[];
   createSite(
@@ -223,13 +226,10 @@ export interface SiteDialogsDeps {
 export interface SiteSettingsApi {
   // The publisher's own settings schema and current values for one site.
   load(sitePath: string): Promise<SiteSettingsResponse>;
-  // Writes only what changed, as a merge patch, and answers with the
-  // settings the service holds afterwards. Rejects with a SiteSettingsError
-  // whose `field` names the control the service refused, where it named one.
-  save(sitePath: string, edits: Record<string, string | boolean | null>): Promise<SiteSettingsResponse>;
-  // Writes the site's assets folder to its `_site.json`, never touching the
-  // publisher, and answers with the folder as stored.
-  saveAssetsFolder(sitePath: string, assetsFolder: string): Promise<string>;
+  // One Save, all or nothing: only what changed, the name and settings to the
+  // publisher in one request, then `_site.json`. Rejects with a
+  // SiteSettingsError whose `field` names the control to blame, where it can.
+  save(sitePath: string, changes: SiteSettingsChanges): Promise<SaveSiteSettingsResponse>;
   // Uploads a space image to the site's publisher for an image setting,
   // which changes only when Save sends the returned `publicId`.
   uploadImage(sitePath: string, image: string): Promise<SiteImageUploadResponse>;
@@ -238,7 +238,6 @@ export interface SiteSettingsApi {
 export const siteSettingsApi: SiteSettingsApi = {
   load: fetchSiteSettings,
   save: postSiteSettings,
-  saveAssetsFolder: postSiteAssetsFolder,
   uploadImage: postSiteImage,
 };
 
@@ -333,12 +332,12 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       });
       return;
     }
+    if (loaded.siteNameUpdated) deps.onSiteFileChanged();
 
     // What the service currently holds — the baseline every Save diffs
     // against, so an untouched control is never sent and therefore never
     // overwrites a value changed elsewhere meanwhile.
     const current = new Map(loaded.fields.map((field) => [field.pointer, field.value]));
-    let savedAssetsFolder = loaded.assetsFolder;
 
     // The same two-pane shape as Settings: General first, then one category
     // per group the publisher names.
@@ -346,7 +345,10 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       [GENERAL, { label: "General", rows: [] }],
     ]);
     const controls = new Map<string, HTMLInputElement>();
+    // Keyed as a refusal blames a control: a setting by its pointer, General's
+    // two fields by their own names.
     const categoryOf = new Map<string, string>();
+    const labelOf = new Map<string, string>();
     function addRow(
       key: string,
       label: string,
@@ -395,10 +397,15 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       }
     }
 
+    function addGeneralRow(key: string, label: string, input: HTMLInputElement): void {
+      addRow(GENERAL, label, input);
+      categoryOf.set(key, GENERAL);
+      labelOf.set(key, label);
+    }
+    const nameInput = textInput("site-setting-name", loaded.siteName);
+    addGeneralRow(SITE_NAME_FIELD, "Name", nameInput);
     const assetsInput = textInput("site-setting-assets-folder", loaded.assetsFolder, "assets");
-    addRow(GENERAL, "Assets folder", assetsInput);
-    // Under General's card, attached only while it has something to say.
-    const assetsError = el("div", "inline-error settings-group-note");
+    addGeneralRow(SITE_ASSETS_FOLDER_FIELD, "Assets folder", assetsInput);
     for (const field of loaded.fields) {
       const key = field.group ?? UNGROUPED;
       const id = `site-setting-${field.pointer}`;
@@ -424,6 +431,7 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       }
       controls.set(field.pointer, input);
       categoryOf.set(field.pointer, key);
+      labelOf.set(field.pointer, labelFor(field));
     }
 
     const main = el("div", "settings-main");
@@ -450,9 +458,9 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
     main.append(nav, body);
     const navList = settingsNav(nav, show);
 
-    // Save belongs to the publisher's categories only: it sends their
-    // settings, while General saves each change as it is made, the way
-    // pragma's own Settings do. The header's close discards unsaved edits.
+    // One Save on every page, for every change in the dialog, General's
+    // included: a site's name is the publisher's, so it waits for Save like
+    // the rest. The header's close discards unsaved edits.
     const actions = el("div", "site-settings-actions");
     const error = el("div", "inline-error");
     error.hidden = true;
@@ -464,7 +472,6 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
     function show(key: string): void {
       navList.select(key);
       for (const [id, section] of sections) section.hidden = id !== key;
-      actions.hidden = key === GENERAL;
     }
     show(GENERAL);
 
@@ -473,27 +480,7 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       icon: { glyph: "site" },
       content: main,
       className: "dialog-settings dialog-flush dialog-site-settings",
-      initialFocus: assetsInput,
-    });
-
-    async function commitAssetsFolder(): Promise<void> {
-      const typed = assetsInput.value.trim();
-      if (typed === savedAssetsFolder) return;
-      assetsError.remove();
-      try {
-        savedAssetsFolder = await deps.settings.saveAssetsFolder(sitePath, typed);
-        assetsInput.value = savedAssetsFolder;
-        deps.onAssetsFolderSaved();
-      } catch (thrown) {
-        assetsError.textContent = thrown instanceof Error ? thrown.message : "Failed to save the assets folder.";
-        sections.get(GENERAL)?.querySelector(".settings-group")?.append(assetsError);
-      }
-    }
-    assetsInput.addEventListener("change", () => void commitAssetsFolder());
-    assetsInput.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      void commitAssetsFolder();
+      initialFocus: nameInput,
     });
 
     async function submit(): Promise<void> {
@@ -506,7 +493,15 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
         const now = input ? controlValue(input) : "";
         if (now !== was) edits[pointer] = now === "" ? null : now;
       }
-      if (Object.keys(edits).length === 0) {
+      const name = nameInput.value.trim();
+      const assetsFolder = assetsInput.value.trim();
+      const changes: SiteSettingsChanges = {
+        edits,
+        ...(name !== loaded.siteName ? { name } : {}),
+        ...(assetsFolder !== loaded.assetsFolder ? { assetsFolder } : {}),
+      };
+      const changesSiteFile = changes.name !== undefined || changes.assetsFolder !== undefined;
+      if (Object.keys(edits).length === 0 && !changesSiteFile) {
         handle.close(); // nothing to say, nothing to send
         return;
       }
@@ -515,17 +510,18 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       save.textContent = "Saving…";
       error.hidden = true;
       try {
-        await deps.settings.save(sitePath, edits);
+        await deps.settings.save(sitePath, changes);
+        if (changesSiteFile) deps.onSiteFileChanged();
         handle.close();
       } catch (thrown) {
         const message = thrown instanceof Error ? thrown.message : "Failed to save settings.";
-        // The service names the field it refused as a JSON Pointer — the
-        // same string the control is keyed by — so the message can say
-        // which one, and the dialog turns to the category holding it.
-        const blamed = loaded.fields.find((field) => field.pointer === fieldPointer(thrown));
-        const category = blamed && categoryOf.get(blamed.pointer);
+        // A refusal names the control to blame, keyed as the dialog keys it,
+        // so the message can say which one and the dialog turns to its page.
+        const blamed = fieldPointer(thrown);
+        const category = blamed === undefined ? undefined : categoryOf.get(blamed);
         if (category) show(category);
-        error.textContent = blamed ? `${labelFor(blamed)}: ${message}` : message;
+        const label = blamed === undefined ? undefined : labelOf.get(blamed);
+        error.textContent = label ? `${label}: ${message}` : message;
         error.hidden = false;
       } finally {
         save.disabled = false;
@@ -533,7 +529,7 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
       }
     }
     save.addEventListener("click", () => void submit());
-    for (const input of controls.values()) {
+    for (const input of [nameInput, assetsInput, ...controls.values()]) {
       input.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" || save.disabled) return;
         event.preventDefault();

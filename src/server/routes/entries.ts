@@ -54,7 +54,14 @@ import {
   refuseLink,
   resolveRootedPath,
 } from "../rootedFiles.ts";
-import { addPendingEntry, queuePendingDeletes, removePendingEntry, resolveSiteForPath } from "../sites.ts";
+import {
+  addPendingEntry,
+  forgetPendingPaths,
+  movePendingPaths,
+  queuePendingDeletes,
+  removePendingEntry,
+  resolveSiteForPath,
+} from "../sites.ts";
 import { keepSpaceBookmarks } from "../spaceBookmarks.ts";
 import { findNameCollision, moveEntryToTrash, resolveWithinSpace, uniqueEntryName } from "../spaceFiles.ts";
 import { type ReferenceRewriteResult, rewriteMovedReferences } from "../spaceReferences.ts";
@@ -388,7 +395,16 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
         }
       }
 
+      const movedFrom = path.relative(spaceRoot, fromPath).split(path.sep).join("/");
       const relative = path.relative(spaceRoot, toPath).split(path.sep).join("/");
+
+      // A page never published is queued by its path, and the move just
+      // changed that path. Best-effort, like the trigger above.
+      try {
+        await movePendingPaths(spaceRoot, movedFrom, relative);
+      } catch {
+        // best-effort only — the move above already succeeded
+      }
 
       // Links last, and best-effort: the rename has already landed, so a
       // rewrite that throws costs some stale references rather than an
@@ -396,7 +412,6 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
       // reload before its own next save puts the old text back.
       let references: ReferenceRewriteResult = { rewritten: [], warnings: [] };
       try {
-        const movedFrom = path.relative(spaceRoot, fromPath).split(path.sep).join("/");
         references = await rewriteMovedReferences(spaceRoot, movedFrom, relative);
       } catch {
         // best-effort only — the move above already succeeded
@@ -458,6 +473,16 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
       await keepTableLayouts((layouts) => forgottenByPath(layouts, formatWithinRoot(target, targetPath)));
       await keepFlowAppModes((modes) => forgottenByPath(modes, formatWithinRoot(target, targetPath)));
       await keepSpaceBookmarks(spaceRoot, (file) => bookmarksAfterDelete(file, formatWithinRoot(target, targetPath)));
+
+      // A page never published is queued by its path, which now names
+      // nothing. Best-effort, like the capture above.
+      if (inSpace) {
+        try {
+          forgetPendingPaths(spaceRoot, formatWithinRoot(target, targetPath));
+        } catch {
+          // best-effort only — the delete above already succeeded
+        }
+      }
 
       // Best-effort unpublish of each queued document, after the local
       // delete has already landed: a service failure never blocks a local

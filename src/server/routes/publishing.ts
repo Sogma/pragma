@@ -31,8 +31,7 @@ import type {
   PublishersResponse,
   SavePublisherRequestBody,
   SaveSiteSettingsRequestBody,
-  SiteAssetsFolderRequestBody,
-  SiteAssetsFolderResponse,
+  SaveSiteSettingsResponse,
   SiteImageUploadRequestBody,
   SiteImageUploadResponse,
   SiteSettingsErrorBody,
@@ -44,7 +43,7 @@ import { requirePublisher, requirePublisherForSite } from "../publishers.ts";
 import { runPublish } from "../publishHandler.ts";
 import { isSpaceTarget, newFolderIn, PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
 import { runReadSiteSettings, runSaveSiteSettings, runUploadSiteImage } from "../siteSettingsHandler.ts";
-import { normalizeAssetsFolder, readSiteFile, resolveSiteForPath, writeSiteAssetsFolder } from "../sites.ts";
+import { readSiteFile, resolveSiteForPath } from "../sites.ts";
 import { findNameCollision, resolveWithinSpace } from "../spaceFiles.ts";
 import type { RouteContext } from "./shared.ts";
 
@@ -53,6 +52,8 @@ import type { RouteContext } from "./shared.ts";
 function refusalStatus(error: unknown): 400 | 403 | 404 {
   return error instanceof PathAccessError ? error.status : 400;
 }
+
+const isTextOrAbsent = (value: unknown) => value === undefined || typeof value === "string";
 
 export function mountPublishingRoutes(app: Hono, { spaceRoot }: RouteContext): void {
   // Publishers (docs/publishing.md): the same shape as /api/providers, but
@@ -279,57 +280,48 @@ export function mountPublishingRoutes(app: Hono, { spaceRoot }: RouteContext): v
   });
 
   // Site Settings (docs/publishing.md's Site settings): the publisher's
-  // schema and values, through a token-holding route like New Site. The
-  // error body carries `field` so the dialog can point at the control the
-  // service rejected.
+  // schema and values, through a token-holding route like New Site. A Save
+  // writes `_site.json` too, so it resolves the site as a write, which
+  // refuses one in a hidden folder. A refusal's `field` names the control.
   app.all("/api/space/site/settings", async (c) => {
     if (c.req.method !== "GET" && c.req.method !== "POST") return c.body(null, 405);
 
     try {
       const body = c.req.method === "POST" ? ((await c.req.json()) as Partial<SaveSiteSettingsRequestBody>) : undefined;
       const sitePath = body?.path ?? c.req.query("path");
-      if (sitePath === undefined) return c.json({ message: "Missing path." }, 400);
+      if (typeof sitePath !== "string") return c.json({ message: "Missing path." }, 400);
 
-      const siteDir = resolveWithinSpace(spaceRoot, sitePath); // throws on a path escaping the space
+      const site = resolveRootedPath(spaceRoot, sitePath, body ? "write" : "read");
+      const siteDir = site.filePath;
+      if (!isSpaceTarget(site) || !readSiteFile(siteDir)) return c.json({ message: "Not a site folder." }, 404);
+
+      if (body) {
+        if (!isTextOrAbsent(body.name) || !isTextOrAbsent(body.assetsFolder)) {
+          return c.json({ message: "name and assetsFolder must be text." }, 400);
+        }
+        const changes = { edits: body.edits ?? {}, name: body.name, assetsFolder: body.assetsFolder };
+        const saved = await runSaveSiteSettings(siteDir, () => requirePublisherForSite(siteDir), changes);
+        if (!saved.ok) {
+          const refusal = { message: saved.message, field: saved.field, need: saved.need };
+          return c.json<SiteSettingsErrorBody>(refusal, saved.status);
+        }
+        return c.json<SaveSiteSettingsResponse>({ siteName: saved.siteName, assetsFolder: saved.assetsFolder });
+      }
+
       const resolved = await requirePublisherForSite(siteDir);
       if (!resolved.ok) return c.json<ErrorBody>({ message: resolved.message, need: resolved.need }, 400);
-
-      const result = body
-        ? await runSaveSiteSettings(siteDir, resolved.publisher, body.edits ?? {})
-        : await runReadSiteSettings(siteDir, resolved.publisher);
+      const result = await runReadSiteSettings(siteDir, resolved.publisher);
       if (!result.ok) {
         return c.json<SiteSettingsErrorBody>({ message: result.message, field: result.field }, result.status);
       }
       return c.json<SiteSettingsResponse>({
         siteName: result.siteName,
+        ...(result.siteNameUpdated ? { siteNameUpdated: true } : {}),
         publisherLabel: resolved.publisher.label,
         fields: result.fields,
         skipped: result.skipped,
         assetsFolder: result.assetsFolder,
       });
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 400);
-    }
-  });
-
-  // A site's assets folder — the one site setting the space holds rather
-  // than the publisher, so it is written on its own and never waits on the
-  // service.
-  app.all("/api/space/site/assets-folder", async (c) => {
-    if (c.req.method !== "POST") return c.body(null, 405);
-
-    try {
-      const body = (await c.req.json()) as Partial<SiteAssetsFolderRequestBody>;
-      if (typeof body.path !== "string" || typeof body.assetsFolder !== "string") {
-        return c.json({ message: "Missing path or assetsFolder." }, 400);
-      }
-      const site = resolveRootedPath(spaceRoot, body.path, "write");
-      const siteDir = site.filePath;
-      if (!isSpaceTarget(site) || !readSiteFile(siteDir)) return c.json({ message: "Not a site folder." }, 404);
-      const folder = normalizeAssetsFolder(body.assetsFolder);
-      if (!folder.ok) return c.json({ message: folder.message }, 400);
-      await writeSiteAssetsFolder(siteDir, folder.folder);
-      return c.json<SiteAssetsFolderResponse>({ assetsFolder: folder.folder });
     } catch (error) {
       return c.json({ message: error instanceof Error ? error.message : "Internal error" }, refusalStatus(error));
     }

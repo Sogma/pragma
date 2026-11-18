@@ -32,7 +32,7 @@ const SIZE_LIMITS = {
   "architecture.md": 27_900,
   "protocol.md": 99_650,
   "flow-nodes.md": 29_880,
-  "publishing.md": 17_600,
+  "publishing.md": 17_900,
   "deployment.md": 10_660,
   "README.md": 6_000,
 };

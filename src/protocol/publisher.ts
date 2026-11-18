@@ -132,6 +132,21 @@ export async function deleteSogmaSite(publisher: PublisherConnection, siteId: st
   }
 }
 
+/** A site's name as the publisher holds it, or undefined when it can't be
+ * read. `GET /v1/sites` is the one read that carries it: the settings read
+ * leaves it out. */
+export async function readSogmaSiteName(publisher: PublisherConnection, siteId: string): Promise<string | undefined> {
+  try {
+    const { response } = await httpCall(`${sogmaBase(publisher)}/sites`, { headers: sogmaHeaders(publisher) });
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as { sites?: Array<{ id?: unknown; name?: unknown }> };
+    const site = Array.isArray(body.sites) ? body.sites.find((entry) => entry.id === siteId) : undefined;
+    return typeof site?.name === "string" ? site.name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export type SogmaSettingsResult<T> =
   | ({ ok: true } & T)
   // Same httpCall-present-or-not distinction as CreateSogmaSiteResult above.
@@ -210,34 +225,30 @@ export async function fetchSogmaSiteSettings(
   return readSettingsResponse(call);
 }
 
-// `PATCH /v1/sites/{id}` — `settings` is applied as a JSON Merge Patch (RFC
-// 7396), so `patch` must carry only what changed: sending the whole blob
-// would overwrite fields this pragma may not know about. The caller
-// re-renders from the echoed full settings, not its own optimistic copy.
+// `PATCH /v1/sites/{id}`: the name and the settings in one request, which
+// Sogma applies as one change. `settings` is a JSON Merge Patch (RFC 7396),
+// so it carries only what changed: the whole blob would overwrite fields
+// this pragma may not know about. Plain JSON, not the merge-patch media
+// type: Sogma merges into the `settings` member of an ordinary body.
 //
-// Plain JSON, not the merge-patch media type — Sogma merges into the
-// `settings` member of an ordinary body.
-export async function patchSogmaSiteSettings(
+// A refusal's `field` is Sogma's own, rooted at the request body. The
+// answer's `name` is the one Sogma stored, which it trims.
+export async function patchSogmaSite(
   publisher: PublisherConnection,
   siteId: string,
-  patch: Record<string, unknown>,
-): Promise<SogmaSettingsResult<{ settings: unknown }>> {
+  patch: { name?: string; settings?: Record<string, unknown> },
+): Promise<SogmaSettingsResult<{ name?: string; settings: unknown }>> {
   let call: Awaited<ReturnType<typeof httpCall>>;
   try {
     call = await httpCall(`${sogmaBase(publisher)}/sites/${siteId}`, {
       method: "PATCH",
       headers: sogmaHeaders(publisher, { "content-type": "application/json" }),
-      body: JSON.stringify({ settings: patch }),
+      body: JSON.stringify(patch),
     });
   } catch {
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
-  const result = await readSettingsResponse(call);
-  if (result.ok || result.field === undefined) return result;
-  // Sogma roots `field` at the request body, and the form keys its controls
-  // inside `settings`. A pointer outside it names no setting.
-  const { field, ...rest } = result;
-  return field.startsWith("/settings/") ? { ...rest, field: field.slice("/settings".length) } : rest;
+  return readSettingsResponse(call);
 }
 
 // Both settings calls answer with the same envelope, and reject with the
@@ -245,7 +256,7 @@ export async function patchSogmaSiteSettings(
 // together rather than being written twice.
 async function readSettingsResponse(
   call: Awaited<ReturnType<typeof httpCall>>,
-): Promise<SogmaSettingsResult<{ settings: unknown }>> {
+): Promise<SogmaSettingsResult<{ name?: string; settings: unknown }>> {
   const { response, meta } = call;
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as
@@ -258,8 +269,8 @@ async function readSettingsResponse(
       httpCall: meta,
     };
   }
-  const body = (await response.json().catch(() => undefined)) as { settings?: unknown } | undefined;
-  return { ok: true, settings: body?.settings ?? {} };
+  const body = (await response.json().catch(() => undefined)) as { name?: unknown; settings?: unknown } | undefined;
+  return { ok: true, settings: body?.settings ?? {}, ...(typeof body?.name === "string" ? { name: body.name } : {}) };
 }
 
 export interface SogmaDocument {

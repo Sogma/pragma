@@ -19,7 +19,7 @@ my-blog/
     first.md
 ```
 
-- **`_site.json`** holds the service-assigned `id` and `slug`, the `name` as typed, the requested `domain`, the `primaryDomain` the service reports (`null` until one is live), and `publisherId` — which configured publisher the site lives on, and the one every later call about it goes to. `assetsFolder`, when set, is a site-relative folder that images pasted or dropped into a document under the site are copied into; unset, or naming a folder that is missing, they land beside the document. It never leaves the space.
+- **`_site.json`** holds the service-assigned `id` and `slug`, a copy of the site's `name` (the service holds it), the requested `domain`, the `primaryDomain` the service reports (`null` until one is live), and `publisherId` — which configured publisher the site lives on, and the one every later call about it goes to. `assetsFolder`, when set, is a site-relative folder that images pasted or dropped into a document under the site are copied into; unset, or naming a folder that is missing, they land beside the document. It never leaves the space.
 - **The site folder is the published tree**, with no intermediate folder between the two: a document's path under the site root is its path on the site. A folder that should not publish belongs outside the site, not inside it under a different name.
 - **Every folder's representative document is `index.md`**, uniformly at every depth including the site root. There is no separate home-page filename.
 - **Only markdown publishes.** `_site.json`, `_queue.json`, and any other kind of file in the folder are Pragma's or the author's own; nothing sends them, so a folder of assets beside the pages is inert rather than disallowed.
@@ -90,10 +90,10 @@ A document with no `id` is then created with a fresh idempotency key; one with a
 
 Settings live on the service, not in the space, except the site's `assetsFolder`, which lives in `_site.json`. Nothing about the service's settings is mirrored locally, and their field set is not hardcoded: Pragma reads the service's own settings schema and renders whatever it describes, so a setting the service adds appears without a Pragma release.
 
-A **Settings** item on each site's row in the Websites panel opens the dialog, offered only when a publisher key is stored. Its title names the site and the publisher it is bound to. It has the same category-list layout as Pragma's own Settings: **General** holds the assets folder, and each group the schema names is a category of its own.
+A **Settings** item on each site's row in the Websites panel opens the dialog, offered only when a publisher key is stored. Its title names the site and the publisher it is bound to. It has the same category-list layout as Pragma's own Settings: **General** holds the site's name and assets folder, and each group the schema names is a category of its own.
 
-- **General saves as it changes.** The assets folder is written to `_site.json` on its own and never waits on the publisher; the folder is created then.
-- **The publisher's categories save together.** Their **Save** writes only the fields that changed, as a merge patch — anything untouched is left exactly as the service holds it, including settings this Pragma never drew. Emptying a field clears that setting.
+- **One Save, on every page, writes only what changed, all or nothing.** The name and the changed settings go to the publisher in one request, the settings as a merge patch, so anything untouched stays as the service holds it, including settings this Pragma never drew. Emptying a field clears that setting. Only once the publisher accepts are the name it stored, trimmed, and the assets folder written to `_site.json`, the folder created then; an assets folder alone never reaches the publisher. Closing discards unsaved edits.
+- **The name is the publisher's.** The dialog opens on it and puts `_site.json`'s copy right when the two differ.
 - **Field descriptors** come from the schema: label, placeholder, and grouping. Only a toggle shows its help text. Categories follow the schema's own order, so a service puts Identity above Analytics by declaring it first.
 - **A toggle** is a boolean, drawn as a switch and sent as `true` or `false`; unset reads as off.
 - **An image setting** is a string marked `x-sogma-ref: "file"`: the `public_id` of an image file the site holds. It is drawn as a picker offering the images in the site folder; the one chosen is uploaded as publishing uploads an embed, and Save sends its `public_id`. The current image's preview comes from the site's file list, matched on `public_id`.
@@ -122,7 +122,7 @@ An image over the publisher's size ceiling refuses the publish, naming the file,
 [ { "op": "publish", "id": "doc_…" }, { "op": "publish", "path": "my-blog/new.md" }, { "op": "delete", "id": "doc_…" } ]
 ```
 
-An entry is keyed by `id` whenever the document has one, so moving the file before it syncs does not orphan the entry; `path` is used only for a document that has never been published. An empty queue means no file.
+An entry is keyed by `id` whenever the document has one, and by `path` only for a document that has never been published; a move or rename carries a `path` entry to the queue of the site the document lands in, if any, and a delete drops it. An empty queue means no file.
 
 What adds an entry:
 
@@ -139,6 +139,6 @@ Nothing lists the queue back to the user, and there is no retry loop; the queue 
 - **A distinct reaction to a 404 on update** (the remote document was deleted). It surfaces as a plain error rather than an offer to re-publish under a new id.
 - **Standalone Unpublish** for a document that stays in the space. Unpublish only happens as a side effect of deleting the file.
 - **Relative links to other pages** inside the markdown body. A link to another document is sent as written and does not become that document's published URL. Images are carried (see Images above); links are not.
-- **Site management beyond creation** — rename, re-parent, or delete a site from the UI.
+- **Site management beyond creation and renaming** — re-parent or delete a site from the UI.
 - **A queue UI** and automatic retry.
 - **Publishing non-markdown kinds.** The control is gated to markdown documents.

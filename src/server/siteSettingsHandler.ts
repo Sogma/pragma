@@ -1,9 +1,17 @@
-import type { SiteImagePreview, SiteSettingsField, SiteSettingsTextField } from "../protocol/api.ts";
+import {
+  SITE_ASSETS_FOLDER_FIELD,
+  SITE_NAME_FIELD,
+  type SiteImagePreview,
+  type SiteSettingsChanges,
+  type SiteSettingsField,
+  type SiteSettingsTextField,
+} from "../protocol/api.ts";
 import {
   fetchSogmaSiteSettings,
   listSogmaFiles,
   type PublisherConnection,
-  patchSogmaSiteSettings,
+  patchSogmaSite,
+  readSogmaSiteName,
   type SogmaFile,
   type SogmaSettingsResult,
 } from "../protocol/publisher.ts";
@@ -14,13 +22,26 @@ import {
   readSettingsValue,
   toSettingsPatch,
 } from "../protocol/settingsSchema.ts";
+import type { SetupNeed } from "../protocol/setupNeed.ts";
 import { readPublishableImage, uploadImage } from "./publishAssets.ts";
 import { resolvePublisherSchemas } from "./publisherSchemas.ts";
-import { readSiteFile } from "./sites.ts";
+import type { PublisherResolution } from "./publishers.ts";
+import { normalizeAssetsFolder, readSiteFile, updateSiteFile } from "./sites.ts";
+
+type SiteRefusal = { ok: false; message: string; field?: string; need?: SetupNeed; status: 400 | 404 | 502 };
+
+export type SiteSaveResult = { ok: true; siteName: string; assetsFolder: string } | SiteRefusal;
 
 export type SiteSettingsResult =
-  | { ok: true; siteName: string; fields: SiteSettingsField[]; skipped: number; assetsFolder: string }
-  | { ok: false; message: string; field?: string; status: 400 | 404 | 502 };
+  | {
+      ok: true;
+      siteName: string;
+      siteNameUpdated?: boolean;
+      fields: SiteSettingsField[];
+      skipped: number;
+      assetsFolder: string;
+    }
+  | SiteRefusal;
 
 async function resolveSchema(publisher: PublisherConnection): Promise<SogmaSettingsResult<{ schema: unknown }>> {
   const resolved = await resolvePublisherSchemas(publisher);
@@ -75,8 +96,8 @@ export function imagePreview(file: SogmaFile): SiteImagePreview {
 }
 
 /** Reads a site's settings for the Site Settings dialog: the publisher's own
- * schema, its current values, and the space's name for the site. `siteDir`
- * is the site's folder — the one holding `_site.json`. */
+ * schema, its current values, and the site's name. `siteDir` is the site's
+ * folder — the one holding `_site.json`. */
 export async function runReadSiteSettings(
   siteDir: string,
   publisher: PublisherConnection,
@@ -87,45 +108,80 @@ export async function runReadSiteSettings(
   const schema = await resolveSchema(publisher);
   if (!schema.ok) return { ok: false, message: schema.message, status: schema.httpCall ? 400 : 502 };
 
-  const settings = await fetchSogmaSiteSettings(publisher, site.id);
+  const [settings, heldName] = await Promise.all([
+    fetchSogmaSiteSettings(publisher, site.id),
+    readSogmaSiteName(publisher, site.id),
+  ]);
   if (!settings.ok) {
     return { ok: false, message: settings.message, field: settings.field, status: settings.httpCall ? 400 : 502 };
   }
 
+  // The publisher owns the name. `_site.json` keeps a copy for what reads
+  // the space alone (the tree, the Websites list), put right here when the
+  // site was renamed elsewhere. Best-effort both ways: an unread name falls
+  // back to the copy, and a failed write only leaves a stale label.
+  let siteNameUpdated = false;
+  if (heldName !== undefined && heldName !== site.name) {
+    try {
+      await updateSiteFile(siteDir, { name: heldName });
+      siteNameUpdated = true;
+    } catch {
+      // the dialog still shows the publisher's name
+    }
+  }
+
   return {
     ok: true,
-    siteName: site.name,
+    siteName: heldName ?? site.name,
+    ...(siteNameUpdated ? { siteNameUpdated } : {}),
     assetsFolder: site.assetsFolder ?? "",
     ...(await fieldsFor(publisher, site.id, schema.schema, settings.settings)),
   };
 }
 
-/** Writes the changed settings as a merge patch and returns what the service
- * stored afterwards. Nothing is written locally: the service is the store
- * for these settings, and its response is the authority on what they now
- * are. */
+// Sogma points from the request body. The dialog keys the name by its own
+// field and each setting by its pointer inside `settings`; anything else
+// names no control, so the refusal is shown for the whole form.
+function controlFor(field: string | undefined): string | undefined {
+  if (field === "/name") return SITE_NAME_FIELD;
+  return field?.startsWith("/settings/") ? field.slice("/settings".length) : undefined;
+}
+
+/** One Save, all or nothing: the assets folder is checked before anything
+ * is sent, the name and the edited settings go to the publisher in one
+ * request, and only once it accepts them are the name it stored and the
+ * assets folder written to `_site.json`. A change to the assets folder
+ * alone never reaches the publisher, which is resolved only to send. */
 export async function runSaveSiteSettings(
   siteDir: string,
-  publisher: PublisherConnection,
-  edits: Record<string, string | boolean | null>,
-): Promise<SiteSettingsResult> {
+  publisherFor: () => Promise<PublisherResolution>,
+  changes: SiteSettingsChanges,
+): Promise<SiteSaveResult> {
   const site = readSiteFile(siteDir);
   if (!site) return { ok: false, message: "Not a site folder.", status: 404 };
 
-  const schema = await resolveSchema(publisher);
-  if (!schema.ok) return { ok: false, message: schema.message, status: schema.httpCall ? 400 : 502 };
-
-  const patched = await patchSogmaSiteSettings(publisher, site.id, toSettingsPatch(edits));
-  if (!patched.ok) {
-    return { ok: false, message: patched.message, field: patched.field, status: patched.httpCall ? 400 : 502 };
+  let assetsFolder: string | undefined;
+  if (changes.assetsFolder !== undefined) {
+    const folder = normalizeAssetsFolder(changes.assetsFolder);
+    if (!folder.ok) return { ok: false, message: folder.message, field: SITE_ASSETS_FOLDER_FIELD, status: 400 };
+    assetsFolder = folder.folder;
   }
 
-  return {
-    ok: true,
-    siteName: site.name,
-    assetsFolder: site.assetsFolder ?? "",
-    ...(await fieldsFor(publisher, site.id, schema.schema, patched.settings)),
-  };
+  let name: string | undefined;
+  const settings = Object.keys(changes.edits).length > 0 ? toSettingsPatch(changes.edits) : undefined;
+  if (changes.name !== undefined || settings !== undefined) {
+    const resolved = await publisherFor();
+    if (!resolved.ok) return { ok: false, message: resolved.message, need: resolved.need, status: 400 };
+    const patched = await patchSogmaSite(resolved.publisher, site.id, { name: changes.name, settings });
+    if (!patched.ok) {
+      const field = controlFor(patched.field);
+      return { ok: false, message: patched.message, ...(field ? { field } : {}), status: patched.httpCall ? 400 : 502 };
+    }
+    if (changes.name !== undefined) name = patched.name ?? changes.name.trim();
+  }
+
+  if (name !== undefined || assetsFolder !== undefined) await updateSiteFile(siteDir, { name, assetsFolder });
+  return { ok: true, siteName: name ?? site.name, assetsFolder: assetsFolder ?? site.assetsFolder ?? "" };
 }
 
 export type SiteImageUploadResult =

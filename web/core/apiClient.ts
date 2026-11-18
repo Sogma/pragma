@@ -120,13 +120,13 @@ import type {
   SaveProviderRequestBody,
   SavePublisherRequestBody,
   SaveSiteSettingsRequestBody,
+  SaveSiteSettingsResponse,
   SelectedRange,
   SetOrderRequestBody,
   SetSortRequestBody,
-  SiteAssetsFolderRequestBody,
-  SiteAssetsFolderResponse,
   SiteImageUploadRequestBody,
   SiteImageUploadResponse,
+  SiteSettingsChanges,
   SiteSettingsErrorBody,
   SiteSettingsResponse,
   SortKeysResponse,
@@ -272,9 +272,11 @@ export type {
   SaveMcpServerRequestBody,
   SaveProviderRequestBody,
   SavePublisherRequestBody,
+  SaveSiteSettingsResponse,
   SetOrderRequestBody,
   SiteImagePreview,
   SiteImageUploadResponse,
+  SiteSettingsChanges,
   SiteSettingsField,
   SiteSettingsResponse,
   SpaceLibrariesResponse,
@@ -1703,28 +1705,19 @@ export async function fetchSiteSettings(sitePath: string): Promise<SiteSettingsR
   });
 }
 
-// `edits` carries only what changed, keyed by pointer: the write is a merge
-// patch, so anything absent is left exactly as it is on the service —
-// including settings this pragma never rendered.
+// One Save: `changes` carries only what changed, so anything absent is left
+// exactly as the service and `_site.json` hold it, including settings this
+// pragma never rendered.
 export async function postSiteSettings(
   sitePath: string,
-  edits: Record<string, string | boolean | null>,
-): Promise<SiteSettingsResponse> {
-  return request<SiteSettingsResponse>("/api/space/site/settings", {
+  changes: SiteSettingsChanges,
+): Promise<SaveSiteSettingsResponse> {
+  return request<SaveSiteSettingsResponse>("/api/space/site/settings", {
     method: "POST",
-    body: { path: sitePath, edits } satisfies SaveSiteSettingsRequestBody,
+    body: { path: sitePath, ...changes } satisfies SaveSiteSettingsRequestBody,
     fallback: "Failed to save site settings",
     error: siteSettingsError,
   });
-}
-
-export async function postSiteAssetsFolder(sitePath: string, assetsFolder: string): Promise<string> {
-  const saved = await request<SiteAssetsFolderResponse>("/api/space/site/assets-folder", {
-    method: "POST",
-    body: { path: sitePath, assetsFolder } satisfies SiteAssetsFolderRequestBody,
-    fallback: "Failed to save the assets folder",
-  });
-  return saved.assetsFolder;
 }
 
 export async function postSiteImage(sitePath: string, image: string): Promise<SiteImageUploadResponse> {

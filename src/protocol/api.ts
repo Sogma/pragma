@@ -1216,8 +1216,12 @@ export interface SiteImageUploadResponse {
 }
 
 export interface SiteSettingsResponse {
-  // The site's name as the space knows it, for the dialog's subtitle.
+  // The site's name as the publisher holds it, or `_site.json`'s copy when
+  // the publisher's couldn't be read. Titles the dialog and fills its Name.
   siteName: string;
+  // Set when the read found `_site.json`'s copy of the name out of date and
+  // rewrote it, so the views that show the copy can reload.
+  siteNameUpdated?: boolean;
   // The label of the publisher this site is bound to, which only the server
   // can name: a `_site.json` without a `publisherId` resolves to the first
   // configured publisher, so the client can't derive it from the site alone.
@@ -1232,29 +1236,35 @@ export interface SiteSettingsResponse {
   assetsFolder: string;
 }
 
-// Only the fields the writer actually changed, keyed by pointer — a merge
-// patch leaves everything absent untouched, which is what keeps a write
-// from clobbering settings this pragma never rendered. `null` clears one;
-// a toggle is sent as `true` or `false`.
-export interface SaveSiteSettingsRequestBody {
-  path: string;
+// What one Save changes, and nothing else. `edits` are the publisher's
+// settings keyed by pointer, as a merge patch: anything absent stays
+// untouched, which keeps a write from clobbering settings this pragma never
+// rendered. `null` clears one; a toggle is sent as `true` or `false`.
+// `name` and `assetsFolder` ("" clears it) are present only when changed.
+export interface SiteSettingsChanges {
   edits: Record<string, string | boolean | null>;
+  name?: string;
+  assetsFolder?: string;
 }
 
-// Sets a site's assets folder in its `_site.json`; "" clears it. The answer
-// is the folder as stored, normalized to a site-relative path.
-export interface SiteAssetsFolderRequestBody {
+export interface SaveSiteSettingsRequestBody extends SiteSettingsChanges {
   path: string;
+}
+
+// What `_site.json` holds after a Save: the name the publisher stored,
+// which it trims, and the assets folder as a site-relative path.
+export interface SaveSiteSettingsResponse {
+  siteName: string;
   assetsFolder: string;
 }
 
-export interface SiteAssetsFolderResponse {
-  assetsFolder: string;
-}
+// The keys a refusal blames General's two fields with. A setting is blamed
+// by its `SiteSettingsField.pointer`, which always starts with "/".
+export const SITE_NAME_FIELD = "name";
+export const SITE_ASSETS_FOLDER_FIELD = "assetsFolder";
 
-// A rejected settings write names the offending field where the service
-// named one — the same JSON Pointer as `SiteSettingsField.pointer`, so the
-// dialog can point at the control instead of the whole form.
+// A rejected Save names the control to blame where it can, so the dialog
+// can point at it instead of at the whole form.
 export interface SiteSettingsErrorBody extends ErrorBody {
   field?: string;
 }

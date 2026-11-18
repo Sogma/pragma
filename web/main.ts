@@ -630,7 +630,7 @@ async function main(): Promise<void> {
     menus,
     dialog,
     settings: siteSettingsApi,
-    onAssetsFolderSaved: () => void space.refresh(),
+    onSiteFileChanged: () => void Promise.all([space.refresh(), websitesView.refresh()]),
     siteImages: spaceTree.imagesUnder,
     createSite: postCreateSite,
     publishers: () => publishers.get(),

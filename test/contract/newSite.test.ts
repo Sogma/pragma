@@ -106,10 +106,10 @@ describe("API contract — New Site", () => {
     await mkdir(path.join(testServer.spaceRoot, ".drafts", "site"), { recursive: true });
     const siteFile = path.join(testServer.spaceRoot, ".drafts", "site", "_site.json");
     await writeFile(siteFile, JSON.stringify({ id: "ste_hidden", slug: "site", name: "Site" }));
-    const res = await fetch(`${testServer.baseUrl}/api/space/site/assets-folder`, {
+    const res = await fetch(`${testServer.baseUrl}/api/space/site/settings`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path: ".drafts/site", assetsFolder: "images" }),
+      body: JSON.stringify({ path: ".drafts/site", edits: {}, assetsFolder: "images" }),
     });
 
     expect(res.status).toBe(403);

@@ -9,6 +9,7 @@ import { isHiddenName, isNamed } from "../protocol/entryName.ts";
 import { isPrivateDocument, readFrontmatter } from "../protocol/frontmatter.ts";
 import { QUEUE_FILENAME, SITE_FILENAME } from "../protocol/pragmaFiles.ts";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
+import { isWithin } from "../protocol/rootedPath.ts";
 import { isMarkdownFile } from "../protocol/types.ts";
 import { namedEntryPath, refuseLink } from "./rootedFiles.ts";
 
@@ -94,17 +95,21 @@ export function normalizeAssetsFolder(typed: string): { ok: true; folder: string
   return { ok: true, folder };
 }
 
-/** Sets or clears `assetsFolder` in `<dir>/_site.json`, keeping every other
- * key as written, and creates the folder so the first paste has somewhere to
- * land. */
-export async function writeSiteAssetsFolder(dir: string, folder: string): Promise<void> {
+/** Writes the keys given into `<dir>/_site.json`: `name`, the name the
+ * publisher holds, and `assetsFolder`, which "" clears. A set assets folder
+ * is created, so the first paste has somewhere to land. */
+export async function updateSiteFile(dir: string, changes: { name?: string; assetsFolder?: string }): Promise<void> {
+  const { name, assetsFolder } = changes;
+  if (assetsFolder) await mkdir(path.join(dir, ...assetsFolder.split("/")), { recursive: true });
   const sitePath = namedEntryPath(dir, SITE_FILENAME);
   refuseLink(dir, sitePath);
-  const parsed = JSON.parse(await readFile(sitePath, "utf8")) as Record<string, unknown>;
-  if (folder) parsed.assetsFolder = folder;
-  else delete parsed.assetsFolder;
-  if (folder) await mkdir(path.join(dir, ...folder.split("/")), { recursive: true });
-  await writeFile(sitePath, `${JSON.stringify(parsed, null, 2)}\n`);
+  // Edited as the parsed file, never rebuilt from SiteFile: every key this
+  // write doesn't set stays exactly as written.
+  const site = JSON.parse(await readFile(sitePath, "utf8")) as Record<string, unknown>;
+  if (name !== undefined) site.name = name;
+  if (assetsFolder) site.assetsFolder = assetsFolder;
+  else if (assetsFolder === "") delete site.assetsFolder;
+  await writeFile(sitePath, `${JSON.stringify(site, null, 2)}\n`);
 }
 
 export interface SitePublishTarget {
@@ -305,4 +310,57 @@ export function removePendingEntry(siteAbsoluteDir: string, match: { id?: string
     return true;
   });
   if (filtered.length !== entries.length) writePendingQueue(siteAbsoluteDir, filtered);
+}
+
+/** After `from` moved to `to`, both space-relative: each `path` entry on or
+ * under `from` follows to its new path, in the queue of the site that path
+ * sits in now, and goes when it sits in none. An `id` entry needs nothing:
+ * the id travels in the file's own frontmatter. */
+export async function movePendingPaths(spaceRoot: string, from: string, to: string): Promise<void> {
+  const isMoved = (entry: PendingEntry): entry is PendingEntry & { path: string } =>
+    typeof entry.path === "string" && isWithin(from, entry.path);
+
+  // Two kinds of queue can hold one: the queue of the site `from` sat in,
+  // which the move left in place, and the queue of each site the move
+  // carried along, whose entries still name the old folder.
+  const siteDirs = new Set<string>();
+  const left = resolveSiteForPath(spaceRoot, from);
+  if (left) siteDirs.add(left.siteDir);
+  const movedDir = path.join(spaceRoot, to);
+  if ((await stat(movedDir)).isDirectory()) {
+    if (readSiteFile(movedDir)) siteDirs.add(to);
+    for (const site of await listSites(movedDir, spaceRoot)) siteDirs.add(site.path);
+  }
+
+  for (const siteDir of siteDirs) {
+    const queueDir = path.join(spaceRoot, siteDir);
+    const entries = readPendingQueue(queueDir);
+    if (!entries.some(isMoved)) continue;
+    // Keyed, so a rename onto a path a stale entry names leaves one entry.
+    const kept = new Map<string, PendingEntry>();
+    for (const entry of entries) {
+      if (!isMoved(entry)) {
+        kept.set(pendingEntryKey(entry), entry);
+        continue;
+      }
+      const followed = { ...entry, path: to + entry.path.slice(from.length) };
+      const site = resolveSiteForPath(spaceRoot, followed.path);
+      if (site?.siteDir === siteDir) kept.set(pendingEntryKey(followed), followed);
+      else if (site) addPendingEntry(path.join(spaceRoot, site.siteDir), followed);
+    }
+    writePendingQueue(queueDir, [...kept.values()]);
+  }
+}
+
+/** After `removed` (space-relative) was deleted: each `path` entry on or
+ * under it goes from the queue of the site it sat in, since a page never
+ * published leaves nothing on the service to delete. A site deleted with it
+ * took its own queue along. */
+export function forgetPendingPaths(spaceRoot: string, removed: string): void {
+  const site = resolveSiteForPath(spaceRoot, removed);
+  if (!site) return;
+  const queueDir = path.join(spaceRoot, site.siteDir);
+  const entries = readPendingQueue(queueDir);
+  const kept = entries.filter((entry) => typeof entry.path !== "string" || !isWithin(removed, entry.path));
+  if (kept.length !== entries.length) writePendingQueue(queueDir, kept);
 }

@@ -141,24 +141,24 @@ describe("site settings", () => {
     expect(settings.siteName).toBe("My blog");
   });
 
-  it("POSTs only the edits", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ siteName: "My blog", publisherLabel: "Sogma CMS", fields: [], skipped: 0 }),
-    );
-    await postSiteSettings("sites/blog", { "/analytics/ga_id": null });
+  it("POSTs only what changed", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ siteName: "Field notes", assetsFolder: "" }));
+    const saved = await postSiteSettings("sites/blog", { edits: { "/analytics/ga_id": null }, name: "Field notes" });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/space/site/settings");
     expect(JSON.parse(init.body as string)).toEqual({
       path: "sites/blog",
       edits: { "/analytics/ga_id": null },
+      name: "Field notes",
     });
+    expect(saved.siteName).toBe("Field notes");
   });
 
   it("carries the rejected field's pointer off the error body", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ message: "Not a valid GA4 measurement id.", field: "/analytics/ga_id" }, { status: 400 }),
     );
-    await expect(postSiteSettings("sites/blog", { "/analytics/ga_id": "nope" })).rejects.toMatchObject({
+    await expect(postSiteSettings("sites/blog", { edits: { "/analytics/ga_id": "nope" } })).rejects.toMatchObject({
       message: "Not a valid GA4 measurement id.",
       field: "/analytics/ga_id",
     });

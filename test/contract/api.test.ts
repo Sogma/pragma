@@ -581,24 +581,29 @@ describe("API contract", () => {
     expect(image.status).toBe(400);
   });
 
-  it("POST /api/space/site/assets-folder writes _site.json without the publisher", async () => {
+  // A Save that changes only the assets folder never resolves a publisher,
+  // so this is the one Save a test can make without risking a real call.
+  it("POST /api/space/site/settings saves an assets folder alone without the publisher", async () => {
     const siteDir = path.join(testServer.spaceRoot, "assets-site");
     await mkdir(siteDir, { recursive: true });
     await writeFile(path.join(siteDir, "_site.json"), JSON.stringify({ id: "ste_1", slug: "assets-site", name: "A" }));
     const post = (body: unknown) =>
-      fetch(`${testServer.baseUrl}/api/space/site/assets-folder`, {
+      fetch(`${testServer.baseUrl}/api/space/site/settings`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
 
-    const saved = await post({ path: "assets-site", assetsFolder: "/media/" });
+    const saved = await post({ path: "assets-site", edits: {}, assetsFolder: "/media/" });
     expect(saved.status).toBe(200);
-    expect(await saved.json()).toEqual({ assetsFolder: "media" });
+    expect(await saved.json()).toEqual({ siteName: "A", assetsFolder: "media" });
     expect(JSON.parse(await readFile(path.join(siteDir, "_site.json"), "utf8")).assetsFolder).toBe("media");
 
-    expect((await post({ path: "assets-site", assetsFolder: "../up" })).status).toBe(400);
-    expect((await post({ path: "projects", assetsFolder: "media" })).status).toBe(404);
+    const outside = await post({ path: "assets-site", edits: {}, assetsFolder: "../up" });
+    expect(outside.status).toBe(400);
+    expect(await outside.json()).toMatchObject({ field: "assetsFolder" });
+    expect((await post({ path: "assets-site", edits: {}, name: 7 })).status).toBe(400);
+    expect((await post({ path: "projects", edits: {}, assetsFolder: "media" })).status).toBe(404);
   });
 
   it("GET /api/space/sites lists the space's sites, and any other method is a 405", async () => {
@@ -858,6 +863,26 @@ describe("API contract — space delete", () => {
     expect(existsSync(path.join(testServer.spaceRoot, "delete-test-folder"))).toBe(false);
     const nestedPath = path.join(testServer.spaceRoot, ".trash", "delete-test-folder", "inner.md");
     expect(await readFile(nestedPath, "utf8")).toBe("nested");
+  });
+
+  // A page never published is queued by its path, which names nothing once
+  // the page is deleted, so the entry has to go with it.
+  it("deleting a never-published page drops its queued path", async () => {
+    const siteDir = path.join(testServer.spaceRoot, "delete-site");
+    await mkdir(siteDir, { recursive: true });
+    await writeFile(path.join(siteDir, "_site.json"), JSON.stringify({ id: "ste_delete", slug: "delete", name: "D" }));
+    const saved = await fetch(`${testServer.baseUrl}/api/file?path=delete-site/draft.md`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "# Draft\n" }),
+    });
+    expect(saved.status).toBe(200);
+    expect(existsSync(path.join(siteDir, "_queue.json"))).toBe(true);
+
+    const res = await deleteEntry("delete-site/draft.md");
+
+    expect(res.status).toBe(200);
+    expect(existsSync(path.join(siteDir, "_queue.json"))).toBe(false);
   });
 });
 
@@ -3958,6 +3983,30 @@ describe("API contract — entry names", () => {
     expect(JSON.parse(await readFile(path.join(siteDir, "_queue.json"), "utf8"))).toEqual([
       { op: "publish", id: "doc_post" },
     ]);
+  });
+
+  // A page never published is queued by its path, which starts with the
+  // site's folder, so renaming that folder has to carry the entry along.
+  it("renaming a site's folder carries a never-published page's queued path", async () => {
+    const siteDir = path.join(testServer.spaceRoot, "named-site");
+    await mkdir(siteDir, { recursive: true });
+    await writeFile(path.join(siteDir, "_site.json"), JSON.stringify({ id: "ste_named", slug: "named", name: "N" }));
+    const saved = await fetch(`${testServer.baseUrl}/api/file?path=named-site/draft.md`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "# Draft\n" }),
+    });
+    expect(saved.status).toBe(200);
+
+    const res = await fetch(`${testServer.baseUrl}/api/space/move`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "named-site", to: "renamed-site" }),
+    });
+
+    expect(res.status).toBe(200);
+    const queuePath = path.join(testServer.spaceRoot, "renamed-site", "_queue.json");
+    expect(JSON.parse(await readFile(queuePath, "utf8"))).toEqual([{ op: "publish", path: "renamed-site/draft.md" }]);
   });
 });
 

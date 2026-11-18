@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SiteSettingsResponse } from "../../../web/core/apiClient.ts";
+import type { SiteSettingsChanges, SiteSettingsResponse } from "../../../web/core/apiClient.ts";
 import { createCommands } from "../../../web/services/commands.ts";
 import { createDialogService } from "../../../web/services/dialog.ts";
 import { createKeybindings } from "../../../web/services/keybindings.ts";
@@ -67,12 +67,14 @@ function setup(overrides: Partial<SiteDialogsDeps> = {}, api: Partial<SiteSettin
     dialog: createDialogService(document.body, { commands, keybindings }),
     settings: {
       load: vi.fn(async () => settings()),
-      save: vi.fn(async () => settings({ fields: [] })),
-      saveAssetsFolder: vi.fn(async (_site: string, folder: string) => folder.trim()),
+      save: vi.fn(async (_site: string, changes: SiteSettingsChanges) => ({
+        siteName: changes.name ?? "My blog",
+        assetsFolder: changes.assetsFolder ?? "",
+      })),
       uploadImage: vi.fn(async () => ({ publicId: "k3jf8xmz2p", preview: { url: null, label: "Still processing…" } })),
       ...api,
     },
-    onAssetsFolderSaved: vi.fn(),
+    onSiteFileChanged: vi.fn(),
     siteImages: vi.fn(() => ["blog/assets/logo.png", "blog/icon.png"]),
     createSite: vi.fn(),
     publishers: () => [publisher("sogma", "Sogma CMS")],
@@ -179,13 +181,13 @@ describe("createSiteDialogs: Site Settings", () => {
         (l) => l.textContent,
       );
     const actions = () => panel().querySelector<HTMLElement>(".settings-body .site-settings-actions");
-    expect(visibleTitles()).toEqual(["Assets folder"]);
-    expect(actions()?.hidden).toBe(true);
+    expect(visibleTitles()).toEqual(["Name", "Assets folder"]);
+    expect(actions()?.hidden).toBe(false);
+    expect(buttonNamed(panel(), "Save").className).toBe("btn primary");
 
     buttonNamed(panel(), "Analytics").click();
     expect(visibleTitles()).toEqual(["Google Analytics ID", "Google Tag Manager ID"]);
     expect(actions()?.hidden).toBe(false);
-    expect(buttonNamed(panel(), "Save").className).toBe("btn primary");
     expect(inputFor("/analytics/ga_id").value).toBe("G-OLD1234567");
     expect(inputFor("/analytics/ga_id").placeholder).toBe("G-ABC1234DEF");
     expect(panel().querySelector(".dialog-field-description")).toBeNull();
@@ -205,37 +207,85 @@ describe("createSiteDialogs: Site Settings", () => {
     expect(buttonNamed(panel(), "General").classList.contains("active")).toBe(true);
   });
 
-  it("saves the assets folder on its own, without the publisher", async () => {
+  it("saves General's fields with the rest, and the site's views reload", async () => {
+    const { commands, deps } = setup();
+    await openSettings(commands);
+    expect(inputFor("name").value).toBe("My blog");
+
+    inputFor("name").value = " Field notes ";
+    inputFor("assets-folder").value = " media/images ";
+    inputFor("/analytics/gtm_id").value = "GTM-ABCD12";
+    buttonNamed(panel(), "Save").click();
+    await tick();
+
+    expect(deps.settings.save).toHaveBeenCalledWith("blog", {
+      edits: { "/analytics/gtm_id": "GTM-ABCD12" },
+      name: "Field notes",
+      assetsFolder: "media/images",
+    });
+    expect(deps.onSiteFileChanged).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(".dialog-panel")).toBeNull();
+  });
+
+  it("saves nothing from General until Save, and Enter there saves", async () => {
     const { commands, deps } = setup();
     await openSettings(commands);
 
-    inputFor("assets-folder").value = " media/images ";
-    inputFor("assets-folder").dispatchEvent(new Event("change"));
+    inputFor("name").value = "Field notes";
+    inputFor("name").dispatchEvent(new Event("change"));
     await tick();
-
-    expect(deps.settings.saveAssetsFolder).toHaveBeenCalledWith("blog", "media/images");
     expect(deps.settings.save).not.toHaveBeenCalled();
-    expect(inputFor("assets-folder").value).toBe("media/images");
+
+    inputFor("name").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await tick();
+    expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: {}, name: "Field notes" });
   });
 
-  it("shows a refused assets folder under it", async () => {
-    const { commands } = setup(
+  it("sends no name left as it was, and reloads nothing for a settings-only Save", async () => {
+    const { commands, deps } = setup();
+    await openSettings(commands);
+
+    inputFor("name").value = "My blog ";
+    inputFor("/analytics/ga_id").value = "G-NEW1234567";
+    buttonNamed(panel(), "Save").click();
+    await tick();
+
+    expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: { "/analytics/ga_id": "G-NEW1234567" } });
+    expect(deps.onSiteFileChanged).not.toHaveBeenCalled();
+  });
+
+  it("names a refused General field, turning back to General", async () => {
+    const message = "'name' must be a non-blank string of at most 100 characters.";
+    const rejection = Object.assign(new Error(message), { field: "name" });
+    const { commands, deps } = setup(
       {},
       {
-        saveAssetsFolder: vi.fn(async () => {
-          throw new Error("Must be a folder inside the site.");
+        save: vi.fn(async () => {
+          throw rejection;
         }),
       },
     );
     await openSettings(commands);
 
-    inputFor("assets-folder").value = "../up";
-    inputFor("assets-folder").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    inputFor("name").value = "";
+    buttonNamed(panel(), "Analytics").click();
+    buttonNamed(panel(), "Save").click();
     await tick();
 
-    expect(panel().querySelector(".settings-category:not([hidden]) .inline-error")?.textContent).toBe(
-      "Must be a folder inside the site.",
+    expect(panel().querySelector(".site-settings-actions .inline-error")?.textContent).toBe(`Name: ${message}`);
+    expect(buttonNamed(panel(), "General").classList.contains("active")).toBe(true);
+    expect(deps.onSiteFileChanged).not.toHaveBeenCalled();
+  });
+
+  it("reloads the site's views when opening it put _site.json's name right", async () => {
+    const { commands, deps } = setup(
+      {},
+      { load: vi.fn(async () => settings({ siteName: "Renamed", siteNameUpdated: true })) },
     );
+    await openSettings(commands);
+
+    expect(inputFor("name").value).toBe("Renamed");
+    expect(deps.onSiteFileChanged).toHaveBeenCalledTimes(1);
   });
 
   describe("image settings", () => {
@@ -288,7 +338,7 @@ describe("createSiteDialogs: Site Settings", () => {
       expect(deps.settings.uploadImage).toHaveBeenCalledWith("blog", "blog/assets/logo.png");
       buttonNamed(panel(), "Save").click();
       await tick();
-      expect(deps.settings.save).toHaveBeenCalledWith("blog", { "/identity/logo": "k3jf8xmz2p" });
+      expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: { "/identity/logo": "k3jf8xmz2p" } });
     });
 
     it("clears an image with null", async () => {
@@ -302,7 +352,7 @@ describe("createSiteDialogs: Site Settings", () => {
       expect(panel().querySelector(".site-image-field")?.classList.contains("is-empty")).toBe(true);
       buttonNamed(panel(), "Save").click();
       await tick();
-      expect(deps.settings.save).toHaveBeenCalledWith("blog", { "/identity/logo": null });
+      expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: { "/identity/logo": null } });
     });
   });
 
@@ -366,8 +416,7 @@ describe("createSiteDialogs: Site Settings", () => {
       await tick();
 
       expect(deps.settings.save).toHaveBeenCalledWith("blog", {
-        "/indexing/block_search_engines": true,
-        "/indexing/block_ai_training": false,
+        edits: { "/indexing/block_search_engines": true, "/indexing/block_ai_training": false },
       });
     });
 
@@ -395,7 +444,7 @@ describe("createSiteDialogs: Site Settings", () => {
 
     // gtm_id was never touched, so it must not appear in the patch at all —
     // a merge patch leaves out what it doesn't mean to change.
-    expect(deps.settings.save).toHaveBeenCalledWith("blog", { "/analytics/ga_id": "G-NEW1234567" });
+    expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: { "/analytics/ga_id": "G-NEW1234567" } });
   });
 
   it("clears a setting with null rather than an empty string", async () => {
@@ -406,7 +455,7 @@ describe("createSiteDialogs: Site Settings", () => {
     buttonNamed(panel(), "Save").click();
     await tick();
 
-    expect(deps.settings.save).toHaveBeenCalledWith("blog", { "/analytics/ga_id": null });
+    expect(deps.settings.save).toHaveBeenCalledWith("blog", { edits: { "/analytics/ga_id": null } });
   });
 
   it("sends nothing when nothing was edited", async () => {

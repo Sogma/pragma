@@ -40,6 +40,9 @@ export interface WebsitesView {
   // owner calls this after every tree re-render, so an action started in
   // either place keeps both in sync.
   refreshExpanded(): void;
+  // Reloads the list itself, for a change to a site's `_site.json`, such as
+  // its name, made while the list shows it.
+  refresh(): Promise<void>;
 }
 
 interface Row {
@@ -135,5 +138,6 @@ export function createWebsitesView(deps: WebsitesViewDeps): WebsitesView {
   return {
     view: { id: "websites", label: "Websites", icon: ICON, panel, onShow: () => void refresh() },
     refreshExpanded,
+    refresh,
   };
 }
