@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import type { FlowFileResponse, Tab } from "../../../../web/core/apiClient.ts";
-import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
+import { PREVIEW_MEDIA_MENU } from "../../../../web/filePreview.ts";
 import type { FlowViewDeps } from "../../../../web/flow/xyflowAdapter.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createFlowPane } from "../../../../web/view/panes/flowPane.ts";
@@ -159,7 +159,7 @@ describe("flowPane", () => {
     (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
     expect(contextMenu.open).toHaveBeenCalledWith(
       expect.objectContaining({
-        menu: PREVIEW_FILE_MENU,
+        menu: PREVIEW_MEDIA_MENU,
         arg: { file: "art/a-0123456789ab.png", bookmark: "art/a-0123456789ab.png" },
       }),
     );

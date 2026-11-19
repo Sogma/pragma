@@ -90,7 +90,7 @@ import { emptyPane } from "./view/panes/emptyPane.ts";
 import { findContextPane } from "./view/panes/findContextPane.ts";
 import { flowPane } from "./view/panes/flowPane.ts";
 import { galleryPane } from "./view/panes/galleryPane.ts";
-import { imagePane, videoPane } from "./view/panes/mediaPane.ts";
+import { mediaPanes } from "./view/panes/mediaPane.ts";
 import { pdfPane } from "./view/panes/pdfPane.ts";
 import { tablePane } from "./view/panes/tablePane.ts";
 import { createPropertyEditor } from "./view/propertyEditor.ts";
@@ -701,7 +701,7 @@ async function main(): Promise<void> {
       tabs: dataPaneDeps.tabs,
     }),
   );
-  for (const media of [imagePane(), videoPane(contextMenu), pdfPane(commands, menus)]) editorPanes.register(media);
+  for (const media of [...mediaPanes(contextMenu), pdfPane(commands, menus)]) editorPanes.register(media);
   editorPanes.register(findContextPane({ openPath: (path) => void tabs.openSpacePath(path) }));
   editorPanes.register(galleryPane({ commands, menus, contextMenu, tabs: () => tabs, dialog: () => dialog, formats }));
   editorPanes.register(emptyPane({ menus, commands }));

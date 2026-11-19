@@ -43,9 +43,20 @@ function setup(
   const headFile = vi.fn(head);
   const pixelFormat = vi.fn(format);
   const fetchFile = vi.fn(file);
-  const pane = createImagePane({ rawFileUrl: (path) => `/raw?path=${path}`, headFile, pixelFormat, fetchFile });
+  const guides = memorySetting(NO_GUIDES);
+  const lut = memorySetting<Look>(NO_LOOK);
+  const contextMenu = fakeContextMenu();
+  const pane = createImagePane({
+    rawFileUrl: (path) => `/raw?path=${path}`,
+    headFile,
+    pixelFormat,
+    fetchFile,
+    guides,
+    lut,
+    contextMenu,
+  });
   document.body.append(pane.element);
-  return { pane, headFile, pixelFormat, fetchFile };
+  return { pane, headFile, pixelFormat, fetchFile, guides, lut, contextMenu };
 }
 
 // Lets every lookup the open started settle.
@@ -97,7 +108,7 @@ function rows(pane: EditorPane): Record<string, string> {
 
 describe("imagePane", () => {
   it("describes an image pane with no title bar", () => {
-    const descriptor = imagePane();
+    const descriptor = imagePane(fakeContextMenu());
     expect(descriptor.kind).toBe("image");
     const pane = descriptor.create(fakePaneGroup());
     expect(pane.title()).toBeUndefined();
@@ -132,10 +143,10 @@ describe("imagePane", () => {
     pane.element.querySelector("img")?.dispatchEvent(new Event("load"));
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "…", "Color mode": "…", "Bit depth": "…" });
-    expect(hudText(pane)).toEqual([" |  | ", "cover.png | "]);
+    expect(hudText(pane)).toEqual([" |  |  | ", "cover.png |  | "]);
   });
 
-  it("lays name, size, dimensions, color mode and scale over the picture, in its own frame", async () => {
+  it("lays name, size, dimensions, color mode, scale and the ⋮ over the picture, in its own frame", async () => {
     const { pane } = setup();
     await pane.setInput(tab, current);
     await settle();
@@ -150,17 +161,21 @@ describe("imagePane", () => {
 
     describeDecoded(img, [600, 800], [450.5, 600.75]);
     expect(hud.hidden).toBe(false);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 75% | RGBA 8-bit", "cover.png | 84 KB"]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 75% |  | RGBA 8-bit", "cover.png | 84 KB | "]);
+    expect(hud.querySelector(".media-hud-bar:last-child > :last-child")?.getAttribute("aria-label")).toBe(
+      "More options",
+    );
     expect(hud.getAttribute("style")).toBeNull();
   });
 
-  // A thumbnail-sized picture would be all bar.
-  it("keeps the overlay off a picture too small to carry it", async () => {
+  // A thumbnail-sized picture would be all bar, so only its ⋮ stays.
+  it("keeps only the ⋮ on a picture too small to carry the bars", async () => {
     const { pane } = setup();
     await pane.setInput(tab, current);
     const img = pane.element.querySelector("img") as HTMLImageElement;
     describeDecoded(img, [32, 32], [32, 32]);
-    expect((pane.element.querySelector(".media-hud") as HTMLElement).hidden).toBe(true);
+    const hud = pane.element.querySelector(".media-hud") as HTMLElement;
+    expect([hud.hidden, hud.classList.contains("is-bare")]).toEqual([false, true]);
   });
 
   it("leaves the size out when the lookup fails", async () => {
@@ -168,7 +183,72 @@ describe("imagePane", () => {
     await pane.setInput(tab, current);
     await settle();
     describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [600, 800]);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 100% | RGBA 8-bit", "cover.png | "]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 100% |  | RGBA 8-bit", "cover.png |  | "]);
+  });
+
+  // As the video tab shows a clip, through the guides and the look every
+  // viewer shares; a vector image has no pixels to grade.
+  it("lays the guides over the picture, and its look where it has pixels", async () => {
+    const { pane, lut } = setup();
+    lut.set({ lut: "panchromatic", on: true });
+    await pane.setInput(tab, current);
+    const frame = pane.element.querySelector(".editor-image-frame") as HTMLElement;
+    expect([...frame.children].map((child) => child.className.toString())).toEqual(["", "media-hud", "picture-layers"]);
+    const layers = frame.querySelector(".picture-layers") as HTMLElement;
+    expect([...layers.children].map((child) => child.getAttribute("class"))).toEqual(["video-lut", "video-guides"]);
+    const badge = pane.element.querySelector(".media-hud-badge") as HTMLElement;
+    expect([badge.textContent, badge.hidden]).toEqual(["LOOK", false]);
+
+    await pane.setInput({ kind: "image", path: "art/logo.svg" }, current);
+    const vector = pane.element.querySelector(".picture-layers") as HTMLElement;
+    expect([...vector.children].map((child) => child.getAttribute("class"))).toEqual(["video-guides"]);
+    expect((pane.element.querySelector(".media-hud-badge") as HTMLElement).hidden).toBe(true);
+  });
+
+  it("turns the guides with G and the look with D while it holds focus, and no look on a vector image", async () => {
+    const { pane, guides, lut } = setup();
+    lut.set({ lut: "orthochromatic", on: true });
+    await pane.setInput(tab, current);
+    const press = (key: string) => {
+      const event = new KeyboardEvent("keydown", { key, cancelable: true });
+      pane.element.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    pane.element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(document.activeElement).toBe(pane.element);
+
+    expect(press("g")).toBe(true);
+    expect(guides.get().shown).toBe(false);
+    expect(press("D")).toBe(true);
+    expect(lut.get()).toEqual({ lut: "orthochromatic", on: false });
+
+    await pane.setInput({ kind: "image", path: "art/logo.svg" }, current);
+    expect(press("d")).toBe(false);
+    expect(lut.get()).toEqual({ lut: "orthochromatic", on: false });
+    expect(press("G")).toBe(true);
+    expect(guides.get().shown).toBe(true);
+  });
+
+  // The video tab's player menu: the tab already holds the file, so no way to open it.
+  it("opens the file's Guides, Looks and Bookmark from the ⋮ that ends its bottom bar", async () => {
+    const { pane, contextMenu } = setup();
+    await pane.setInput(tab, current);
+    const more = pane.element.querySelector(".media-hud-bar:last-child > .media-hud-more") as HTMLButtonElement;
+    expect(more.tabIndex).toBe(-1);
+    more.click();
+    expect(contextMenu.opened).toHaveLength(1);
+    const [opened] = contextMenu.opened;
+    expect(opened).toMatchObject({
+      arg: { file: "art/cover.png", bookmark: "art/cover.png" },
+      anchor: more,
+      align: "end",
+      ariaLabel: "More options",
+    });
+    expect(contextMenu.labels()).toEqual(["Guides", "Looks", "", ""]);
+    expect(opened.items?.slice(2)).toEqual([
+      { command: "bookmarks.add", group: "bookmark" },
+      { command: "bookmarks.remove", group: "bookmark" },
+    ]);
   });
 
   it.each([
@@ -212,7 +292,7 @@ describe("imagePane", () => {
     await pane.setInput(tab, current);
     await settle();
     expect(rows(pane)).toMatchObject({ "Color mode": "Unknown", "Bit depth": "Unknown" });
-    expect(hudText(pane)[0]).toBe(" |  | ");
+    expect(hudText(pane)[0]).toBe(" |  |  | ");
   });
 
   // A vector has no pixel format to read.
@@ -238,7 +318,7 @@ describe("imagePane", () => {
     describeDecoded(img, [300, 141], [651.5, 307.25]);
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "2412 × 1137px (2.12:1)" });
-    expect(hudText(pane)[0]).toBe("2412 × 1137 (2.12:1) | 27% | ");
+    expect(hudText(pane)[0]).toBe("2412 × 1137 (2.12:1) | 27% |  | ");
     expect(pane.element.className).toBe("editor-image is-zoomable");
   });
 
@@ -301,12 +381,12 @@ describe("imagePane", () => {
     describeShown(img, [600, 800]);
     img.dispatchEvent(new MouseEvent("click", { clientX: 100, clientY: 100 }));
     expect(pane.element.className).toBe("editor-image is-actual-size");
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 100% | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 100% |  | RGBA 8-bit");
 
     describeShown(img, [450, 600]);
     img.dispatchEvent(new MouseEvent("click", { clientX: 100, clientY: 100 }));
     expect(pane.element.className).toBe("editor-image is-zoomable");
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 75% | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 75% |  | RGBA 8-bit");
   });
 
   it("leaves a picture already at 100% or more as it is on a click", async () => {
@@ -327,10 +407,10 @@ describe("imagePane", () => {
     describeDecoded(img, [600, 800], [450, 600]);
     describeShown(img, [453, 604], 38);
     img.dispatchEvent(new Event("pointerenter"));
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 76% | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 76% |  | RGBA 8-bit");
     describeShown(img, [150, 200]);
     img.dispatchEvent(new Event("pointerenter"));
-    expect(hud.hidden).toBe(true);
+    expect([hud.hidden, hud.classList.contains("is-bare")]).toEqual([false, true]);
   });
 
   // At actual size the picture overflows the scroller; the bars stick to its
@@ -442,21 +522,23 @@ describe("imagePane", () => {
         (atActualSize()
           ? { left: -300, top: -200, width: 2400, height: 1600 }
           : { left: 40, top: 24, width: 600, height: 400 }) as DOMRect;
-      return { pane, img, runs: animated(img) };
+      const layers = pane.element.querySelector(".picture-layers") as HTMLImageElement;
+      return { pane, img, runs: animated(img), layerRuns: animated(layers) };
     }
 
-    it("runs a zoom from the picture as it was shown, its overlay waiting", async () => {
-      const { pane, img, runs } = await zoomable();
+    it("runs a zoom from the picture as it was shown, its overlay waiting and its guides and look riding along", async () => {
+      const { pane, img, runs, layerRuns } = await zoomable();
       img.dispatchEvent(new MouseEvent("click", { clientX: 190, clientY: 224 }));
       expect(pane.element.className).toBe("editor-image is-zooming is-actual-size");
       expect(runs[0].keyframes[0]).toEqual({
         transform: "translate(340px, 224px) scale(0.25)",
         transformOrigin: "0 0",
       });
+      expect(layerRuns.map((run) => run.keyframes)).toEqual([runs[0].keyframes]);
       runs[0].finish();
       await settle();
       expect(pane.element.className).toBe("editor-image is-actual-size");
-      expect(hudText(pane)[0]).toBe("2400 × 1600 (3:2) | 100% | RGBA 8-bit");
+      expect(hudText(pane)[0]).toBe("2400 × 1600 (3:2) | 100% |  | RGBA 8-bit");
 
       img.dispatchEvent(new MouseEvent("click"));
       expect(pane.element.className).toBe("editor-image is-zooming");

@@ -6,7 +6,7 @@ import { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { NAME_ORDER, type SortChoice } from "../../src/protocol/folderSort.ts";
 import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClient.ts";
-import { PREVIEW_CLIP_MENU, PREVIEW_FILE_MENU } from "../../web/filePreview.ts";
+import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
 import { installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
@@ -470,7 +470,7 @@ describe("editor area", () => {
   });
 
   // The Bookmarks view registers the bookmark commands; a stand-in here.
-  it("offers a previewed clip's Open, Open in new tab and Open to the side, its Guides and Looks, then its Bookmark", async () => {
+  it("offers a previewed clip's or still's Open, Open in new tab and Open to the side, its Guides and Looks, then its Bookmark", async () => {
     const { tabs, workspace, area, commands, menus } = await setup();
     await tabs.openEntry("a.md");
     commands.register({
@@ -480,7 +480,7 @@ describe("editor area", () => {
       run: vi.fn(),
     });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
-    const items = menus.resolve(PREVIEW_CLIP_MENU, context, { file: "b.mp4", bookmark: "b.mp4" });
+    const items = menus.resolve(PREVIEW_MEDIA_MENU, context, { file: "b.mp4", bookmark: "b.mp4" });
     expect(items.map((item) => [item.label, item.group])).toEqual([
       ["Open", "open"],
       ["Open in new tab", "open"],
@@ -489,9 +489,18 @@ describe("editor area", () => {
       ["Looks", "guides"],
       ["Bookmark", "bookmark"],
     ]);
+    // A vector image has no pixels to grade.
+    const vector = menus.resolve(PREVIEW_MEDIA_MENU, context, { file: "logo.svg", bookmark: "logo.svg" });
+    expect(vector.map((item) => item.label)).toEqual([
+      "Open",
+      "Open in new tab",
+      "Open to the side",
+      "Guides",
+      "Bookmark",
+    ]);
   });
 
-  it("offers a previewed still's or page's Open, Open in new tab and Open to the side, then its Bookmark", async () => {
+  it("offers a previewed page's Open, Open in new tab and Open to the side, then its Bookmark", async () => {
     const { tabs, workspace, area, commands, menus } = await setup();
     await tabs.openEntry("a.md");
     commands.register({
@@ -502,7 +511,7 @@ describe("editor area", () => {
     });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
     const target = { file: "b.md", bookmark: "b.md" };
-    expect(menus.resolve(PREVIEW_FILE_MENU, context, target).map((item) => [item.label, item.group])).toEqual([
+    expect(menus.resolve(PREVIEW_PAGE_MENU, context, target).map((item) => [item.label, item.group])).toEqual([
       ["Open", "open"],
       ["Open in new tab", "open"],
       ["Open to the side", "open"],

@@ -1,22 +1,30 @@
-/* The guides a player lays over its picture (web/lib/videoGuides.ts): one SVG
-   over the player's box, under its bar, drawn in the clip's own pixels. Its
-   viewBox fits as the picture fits, so in full screen it letterboxes with it.
+/* The guides a player or a still lays over its picture
+   (web/lib/videoGuides.ts), over the player's box or the still's. The lines
+   are an SVG drawn in the media's own pixels, whose viewBox fits as the
+   picture fits; the frames' names lie in a box of the picture's shape fitted
+   the same way, so in full screen both letterbox with it.
 
-   It takes no pointer, so a click on the picture still plays it. A line stays
-   one pixel at any size, and a dark halo keeps it readable on bright footage. */
+   It takes no pointer, so a click on the picture still plays or zooms it. A
+   line stays one pixel at any size, and a dark halo keeps the lines and
+   names readable on bright footage. */
 .video-guides {
   position: absolute;
   inset: 0;
   z-index: -1;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
   filter: drop-shadow(0 0 1px var(--media-guide-halo));
+  container-type: size;
+}
+
+.video-guides-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .video-guides-matte {
   fill: var(--media-guide-matte);
-  fill-rule: evenodd;
 }
 
 .video-guides-line {
@@ -28,4 +36,25 @@
 
 .video-guides-line.is-extents {
   stroke-dasharray: 6 4;
+}
+
+/* As big as the picture shows in the guides' box: --guides-aspect is its
+   width over its height. */
+.video-guides-names {
+  position: absolute;
+  inset: 0;
+  width: min(100cqw, 100cqh * var(--guides-aspect, 1));
+  height: min(100cqh, 100cqw / var(--guides-aspect, 1));
+  margin: auto;
+}
+
+/* A frame's ratio, just inside its top left corner. */
+.video-guides-name {
+  position: absolute;
+  margin: 4px 0 0 6px;
+  color: var(--media-guide-line);
+  font-family: var(--font-hud);
+  font-size: var(--small-font-size);
+  line-height: 1;
+  white-space: nowrap;
 }

@@ -291,8 +291,8 @@ describe("frameZoom", () => {
         { width: "1016px", height: "716px" },
       ]);
       expect(places[0].keyframes).toEqual([
-        { transform: "translate(0px, 0px) scale(0.25)" },
-        { transform: "translate(-800px, -500px) scale(1)" },
+        { transform: "translate(0px, 0px) scale(0.25)", transformOrigin: "0 0" },
+        { transform: "translate(-800px, -500px) scale(1)", transformOrigin: "0 0" },
       ]);
       expect(measured).not.toHaveBeenCalled();
 
@@ -316,9 +316,26 @@ describe("frameZoom", () => {
       zoom.click(click());
       expect(frame.className).toBe("is-zoomed is-zooming");
       expect(places[0].keyframes).toEqual([
-        { transform: "translate(-640px, -320px) scale(1)" },
-        { transform: "translate(0px, 0px) scale(0.25)" },
+        { transform: "translate(-640px, -320px) scale(1)", transformOrigin: "0 0" },
+        { transform: "translate(0px, 0px) scale(0.25)", transformOrigin: "0 0" },
       ]);
+    });
+
+    // What lies over the picture in its own box, its guides and its look,
+    // moves as the picture does, and stops with it.
+    it("moves its riders with the picture, and ends their runs with its own", async () => {
+      const { frame, img } = setup();
+      const rider = document.createElement("div");
+      const zoom = frameZoom(frame, img, () => undefined, [rider]);
+      zoom.fit(600, 2400);
+      const sizes = animated(frame);
+      const places = animated(img);
+      const rides = animated(rider);
+      zoom.click(click(208 + 300, 158 + 200));
+      expect(rides.map((run) => run.keyframes)).toEqual([places[0].keyframes]);
+      sizes[0].finish();
+      await settle();
+      expect(rides[0].cancel).toHaveBeenCalledTimes(1);
     });
 
     // Measured mid-run, the picture is still shrunk by its transform.
@@ -406,6 +423,17 @@ describe("zoomFrom", () => {
     expect(runs[0].cancel).toHaveBeenCalledTimes(1);
     stop?.();
     expect(end).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs its riders as it runs the picture, and ends them together", () => {
+    const { img, end, before } = setup();
+    const rider = document.createElement("div");
+    const runs = animated(img);
+    const rides = animated(rider);
+    const stop = zoomFrom(img, before, end, [rider]);
+    expect(rides.map((run) => run.keyframes)).toEqual([runs[0].keyframes]);
+    stop?.();
+    expect([runs[0].cancel.mock.calls.length, rides[0].cancel.mock.calls.length]).toEqual([1, 1]);
   });
 
   it("ends a run early once, where it was going", () => {

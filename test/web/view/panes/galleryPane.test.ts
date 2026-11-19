@@ -12,7 +12,7 @@ import type {
 import { setLibraryPermissions } from "../../../../web/core/libraries.ts";
 import { noteDragInFlight } from "../../../../web/core/paths.ts";
 import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
-import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
+import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
 import type { NamingSurface } from "../../../../web/lib/inlineEdit.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
 import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
@@ -896,7 +896,7 @@ describe("the gallery pane", () => {
       const button = preview.querySelector(".media-hud-more") as HTMLButtonElement;
       press(button, "mousedown", 1);
       press(button, "click", 1);
-      expect(deps.contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: PREVIEW_FILE_MENU }));
+      expect(deps.contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: PREVIEW_MEDIA_MENU }));
       expect(deps.openEntry).not.toHaveBeenCalled();
       expect(frame.classList.contains("is-zoomed")).toBe(false);
       expect(preview.hidden).toBe(false);
@@ -1416,7 +1416,7 @@ describe("the gallery pane", () => {
 
     button.click();
     expect(deps.contextMenu.open).toHaveBeenCalledWith({
-      menu: PREVIEW_FILE_MENU,
+      menu: PREVIEW_MEDIA_MENU,
       arg: { file: "lib:footage/frame.png", bookmark: "lib:footage/frame.png" },
       anchor: button,
       align: "end",
@@ -1442,16 +1442,16 @@ describe("the gallery pane", () => {
       );
 
     tileNamed(pane, "frame").click();
-    expect(bars()).toEqual(["100 × 100 (1:1) | ", "frame.png | "]);
+    expect(bars()).toEqual(["100 × 100 (1:1) |  | ", "frame.png | "]);
     expect(preview.querySelector(".media-hud-bar:last-child > :last-child")?.matches(".media-hud-more")).toBe(true);
     // The color mode the header read gives, at the right.
     expect(deps.pixelFormat).toHaveBeenCalledWith("lib:footage/frame.png");
-    await vi.waitFor(() => expect(bars()).toEqual(["100 × 100 (1:1) | RGBA 8-bit", "frame.png | "]));
+    await vi.waitFor(() => expect(bars()).toEqual(["100 × 100 (1:1) |  | RGBA 8-bit", "frame.png | "]));
     const img = preview.querySelector("img") as HTMLImageElement;
     Object.defineProperty(img, "naturalWidth", { value: 3840 });
     Object.defineProperty(img, "naturalHeight", { value: 2160 });
     img.dispatchEvent(new Event("load"));
-    expect(bars()).toEqual(["3840 × 2160 (16:9) | RGBA 8-bit", "frame.png | "]);
+    expect(bars()).toEqual(["3840 × 2160 (16:9) |  | RGBA 8-bit", "frame.png | "]);
 
     pane.dismissTransient?.();
     tileNamed(pane, "take").click();
@@ -1511,7 +1511,7 @@ describe("a previewed note", () => {
     }
     expect(deps.contextMenu.open).toHaveBeenCalledTimes(2);
     expect(deps.contextMenu.open).toHaveBeenCalledWith(
-      expect.objectContaining({ menu: PREVIEW_FILE_MENU, arg: { file: "notes/scene.md", bookmark: "notes/scene.md" } }),
+      expect.objectContaining({ menu: PREVIEW_PAGE_MENU, arg: { file: "notes/scene.md", bookmark: "notes/scene.md" } }),
     );
     expect(deps.openEntry).not.toHaveBeenCalled();
     expect(previewOf(pane).hidden).toBe(false);

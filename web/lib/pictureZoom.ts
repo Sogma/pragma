@@ -113,30 +113,33 @@ export function canAnimate(element: HTMLElement): boolean {
 
 /** Runs `media` from the box it filled, `before`, to where it is laid out
  * now, by a transform alone: the layout is the zoom's end from the start.
- * `end` runs as the run finishes, at once with none; what is returned ends
- * a run early. */
-export function zoomFrom(media: HTMLElement, before: DOMRect, end: () => void): (() => void) | undefined {
+ * `riders`, laid over the media in its own box, move with it. `end` runs as
+ * the run finishes, at once with none; what is returned ends a run early. */
+export function zoomFrom(
+  media: HTMLElement,
+  before: DOMRect,
+  end: () => void,
+  riders: readonly HTMLElement[] = [],
+): (() => void) | undefined {
   const after = media.getBoundingClientRect();
   if (!canAnimate(media) || after.width === 0) {
     end();
     return undefined;
   }
   const from = `translate(${before.left - after.left}px, ${before.top - after.top}px) scale(${before.width / after.width})`;
-  const animation = media.animate(
-    [
-      { transform: from, transformOrigin: "0 0" },
-      { transform: "none", transformOrigin: "0 0" },
-    ],
-    ZOOM,
-  );
+  const keyframes = [
+    { transform: from, transformOrigin: "0 0" },
+    { transform: "none", transformOrigin: "0 0" },
+  ];
+  const animations = [media, ...riders].map((moving) => moving.animate(keyframes, ZOOM));
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
-    animation.cancel();
+    for (const animation of animations) animation.cancel();
     end();
   };
-  animation.finished.then(finish, () => {});
+  animations[0].finished.then(finish, () => {});
   return finish;
 }
 
@@ -162,8 +165,14 @@ export interface FrameZoom {
 /** Zooms the picture in `frame`, the box it shares with its overlay
  * (mediaHud.ts), inside a size container: zoomed, the frame grows with the
  * picture up to the container's room and scrolls it, by the wheel or a
- * drag. `measured` runs as each zoom settles. */
-export function frameZoom(frame: HTMLElement, img: HTMLImageElement, measured: () => void): FrameZoom {
+ * drag. `riders`, laid over the picture in its own box, move with it.
+ * `measured` runs as each zoom settles. */
+export function frameZoom(
+  frame: HTMLElement,
+  img: HTMLImageElement,
+  measured: () => void,
+  riders: readonly HTMLElement[] = [],
+): FrameZoom {
   let zoomable = false;
   let zoomed = false;
   // Ends the zoom that is running, where it was going.
@@ -206,8 +215,14 @@ export function frameZoom(frame: HTMLElement, img: HTMLImageElement, measured: (
     }
     frame.classList.add("is-zooming");
     const size = ({ box }: Pose) => ({ width: `${box.width}px`, height: `${box.height}px` });
-    const place = ({ x, y, scale }: Pose) => ({ transform: `translate(${x}px, ${y}px) scale(${scale})` });
-    const animations = [frame.animate([size(from), size(to)], ZOOM), img.animate([place(from), place(to)], ZOOM)];
+    const place = ({ x, y, scale }: Pose) => ({
+      transform: `translate(${x}px, ${y}px) scale(${scale})`,
+      transformOrigin: "0 0",
+    });
+    const animations = [
+      frame.animate([size(from), size(to)], ZOOM),
+      ...[img, ...riders].map((moving) => moving.animate([place(from), place(to)], ZOOM)),
+    ];
     const finish = () => {
       if (settle !== finish) return;
       for (const animation of animations) animation.cancel();

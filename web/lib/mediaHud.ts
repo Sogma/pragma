@@ -99,6 +99,16 @@ export function hudFits(width: number, height: number): boolean {
   return width >= HUD_MIN_WIDTH && height >= HUD_MIN_HEIGHT;
 }
 
+/** Shows `hud` over media shown this size: its bars where they fit, and
+ * otherwise nothing, or its ⋮ alone where it has one, so the file's menu
+ * stays within reach on a picture of any size. */
+export function fitHud(hud: HTMLElement, width: number, height: number): void {
+  const fits = hudFits(width, height);
+  const keepsMore = hud.querySelector(".media-hud-more") !== null;
+  hud.hidden = !fits && !keepsMore;
+  hud.classList.toggle("is-bare", !fits && keepsMore);
+}
+
 /** What a thumbnail's bars say of its file, each where it is known. */
 export interface ThumbnailFacts {
   width?: number;

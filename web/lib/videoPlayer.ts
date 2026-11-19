@@ -9,7 +9,7 @@
 import { DisposableStore, listen } from "./disposable.ts";
 import { formatDuration } from "./dom.ts";
 import { moreOptionsButton } from "./moreOptionsButton.ts";
-import { createGuidesOverlay, type GuidesChoice } from "./videoGuides.ts";
+import { createGuidesOverlay, type GuidesChoice, toggleGuides } from "./videoGuides.ts";
 import { createLutLayer, type LutChoice, toggleLook } from "./videoLut.ts";
 
 export type PlayerLayout = "pill" | "review";
@@ -298,11 +298,6 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   };
 
   // G hides the guides and brings them back, keeping what they show.
-  function toggleGuides(): void {
-    const current = options.guides.get();
-    options.guides.set({ ...current, shown: !current.shown });
-  }
-
   // The element's own loop wraps the whole clip; a range wraps by hand.
   function applyLoop(): void {
     video.loop = loop.get() && !rangeActive();
@@ -511,7 +506,7 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
       else if (key === "ArrowRight") step(1);
       else if (key === "i" || key === "I") setIn();
       else if (key === "o" || key === "O") setOut();
-      else if (key === "g" || key === "G") toggleGuides();
+      else if (key === "g" || key === "G") toggleGuides(options.guides);
       // D, not L: L is the shuttle's.
       else if (key === "d" || key === "D") toggleLook(options.lut);
       else return volumeKey(key);

@@ -287,3 +287,137 @@ describe("createLutLayer", () => {
     expect(getContext).not.toHaveBeenCalled();
   });
 });
+
+// A still decoded at 1200 × 800, one still loading, or one with no file yet,
+// which an element counts as complete at no size.
+function picture(loaded: boolean, file: boolean) {
+  const img = document.createElement("img");
+  let complete = loaded;
+  let width = file ? 1200 : 0;
+  Object.defineProperty(img, "complete", { get: () => complete, configurable: true });
+  Object.defineProperty(img, "naturalWidth", { get: () => width, configurable: true });
+  Object.defineProperty(img, "naturalHeight", { value: 800, configurable: true });
+  return {
+    img,
+    load() {
+      complete = true;
+      width = 1200;
+      img.dispatchEvent(new Event("load"));
+    },
+  };
+}
+
+function setupStill(lut: LutName | null, options: { loaded?: boolean; file?: boolean; type?: string } = {}) {
+  const fake = fakeGl();
+  const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() => fake.gl) as never);
+  const { img, load } = picture(options.loaded ?? true, options.file ?? true);
+  const choice = memorySetting<Look>(lut === null ? NO_LOOK : on(lut));
+  const layer = createLutLayer(img, choice, options.type);
+  layers.push(layer);
+  const drawn = () => fake.named("drawArrays").length;
+  return { ...fake, getContext, img, load, choice, layer, drawn };
+}
+
+describe("createLutLayer over a still", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("draws a decoded still at once, on a canvas that keeps its clear parts, and again as the look changes", () => {
+    const { layer, getContext, drawn, named, choice, img } = setupStill("panchromatic");
+    expect(getContext).toHaveBeenCalledWith("webgl2", expect.objectContaining({ alpha: true }));
+    expect(drawn()).toBe(1);
+    expect(named("texImage2D").at(-1)?.args.at(-1)).toBe(img);
+    expect([layer.element.width, layer.element.height, layer.element.hidden]).toEqual([1200, 800, false]);
+
+    choice.set(off("panchromatic"));
+    expect(layer.element.hidden).toBe(true);
+    choice.set(on("orthochromatic"));
+    expect([drawn(), layer.element.hidden]).toEqual([2, false]);
+  });
+
+  it("waits for a still that is loading, and draws it as it arrives", () => {
+    const { layer, drawn, load } = setupStill("panchromatic", { loaded: false });
+    expect([drawn(), layer.element.hidden]).toEqual([0, true]);
+    load();
+    expect([drawn(), layer.element.hidden]).toEqual([1, false]);
+  });
+
+  // The preview lays the look over a picture before giving it its file, so
+  // nothing can be read until the file loads.
+  it("reads nothing from a still with no file yet, and shows it once its file loads", () => {
+    const fetchFile = vi.fn(async () => new Response("GIF89a"));
+    vi.stubGlobal("fetch", fetchFile);
+    vi.stubGlobal(
+      "ImageDecoder",
+      class {
+        completed = new Promise(() => {});
+        close() {}
+      },
+    );
+    const still = setupStill("panchromatic", { file: false });
+    expect(still.drawn()).toBe(0);
+    still.load();
+    expect(still.drawn()).toBe(1);
+
+    const gif = setupStill("panchromatic", { file: false, type: "image/gif" });
+    expect(fetchFile).not.toHaveBeenCalled();
+    gif.load();
+    expect(fetchFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws a GIF once where the browser can't decode its frames", () => {
+    const { drawn } = setupStill("panchromatic", { type: "image/gif" });
+    expect(drawn()).toBe(1);
+  });
+
+  // A canvas reads only an animated picture's first frame, so its frames
+  // come from its file. The second frame's 0 ms shows for 100, as browsers
+  // show it.
+  it("plays an animated still's frames from its file, each as long as the file says, until the look goes off", async () => {
+    vi.useFakeTimers();
+    const durations = [50_000, 0];
+    const decoded: number[] = [];
+    const decoders: { closed: boolean; type: string }[] = [];
+    class FakeDecoder {
+      closed = false;
+      type: string;
+      completed = Promise.resolve();
+      tracks = { selectedTrack: { animated: true, frameCount: 2, repetitionCount: Number.POSITIVE_INFINITY } };
+      constructor(init: { type: string }) {
+        this.type = init.type;
+        decoders.push(this);
+      }
+      async decode({ frameIndex }: { frameIndex: number }) {
+        decoded.push(frameIndex);
+        const image = { displayWidth: 300, displayHeight: 200, duration: durations[frameIndex], close: vi.fn() };
+        return { image };
+      }
+      close() {
+        this.closed = true;
+      }
+    }
+    vi.stubGlobal("ImageDecoder", FakeDecoder);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("GIF89a")),
+    );
+    const { drawn, choice, layer } = setupStill("panchromatic", { type: "image/gif" });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect([decoders[0].type, decoded, drawn()]).toEqual(["image/gif", [0], 1]);
+    expect([layer.element.width, layer.element.height]).toEqual([300, 200]);
+    await vi.advanceTimersByTimeAsync(49);
+    expect(decoded).toEqual([0]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(decoded).toEqual([0, 1]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect([decoded, drawn()]).toEqual([[0, 1, 0], 3]);
+
+    choice.set(off("panchromatic"));
+    expect(decoders[0].closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(drawn()).toBe(3);
+  });
+});

@@ -511,13 +511,14 @@ describe("the guides", () => {
 
   it("lie under the bar in the player's box, over the LUT's picture, drawn in the clip's pixels once its header names them", () => {
     const { video, player } = setup("review", { guides: memorySetting({ ...NO_GUIDES, title: true }) });
-    const svg = player.element.querySelector(".video-guides") as SVGSVGElement;
-    expect(svg.previousElementSibling?.classList.contains("video-lut")).toBe(true);
-    expect(svg.nextElementSibling?.classList.contains("video-player-bar")).toBe(true);
-    expect(svg.hasAttribute("hidden")).toBe(true);
+    const overlay = player.element.querySelector(".video-guides") as HTMLElement;
+    const svg = overlay.querySelector("svg") as SVGSVGElement;
+    expect(overlay.previousElementSibling?.classList.contains("video-lut")).toBe(true);
+    expect(overlay.nextElementSibling?.classList.contains("video-player-bar")).toBe(true);
+    expect(overlay.hasAttribute("hidden")).toBe(true);
 
     sized(video, 1920, 1080);
-    expect(svg.hasAttribute("hidden")).toBe(false);
+    expect(overlay.hasAttribute("hidden")).toBe(false);
     expect(svg.getAttribute("viewBox")).toBe("0 0 1920 1080");
     sized(video, 1080, 1920);
     expect(svg.getAttribute("viewBox")).toBe("0 0 1080 1920");
@@ -527,7 +528,7 @@ describe("the guides", () => {
     const guides = memorySetting(NO_GUIDES);
     const { video, player } = setup("review", { guides });
     sized(video, 1920, 1080);
-    const svg = player.element.querySelector(".video-guides") as SVGSVGElement;
+    const svg = player.element.querySelector(".video-guides") as HTMLElement;
     expect(svg.hasAttribute("hidden")).toBe(true);
     guides.set({ ...NO_GUIDES, center: true });
     expect(svg.hasAttribute("hidden")).toBe(false);

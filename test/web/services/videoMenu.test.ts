@@ -41,6 +41,14 @@ describe("videoMoreOptions", () => {
 });
 
 describe("lutsMenuItem", () => {
+  // A look grades pixels, which a vector image has none of.
+  it("offers Looks for a clip or a raster still, never for a vector image", () => {
+    const { when } = lutsMenuItem(memorySetting<Look>(NO_LOOK));
+    const offered = (file: string) => when?.(context, { file, bookmark: file });
+    expect([offered("takes/a.mp4"), offered("stills/a.png"), offered("art/logo.svg")]).toEqual([true, true, false]);
+    expect(when?.(context, undefined)).toBe(true);
+  });
+
   it("opens Looks onto Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player", () => {
     const lut = memorySetting<Look>(NO_LOOK);
     const { label, submenu } = lutsMenuItem(lut);
@@ -80,31 +88,41 @@ describe("guidesMenuItem", () => {
     expect([social.label, film.label, safe.label]).toEqual(["Social media", "Broadcast and film", "Safe area"]);
     expect([social, film, safe].map((section) => section.tiles.map((tile) => tile.label))).toEqual([
       ["1:1", "4:5", "9:16", "1.91:1", "16:9"],
-      ["Default", "1.33", "1.77", "1.85", "2.39"],
+      ["None", "1.33", "1.77", "1.85", "2.39"],
       ["Extents", "Social", "Action", "Title", "Center"],
     ]);
     // 1.77 is 16:9 by another name, drawn the same.
     expect(film.tiles[2].glyph).toBe(social.tiles[4].glyph);
-    expect(safe.tiles.map((tile) => tile.radio ?? false)).toEqual([false, false, false, false, false]);
-    expect(film.tiles.every((tile) => tile.radio)).toBe(true);
+    expect(film.tiles[0].glyph).toBe("var(--icon-frame)");
+    // Frames turn on and off by themselves, as the safe areas do; None is the one choice.
+    const radios = (tiles: { radio?: boolean }[]) => tiles.map((tile) => tile.radio ?? false);
+    expect([radios(social.tiles), radios(film.tiles), radios(safe.tiles)]).toEqual([
+      [false, false, false, false, false],
+      [true, false, false, false, false],
+      [false, false, false, false, false],
+    ]);
   });
 
-  it("picks one frame of either row, the lit one picked again going back to Default", () => {
-    const guides = memorySetting(NO_GUIDES);
+  // With no frame on, None is lit and the guides keep the picture's own shape.
+  it("turns frames of either row on and off by themselves, and None turns them all off", () => {
+    const guides = memorySetting({ ...NO_GUIDES, shown: false });
     const [social, film] = sections(guides);
-    expect(film.tiles[0].checked()).toBe(true);
+    const lit = () => [...social.tiles, ...film.tiles].filter((tile) => tile.checked()).map((tile) => tile.label);
+    expect(lit()).toEqual(["None"]);
 
     social.tiles[2].pick();
-    expect(guides.get().frame).toBe("9:16");
-    expect([social.tiles[2].checked(), film.tiles[0].checked()]).toEqual([true, false]);
-
+    expect([guides.get().frames, lit(), guides.get().shown]).toEqual([["9:16"], ["9:16"], true]);
     film.tiles[4].pick();
-    expect(guides.get().frame).toBe("2.39");
-    expect(social.tiles[2].checked()).toBe(false);
+    expect([guides.get().frames, lit()]).toEqual([
+      ["9:16", "2.39"],
+      ["9:16", "2.39"],
+    ]);
+    social.tiles[2].pick();
+    expect([guides.get().frames, lit()]).toEqual([["2.39"], ["2.39"]]);
 
-    film.tiles[4].pick();
-    expect(guides.get().frame).toBe("default");
-    expect(film.tiles[0].checked()).toBe(true);
+    social.tiles[0].pick();
+    film.tiles[0].pick();
+    expect([guides.get().frames, lit()]).toEqual([[], ["None"]]);
   });
 
   it("turns each safe area on and off by itself, a pick showing guides that G hid", () => {

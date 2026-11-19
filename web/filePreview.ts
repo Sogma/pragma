@@ -23,11 +23,12 @@ import { wireEntryDrag } from "./core/paths.ts";
 import { readingResolvers } from "./core/spaceTree.ts";
 import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
 import { pixelFormatText } from "./lib/mediaDetails.ts";
-import { hudCells, hudFits, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
+import { fitHud, hudCells, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
+import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
 import { canAnimate, frameZoom } from "./lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
-import type { GuidesChoice } from "./lib/videoGuides.ts";
+import { type GuidesChoice, toggleGuides } from "./lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "./lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "./lib/videoPlayer.ts";
 import {
@@ -89,9 +90,9 @@ export interface PreviewSources {
   videoLoop: LoopChoice;
   /** The volume a previewed clip's player shares with every other. */
   videoVolume: VolumeChoice;
-  /** The guides a previewed clip's player shares with every other. */
+  /** The guides a previewed still or clip shares with every viewer. */
   videoGuides: GuidesChoice;
-  /** The LUT a previewed clip's player shares with every other. */
+  /** The LUT a previewed still or clip shares with every viewer. */
   videoLut: LutChoice;
 }
 
@@ -111,13 +112,13 @@ export function servedPreviewSources(): PreviewSources {
   };
 }
 
-/** A previewed clip's More options, given `{ file, bookmark }`: the ways to
- * open the clip, its guides and looks, then its bookmark. */
-export const PREVIEW_CLIP_MENU = "preview.clip";
+/** A previewed still's or clip's More options, given `{ file, bookmark }`:
+ * the ways to open it, its guides and looks, then its bookmark. */
+export const PREVIEW_MEDIA_MENU = "preview.media";
 
-/** A previewed still's or page's More options, given `{ file, bookmark }`:
- * the ways to open the file, then its bookmark. */
-export const PREVIEW_FILE_MENU = "preview.file";
+/** A previewed page's More options, given `{ file, bookmark }`: the ways to
+ * open the file, then its bookmark. */
+export const PREVIEW_PAGE_MENU = "preview.page";
 
 export interface FilePreviewDeps extends PreviewSources {
   /** The pane's box, which the preview fills. A run of clicks is told apart
@@ -174,13 +175,6 @@ function previewButton(className: string, label: string): HTMLButtonElement {
   return button;
 }
 
-// A still's or a page's overlay shows whatever the file's size: where its
-// facts don't fit, its ⋮ stays, alone, so the file can still be opened.
-function showOverlay(hud: HTMLElement, factsFit: boolean): void {
-  hud.hidden = false;
-  hud.classList.toggle("is-bare", !factsFit);
-}
-
 // The rest of a click run whose first click closed the preview lands on
 // whatever lies there now: what the pane lists, or a button of the group's
 // toolbar the backdrop covered. None of it may press anything, so the window
@@ -224,6 +218,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
   let previewMore: MoreOptionsButton | undefined;
+  let previewLayers: PictureLayers | undefined;
 
   // The shown file's menu under its ⋮, or closed there.
   function openMoreOptions(anchor: HTMLElement, path: string, menu: string): void {
@@ -241,8 +236,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
 
   // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
   // player's own.
-  function fileMoreOptions(path: string): HTMLButtonElement {
-    previewMore = moreOptionsButton("media-hud-more", (anchor) => openMoreOptions(anchor, path, PREVIEW_FILE_MENU));
+  function fileMoreOptions(path: string, menu: string): HTMLButtonElement {
+    previewMore = moreOptionsButton("media-hud-more", (anchor) => openMoreOptions(anchor, path, menu));
     previewMore.element.tabIndex = -1;
     return previewMore.element;
   }
@@ -263,6 +258,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     previewLook = undefined;
     previewMore?.dispose();
     previewMore = undefined;
+    previewLayers?.dispose();
+    previewLayers = undefined;
     for (const video of previewStage.querySelectorAll("video")) {
       video.pause();
       video.removeAttribute("src");
@@ -304,20 +301,20 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
 
   // The image view's overlay, in the previewed picture's own frame: the
   // dimensions with their ratio along the top, as the image and video views
-  // write them, then a clip's LOOK badge and frame rate or a still's color
-  // mode; a still's name and ⋮ along the bottom, a clip's length and ⋮ left
-  // to the pill.
+  // write them, then the LOOK badge where a look can apply, and a clip's
+  // frame rate or a still's color mode; a still's name and ⋮ along the
+  // bottom, a clip's length and ⋮ left to the pill.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
   function mediaPreview(file: PreviewFile, kind: PreviewKind): HTMLElement {
     const isVideo = kind === "video";
+    const rasterType = rasterImageMediaTypeForPath(file.path);
     const [name, dimensions, format] = hudCells(3);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    previewLook = isVideo ? lookBadge(deps.videoLut) : undefined;
-    const hud = previewLook
-      ? hudRoot([dimensions, previewLook.element, format])
-      : hudRoot([dimensions, format], [name, fileMoreOptions(file.path)]);
+    previewLook = isVideo || rasterType ? lookBadge(deps.videoLut) : undefined;
+    const top = previewLook ? [dimensions, previewLook.element, format] : [dimensions, format];
+    const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, PREVIEW_MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
       dimensions.textContent = formatDimensions(width, height, "");
@@ -330,7 +327,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         },
         () => undefined,
       );
-    } else if (rasterImageMediaTypeForPath(file.path)) {
+    } else if (rasterType) {
       deps.pixelFormat(file.path).then(
         (pixels) => {
           format.textContent = pixelFormatText(pixels);
@@ -340,6 +337,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     }
 
     let media: HTMLImageElement | HTMLVideoElement;
+    let layers: PictureLayers | undefined;
     let decoded = false;
     let fullWidth = 0;
     if (isVideo) {
@@ -358,18 +356,27 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       img.alt = file.name;
       showTransparency(img, file.path);
       const standIn = kind === "svg" ? readSvgStandInSize(deps.fetchFile, file.path) : undefined;
+      const stillLayers = createPictureLayers(img, {
+        guides: deps.videoGuides,
+        lut: rasterType ? deps.videoLut : undefined,
+        type: rasterType,
+      });
+      layers = stillLayers;
+      previewLayers = stillLayers;
       describeLoaded(img, standIn, (width, height) => {
         decoded = true;
         fullWidth = width;
         fill(width, height);
+        stillLayers.setSize(width, height);
         fitPreview();
       });
       // One that never decodes has no size to fit, and keeps its ⋮.
-      img.addEventListener("error", () => showOverlay(hud, false));
+      img.addEventListener("error", () => fitHud(hud, 0, 0));
       media = img;
     }
     // The overlay follows the media: `:is(img, video):hover + .media-hud`.
     const frame = mediaFrame(media, hud, "file-preview-frame");
+    if (layers) frame.append(layers.element);
     if (media instanceof HTMLVideoElement) {
       previewPlayer = createVideoPlayer(media, {
         layout: "pill",
@@ -377,19 +384,21 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         volume: deps.videoVolume,
         guides: deps.videoGuides,
         lut: deps.videoLut,
-        moreOptions: (anchor) => openMoreOptions(anchor, file.path, PREVIEW_CLIP_MENU),
+        moreOptions: (anchor) => openMoreOptions(anchor, file.path, PREVIEW_MEDIA_MENU),
       });
       frame.append(previewPlayer.element);
     }
-    const zoom = media instanceof HTMLImageElement ? frameZoom(frame, media, () => fitPreview()) : undefined;
+    const zoom =
+      media instanceof HTMLImageElement
+        ? frameZoom(frame, media, () => fitPreview(), layers ? [layers.element] : [])
+        : undefined;
     if (media instanceof HTMLImageElement) wireEntryDrag(media, () => ({ path: file.path, type: "file" }));
     // The picture, or zoomed the frame, mat and all.
     zoomPreview = (target, at) => zoom !== undefined && (target === media || target === frame) && zoom.click(at);
     fitPreview = () => {
       if (!decoded || !media.isConnected) return;
       const shown = media.getBoundingClientRect();
-      if (isVideo) hud.hidden = !hudFits(shown.width, shown.height);
-      else showOverlay(hud, hudFits(shown.width, shown.height));
+      fitHud(hud, shown.width, shown.height);
       zoom?.fit(shown.width, fullWidth);
     };
     // Measured again as the overlay is about to show, so a layout change no
@@ -408,7 +417,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const [name, count] = hudCells(2);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    const hud = hudRoot([name, count, fileMoreOptions(file.path)]);
+    const hud = hudRoot([name, count, fileMoreOptions(file.path, PREVIEW_PAGE_MENU)]);
     const load = pageLoad;
     void loadPage(page, file.path, kind, deps, () => load !== pageLoad).then((counted) => {
       if (counted !== undefined) count.textContent = counted;
@@ -418,7 +427,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     fitPreview = () => {
       if (!page.isConnected) return;
       fitPage(frame, page);
-      showOverlay(hud, hudFits(frame.clientWidth, frame.clientHeight));
+      fitHud(hud, frame.clientWidth, frame.clientHeight);
     };
     return frame;
   }
@@ -583,7 +592,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       else if (key === "ArrowLeft") stepPreview(-1);
       else if (key === " ") closePreview();
       else if (key === "Enter" && deps.openInPlace) deps.openInPlace(previewIndex);
-      else if ((key === "d" || key === "D") && previewPlayer) toggleLook(deps.videoLut);
+      else if ((key === "d" || key === "D") && previewLook) toggleLook(deps.videoLut);
+      else if ((key === "g" || key === "G") && (previewPlayer || previewLayers)) toggleGuides(deps.videoGuides);
       else return scrollPage(key);
       return true;
     },

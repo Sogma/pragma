@@ -1,11 +1,12 @@
-// A video player's More options menu: Guides and Looks, then Bookmark or
-// Remove from Bookmarks for the clip's file, the items the tree's and a
-// tab's menus offer. The preview registers its own from the rows here, with
-// the ways to open the clip before them.
+// The More options menu of a video player and of the image tab: Guides and
+// Looks, then Bookmark or Remove from Bookmarks for the file, the items the
+// tree's and a tab's menus offer. The preview registers its own from the
+// rows here, with the ways to open the file before them.
 //
 // The argument names the file twice, as a Bookmarks row's does: `file` for
 // the open commands, `bookmark` for the bookmark ones. A command that finds
 // no file in it hides its item.
+import { vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import {
   FILM_FRAMES,
   type FrameChoice,
@@ -13,6 +14,7 @@ import {
   type Guides,
   type GuidesChoice,
   SOCIAL_FRAMES,
+  toggleFrame,
 } from "../lib/videoGuides.ts";
 import { LOOKS, type LutChoice, type LutName } from "../lib/videoLut.ts";
 import type { ContextMenuService, MenuItem, MenuTile } from "./menus.ts";
@@ -20,7 +22,6 @@ import { videoGuides, videoLut } from "./settings.ts";
 
 // Each frame's glyph: its shape cut from a wider box. 1.77 is 16:9.
 const FRAME_GLYPHS: Record<GuideFrame, string> = {
-  default: "var(--icon-frame)",
   "1:1": "var(--icon-frame-1-1)",
   "4:5": "var(--icon-frame-4-5)",
   "9:16": "var(--icon-frame-9-16)",
@@ -49,17 +50,24 @@ const SAFE_AREAS: { key: SafeArea; label: string; glyph: string; tooltip: string
 
 /** The Guides row every player's More options holds above Bookmark: tiles
  * setting the guides all players share. A pick shows the guides again if G
- * hid them, and the lit frame picked again goes back to Default. */
+ * hid them. Each frame turns on and off by itself, and None, lit while no
+ * frame is on, turns them all off. */
 export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
   const change = (patch: Partial<Guides>) => guides.set({ ...guides.get(), ...patch, shown: true });
   const frameTiles = (frames: readonly FrameChoice[]): MenuTile[] =>
     frames.map((frame) => ({
       label: frame.label,
       glyph: FRAME_GLYPHS[frame.id],
-      radio: true,
-      checked: () => guides.get().frame === frame.id,
-      pick: () => change({ frame: guides.get().frame === frame.id ? "default" : frame.id }),
+      checked: () => guides.get().frames.includes(frame.id),
+      pick: () => change({ frames: toggleFrame(guides.get().frames, frame.id) }),
     }));
+  const none: MenuTile = {
+    label: "None",
+    glyph: "var(--icon-frame)",
+    radio: true,
+    checked: () => guides.get().frames.length === 0,
+    pick: () => change({ frames: [] }),
+  };
   const safeTiles = (): MenuTile[] =>
     SAFE_AREAS.map((area) => ({
       label: area.label,
@@ -77,20 +85,22 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
     group: "guides",
     tiles: () => [
       { label: "Social media", tiles: frameTiles(SOCIAL_FRAMES) },
-      { label: "Broadcast and film", tiles: frameTiles(FILM_FRAMES) },
+      { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)] },
       { label: "Safe area", tiles: safeTiles() },
     ],
   };
 }
 
 /** The Looks row under Guides, in their section: a flyout of the LUTs every
- * player can show its picture through. Picking the one on turns it off and
- * keeps it, for a clip's LOOK badge to turn back on. */
+ * viewer can show its picture through. Picking the one on turns it off and
+ * keeps it, for a LOOK badge to turn back on. A vector image has no pixels
+ * to grade, so its menu leaves the row out. */
 export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
   const isOn = (name: LutName) => lut.get().on && lut.get().lut === name;
   return {
     label: "Looks",
     group: "guides",
+    when: (_, arg) => !isVectorImage(arg),
     submenu: LOOKS.map(({ lut: name, label }) => ({
       label,
       checked: () => isOn(name),
@@ -99,8 +109,14 @@ export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
   };
 }
 
-/** Opens the menu for the clip at `path` under its button, or closes it
- * there: Guides, Looks and the clip's Bookmark items. */
+// Whether a menu's `{ file }` names a vector image.
+function isVectorImage(arg: unknown): boolean {
+  const file = typeof arg === "object" && arg !== null ? (arg as { file?: unknown }).file : undefined;
+  return typeof file === "string" && vectorImageMediaTypeForPath(file) !== undefined;
+}
+
+/** Opens the menu for the clip or still at `path` under its button, or
+ * closes it there: Guides, Looks and the file's Bookmark items. */
 export function videoMoreOptions(
   contextMenu: ContextMenuService,
   path: string,

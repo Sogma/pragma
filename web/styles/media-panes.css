@@ -3,12 +3,15 @@
    (mediaHud.ts). */
 
 /* Read-only image preview, centred in the pane. Its details are in the
-   assistant's Info tab, the glanceable ones also in the hover overlay below. */
+   assistant's Info tab, the glanceable ones also in the hover overlay below.
+   It holds focus for its keys, G and D, with no ring: the pane itself is not
+   a control. */
 .editor-image {
   flex: 1;
   min-height: 0;
   display: flex;
   background: var(--bg-primary);
+  outline: none;
 }
 
 /* A size container, so the picture in its frame fits the scroller's
@@ -94,9 +97,24 @@
 }
 
 /* On the picture's own box, never the pane's, so only the picture's area is
-   checkered and an opaque picture hides it (web/lib/mediaHud.ts). */
-.media-frame > img.shows-transparency {
+   checkered and an opaque picture hides it (web/lib/mediaHud.ts). Its look
+   covers it whole, so the look's canvas carries the board under its clear
+   parts. */
+.media-frame > img.shows-transparency,
+.media-frame > img.shows-transparency ~ .picture-layers > .video-lut {
   background: repeating-conic-gradient(var(--border-color) 0 25%, var(--bg-primary) 0 50%) 0 0 / 20px 20px;
+}
+
+/* What a still shows over itself (web/lib/pictureLayers.ts), as a player's
+   box holds over a clip: its look's canvas and its guides. It shares the
+   frame's one cell with the picture, so its box is the picture's, and
+   contain: size keeps it from sizing that cell. It takes no pointer, so a
+   click, a drag or the hover that shows the bars lands on the picture. */
+.picture-layers {
+  position: relative;
+  isolation: isolate;
+  contain: size;
+  pointer-events: none;
 }
 
 /* The media overlay (mediaHud.ts): bars over the picture while it is
@@ -204,19 +222,22 @@
   background: var(--media-hud-badge-off-bg);
 }
 
-/* A three-fact bar centres its middle fact on the picture. space-between
-   centres it between its neighbours instead, so it drifts toward the
-   narrower one. A ⋮ is no fact, so a bar holding one is never such a bar. */
-.media-hud-bar:has(> :nth-child(3):last-child):not(:has(> .media-hud-more)) {
+/* A bar showing three facts centres the middle one on the picture.
+   space-between centres it between its neighbours instead, so it drifts
+   toward the narrower one. Only the facts shown count: a LOOK badge before
+   any look is picked is none. A ⋮ is no fact, so a bar holding one is never
+   such a bar. */
+.media-hud-bar:has(> :nth-child(3 of :not(:empty, [hidden])):last-child):not(:has(> .media-hud-more)) {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
 }
 
-.media-hud-bar:has(> :nth-child(3):last-child):not(:has(> .media-hud-more)) > :nth-child(2) {
+.media-hud-bar:has(> :nth-child(3 of :not(:empty, [hidden])):last-child):not(:has(> .media-hud-more))
+  > :nth-child(2 of :not(:empty, [hidden])) {
   grid-column: 2;
 }
 
-.media-hud-bar:has(> :nth-child(3):last-child):not(:has(> .media-hud-more)) > :last-child {
+.media-hud-bar:has(> :nth-child(3 of :not(:empty, [hidden])):last-child):not(:has(> .media-hud-more)) > :last-child {
   grid-column: 3;
   justify-self: end;
 }
@@ -252,9 +273,11 @@
   color: var(--media-hud-fg);
 }
 
-/* The bars stay up while the pointer is on the ⋮, which takes the hover off
-   the picture under it, and while its menu is open. */
-.media-hud:has(.media-hud-more:hover, .media-hud-more[aria-expanded="true"]) {
+/* The bars stay up while the pointer is on one of their controls, the LOOK
+   badge or the ⋮, which takes the hover off the picture under it, and while
+   the ⋮'s menu is open. */
+.media-hud:hover,
+.media-hud:has(.media-hud-more[aria-expanded="true"]) {
   opacity: 1;
 }
 

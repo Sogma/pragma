@@ -1,7 +1,8 @@
-// The LUT a video player shows its picture through, as a viewer's monitor
-// LUT does: the GPU looks each pixel of each frame up in a color cube, and a
-// canvas over the picture shows the result. The file is never touched; the
-// clip's own element still decodes it and plays its sound underneath.
+// The LUT a player or a still's viewer shows its picture through, as a
+// monitor LUT does: the GPU looks each pixel of each frame up in a color
+// cube, and a canvas over the picture shows the result. The file is never
+// touched; its own element still decodes it, and a clip's plays its sound
+// underneath.
 
 /** The LUTs Pragma ships, by the name a stored choice keeps. */
 export type LutName = "panchromatic" | "orthochromatic";
@@ -116,8 +117,8 @@ uniform float offset;
 in vec2 at;
 out vec4 color;
 void main() {
-  vec3 source = texture(frame, at).rgb;
-  color = vec4(texture(cube, source * scale + offset).rgb, 1.0);
+  vec4 source = texture(frame, at);
+  color = vec4(texture(cube, source.rgb * scale + offset).rgb * source.a, source.a);
 }`;
 
 interface Pipeline {
@@ -183,27 +184,47 @@ function loadCube(gl: WebGL2RenderingContext, pipeline: Pipeline, name: LutName)
 }
 
 export interface LutLayer {
-  /** Goes in the player's box, under the guides. */
+  /** Goes in the player's box, or a still's, under the guides. */
   readonly element: HTMLCanvasElement;
   dispose(): void;
 }
 
-export function createLutLayer(video: HTMLVideoElement, choice: LutChoice): LutLayer {
+// The stills whose files may hold more than one frame.
+const ANIMATED_TYPES = new Set(["image/gif", "image/webp"]);
+
+// A GIF frame shown for 10 ms or less, which browsers show for 100.
+const SHORTEST_FRAME_MS = 10;
+const STAND_IN_FRAME_MS = 100;
+
+/** A canvas over `media` showing it through the look `choice` names. A
+ * still's media `type` lets one that animates play its frames. */
+export function createLutLayer(media: HTMLVideoElement | HTMLImageElement, choice: LutChoice, type?: string): LutLayer {
   const element = document.createElement("canvas");
   element.className = "video-lut";
   element.setAttribute("aria-hidden", "true");
-  // Opaque, the canvas shows black until its first frame is drawn, so it
-  // stays hidden until then and the clip's own picture shows.
+  // Until its first frame is drawn the canvas shows nothing of the picture,
+  // so it stays hidden until then and the media's own picture shows.
   element.hidden = true;
+  const video = media instanceof HTMLVideoElement ? media : undefined;
   // A page keeps only so many GPU contexts and drops its oldest past that,
   // so a player asks for one only once a LUT is on.
   let gl: WebGL2RenderingContext | null = null;
   let pipeline: Pipeline | null = null;
   let frameRequest: number | undefined;
   let disposed = false;
+  // Counts the looks applied, so frames still decoding for an earlier one
+  // are dropped.
+  let run = 0;
+  let frameTimer = 0;
+  let decoder: ImageDecoder | undefined;
+  // Whether a look is showing, and whether a still has begun to show through
+  // it: one the look meets still loading begins as it loads.
+  let active = false;
+  let stillShown = false;
 
   function prepare(name: LutName): boolean {
-    gl ??= element.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false });
+    // A still keeps its clear parts clear, over its checkerboard.
+    gl ??= element.getContext("webgl2", { alpha: !video, antialias: false, depth: false, stencil: false });
     if (!gl || gl.isContextLost()) return false;
     pipeline ??= buildPipeline(gl);
     if (!pipeline) return false;
@@ -211,9 +232,8 @@ export function createLutLayer(video: HTMLVideoElement, choice: LutChoice): LutL
     return true;
   }
 
-  function draw(): void {
-    const { videoWidth: width, videoHeight: height } = video;
-    if (!gl || !pipeline || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !width || !height) return;
+  function draw(source: TexImageSource, width: number, height: number): void {
+    if (!gl || !pipeline || !width || !height) return;
     if (element.width !== width || element.height !== height) {
       element.width = width;
       element.height = height;
@@ -222,25 +242,85 @@ export function createLutLayer(video: HTMLVideoElement, choice: LutChoice): LutL
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, pipeline.frameTexture);
     try {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
     } catch {
-      // A clip from another origin can't be read: its own picture shows.
+      // Media from another origin can't be read: its own picture shows.
       return;
     }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     element.hidden = false;
   }
 
-  function watchFrames(): void {
-    frameRequest = video.requestVideoFrameCallback(() => {
-      watchFrames();
-      draw();
+  function drawVideo(clip: HTMLVideoElement): void {
+    if (clip.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) draw(clip, clip.videoWidth, clip.videoHeight);
+  }
+
+  // Drawn once, or its frames played where it animates. Before it has
+  // loaded, or before it has a file at all, its load shows it.
+  function showStill(img: HTMLImageElement): void {
+    if (!img.complete || img.naturalWidth === 0) return;
+    stillShown = true;
+    if (type && ANIMATED_TYPES.has(type) && typeof ImageDecoder === "function") void playFrames(img, type, run);
+    else draw(img, img.naturalWidth, img.naturalHeight);
+  }
+
+  function watchFrames(clip: HTMLVideoElement): void {
+    frameRequest = clip.requestVideoFrameCallback(() => {
+      watchFrames(clip);
+      drawVideo(clip);
     });
   }
 
+  // A canvas reads only an animated picture's first frame, so one that
+  // animates plays its frames here, decoded from its file and timed as the
+  // file times them. Where the browser can't decode them, or the file holds
+  // one frame, the picture is drawn once.
+  async function playFrames(img: HTMLImageElement, mediaType: string, mine: number): Promise<void> {
+    try {
+      const response = await fetch(img.currentSrc || img.src);
+      if (!response.body || mine !== run) return;
+      const opened = new ImageDecoder({ data: response.body, type: mediaType });
+      decoder = opened;
+      await opened.completed;
+      const track = opened.tracks.selectedTrack;
+      if (mine !== run) return;
+      if (!track?.animated || track.frameCount < 2) {
+        draw(img, img.naturalWidth, img.naturalHeight);
+        return;
+      }
+      let index = 0;
+      let plays = 0;
+      const next = async () => {
+        const { image } = await opened.decode({ frameIndex: index });
+        if (mine !== run) {
+          image.close();
+          return;
+        }
+        draw(image, image.displayWidth, image.displayHeight);
+        const shown = (image.duration ?? 0) / 1000;
+        image.close();
+        index = (index + 1) % track.frameCount;
+        if (index === 0 && ++plays > track.repetitionCount) return;
+        frameTimer = window.setTimeout(
+          () => void next().catch(() => undefined),
+          shown <= SHORTEST_FRAME_MS ? STAND_IN_FRAME_MS : shown,
+        );
+      };
+      await next();
+    } catch {
+      if (mine === run) draw(img, img.naturalWidth, img.naturalHeight);
+    }
+  }
+
   function stop(): void {
-    if (frameRequest !== undefined) video.cancelVideoFrameCallback(frameRequest);
+    run++;
+    active = false;
+    stillShown = false;
+    if (frameRequest !== undefined) video?.cancelVideoFrameCallback(frameRequest);
     frameRequest = undefined;
+    window.clearTimeout(frameTimer);
+    decoder?.close();
+    decoder = undefined;
     element.hidden = true;
   }
 
@@ -248,10 +328,20 @@ export function createLutLayer(video: HTMLVideoElement, choice: LutChoice): LutL
   function apply(): void {
     stop();
     const { lut: name, on } = choice.get();
-    if (disposed || !on || name === null || !("requestVideoFrameCallback" in video) || !prepare(name)) return;
-    watchFrames();
-    draw();
+    if (disposed || !on || name === null) return;
+    if (video && !("requestVideoFrameCallback" in video)) return;
+    if (!prepare(name)) return;
+    active = true;
+    if (video) {
+      watchFrames(video);
+      drawVideo(video);
+    } else if (media instanceof HTMLImageElement) showStill(media);
   }
+
+  const onLoad = () => {
+    if (active && !stillShown && media instanceof HTMLImageElement) showStill(media);
+  };
+  if (!video) media.addEventListener("load", onLoad);
 
   // A context lost to a GPU reset leaves the clip's own picture until it
   // comes back. Without the default prevented, it never comes back.
@@ -270,6 +360,7 @@ export function createLutLayer(video: HTMLVideoElement, choice: LutChoice): LutL
       disposed = true;
       unsubscribe();
       stop();
+      media.removeEventListener("load", onLoad);
       element.removeEventListener("webglcontextlost", onLost);
       element.removeEventListener("webglcontextrestored", apply);
       gl?.getExtension("WEBGL_lose_context")?.loseContext();

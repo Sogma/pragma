@@ -21,7 +21,7 @@ import type { Direction } from "./core/tabHistory.ts";
 import type { EditorGroup } from "./core/workspace.ts";
 import * as workspace from "./core/workspace.ts";
 import type { ProposalOutcome } from "./editProposal.ts";
-import { PREVIEW_CLIP_MENU, PREVIEW_FILE_MENU } from "./filePreview.ts";
+import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "./filePreview.ts";
 import { registerFlowKeys } from "./flow/flowKeys.ts";
 import { CHIP_MENU, CLEAR_CHIP, chipClearOf } from "./flow/flowMenus.ts";
 import type { FlowView } from "./flow/xyflowAdapter.ts";
@@ -706,7 +706,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },
   ]);
-  deps.menus.register(PREVIEW_CLIP_MENU, [
+  deps.menus.register(PREVIEW_MEDIA_MENU, [
     { command: "editor.open", group: "open" },
     { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },
@@ -715,7 +715,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
   ]);
-  deps.menus.register(PREVIEW_FILE_MENU, [
+  deps.menus.register(PREVIEW_PAGE_MENU, [
     { command: "editor.open", group: "open" },
     { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },

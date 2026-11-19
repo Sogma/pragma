@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { formatFileSize } from "../../../web/lib/dom.ts";
-import { lookBadge, thumbnailHud } from "../../../web/lib/mediaHud.ts";
+import { fitHud, hudRoot, lookBadge, thumbnailHud } from "../../../web/lib/mediaHud.ts";
 import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
 import { memorySetting } from "../support/editorLayout.ts";
 
@@ -65,6 +65,31 @@ describe("a thumbnail's hover bars", () => {
     const hud = thumbnailHud(box);
     hud.fill({ width: 0, height: 0, size: 10 });
     expect(bars(box)).toEqual(["(hidden)", ` | ${formatFileSize(10)}`]);
+  });
+});
+
+// Over media too small for its bars, an overlay with a ⋮ keeps the ⋮ alone,
+// and one without hides.
+describe("fitHud", () => {
+  it("shows the bars where they fit, the ⋮ alone where they don't, and nothing in an overlay with no ⋮", () => {
+    const more = document.createElement("button");
+    more.className = "media-hud-more";
+    const withMore = hudRoot([document.createElement("span")], [more]);
+    const facts = hudRoot([document.createElement("span")]);
+    const state = (hud: HTMLElement) => [hud.hidden, hud.classList.contains("is-bare")];
+
+    fitHud(withMore, 600, 400);
+    fitHud(facts, 600, 400);
+    expect([state(withMore), state(facts)]).toEqual([
+      [false, false],
+      [false, false],
+    ]);
+    fitHud(withMore, 120, 400);
+    fitHud(facts, 600, 100);
+    expect([state(withMore), state(facts)]).toEqual([
+      [false, true],
+      [true, false],
+    ]);
   });
 });
 

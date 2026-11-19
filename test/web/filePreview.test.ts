@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileResponse } from "../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../web/core/paths.ts";
-import { createFilePreview, PREVIEW_CLIP_MENU, PREVIEW_FILE_MENU } from "../../web/filePreview.ts";
+import { createFilePreview, PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats } from "../../web/services/formats.ts";
 import { fireDrag } from "./support/drag.ts";
@@ -81,7 +81,16 @@ function setup({ files = STILLS, inPlace = true } = {}) {
   });
   const overlay = host.querySelector(".file-preview") as HTMLElement;
   const frame = () => overlay.querySelector(".file-preview-frame");
-  return { preview, overlay, frame, refocus, openInPlace, contextMenu, look: sources.videoLut };
+  return {
+    preview,
+    overlay,
+    frame,
+    refocus,
+    openInPlace,
+    contextMenu,
+    look: sources.videoLut,
+    guides: sources.videoGuides,
+  };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -222,10 +231,10 @@ describe("a double-click on what opened the preview", () => {
   });
 });
 
-// The badge the video tab's overlay holds, over the look every player shares.
-describe("a previewed clip's LOOK badge", () => {
+// The badge the video tab's overlay holds, over the look every viewer shares.
+describe("a previewed clip's or still's LOOK badge", () => {
   it("sits between the dimensions and the frame rate, its click or D turning the look off and on", () => {
-    const { preview, overlay, look } = setup({ files: ["clips/a.mp4", "stills/b.png"] });
+    const { preview, overlay, look } = setup({ files: ["clips/a.mp4", "stills/b.svg"] });
     look.set({ lut: "panchromatic", on: true });
     preview.show(0);
     const [bar, ...others] = overlay.querySelectorAll(".media-hud-bar");
@@ -240,11 +249,22 @@ describe("a previewed clip's LOOK badge", () => {
     expect(preview.key("D")).toBe(true);
     expect(look.get()).toEqual({ lut: "panchromatic", on: true });
 
-    // A still has no look to turn.
+    // A vector image has no pixels to grade, so no look to turn.
     preview.show(1);
     expect(overlay.querySelector(".media-hud-badge")).toBeNull();
     expect(preview.key("d")).toBe(false);
     expect(look.get()).toEqual({ lut: "panchromatic", on: true });
+  });
+
+  it("sits between a still's dimensions and its color mode, D turning the look", () => {
+    const { preview, overlay, look } = setup();
+    look.set({ lut: "orthochromatic", on: true });
+    preview.show(0);
+    const [top] = overlay.querySelectorAll(".media-hud-bar");
+    const badge = top.querySelector("button.media-hud-badge") as HTMLButtonElement;
+    expect([top.children.length, [...top.children].indexOf(badge), badge.textContent]).toEqual([3, 1, "LOOK"]);
+    expect(preview.key("d")).toBe(true);
+    expect(look.get()).toEqual({ lut: "orthochromatic", on: false });
   });
 
   it("stops following the look once the preview moves on, or closes", async () => {
@@ -292,7 +312,7 @@ describe("a previewed file's More options", () => {
     more.click();
     expect(contextMenu.opened).toEqual([
       {
-        menu: PREVIEW_CLIP_MENU,
+        menu: PREVIEW_MEDIA_MENU,
         arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4" },
         anchor: more,
         align: "end",
@@ -302,12 +322,12 @@ describe("a previewed file's More options", () => {
     expect(preview.shownIndex()).toBe(0);
   });
 
-  it("ends a still's bottom bar, after its name, and opens the file's menu under it", () => {
+  it("ends a still's bottom bar, after its name, and opens the clip's menu for the file under it", () => {
     const { preview, overlay, contextMenu } = setup();
     preview.show(0);
     decode(overlay, [600, 450]);
     expect(bars(overlay)).toEqual([
-      ["4000 × 3000 (4:3)", ""],
+      ["4000 × 3000 (4:3)", "", ""],
       ["a.png", "⋮"],
     ]);
     const more = overlay.querySelector(".media-hud-more") as HTMLButtonElement;
@@ -316,7 +336,7 @@ describe("a previewed file's More options", () => {
     more.click();
     expect(contextMenu.opened).toEqual([
       {
-        menu: PREVIEW_FILE_MENU,
+        menu: PREVIEW_MEDIA_MENU,
         arg: { file: "stills/a.png", bookmark: "stills/a.png" },
         anchor: more,
         align: "end",
@@ -344,7 +364,7 @@ describe("a previewed file's More options", () => {
     expect(hud.hidden).toBe(false);
 
     (overlay.querySelector(".media-hud-more") as HTMLButtonElement).click();
-    expect(contextMenu.opened.at(-1)).toMatchObject({ menu: PREVIEW_FILE_MENU, arg: { file: "notes/a.md" } });
+    expect(contextMenu.opened.at(-1)).toMatchObject({ menu: PREVIEW_PAGE_MENU, arg: { file: "notes/a.md" } });
   });
 
   it("lays nothing over the group's toolbar: the arrows are the only controls beside the file", () => {
@@ -376,6 +396,50 @@ describe("a previewed file's More options", () => {
     const broken = overlay.querySelector(".media-hud") as HTMLElement;
     overlay.querySelector(".file-preview-frame img")?.dispatchEvent(new Event("error"));
     expect([broken.hidden, broken.classList.contains("is-bare")]).toEqual([false, true]);
+  });
+});
+
+// A still shows through the guides and the look every viewer shares, as a
+// clip does, laid over it in its own frame; a vector image has no pixels to
+// grade. G turns the guides on a still or a clip, never on a page.
+describe("a previewed still's guides and look", () => {
+  const layerClasses = (overlay: HTMLElement) =>
+    [...(overlay.querySelector(".file-preview-frame > .picture-layers")?.children ?? [])].map((layer) =>
+      layer.getAttribute("class"),
+    );
+
+  it("lays the look and the guides over a raster still, the guides alone over a vector image, and neither over a clip", () => {
+    const { preview, overlay } = setup({ files: ["stills/a.png", "stills/b.svg", "clips/c.mp4"] });
+    preview.show(0);
+    expect(layerClasses(overlay)).toEqual(["video-lut", "video-guides"]);
+    preview.show(1);
+    expect(layerClasses(overlay)).toEqual(["video-guides"]);
+    preview.show(2);
+    expect(overlay.querySelector(".picture-layers")).toBeNull();
+  });
+
+  it("sizes the guides to the decoded still", () => {
+    const { preview, overlay, guides } = setup();
+    guides.set({ ...guides.get(), frames: ["9:16"] });
+    preview.show(0);
+    const img = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 1600 });
+    Object.defineProperty(img, "naturalHeight", { value: 1000 });
+    img.dispatchEvent(new Event("load"));
+    expect(overlay.querySelector(".video-guides-lines")?.getAttribute("viewBox")).toBe("0 0 1600 1000");
+  });
+
+  it("turns the guides with G on a still or a clip, never on a page", () => {
+    const { preview, guides } = setup({ files: ["stills/a.png", "clips/b.mp4", "notes/c.md"] });
+    preview.show(0);
+    expect(preview.key("g")).toBe(true);
+    expect(guides.get().shown).toBe(false);
+    preview.show(1);
+    expect(preview.key("G")).toBe(true);
+    expect(guides.get().shown).toBe(true);
+    preview.show(2);
+    expect(preview.key("g")).toBe(false);
+    expect(guides.get().shown).toBe(true);
   });
 });
 

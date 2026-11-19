@@ -1,9 +1,10 @@
-/* The picture a player shows through its LUT (web/lib/videoLut.ts): a canvas
-   over the player's box, under the guides, drawn in the clip's own pixels.
-   Fitted as the picture fits, so in full screen it letterboxes with it.
+/* The picture a player or a still shows through its LUT (web/lib/videoLut.ts):
+   a canvas over the player's box, or the still's, under the guides, drawn in
+   the media's own pixels. Fitted as the picture fits, so in full screen it
+   letterboxes with it.
 
-   It takes no pointer, so a click on the picture still plays it and the
-   hover that shows the media's bars still lands on the video. */
+   It takes no pointer, so a click on the picture still plays or zooms it and
+   the hover that shows the media's bars still lands on the media. */
 .video-lut {
   position: absolute;
   inset: 0;

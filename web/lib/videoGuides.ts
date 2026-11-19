@@ -1,19 +1,26 @@
-// The guides a video player lays over its picture, as an editor's viewer
-// does: a frame cut from the picture's middle, outlined, with a matte
-// outside it, and the frame's edge, safe areas and center mark inside it.
-// Drawn over the picture only; the file is never touched.
+// The guides a player or a still lays over its picture, as an editor's
+// viewer does: frames cut from the picture's middle, each outlined and named
+// by its ratio, a matte over what none of them shows, and the edge, safe
+// areas and center mark of the area they all share. Drawn over the picture
+// only; the file is never touched.
 //
-// One SVG drawn in the clip's own pixels, its viewBox the clip's size. An
-// SVG fits its viewBox to its box as a video fits its picture, so the lines
-// land on the picture at any size, letterboxed with it in full screen, with
-// nothing measured.
+// The lines are one SVG drawn in the media's own pixels, its viewBox the
+// media's size. An SVG fits its viewBox to its box as a video fits its
+// picture, so the lines land on the picture at any size, letterboxed with it
+// in full screen, with nothing measured.
+//
+// A ratio is text, which the SVG would scale with the picture, so the names
+// lie in a box of the picture's shape fitted the same way, at one size.
 
-export type GuideFrame = "default" | "1:1" | "4:5" | "9:16" | "1.91:1" | "16:9" | "1.33" | "1.77" | "1.85" | "2.39";
+/** A frame the guides cut from the middle of the picture. */
+export type GuideFrame = "1:1" | "4:5" | "9:16" | "1.91:1" | "16:9" | "1.33" | "1.77" | "1.85" | "2.39";
 
 export interface Guides {
   /** Off hides every guide and keeps the picks, for G to bring back. */
   shown: boolean;
-  frame: GuideFrame;
+  /** The frames cut from the picture, in the menu's order. With none the
+   * guides keep the picture's own shape. */
+  frames: readonly GuideFrame[];
   extents: boolean;
   action: boolean;
   title: boolean;
@@ -30,7 +37,7 @@ export interface GuidesChoice {
 
 export const NO_GUIDES: Guides = {
   shown: true,
-  frame: "default",
+  frames: [],
   extents: false,
   action: false,
   title: false,
@@ -41,12 +48,12 @@ export const NO_GUIDES: Guides = {
 export interface FrameChoice {
   id: GuideFrame;
   label: string;
-  /** Width over height; 0 for the clip's own. */
+  /** Width over height. */
   aspect: number;
 }
 
-// The frames, in the two rows the Guides menu shows them in. A pick is one
-// frame of either row.
+// The frames, in the two rows the Guides menu shows them in, any number of
+// them on at once.
 export const SOCIAL_FRAMES: readonly FrameChoice[] = [
   { id: "1:1", label: "1:1", aspect: 1 },
   { id: "4:5", label: "4:5", aspect: 4 / 5 },
@@ -55,7 +62,6 @@ export const SOCIAL_FRAMES: readonly FrameChoice[] = [
   { id: "16:9", label: "16:9", aspect: 16 / 9 },
 ];
 export const FILM_FRAMES: readonly FrameChoice[] = [
-  { id: "default", label: "Default", aspect: 0 },
   { id: "1.33", label: "1.33", aspect: 4 / 3 },
   { id: "1.77", label: "1.77", aspect: 16 / 9 },
   { id: "1.85", label: "1.85", aspect: 1.85 },
@@ -114,8 +120,57 @@ export function insetBox(box: Box, insets: Insets): Box {
   };
 }
 
+/** Hides every guide or shows them again, keeping the picks: G's turn. */
+export function toggleGuides(choice: GuidesChoice): void {
+  const current = choice.get();
+  choice.set({ ...current, shown: !current.shown });
+}
+
 export function frameAspect(frame: GuideFrame): number {
   return FRAMES.find((choice) => choice.id === frame)?.aspect ?? 0;
+}
+
+/** `frames` with `frame` turned on, or off where it was on, in the menu's
+ * order. */
+export function toggleFrame(frames: readonly GuideFrame[], frame: GuideFrame): GuideFrame[] {
+  const on = !frames.includes(frame);
+  return FRAMES.filter((choice) => (choice.id === frame ? on : frames.includes(choice.id))).map((choice) => choice.id);
+}
+
+/** Where every box of `boxes`, each cut from the middle of the same picture,
+ * overlaps: the whole picture for none. */
+export function sharedBox(width: number, height: number, boxes: readonly Box[]): Box {
+  const shared = { x: 0, y: 0, width, height };
+  for (const box of boxes) {
+    if (box.width < shared.width) Object.assign(shared, { x: box.x, width: box.width });
+    if (box.height < shared.height) Object.assign(shared, { y: box.y, height: box.height });
+  }
+  return shared;
+}
+
+const round = (value: number) => Math.round(value * 100) / 100;
+const rect = (x0: number, y0: number, x1: number, y1: number) => `M${x0} ${y0}H${x1}V${y1}H${x0}Z`;
+
+/** The matte's path over what none of `boxes` shows, or nothing where one
+ * of them is the whole picture or there are none. Frames cut from the middle
+ * are full height or full width, so the widest of the one and the tallest
+ * of the other hold all the rest, and what lies outside both is two bands,
+ * or the four corners between them. */
+export function matteOutside(width: number, height: number, boxes: readonly (Box & { cut: boolean })[]): string {
+  if (boxes.length === 0 || boxes.some((box) => !box.cut)) return "";
+  const tall = boxes.filter((box) => box.y === 0).reduce((widest, box) => Math.max(widest, box.width), 0);
+  const wide = boxes.filter((box) => box.x === 0).reduce((tallest, box) => Math.max(tallest, box.height), 0);
+  const left = round((width - tall) / 2);
+  const top = round((height - wide) / 2);
+  const [right, bottom] = [round(width - left), round(height - top)];
+  if (!wide) return [rect(0, 0, left, height), rect(right, 0, width, height)].join(" ");
+  if (!tall) return [rect(0, 0, width, top), rect(0, bottom, width, height)].join(" ");
+  return [
+    rect(0, 0, left, top),
+    rect(right, 0, width, top),
+    rect(0, bottom, left, height),
+    rect(right, bottom, width, height),
+  ].join(" ");
 }
 
 /** Guides read back from storage, where anything missing or unknown reads
@@ -131,10 +186,10 @@ export function readGuides(stored: string | null): Guides {
   const record = value as Record<string, unknown>;
   const flag = (key: keyof Guides, fallback: boolean) =>
     typeof record[key] === "boolean" ? (record[key] as boolean) : fallback;
-  const frame = FRAMES.find((choice) => choice.id === record.frame)?.id ?? "default";
+  const picked: unknown[] = Array.isArray(record.frames) ? record.frames : [];
   return {
     shown: flag("shown", true),
-    frame,
+    frames: FRAMES.filter((choice) => picked.includes(choice.id)).map((choice) => choice.id),
     extents: flag("extents", false),
     action: flag("action", false),
     title: flag("title", false),
@@ -144,27 +199,32 @@ export function readGuides(stored: string | null): Guides {
 }
 
 export interface GuidesOverlay {
-  readonly element: SVGSVGElement;
-  /** The clip's size in pixels, once its header names it. */
+  /** The lines' SVG, and the ratios' box over it. */
+  readonly element: HTMLElement;
+  /** The media's size in pixels, once it is known. */
   setSize(width: number, height: number): void;
   dispose(): void;
 }
 
 const SVG = "http://www.w3.org/2000/svg";
-const round = (value: number) => Math.round(value * 100) / 100;
 
 export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
-  const element = document.createElementNS(SVG, "svg");
-  element.setAttribute("class", "video-guides");
+  const element = document.createElement("div");
+  element.className = "video-guides";
   element.setAttribute("aria-hidden", "true");
+  const lines = document.createElementNS(SVG, "svg");
+  lines.setAttribute("class", "video-guides-lines");
+  const names = document.createElement("div");
+  names.className = "video-guides-names";
+  element.append(lines, names);
   const shape = (tag: string, className: string) => {
     const node = document.createElementNS(SVG, tag);
     node.setAttribute("class", className);
-    element.append(node);
+    lines.append(node);
     return node;
   };
   const matte = shape("path", "video-guides-matte");
-  const cut = shape("rect", "video-guides-line is-cut");
+  const cuts = shape("g", "video-guides-cuts");
   const extents = shape("rect", "video-guides-line is-extents");
   const action = shape("rect", "video-guides-line");
   const title = shape("rect", "video-guides-line");
@@ -184,7 +244,7 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   function draw(): void {
     const current = guides.get();
     const any =
-      current.frame !== "default" ||
+      current.frames.length > 0 ||
       current.extents ||
       current.action ||
       current.title ||
@@ -193,15 +253,33 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
     const visible = current.shown && any && width > 0 && height > 0;
     element.toggleAttribute("hidden", !visible);
     if (!visible) return;
-    element.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    const frame = frameBox(width, height, frameAspect(current.frame));
-    const [left, top] = [round(frame.x), round(frame.y)];
-    const [right, bottom] = [round(frame.x + frame.width), round(frame.y + frame.height)];
-    // The picture with the frame cut out of it, which even-odd filling leaves clear.
-    matte.setAttribute("d", `M0 0H${width}V${height}H0Z M${left} ${top}V${bottom}H${right}V${top}Z`);
-    show(matte, frame.cut);
-    place(cut, frame);
-    show(cut, frame.cut);
+    lines.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    const boxes = current.frames.map((id) => ({ id, ...frameBox(width, height, frameAspect(id)) }));
+    const path = matteOutside(width, height, boxes);
+    matte.setAttribute("d", path);
+    show(matte, path !== "");
+    // A frame of the picture's own shape is its edge: no line, no name.
+    const drawn = boxes.filter((box) => box.cut);
+    cuts.replaceChildren(
+      ...drawn.map((box) => {
+        const outline = document.createElementNS(SVG, "rect");
+        outline.setAttribute("class", "video-guides-line is-cut");
+        place(outline, box);
+        return outline;
+      }),
+    );
+    names.style.setProperty("--guides-aspect", String(width / height));
+    names.replaceChildren(
+      ...drawn.map((box) => {
+        const name = document.createElement("span");
+        name.className = "video-guides-name";
+        name.textContent = FRAMES.find((choice) => choice.id === box.id)?.label ?? box.id;
+        name.style.left = `${(box.x / width) * 100}%`;
+        name.style.top = `${(box.y / height) * 100}%`;
+        return name;
+      }),
+    );
+    const frame = sharedBox(width, height, boxes);
     place(extents, frame);
     show(extents, current.extents);
     place(action, insetBox(frame, ACTION_SAFE));

@@ -4,7 +4,7 @@ import { metadataText } from "../../../../src/protocol/metadata.ts";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
 import type { TableLayout } from "../../../../src/protocol/types.ts";
 import type { FileResponse, TableFileResponse } from "../../../../web/core/apiClient.ts";
-import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
+import { PREVIEW_MEDIA_MENU } from "../../../../web/filePreview.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
@@ -326,7 +326,7 @@ describe("a media cell's preview", () => {
     const open = vi.spyOn(contextMenu, "open");
     (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
     expect(open).toHaveBeenCalledWith(
-      expect.objectContaining({ menu: PREVIEW_FILE_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
+      expect.objectContaining({ menu: PREVIEW_MEDIA_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
     );
   });
 

@@ -7,7 +7,7 @@
 // along a video's top edge, since the player's controls take the bottom on
 // hover; the player sits in a stage element its overlay is positioned against.
 import { basenameOf } from "../../../src/protocol/rootedPath.ts";
-import { vectorImageMediaTypeForPath } from "../../../src/protocol/types.ts";
+import { rasterImageMediaTypeForPath } from "../../../src/protocol/types.ts";
 import {
   type ClipHeaderResponse,
   fetchFileRaw,
@@ -34,11 +34,13 @@ import {
   pictureDetailRows,
   pixelFormatText,
 } from "../../lib/mediaDetails.ts";
-import { hudCells, hudFits, hudRoot, lookBadge, mediaFrame, showTransparency } from "../../lib/mediaHud.ts";
+import { fitHud, hudCells, hudRoot, lookBadge, mediaFrame, showTransparency } from "../../lib/mediaHud.ts";
+import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
+import { createPictureLayers, type PictureLayers } from "../../lib/pictureLayers.ts";
 import { dragToScroll, keepClickedPoint, shownPercent, zoomFrom } from "../../lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "../../lib/svgSize.ts";
-import type { GuidesChoice } from "../../lib/videoGuides.ts";
-import type { LutChoice } from "../../lib/videoLut.ts";
+import { type GuidesChoice, toggleGuides } from "../../lib/videoGuides.ts";
+import { type LutChoice, toggleLook } from "../../lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "../../lib/videoPlayer.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
@@ -58,6 +60,10 @@ export interface ImagePaneDeps extends MediaPaneDeps {
   pixelFormat: (path: string) => Promise<PixelFormatResponse>;
   // A GET against the raw-file route, for an SVG's own text.
   fetchFile: (path: string) => Promise<Response>;
+  guides: GuidesChoice;
+  lut: LutChoice;
+  // Where the overlay's More options menu opens.
+  contextMenu: ContextMenuService;
 }
 
 export interface VideoPaneDeps extends MediaPaneDeps {
@@ -106,9 +112,22 @@ async function headOf(deps: MediaPaneDeps, path: string): Promise<Response | und
 // The routes are bound here, not handed in by the bootstrap: they are all
 // either pane needs from the app. The pane factories still take them as
 // deps, for tests.
-export function imagePane(): EditorPaneDescriptor {
-  const deps = { rawFileUrl, headFile: headFileRaw, pixelFormat: getPixelFormat, fetchFile: fetchFileRaw };
+export function imagePane(contextMenu: ContextMenuService): EditorPaneDescriptor {
+  const deps = {
+    rawFileUrl,
+    headFile: headFileRaw,
+    pixelFormat: getPixelFormat,
+    fetchFile: fetchFileRaw,
+    guides: videoGuides,
+    lut: videoLut,
+    contextMenu,
+  };
   return { kind: "image", chrome: CHROME, create: () => createImagePane(deps) };
+}
+
+/** The image and video panes, whose overlays open their menus in `contextMenu`. */
+export function mediaPanes(contextMenu: ContextMenuService): EditorPaneDescriptor[] {
+  return [imagePane(contextMenu), videoPane(contextMenu)];
 }
 
 export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor {
@@ -125,13 +144,15 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
   return { kind: "video", chrome: CHROME, create: () => createVideoPane(deps) };
 }
 
-/** The image's overlay: dimensions, display scale and color mode along the
- * top edge, file name and size along the bottom. */
-function createImageHud() {
+/** The image's overlay: dimensions, display scale, the LOOK badge once a
+ * look has been picked, and color mode along the top edge; file name, size
+ * and the ⋮ along the bottom. */
+function createImageHud(lut: LutChoice, more: HTMLButtonElement) {
   const [name, size, dimensions, mode, scale] = hudCells(5);
   name.className = "media-hud-name";
-  const root = hudRoot([dimensions, scale, mode], [name, size]);
-  return { root, name, size, dimensions, mode, scale };
+  const look = lookBadge(lut);
+  const root = hudRoot([dimensions, scale, look.element, mode], [name, size, more]);
+  return { root, name, size, dimensions, mode, scale, look };
 }
 
 /** The video's overlay: dimensions, codec, display scale, the LOOK badge
@@ -154,7 +175,7 @@ function measureScaledHud(
 ): number | undefined {
   if (!naturalWidth) return undefined; // not decoded yet
   const shown = media.getBoundingClientRect();
-  hud.root.hidden = !hudFits(shown.width, shown.height);
+  fitHud(hud.root, shown.width, shown.height);
   const percent = shownPercent(shown.width, naturalWidth);
   hud.scale.textContent = `${percent}%`;
   return percent;
@@ -170,7 +191,15 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   scroller.className = "editor-image-scroller";
   const details = detailsSection("Image");
   const detailsTitle = must<HTMLElement>(".inspector-section-title", details.section);
-  const hud = createImageHud();
+  let shownPath: string | undefined;
+  // A look grades pixels: a raster image's, never a vector image's.
+  let gradable = false;
+  const more = moreOptionsButton("media-hud-more", (anchor) => {
+    if (shownPath !== undefined) videoMoreOptions(deps.contextMenu, shownPath, deps.guides, deps.lut)(anchor);
+  });
+  more.element.tabIndex = -1;
+  const hud = createImageHud(deps.lut, more.element);
+  let layers: PictureLayers | undefined;
   let shown: HTMLImageElement | undefined;
   // The width the picture counts as at 100%: its own, or an SVG's stand-in.
   let fullWidth = 0;
@@ -191,6 +220,18 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   };
   const resize = new ResizeObserver(place);
   resize.observe(scroller);
+
+  // G and D go to the pane, as the video tab's keys do, so a press anywhere
+  // in it puts focus here.
+  element.tabIndex = 0;
+  element.addEventListener("pointerdown", () => element.focus({ preventScroll: true }));
+  element.addEventListener("keydown", (event) => {
+    if (event.target !== element || event.metaKey || event.ctrlKey || event.altKey || !shown) return;
+    if (event.key === "g" || event.key === "G") toggleGuides(deps.guides);
+    else if ((event.key === "d" || event.key === "D") && gradable) toggleLook(deps.lut);
+    else return;
+    event.preventDefault();
+  });
   // Only the picture is grabbed: the margin around it keeps the arrow.
   dragToScroll(scroller, (event) => actualSize && !settleZoom && event.target === shown);
 
@@ -211,11 +252,16 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
     element.classList.add("is-zooming");
     setActualSize(!actualSize);
     if (actualSize) keepClickedPoint(img, before, scroller, event);
-    settleZoom = zoomFrom(img, before, () => {
-      settleZoom = undefined;
-      element.classList.remove("is-zooming");
-      place();
-    });
+    settleZoom = zoomFrom(
+      img,
+      before,
+      () => {
+        settleZoom = undefined;
+        element.classList.remove("is-zooming");
+        place();
+      },
+      layers ? [layers.element] : [],
+    );
   };
 
   return {
@@ -226,10 +272,16 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       if (tab.kind !== "image") throw new Error(`the image pane can't show a "${tab.kind}" tab`);
       settleZoom?.();
       element.replaceChildren();
+      layers?.dispose();
       setActualSize(false);
 
-      // A vector image has no pixel format, so it gets no rows for one.
-      const raster = vectorImageMediaTypeForPath(tab.path) === undefined;
+      // A vector image has no pixel format, so it gets no rows for one, and
+      // no look.
+      const rasterType = rasterImageMediaTypeForPath(tab.path);
+      const raster = rasterType !== undefined;
+      shownPath = tab.path;
+      gradable = raster;
+      hud.look.element.hidden = !raster;
       detailsTitle.textContent = raster ? "Image" : "Vector image";
       const values = fillDetails(details.body, raster ? ["Dimensions", "Color mode", "Bit depth"] : ["Dimensions"]);
       details.section.hidden = false;
@@ -245,10 +297,17 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       showTransparency(img, tab.path);
       shown = img;
       fullWidth = 0;
+      const imageLayers = createPictureLayers(img, {
+        guides: deps.guides,
+        lut: raster ? deps.lut : undefined,
+        type: rasterType,
+      });
+      layers = imageLayers;
       const standIn = raster ? undefined : readSvgStandInSize(deps.fetchFile, tab.path);
       describeLoaded(img, standIn, (width, height) => {
         if (!ctx.isCurrent()) return; // the pane moved on before the bytes arrived
         fullWidth = width;
+        imageLayers.setSize(width, height);
         const dimensions = values.get("Dimensions");
         if (dimensions) dimensions.textContent = formatDimensions(width, height);
         hud.dimensions.textContent = formatDimensions(width, height, "");
@@ -260,7 +319,9 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       // observer saw can't leave it showing a stale scale.
       img.addEventListener("pointerenter", place);
       // The overlay follows the image: `.media-frame > img:hover + .media-hud`.
-      scroller.replaceChildren(mediaFrame(img, hud.root, "editor-image-frame"));
+      const frame = mediaFrame(img, hud.root, "editor-image-frame");
+      frame.append(imageLayers.element);
+      scroller.replaceChildren(frame);
       element.append(scroller);
 
       // A missing or failed answer leaves the size out; the Info tab has
@@ -294,7 +355,10 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
     },
     clearInput: () => {
       settleZoom?.();
+      layers?.dispose();
+      layers = undefined;
       shown = undefined;
+      shownPath = undefined;
       fullWidth = 0;
       setActualSize(false);
       element.replaceChildren();
@@ -304,6 +368,9 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
     title: () => undefined, // the tab names it; no title bar
     dispose: () => {
       resize.disconnect();
+      layers?.dispose();
+      more.dispose();
+      hud.look.dispose();
       element.remove();
     },
   };
