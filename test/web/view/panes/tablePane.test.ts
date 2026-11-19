@@ -296,6 +296,20 @@ describe("a media cell's preview", () => {
     expect(document.activeElement).toBe(thumbs(pane)[4]);
   });
 
+  it("points the copilot at the file its preview shows, and at nothing once it closes", async () => {
+    const { pane } = setup(shots());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    expect(pane.selectedFile?.()).toBeUndefined();
+
+    thumbs(pane)[0].click();
+    expect(pane.selectedFile?.()).toEqual({ path: "stills/a.png", previewing: true });
+    press(pane, "ArrowRight");
+    expect(pane.selectedFile?.()).toEqual({ path: "stills/b.mp4", previewing: true });
+
+    pane.dismissTransient?.();
+    expect(pane.selectedFile?.()).toBeUndefined();
+  });
+
   it("opens the file in place on a double-click begun on the cell, and offers the other ways from its ⋮", async () => {
     const { pane, openPath, contextMenu } = setup(shots());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);

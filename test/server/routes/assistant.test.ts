@@ -93,6 +93,54 @@ describe("the chat route", () => {
     expect(await promptFor("besideFlowPath=p.flow.html&node=prompt-1")).not.toContain("The writer has selected");
   });
 
+  // A hint, as a selection is: what can't be named is dropped, never refused.
+  it("names the file the focused pane points at, dropping one it can't name", async () => {
+    mkdirSync(path.join(spaceRoot, "stills"));
+    writeFileSync(path.join(spaceRoot, "stills", "a.png"), "");
+    mkdirSync(path.join(spaceRoot, ".cache"));
+    writeFileSync(path.join(spaceRoot, ".cache", "b.png"), "");
+    const library = mkdtempSync(path.join(tmpdir(), "pragma-assistant-library-"));
+    giveSpaceLibraries(configDir, spaceRoot, [{ id: "footage", label: "Footage", path: library, access: "read-only" }]);
+    writeFileSync(path.join(library, "still.png"), "");
+    writeFileSync(path.join(library, "notes.md"), "# Notes\n");
+    const app = createSpaceApiRoutes(spaceRoot, undefined, { ownMachine: true });
+    const promptFor = async (query: string) => {
+      const model = answering("ok");
+      resolvedTo.model = model;
+      const res = await app.request(`/api/chat?${query}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ history: [], message: "hi", model: "mock/model" }),
+      });
+      expect(res.status, query).toBe(200);
+      return String(model.doGenerateCalls[0].prompt[0].content);
+    };
+
+    try {
+      expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png")).toContain(
+        "The writer has selected the image `stills/a.png`.",
+      );
+      expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png&previewing=1")).toContain(
+        "The writer is previewing the image `stills/a.png`.",
+      );
+      expect(await promptFor(`selectedFile=${encodeURIComponent("lib:footage/still.png")}&previewing=1`)).toContain(
+        "The writer is previewing the image `lib:footage/still.png`.",
+      );
+      for (const dropped of [
+        ".cache/b.png",
+        "missing.png",
+        "../outside.png",
+        "lib:footage/notes.md",
+        "lib:gone/x.png",
+      ]) {
+        const prompt = await promptFor(`folderPath=stills&selectedFile=${encodeURIComponent(dropped)}`);
+        expect(prompt, dropped).not.toMatch(/The writer (has selected|is previewing)/);
+      }
+    } finally {
+      rmSync(library, { recursive: true, force: true });
+    }
+  });
+
   // A library's file reaches the copilot only as a raster image to look at.
   it("names a library's raster image by its library path, and any other library view as no file open", async () => {
     const library = mkdtempSync(path.join(tmpdir(), "pragma-assistant-library-"));

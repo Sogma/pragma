@@ -1078,6 +1078,11 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     },
     hasTransient: () => preview.shownIndex() !== undefined,
     dismissTransient: () => preview.close(),
+    // The preview selects each file it shows, so the tile is the file either way.
+    selectedFile() {
+      const path = selectedPath();
+      return path ? { path, previewing: preview.shownIndex() !== undefined } : undefined;
+    },
     dispose() {
       clearInput();
       preview.dispose();

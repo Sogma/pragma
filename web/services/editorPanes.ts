@@ -3,7 +3,7 @@
 // instantiates one per kind it shows, mounting one at a time; neither the
 // group nor main.ts knows which kinds exist. A pane is never shared: two
 // groups showing the same kind hold two instances.
-import type { FileResponse, Tab } from "../core/apiClient.ts";
+import type { FileResponse, SelectedFile, Tab } from "../core/apiClient.ts";
 import type { Disposable } from "../lib/disposable.ts";
 import type { CommandRegistry } from "./commands.ts";
 import type { FileNotices } from "./fileNotices.ts";
@@ -80,6 +80,10 @@ export interface EditorPane {
   // kind with none.
   hasTransient?(): boolean;
   dismissTransient?(): void;
+  // The file the pane points at apart from its own, which the copilot is
+  // told of and may look at: the one its preview shows, else a selected
+  // entry. Absent for a kind with neither.
+  selectedFile?(): SelectedFile | undefined;
   // What find's card can do in what the pane shows: "replace" where the
   // text can change, "find" where it can only be searched. Absent, or
   // undefined, where nothing can be: the chrome offers Find… by it.

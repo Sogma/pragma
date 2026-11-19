@@ -1386,11 +1386,21 @@ export async function postFindContext(directoryPath: string, query: string): Pro
   });
 }
 
+/** A file the focused pane points at apart from its own: the one its preview
+ * shows, or a gallery's selected tile. */
+export interface SelectedFile {
+  path: string;
+  previewing: boolean;
+}
+
 // Mirrors the server's EditorContext (chatHandler.ts): the copilot's context
 // is keyed off what the editor pane is actually showing, never the
 // possibly-stale active path, which would let an open image's bytes (or a
 // file a pane renders) be handed to edit_current_document.
-export type ChatViewContext =
+//
+// `file` goes with any view, "none" included: a Class's preview shows over a
+// tab the copilot is told no file of.
+export type ChatViewContext = (
   | { view: "document"; path: string; selection?: SelectedRange }
   | { view: "folder"; path: string }
   | { view: "image"; path: string }
@@ -1399,7 +1409,8 @@ export type ChatViewContext =
   | { view: "applet"; path: string }
   | { view: "flow"; path: string; node?: string }
   | { view: "table"; path: string }
-  | { view: "none" };
+  | { view: "none" }
+) & { file?: SelectedFile };
 
 // "none" names no parameter: a request without one is a turn with no file open.
 const CHAT_VIEW_QUERY_PARAM: Record<Exclude<ChatViewContext["view"], "none">, string> = {
@@ -1427,6 +1438,10 @@ function chatViewQuery(context: ChatViewContext, beside: ChatViewContext | undef
   const params: string[] = [];
   if (context.view !== "none") {
     params.push(`${CHAT_VIEW_QUERY_PARAM[context.view]}=${encodeURIComponent(context.path)}${selectionQuery(context)}`);
+  }
+  if (context.file) {
+    const previewing = context.file.previewing ? "&previewing=1" : "";
+    params.push(`selectedFile=${encodeURIComponent(context.file.path)}${previewing}`);
   }
   if (beside && beside.view !== "none") {
     params.push(`${besideParam(CHAT_VIEW_QUERY_PARAM[beside.view])}=${encodeURIComponent(beside.path)}`);

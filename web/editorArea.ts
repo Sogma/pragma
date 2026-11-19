@@ -99,8 +99,8 @@ export interface EditorArea {
   /** The focused group's mounted pane, and the typed views behind it. */
   focusedPane(): EditorPane | undefined;
   focusedDocumentPane(): DocumentPane | undefined;
-  /** What the focused group's pane has selected: a document's text, or a
-   * Flow's node. */
+  /** What the focused group's pane has selected: a document's text, a Flow's
+   * node, or a file the pane points at. */
   focusedSelection(): PaneSelection;
   /** Puts the keyboard in the focused group's document, as a launch does,
    * unless something already holds it or the document is read: typing into
@@ -1035,6 +1035,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     focusedSelection: () => ({
       range: focusedDocumentPane()?.selectedRange(),
       node: flowViewOf(focusedPane())?.selectedNode(),
+      file: focusedPane()?.selectedFile?.(),
     }),
     focusDocumentIfIdle() {
       const pane = focusedDocumentPane();

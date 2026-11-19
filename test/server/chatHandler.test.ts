@@ -10,7 +10,7 @@ import { parseFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
 import type { FlowGraph, MetadataEntry } from "../../src/protocol/types.ts";
-import { type EditorContext, runChat, runChatOn } from "../../src/server/chatHandler.ts";
+import { type EditorContext, runChat, runChatOn, type SelectedFile } from "../../src/server/chatHandler.ts";
 import { createContextSources } from "../../src/server/copilotContext.ts";
 import type { McpConnector } from "../../src/server/mcpTools.ts";
 import { revisionOf } from "../../src/server/spaceFiles.ts";
@@ -496,7 +496,7 @@ describe("runChatOn", () => {
       expect(result.lookedAt).toEqual(["frame.png"]);
     });
 
-    it("refuses an image the writer doesn't have open", async () => {
+    it("refuses an image the writer doesn't have on screen", async () => {
       await writeFile(path.join(spaceRoot, "other.png"), PNG);
       const model = scripted([
         { toolCall: { name: "look_at_image", input: { path: "other.png" } } },
@@ -506,7 +506,7 @@ describe("runChatOn", () => {
       const result = await runChatOn(model, spaceRoot, frame, [], "and other.png?");
 
       expect(JSON.stringify(model.doGenerateCalls[1].prompt.at(-1))).toContain(
-        "`other.png` isn't an image the writer has open.",
+        "`other.png` isn't an image the writer has on screen.",
       );
       expect(result.lookedAt).toBeUndefined();
     });
@@ -623,6 +623,100 @@ describe("runChatOn", () => {
         expect(JSON.stringify(model.doGenerateCalls[1].prompt.at(-1))).toContain("ENOENT: no such file or directory");
         expect(result.lookedAt).toBeUndefined();
       });
+
+      it("looks at one the focused pane points at, with no file of its own open", async () => {
+        const selected: SelectedFile = {
+          filePath: path.join(library, "shots", "still.png"),
+          path: "lib:footage/shots/still.png",
+          previewing: true,
+        };
+        const model = scripted([
+          { toolCall: { name: "look_at_image", input: { path: "lib:footage/shots/still.png" } } },
+          { text: "A red dot." },
+        ]);
+
+        const result = await runChatOn(model, spaceRoot, { view: "none" }, [], "what is it?", {
+          selected,
+          imagesInToolResults: true,
+        });
+
+        const system = String(model.doGenerateCalls[0].prompt[0].content);
+        expect(system).toContain("The writer is previewing the image `lib:footage/shots/still.png`.");
+        expect(system).toContain("It's in a library, which your other tools can't reach.");
+        expect(result.lookedAt).toEqual(["lib:footage/shots/still.png"]);
+      });
+    });
+  });
+
+  // A gallery's selected tile, or the file a preview shows over its pane.
+  describe("a file the focused pane points at", () => {
+    const at = (relative: string, previewing = false): SelectedFile => ({
+      filePath: path.join(spaceRoot, ...relative.split("/")),
+      path: relative,
+      previewing,
+    });
+    const turnWith = async (selected: SelectedFile, context: EditorContext = { view: "none" }) => {
+      const model = scripted([{ text: "ok" }]);
+      await runChatOn(model, spaceRoot, context, [], "hi", { selected });
+      return { system: String(model.doGenerateCalls[0].prompt[0].content), tools: offeredTools(model) };
+    };
+
+    it("names a selected image, previewed or not, and lets look_at_image see it", async () => {
+      await mkdir(path.join(spaceRoot, "stills"));
+      await writeFile(path.join(spaceRoot, "stills", "a.png"), PNG);
+      const gallery: EditorContext = { view: "folder", dirPath: path.join(spaceRoot, "stills") };
+
+      const selected = await turnWith(at("stills/a.png"), gallery);
+      expect(selected.system).toContain("The writer has selected the image `stills/a.png`.");
+      expect(selected.system).toContain(
+        "You know its name and folder, not what it depicts: call look_at_image only when the answer depends on " +
+          "what it depicts, and then without asking first. This may or may not be what they're asking about.",
+      );
+      expect(selected.tools).toContain("look_at_image");
+
+      const model = scripted([
+        { toolCall: { name: "look_at_image", input: { path: "stills/a.png" } } },
+        { text: "A red dot." },
+      ]);
+      const result = await runChatOn(model, spaceRoot, gallery, [], "what is it?", {
+        selected: at("stills/a.png", true),
+        imagesInToolResults: true,
+      });
+      expect(String(model.doGenerateCalls[0].prompt[0].content)).toContain(
+        "The writer is previewing the image `stills/a.png`.",
+      );
+      expect(model.doGenerateCalls[1].prompt.at(-1)).toMatchObject({
+        role: "tool",
+        content: [{ output: { type: "content", value: [{ text: "The image `stills/a.png`:" }, { type: "file" }] } }],
+      });
+      expect(result.lookedAt).toEqual(["stills/a.png"]);
+    });
+
+    it("names any other file by what the copilot can do with it, and offers no look", async () => {
+      await mkdir(path.join(spaceRoot, "stills"));
+      await writeFile(path.join(spaceRoot, "draft.md"), "# Draft\n");
+      await writeFile(path.join(spaceRoot, "secret.md"), "---\nvisibility: private\n---\nThe hidden plot.\n");
+      await writeFile(path.join(spaceRoot, "take.mp4"), "");
+      await writeFile(path.join(spaceRoot, "logo.svg"), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+      const expected: Array<[string, string]> = [
+        ["stills", "The writer has selected the folder `stills`."],
+        ["draft.md", "the file `draft.md`. Its link is [[draft]]. Read it with read_space_file when answering"],
+        ["secret.md", "the file `secret.md`. Its link is [[secret]]. It's marked `visibility: private`"],
+        ["take.mp4", "The writer has selected the video `take.mp4`, which you can't read."],
+        ["logo.svg", "the image `logo.svg`. Its link is [[logo.svg]]. It's a vector image: read_space_file reads"],
+      ];
+      for (const [relative, sentence] of expected) {
+        const { system, tools } = await turnWith(at(relative));
+        expect(system, relative).toContain(sentence);
+        expect(system, relative).not.toContain("The hidden plot.");
+        expect(tools, relative).not.toContain("look_at_image");
+      }
+    });
+
+    it("names nothing for a file gone since the pane pointed at it", async () => {
+      const { system, tools } = await turnWith(at("gone.png", true));
+      expect(system).not.toContain("gone.png");
+      expect(tools).not.toContain("look_at_image");
     });
   });
 

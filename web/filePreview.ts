@@ -16,6 +16,7 @@ import {
   getVideoFormat,
   type PixelFormatResponse,
   rawFileUrl,
+  type SelectedFile,
   type VideoFormatResponse,
 } from "./core/apiClient.ts";
 import { wireEntryDrag } from "./core/paths.ts";
@@ -596,6 +597,11 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   };
 }
 
+/** The file a pane points at when its preview's is the only one it can. */
+export function previewedFile(path: string | undefined): SelectedFile | undefined {
+  return path === undefined ? undefined : { path, previewing: true };
+}
+
 export interface MediaPreviewDeps
   extends Omit<FilePreviewDeps, "refocus" | "count" | "fileAt" | "openInPlace" | "shown"> {
   /** Where the pane draws its media fields. */
@@ -607,6 +613,8 @@ export interface MediaPreview {
    * place where there is no preview of it. */
   open(path: string, field: HTMLElement): void;
   isOpen(): boolean;
+  /** The file shown, while open. */
+  shownPath(): string | undefined;
   close(refocus?: boolean): void;
   dispose(): void;
 }
@@ -656,6 +664,10 @@ export function createMediaPreview({ fields, ...deps }: MediaPreviewDeps): Media
       preview.show(strip.indexOf(field));
     },
     isOpen: () => preview.shownIndex() !== undefined,
+    shownPath() {
+      const index = preview.shownIndex();
+      return index === undefined ? undefined : fileOf(strip[index])?.path;
+    },
     close: (refocus) => preview.close(refocus),
     dispose() {
       resize?.disconnect();

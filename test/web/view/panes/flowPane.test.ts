@@ -132,7 +132,7 @@ describe("flowPane", () => {
     expect(notices.add).toHaveBeenCalledTimes(1);
   });
 
-  it("previews a result's file over the pane, holding its keys off the canvas until it closes", async () => {
+  it("previews a result's file over the pane, holding its keys off the canvas and pointing the copilot at it until it closes", async () => {
     const openPath = vi.fn();
     const contextMenu = { open: vi.fn(), close: vi.fn(), isOpen: () => false };
     const pane = setup(vi.fn(), { openPath, contextMenu });
@@ -141,12 +141,14 @@ describe("flowPane", () => {
     const canvasPane = pane.element.querySelector(".flow-pane") as HTMLElement;
     canvasPane.focus();
 
+    expect(pane.selectedFile?.()).toBeUndefined();
     canvas.deps?.previewResult("art/a-0123456789ab.png");
     const preview = pane.element.querySelector(".file-preview") as HTMLElement;
     expect(preview.hidden).toBe(false);
     expect(preview.querySelector("img")?.getAttribute("src")).toBe("/raw?path=art/a-0123456789ab.png");
     expect(document.activeElement).toBe(pane.element);
     expect(pane.hasTransient?.()).toBe(true);
+    expect(pane.selectedFile?.()).toEqual({ path: "art/a-0123456789ab.png", previewing: true });
 
     // One file: no arrows, and nothing opens in place, only from its ⋮.
     const enter = new KeyboardEvent("keydown", { key: "Enter", cancelable: true });
@@ -166,6 +168,7 @@ describe("flowPane", () => {
     expect(preview.hidden).toBe(true);
     expect(document.activeElement).toBe(canvasPane);
     expect(pane.hasTransient?.()).toBe(false);
+    expect(pane.selectedFile?.()).toBeUndefined();
 
     // A tab that leaves the Flow takes the preview with it.
     canvas.deps?.previewResult("art/a-0123456789ab.png");

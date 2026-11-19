@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { APICallError, generateText, isStepCount, type ModelMessage, type ToolSet, tool } from "ai";
 import { z } from "zod";
@@ -16,7 +17,14 @@ import {
 import { isLibraryPath, parseRootedPath } from "../protocol/rootedPath.ts";
 import type { ScopeFolders } from "../protocol/scopes.ts";
 import { formatSelectedRange } from "../protocol/selectedRange.ts";
-import { type FlowEdgeInstance, type FlowGraph, rasterImageMediaTypeForPath } from "../protocol/types.ts";
+import {
+  type FlowEdgeInstance,
+  type FlowGraph,
+  imageMediaTypeForPath,
+  pdfMediaTypeForPath,
+  rasterImageMediaTypeForPath,
+  videoMediaTypeForPath,
+} from "../protocol/types.ts";
 import { wikilinkFromRoot } from "../protocol/wikilink.ts";
 import { checkProposal } from "./checkProposal.ts";
 import type { ContextSourceRegistry } from "./copilotContext.ts";
@@ -131,6 +139,11 @@ const CHAT_LINE_CHARS = 200;
 /** An image is the one view a library's file comes in, so it also carries the
  * path it's named by: bare in the space, `lib:<id>/…` in a library. */
 type ImageView = { view: "image"; filePath: string; path: string };
+
+/** A file the focused pane points at apart from its own: the one its preview
+ * shows, or a gallery's selected tile. Named by its path as an image is, since
+ * a library's raster image can be one. */
+export type SelectedFile = { filePath: string; path: string; previewing: boolean };
 
 /** What the editor's center pane is showing, down to no file at all. The
  * copilot's context and tools key off this rather than a bare file path, so
@@ -340,6 +353,37 @@ async function describeBeside(spaceRoot: string, beside: EditorContext, linkTo: 
   return sentences.join(" ");
 }
 
+/** The file the focused pane points at, named as the tab beside is and
+ * hedged as a selection is: one left selected a while ago may not be what a
+ * question means by "this". */
+async function describeSelectedFile(selected: SelectedFile & { folder: boolean }, linkTo: LinkTo): Promise<string> {
+  const { filePath, folder } = selected;
+  const named = `\`${selected.path}\``;
+  const image = !folder && imageMediaTypeForPath(filePath) !== undefined;
+  const unreadable = videoMediaTypeForPath(filePath) ? "video" : pdfMediaTypeForPath(filePath) ? "PDF" : undefined;
+  const surface = folder
+    ? `the folder ${named}`
+    : image
+      ? `the image ${named}`
+      : unreadable
+        ? `the ${unreadable} ${named}, which you can't read`
+        : `the file ${named}`;
+  const sentences = [
+    `${selected.previewing ? "The writer is previewing" : "The writer has selected"} ${surface}.` +
+      itsLink(linkTo, selected.path, folder),
+  ];
+  if (image) sentences.push(howToSee({ view: "image", filePath, path: selected.path }));
+  else if (!folder && !unreadable) {
+    sentences.push(
+      (await isPrivateFile(filePath))
+        ? "It's marked `visibility: private`, so its content must never reach you, and read_space_file refuses it."
+        : "Read it with read_space_file when answering needs what it contains.",
+    );
+  }
+  sentences.push("This may or may not be what they're asking about.");
+  return sentences.join(" ");
+}
+
 /** Assembles the copilot's orientation: what's open in the editor, the
  * space's own operating rules (an AGENTS.md or CLAUDE.md — the "loads every
  * session" convention those filenames carry), and the nearest project
@@ -352,6 +396,7 @@ async function buildSpaceContext(
   context: EditorContext,
   openDocumentIsPrivate: boolean,
   beside: EditorContext | undefined,
+  selected: (SelectedFile & { folder: boolean }) | undefined,
   contextSources: ContextSourceRegistry | undefined,
   linkTo: LinkTo,
 ): Promise<string> {
@@ -432,6 +477,8 @@ async function buildSpaceContext(
     startDir = spaceRoot;
   }
 
+  if (selected) sections.push(await describeSelectedFile(selected, linkTo));
+
   const besideDescription = beside && (await describeBeside(spaceRoot, beside, linkTo));
   if (besideDescription) sections.push(besideDescription);
 
@@ -498,11 +545,13 @@ export interface ExternalTools {
 }
 
 /** How one turn runs: the model's effort, what the copilot may change
- * (absent is "suggesting"), and what the writer's other editor group shows. */
+ * (absent is "suggesting"), what the writer's other editor group shows, and
+ * the file the focused pane points at. */
 export interface ChatTurn {
   effort?: EffortLevel;
   mode?: ChatMode;
   beside?: EditorContext;
+  selected?: SelectedFile;
 }
 
 /** Read/write scoped to the open document, plus read-only navigation across
@@ -551,6 +600,7 @@ export async function runChatOn(
     effort,
     mode = "suggesting",
     beside,
+    selected,
     contextSources,
     imagesInToolResults = false,
   }: ChatTurn & {
@@ -658,30 +708,41 @@ export async function runChatOn(
     }
   }
 
+  // A file the pane points at that has gone since is neither named nor seen.
+  const selectedOnDisk =
+    selected &&
+    (await stat(selected.filePath).then(
+      (entry) => ({ ...selected, folder: entry.isDirectory() }),
+      () => undefined,
+    ));
+
   // An image reaches the model only through this tool: one the writer has on
   // screen, for the turn that asks, since history carries text alone. A
   // provider whose tool results carry text only gets it in a message after.
-  const onScreenImages = [context, ...(beside ? [beside] : [])].flatMap((view) =>
+  const onScreenImages: ImageView[] = [context, ...(beside ? [beside] : [])].flatMap((view) =>
     view.view === "image" && rasterImageMediaTypeForPath(view.filePath) ? [view] : [],
   );
+  if (selectedOnDisk && !selectedOnDisk.folder && rasterImageMediaTypeForPath(selectedOnDisk.filePath)) {
+    onScreenImages.push({ view: "image", filePath: selectedOnDisk.filePath, path: selectedOnDisk.path });
+  }
   const lookedAt: string[] = [];
   let imagesForNextStep: Array<{ path: string; mediaType: string; data: Uint8Array }> = [];
   const imageTools: ToolSet = {};
   if (onScreenImages.length > 0) {
     imageTools.look_at_image = tool({
       description:
-        "See an image the writer has open, by the path it's named by above. Each call " +
+        "See an image the writer has on screen, by the path it's named by above. Each call " +
         "sends you the whole image, so call it only when the answer depends on what the image depicts: " +
         "never for what you're already told, such as its name or folder, nor for a task its content " +
         "doesn't change. You see it for this turn alone: for a later question about what it depicts, " +
         "look again.",
       inputSchema: z.object({
-        path: z.string().describe("Path of an image the writer has open, as it's named above"),
+        path: z.string().describe("Path of an image the writer has on screen, as it's named above"),
       }),
       execute: async (input) => {
         const { filePath } = resolveRootedPath(spaceRoot, input.path, "read");
         const shown = onScreenImages.find((view) => view.filePath === filePath);
-        if (!shown) throw new Error(`\`${input.path}\` isn't an image the writer has open.`);
+        if (!shown) throw new Error(`\`${input.path}\` isn't an image the writer has on screen.`);
         const image = await readRasterImage(spaceRoot, shown.path);
         if (!lookedAt.includes(shown.path)) lookedAt.push(shown.path);
         if (!imagesInToolResults) imagesForNextStep.push({ path: shown.path, ...image });
@@ -845,6 +906,7 @@ export async function runChatOn(
     context,
     openDocumentIsPrivate,
     beside,
+    selectedOnDisk,
     contextSources,
     linkTo,
   );

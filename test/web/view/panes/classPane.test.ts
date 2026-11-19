@@ -1116,7 +1116,7 @@ describe("classPane: screenplays and media as rows", () => {
 
   // A note's media field and a picture's own file share the cards' picture
   // slot, so a preview steps from one to the other.
-  it("previews a card's picture over the Class, stepping from a note's to a file's own", async () => {
+  it("previews a card's picture over the Class, stepping from a note's to a file's own, pointing the copilot at each", async () => {
     const covered: ClassRow[] = [
       note("look.md", "Look", { cover: "look.png" }),
       { ...note("frame.png", "frame", {}), kind: "image", size: 2048 },
@@ -1131,10 +1131,13 @@ describe("classPane: screenplays and media as rows", () => {
     pane.element.querySelector<HTMLButtonElement>(".media-field-thumb")?.click();
     expect(preview.hidden).toBe(false);
     expect(shown()).toBe("/raw?path=shots/look.png");
+    expect(pane.selectedFile?.()).toEqual({ path: "shots/look.png", previewing: true });
     pane.element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(shown()).toBe("/raw?path=shots/frame.png");
+    expect(pane.selectedFile?.()).toEqual({ path: "shots/frame.png", previewing: true });
     pane.dismissTransient?.();
     expect(preview.hidden).toBe(true);
+    expect(pane.selectedFile?.()).toBeUndefined();
     expect(deps.openPath).not.toHaveBeenCalled();
   });
 

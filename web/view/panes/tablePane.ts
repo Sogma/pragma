@@ -10,7 +10,7 @@ import {
   TABLE_LAYOUTS,
 } from "../../../src/protocol/types.ts";
 import { type FileResponse, postTableLayout, type TableFileResponse } from "../../core/apiClient.ts";
-import { createMediaPreview, type PreviewSources, servedPreviewSources } from "../../filePreview.ts";
+import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
 import {
   cardParts,
   createCell,
@@ -674,6 +674,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       else if (addColumnTeardown) closeAddColumnPopover();
       else find.close();
     },
+    selectedFile: () => previewedFile(media.shownPath()),
     findable: () => (shown ? "find" : undefined),
     openFind: () => find.open(),
     design: { isActive: () => view.isDesigning(), toggle: () => view.setDesigning(!view.isDesigning()) },

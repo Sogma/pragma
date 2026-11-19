@@ -11,6 +11,7 @@ import {
   type FilePreviewDeps,
   type PreviewFile,
   type PreviewSources,
+  previewedFile,
   servedPreviewSources,
 } from "../../filePreview.ts";
 import type { CanvasRunHost } from "../../flow/canvasRun.ts";
@@ -147,6 +148,7 @@ function createResultPreview(host: HTMLElement, deps: ResultPreviewDeps) {
       host.focus({ preventScroll: true });
     },
     isOpen: () => preview.shownIndex() !== undefined,
+    shownPath: () => (preview.shownIndex() === undefined ? undefined : file?.path),
     close: (refocus?: boolean) => preview.close(refocus),
     dispose() {
       resize?.disconnect();
@@ -291,6 +293,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     titleHost: () => (flowView.isAppModeActive() ? elements.appModePane : elements.root),
     hasTransient: () => results.isOpen() || flowView.hasTransient(),
     dismissTransient: () => (results.isOpen() ? results.close() : flowView.dismissTransient()),
+    selectedFile: () => previewedFile(results.shownPath()),
     dispose() {
       jobs.dispose();
       results.dispose();

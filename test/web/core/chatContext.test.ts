@@ -58,6 +58,31 @@ describe("chatViewContext", () => {
     });
   });
 
+  // A Class tab is named as no file open, and its preview still counts.
+  it("carries the file the pane points at with any view, a library's gallery and a Class's included", () => {
+    const file = { path: "stills/a.png", previewing: true };
+    expect(chatViewContext({ kind: "gallery", path: "stills" }, undefined, { file })).toEqual({
+      view: "folder",
+      path: "stills",
+      file,
+    });
+    const shot = { path: "lib:footage/day 1/a.png", previewing: false };
+    expect(chatViewContext({ kind: "gallery", path: "lib:footage/day 1" }, undefined, { file: shot })).toEqual({
+      view: "none",
+      file: shot,
+    });
+    expect(chatViewContext({ kind: "class", path: "cast.class.html" }, undefined, { file })).toEqual({
+      view: "none",
+      file,
+    });
+    expect(chatViewContext({ kind: "flow", path: "a.flow.html" }, undefined, { node: "gen-1", file })).toEqual({
+      view: "flow",
+      path: "a.flow.html",
+      node: "gen-1",
+      file,
+    });
+  });
+
   it("names a tab with no file of its own as no file open", () => {
     expect(chatViewContext({ kind: "empty" }, undefined, undefined)).toEqual({ view: "none" });
   });
@@ -135,6 +160,14 @@ describe("chatScreen", () => {
     const { focused, beside } = chatScreen(screen, activePath, { node: "prompt-1" });
     expect(focused).toEqual({ view: "flow", path: "projects/a/p.flow.html", node: "prompt-1" });
     expect(beside).toEqual({ view: "flow", path: "projects/b/q.flow.html" });
+  });
+
+  it("keeps the file the focused pane points at off the tab beside", () => {
+    const [screen, activePath] = screenOf({ kind: "gallery", path: "projects/a" }, note("projects/b/z.md"));
+    const file = { path: "projects/a/x.png", previewing: false };
+    const { focused, beside } = chatScreen(screen, activePath, { file });
+    expect(focused).toEqual({ view: "folder", path: "projects/a", file });
+    expect(beside).toEqual({ view: "document", path: "projects/b/z.md" });
   });
 
   // The copilot's tools read only the space, and one file is named once.

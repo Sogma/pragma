@@ -72,7 +72,7 @@ import {
   writePathFrom,
 } from "../../core/spaceTree.ts";
 import { tagVocabulary } from "../../core/tagVocabulary.ts";
-import { createMediaPreview, type PreviewSources, servedPreviewSources } from "../../filePreview.ts";
+import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
 import {
   type CellControls,
@@ -1429,6 +1429,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       else if (toolbar.isOpen()) toolbar.close();
       else find.close();
     },
+    selectedFile: () => previewedFile(media.shownPath()),
     findable: () => (open ? "find" : undefined),
     openFind: () => find.open(),
     foldedTools: () => (toolbar.isFolded() ? { canAddNote: noteFolder() !== undefined } : undefined),

@@ -1,6 +1,6 @@
 import type { SelectedRange } from "../../src/protocol/api.ts";
 import { scopeOf } from "../../src/protocol/scopes.ts";
-import type { ChatViewContext, Tab } from "./apiClient.ts";
+import type { ChatViewContext, SelectedFile, Tab } from "./apiClient.ts";
 import { isForeignRootTab } from "./paths.ts";
 import { scopesOf } from "./spaceTree.ts";
 import { activeTabOf, type EditorGroup } from "./workspace.ts";
@@ -14,6 +14,15 @@ import { activeTabOf, type EditorGroup } from "./workspace.ts";
 // A tab with no file of its own is "none", never undefined: the turn is
 // still sent, so the chat never swallows a message without a word.
 export function chatViewContext(
+  activeTab: Tab,
+  activePath: string | undefined,
+  selection: PaneSelection | undefined,
+): ChatViewContext {
+  const view = paneView(activeTab, activePath, selection);
+  return selection?.file ? { ...view, file: selection.file } : view;
+}
+
+function paneView(
   activeTab: Tab,
   activePath: string | undefined,
   selection: PaneSelection | undefined,
@@ -36,10 +45,12 @@ export function chatViewContext(
 }
 
 /** What the focused pane has selected, which the copilot is told of: a
- * document's text, or the node a Flow's canvas has selected. */
+ * document's text, the node a Flow's canvas has selected, or a file the pane
+ * points at. */
 export interface PaneSelection {
   range?: SelectedRange;
   node?: string;
+  file?: SelectedFile;
 }
 
 /** The editor groups, as the workspace holds them. */

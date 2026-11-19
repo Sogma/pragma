@@ -199,6 +199,24 @@ describe("postChat", () => {
     expect(url).toBe("/api/chat?flowPath=a%20b.flow.html&node=gen%20text%261");
   });
 
+  it("sends the file the pane points at with any view, saying when its preview shows it", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ reply: "hi" }));
+    await postChat({ view: "folder", path: "stills", file: { path: "stills/a b.png", previewing: false } }, [], "hi");
+    await postChat(
+      { view: "folder", path: "stills", file: { path: "stills/a b.png", previewing: true } },
+      [],
+      "hi",
+      {},
+      { view: "document", path: "c.md" },
+    );
+    await postChat({ view: "none", file: { path: "lib:footage/x&y.png", previewing: true } }, [], "hi");
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/chat?folderPath=stills&selectedFile=stills%2Fa%20b.png",
+      "/api/chat?folderPath=stills&selectedFile=stills%2Fa%20b.png&previewing=1&besidePath=c.md",
+      "/api/chat?selectedFile=lib%3Afootage%2Fx%26y.png&previewing=1",
+    ]);
+  });
+
   it("names the other group's tab by the same parameters, prefixed, with no selection", async () => {
     fetchMock.mockImplementation(async () => jsonResponse({ reply: "hi" }));
     const selection = { startLine: 1, startColumn: 1, endLine: 1, endColumn: 4 };

@@ -14,7 +14,7 @@ import { formatRootedPath, isLibraryPath, isLibraryRoot } from "../../protocol/r
 import { parseSelectedRange } from "../../protocol/selectedRange.ts";
 import { setupNeedOf } from "../../protocol/setupNeed.ts";
 import { rasterImageMediaTypeForPath } from "../../protocol/types.ts";
-import { type EditorContext, EffortLevelError, runChat } from "../chatHandler.ts";
+import { type EditorContext, EffortLevelError, runChat, type SelectedFile } from "../chatHandler.ts";
 import { runFindContext } from "../findContextHandler.ts";
 import { PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
 import { resolveWithinSpace } from "../spaceFiles.ts";
@@ -52,6 +52,21 @@ function imageContext(spaceRoot: string, named: string): EditorContext {
   const { filePath, rooted } = resolved;
   if (isLibraryRoot(rooted.root) && !rasterImageMediaTypeForPath(filePath)) return { view: "none" };
   return { view: "image", filePath, path: formatRootedPath(rooted) };
+}
+
+// The file the focused pane points at, resolved as an image's path is. A
+// hint, as a selection is, so one that doesn't resolve is dropped rather than
+// failing the turn, and a library's counts only as a raster image to look at.
+function parseSelectedFile(spaceRoot: string, query: (name: string) => string | undefined): SelectedFile | undefined {
+  const named = query("selectedFile");
+  if (!named) return undefined;
+  try {
+    const { filePath, rooted } = resolveRootedPath(spaceRoot, named, "read");
+    if (isLibraryRoot(rooted.root) && !rasterImageMediaTypeForPath(filePath)) return undefined;
+    return { filePath, path: formatRootedPath(rooted), previewing: query("previewing") === "1" };
+  } catch {
+    return undefined;
+  }
 }
 
 // The editor pane shows one thing at a time, so every view's own parameter
@@ -116,6 +131,7 @@ export function mountAssistantRoutes(app: Hono, { spaceRoot, contextSources }: R
         effort: body.effort,
         mode: body.mode,
         beside: beside.view === "none" ? undefined : beside,
+        selected: parseSelectedFile(spaceRoot, (name) => c.req.query(name)),
         contextSources,
       });
       return c.json<ChatResponse>(result);

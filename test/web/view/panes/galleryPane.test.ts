@@ -1023,6 +1023,25 @@ describe("the gallery pane", () => {
     expect(deps.openEntry).toHaveBeenCalledWith("lib:footage/d.png", { anchor: expect.any(HTMLElement), marked: true });
   });
 
+  it("points the copilot at the selected tile, saying while the preview shows it", async () => {
+    const { pane } = setup([folder("day 2"), file("a.png"), file("b.png")]);
+    await open(pane);
+    expect(pane.selectedFile?.()).toBeUndefined();
+
+    tileNamed(pane, "day 2").click();
+    expect(pane.selectedFile?.()).toEqual({ path: "lib:footage/day 2", previewing: false });
+
+    tileNamed(pane, "a").click();
+    expect(pane.selectedFile?.()).toEqual({ path: "lib:footage/a.png", previewing: true });
+    pane.element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(pane.selectedFile?.()).toEqual({ path: "lib:footage/b.png", previewing: true });
+
+    pane.dismissTransient?.();
+    expect(pane.selectedFile?.()).toEqual({ path: "lib:footage/b.png", previewing: false });
+    pane.clearInput();
+    expect(pane.selectedFile?.()).toBeUndefined();
+  });
+
   // A click on an arrow keeps focus on the pane, where the keys listen, and
   // a run of them is a double-click that must not open the picture — the
   // run past the last one included.
