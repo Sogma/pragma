@@ -948,8 +948,8 @@ describe("a loader's dot values", () => {
     );
   });
 
-  // The facts sit on the clip's hover bar, as the file preview lays them,
-  // and the card has no line of them under the clip.
+  // The facts sit on the clip's hover bar, as a gallery tile lays them, with
+  // no LOOK badge, and the card has no line of them under the clip.
   it("lays a Load Video's clip facts along the clip's top, with no line under it", async () => {
     const clip = {
       kind: "video",
@@ -963,13 +963,12 @@ describe("a loader's dot values", () => {
     } as SandboxReadResult;
     const { pickers } = setup({ read: vi.fn(async () => clip) });
     const picker = pickers.createVideoPicker(node("loadVideo", { videoPath: "shots/phone.mp4" }));
-    const hud = picker.el.querySelector<HTMLElement>(".media-hud") as HTMLElement;
-    expect(hud.hidden).toBe(true);
-    await vi.waitFor(() => expect(hud.hidden).toBe(false));
-    expect([...hud.querySelectorAll(".media-hud-bar > span")].map((cell) => cell.textContent)).toEqual([
-      "1080 × 1920 (9:16)",
-      "30 fps (variable)",
-    ]);
+    await vi.waitFor(() => expect(picker.el.querySelector(".thumbnail-hud")).toBeTruthy());
+    const top = picker.el.querySelector<HTMLElement>(".thumbnail-hud-bar.is-top") as HTMLElement;
+    expect(top.hidden).toBe(false);
+    expect(top.querySelector(".thumbnail-hud-dimensions")?.textContent).toBe("1080 × 1920 (9:16)");
+    expect(top.querySelector(".thumbnail-hud-format")?.textContent).toBe("30 fps (variable)");
+    expect(picker.el.querySelector(".media-hud-badge")).toBeNull();
     expect(picker.el.querySelector(".flow-node-detail")).toBeNull();
   });
 

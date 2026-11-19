@@ -202,6 +202,12 @@
   cursor: pointer;
 }
 
+/* A Load Video's clip shows a gallery tile's hover bars (thumbnail-hud.css)
+   while it is hovered. */
+.flow-node-video-result:hover > .thumbnail-hud {
+  opacity: 1;
+}
+
 .flow-node-report {
   margin: 4px 0;
   font-size: 11px;

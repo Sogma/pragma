@@ -5,8 +5,7 @@
 // it where it is.
 import type { ClipFacts } from "../../src/protocol/api.ts";
 import { rawFileUrl } from "../core/apiClient.ts";
-import { formatDimensions, formatFrameRate } from "../lib/dom.ts";
-import { hudCells, hudRoot, lookBadge, mediaFrame } from "../lib/mediaHud.ts";
+import { mediaFrame, type ThumbnailHud, thumbnailHud } from "../lib/mediaHud.ts";
 import { createVideoPlayer, type VideoPlayer } from "../lib/videoPlayer.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { videoGuides, videoLoop, videoLut, videoVolume } from "../services/settings.ts";
@@ -16,8 +15,8 @@ export interface ResultClip {
   el: HTMLDivElement;
   /** The clip at a tree path, or none. */
   show(path: string | undefined): void;
-  /** Lays the clip's size and frame rate along its top on hover, as the file
-   * preview does, or takes them away. */
+  /** Lays the clip's size and frame rate along its top on hover, as a
+   * gallery tile does, or takes them away. */
   showFacts(facts: Pick<ClipFacts, "width" | "height" | "frameRate" | "variableFrameRate"> | undefined): void;
   dispose(): void;
 }
@@ -31,13 +30,14 @@ export function createResultClip(
 ): ResultClip {
   const video = document.createElement("video");
   video.preload = "metadata";
-  // The file preview's top bar: size and ratio, the LOOK badge, the frame
-  // rate. Hidden until a caller knows the clip's facts: a result knows only
-  // its path.
-  const [dimensions, rate] = hudCells(2);
-  const look = lookBadge(videoLut);
-  const hud = hudRoot([dimensions, look.element, rate]);
+  // The player's overlay stays empty; a clip whose facts a caller knows gets
+  // a gallery tile's hover bars instead, made when they first come: a result
+  // knows only its path.
+  const hud = document.createElement("div");
+  hud.className = "media-hud";
+  hud.hidden = true;
   const frame = mediaFrame(video, hud, className);
+  let bars: ThumbnailHud | undefined;
   // A press on the controls plays the clip; on the canvas it would drag the node.
   frame.classList.add("nodrag");
   frame.hidden = true;
@@ -77,15 +77,18 @@ export function createResultClip(
       frame.append(player.element);
     },
     showFacts(facts) {
-      hud.hidden = facts === undefined;
-      if (!facts) return;
+      if (!facts) {
+        bars?.fill({});
+        return;
+      }
       const { width, height, frameRate, variableFrameRate } = facts;
-      dimensions.textContent = width !== null && height !== null ? formatDimensions(width, height, "") : "";
-      rate.textContent = formatFrameRate({ codec: null, frameRate, variableFrameRate }) ?? "";
+      bars ??= thumbnailHud(frame);
+      bars.fill({
+        width: width ?? undefined,
+        height: height ?? undefined,
+        clip: { codec: null, frameRate, variableFrameRate },
+      });
     },
-    dispose() {
-      stop();
-      look.dispose();
-    },
+    dispose: stop,
   };
 }
