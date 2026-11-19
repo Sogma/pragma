@@ -801,11 +801,12 @@ const loadVideo: NodeExecutor = async (node, inputs, context): Promise<Record<st
   const path = formatRootPath(resolveDeclaredPath(dirnameOf(context.flowPath), videoPath));
   // A fact the header doesn't give leaves its output out, as an unwired one.
   const facts: Record<string, PortValue> = {};
-  const { width, height, duration } = clip;
+  const { width, height, duration, frameRate } = clip;
   if (width !== null) facts.width = { type: "number", value: width };
   if (height !== null) facts.height = { type: "number", value: height };
   if (width !== null && height !== null) facts.aspect_ratio = { type: "text", value: formatAspectRatio(width, height) };
   if (duration !== null) facts.duration = { type: "number", value: duration };
+  if (frameRate !== null) facts.fps = { type: "number", value: frameRate };
   return {
     video: { type: "video", path, ...clip },
     name: { type: "text", value: stripExtension(fileNameOf(videoPath)) },

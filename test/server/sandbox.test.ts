@@ -158,6 +158,7 @@ describe("sandbox documents", () => {
       height: 1080,
       duration: 5,
       frameRate: 25,
+      variableFrameRate: false,
     });
   });
 

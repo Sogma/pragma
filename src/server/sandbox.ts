@@ -212,8 +212,9 @@ export async function fileDigest(filePath: string): Promise<string> {
 async function readClip(filePath: string, mediaType: string, shown: string): Promise<ClipFacts> {
   try {
     const header = await withHeaderReader(filePath, (read, size) => readClipHeader(mediaType, read, size));
-    const { width, height, duration, frameRate } = header;
-    return { mediaType, digest: await fileDigest(filePath), width, height, duration, frameRate };
+    const { width, height, duration, frameRate, variableFrameRate } = header;
+    const digest = await fileDigest(filePath);
+    return { mediaType, digest, width, height, duration, frameRate, variableFrameRate };
   } catch (error) {
     if (error instanceof UnreadableVideoFormat) throw new SandboxRequestError(400, `"${shown}": ${error.message}`);
     throw error;

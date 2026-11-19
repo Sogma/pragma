@@ -310,11 +310,11 @@ Lists its folder's raster images non-recursively and reads the currently selecte
 **Load Video**: one video clip.
 
 - **Inputs:** `path: text` (optional)
-- **Outputs:** `video: video`, `name: text`, `width: number`, `height: number`, `aspect_ratio: text`, `duration: number`, `path: text`
+- **Outputs:** `video: video`, `name: text`, `width: number`, `height: number`, `aspect_ratio: text`, `duration: number`, `fps: number`, `path: text`
 - **Config:** `videoPath`, `optional`
 - **Capability:** readFile(`videoPath`)
 
-It reads a clip, an MP4, M4V, MOV or WebM file, in the space or a library, stored or wired; a path naming anything else fails the node before anything is asked. It hands the clip on as a `video` value, by reference and never its bytes (see [Ports and types](protocol.md#ports-and-types)). `name` is the filename without extension; `width`, `height` and `duration`, in seconds, come from the clip's header, each left out when the header doesn't give it, and `aspect_ratio` is written as [`loadImage`](#loadimage)'s. Only a tree drag stores `videoPath`, and nothing is picked from the computer: a clip goes on as a file the host can read. `optional` works as on [`loadImage`](#loadimage).
+It reads a clip, an MP4, M4V, MOV or WebM file, in the space or a library, stored or wired; a path naming anything else fails the node before anything is asked. It hands the clip on as a `video` value, by reference and never its bytes (see [Ports and types](protocol.md#ports-and-types)). `name` is the filename without extension; `width`, `height`, `duration`, in seconds, and `fps`, a variable rate's average, come from the clip's header, each left out when the header doesn't give it, and `aspect_ratio` is written as [`loadImage`](#loadimage)'s. Only a tree drag stores `videoPath`, and nothing is picked from the computer: a clip goes on as a file the host can read. `optional` works as on [`loadImage`](#loadimage).
 
 ## Editor
 

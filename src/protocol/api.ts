@@ -897,7 +897,8 @@ export type SandboxKind = "flow";
 
 /** A clip a granted read found, by reference: never its bytes, which can
  * run to gigabytes. `digest` is the SHA-256 of the bytes as hex; the rest is
- * what its header gives, null where it gives nothing. */
+ * what its header gives, null where it gives nothing, and `frameRate` is an
+ * average where `variableFrameRate` says the rate varies. */
 export interface ClipFacts {
   mediaType: string;
   digest: string;
@@ -905,6 +906,7 @@ export interface ClipFacts {
   height: number | null;
   duration: number | null;
   frameRate: number | null;
+  variableFrameRate: boolean;
 }
 
 // What a granted read comes back as: a table or image already parsed —

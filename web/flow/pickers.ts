@@ -8,6 +8,7 @@
 // executor makes at Run time), and to wire a field's Expose toggle;
 // everything else is its own DOM.
 
+import type { ClipFacts } from "../../src/protocol/api.ts";
 import type { PortValue } from "../../src/protocol/flowExecutors.ts";
 import { FLOW_NODE_REGISTRY } from "../../src/protocol/flowNodes.ts";
 import { basenameOf, formatRootedPath, isLibraryRoot, type RootedPath } from "../../src/protocol/rootedPath.ts";
@@ -393,17 +394,12 @@ function createSpaceDropTarget(
 // A read's 404: nothing at the path, as after its file moved or went. Its
 // message is the one a run reports for the same path.
 /** A clip's size, length and frame rate, as far as its header gives them. */
-export function describeClip(clip: {
-  width: number | null;
-  height: number | null;
-  duration: number | null;
-  frameRate: number | null;
-}): string {
-  const { width, height, duration, frameRate } = clip;
+export function describeClip(clip: Omit<ClipFacts, "mediaType" | "digest">): string {
+  const { width, height, duration, frameRate, variableFrameRate } = clip;
   return [
     width !== null && height !== null ? formatDimensions(width, height, "") : undefined,
     duration !== null ? formatDuration(duration) : undefined,
-    formatFrameRate({ codec: null, frameRate, variableFrameRate: false }),
+    formatFrameRate({ codec: null, frameRate, variableFrameRate }),
   ]
     .filter(Boolean)
     .join(" · ");

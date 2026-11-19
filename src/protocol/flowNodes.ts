@@ -670,6 +670,7 @@ const loadVideo = withPathInput(
       numberPort("height"),
       textPort("aspect_ratio", "The nearest common ratio, such as 16:9 or 9:16."),
       numberPort("duration", "In seconds."),
+      numberPort("fps", "Frames per second; a variable rate's average."),
       textPort("path"),
     ],
     configFields: [

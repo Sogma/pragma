@@ -5,7 +5,7 @@ import type { FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE, noteDragInFlight } from "../../../web/core/paths.ts";
 import type { WritePathOptions } from "../../../web/core/spaceTree.ts";
-import { createPickers, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
+import { createPickers, describeClip, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
 import { fakeDrag } from "../support/drag.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
@@ -912,5 +912,22 @@ describe("pickers", () => {
     picker.refresh();
     await tick();
     expect(input.hidden).toBe(false);
+  });
+});
+
+describe("a Load Video card's facts line", () => {
+  it("gives the size, length and frame rate, marking a rate that varies as its average", () => {
+    const facts = { width: 1080, height: 1920, duration: 10.5 };
+    expect(describeClip({ ...facts, frameRate: 24000 / 1001, variableFrameRate: false })).toBe(
+      "1080 × 1920 (9:16) · 0:10 · 23.976 fps",
+    );
+    expect(describeClip({ ...facts, frameRate: 29.97, variableFrameRate: true })).toBe(
+      "1080 × 1920 (9:16) · 0:10 · 30 fps (variable)",
+    );
+  });
+
+  it("leaves out what the header doesn't give", () => {
+    const none = { width: null, height: null, duration: null, frameRate: null, variableFrameRate: false };
+    expect(describeClip({ ...none, duration: 4 })).toBe("0:04");
   });
 });

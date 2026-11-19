@@ -110,6 +110,7 @@ describe("the Load Video node", () => {
     height: 1080,
     duration: 5,
     frameRate: 25,
+    variableFrameRate: false,
   };
   const videoNode = (config: Record<string, unknown>): FlowNodeInstance => ({
     id: "loadVideo-1",
@@ -131,6 +132,7 @@ describe("the Load Video node", () => {
       height: { type: "number", value: 1080 },
       aspect_ratio: { type: "text", value: "16:9" },
       duration: { type: "number", value: 5 },
+      fps: { type: "number", value: 25 },
       path: { type: "text", value: "/shots/take.mp4" },
     });
   });

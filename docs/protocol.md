@@ -800,7 +800,7 @@ FlowEdgeInstance { id, source, sourcePort, target, targetPort }
 
 #### Ports and types
 
-Port types are `text`, `image`, `boolean`, `object`, `number`, and `video`. **A `video` value names a clip without carrying its bytes**: by its digest, the SHA-256 of the clip's bytes as hex, with its media type and the `width`, `height`, `duration` (seconds) and `frameRate` its header gives, each null where the header gives none, and by its `path` when the clip is a file in a space or library. A node that sends a clip's bytes on has the host read them where they are used, under the Flow's grants.
+Port types are `text`, `image`, `boolean`, `object`, `number`, and `video`. **A `video` value names a clip without carrying its bytes**: by its digest, the SHA-256 of the clip's bytes as hex, with its media type and the `width`, `height`, `duration` (seconds) and `frameRate` its header gives, each null where the header gives none, and `variableFrameRate`, true where that rate is an average, and by its `path` when the clip is a file in a space or library. A node that sends a clip's bytes on has the host read them where they are used, under the Flow's grants.
 
 - **Types match exactly.** An edge connects ports of the same type, without coercion. Any conversion belongs to an explicit node in the graph.
 - **An input accepts at most one edge.**
@@ -858,7 +858,7 @@ A Flow's capability set is **derived, never declared**: walk the graph, ask each
 
 A `readFile` may name a declared library's file by its `lib:` address. **Only a raster image or a video clip is read from a library**; any other library path is refused, and a host asking for such a read says that it reaches outside the space. A key holds its path's address, so granting a Flow one image from a library says nothing about any space file, and the same filename in both roots needs a grant for each.
 
-A read against a granted `readFile`, or a write against a granted `writeDocument`, matches **by address: the target's own, or its folder's equaling a granted folder's** — flat containment, matching the folder nodes' non-recursive listing. The read returns a Table as `{ kind: "table", columns, rows }`, a raster image as `{ kind: "image", mediaType, data }` (base64), a video clip as `{ kind: "video", mediaType, digest, width, height, duration, frameRate }`, its facts and never its bytes, and anything else, SVG too, as `{ kind: "text", content }`. A private document of any of these kinds is refused, as every other space read refuses one.
+A read against a granted `readFile`, or a write against a granted `writeDocument`, matches **by address: the target's own, or its folder's equaling a granted folder's** — flat containment, matching the folder nodes' non-recursive listing. The read returns a Table as `{ kind: "table", columns, rows }`, a raster image as `{ kind: "image", mediaType, data }` (base64), a video clip as `{ kind: "video", mediaType, digest, width, height, duration, frameRate, variableFrameRate }`, its facts and never its bytes, and anything else, SVG too, as `{ kind: "text", content }`. A private document of any of these kinds is refused, as every other space read refuses one.
 
 Grants are lazy and first-use, prompted the moment a node needs one, user-granted only, and revocable per capability. A path supplied during a run follows [Wired paths](#wired-paths).
 
