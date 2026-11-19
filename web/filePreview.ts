@@ -12,7 +12,6 @@ import {
 import {
   type FileResponse,
   fetchFileRaw,
-  getFileInfo,
   getPixelFormat,
   getVideoFormat,
   type PixelFormatResponse,
@@ -21,16 +20,16 @@ import {
 } from "./core/apiClient.ts";
 import { wireEntryDrag } from "./core/paths.ts";
 import { readingResolvers } from "./core/spaceTree.ts";
-import { formatDimensions, formatFileSize, formatFrameRate } from "./lib/dom.ts";
+import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
 import { pixelFormatText } from "./lib/mediaDetails.ts";
 import { hudCells, hudFits, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
-import { canAnimate, type FrameZoom, frameZoom } from "./lib/pictureZoom.ts";
+import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
+import { canAnimate, frameZoom } from "./lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
 import type { GuidesChoice } from "./lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "./lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "./lib/videoPlayer.ts";
 import {
-  createOpenButton,
   createPage,
   fitPage,
   loadPage,
@@ -51,7 +50,6 @@ import {
   videoLut,
   videoVolume,
 } from "./services/settings.ts";
-import { videoMoreOptions } from "./services/videoMenu.ts";
 
 export type PreviewKind = "image" | "svg" | "video" | PageKind;
 
@@ -69,7 +67,6 @@ const isPageKind = (kind: PreviewKind): kind is PageKind => kind === "note" || k
 export interface PreviewFile {
   path: string;
   name: string;
-  size?: number;
   width?: number;
   height?: number;
 }
@@ -79,8 +76,6 @@ export interface PreviewSources {
   rawFileUrl(path: string): string;
   /** A GET against the raw-file route, for an SVG's own text. */
   fetchFile(path: string): Promise<Response>;
-  /** A file's size in bytes, for one its list gives none. */
-  fileSize?(path: string): Promise<number>;
   /** A clip's codec and frame rate, read from its header by the server. */
   videoFormat(path: string): Promise<VideoFormatResponse>;
   /** A raster still's color mode and bit depth, read from its header by the server. */
@@ -104,7 +99,6 @@ export function servedPreviewSources(): PreviewSources {
   return {
     rawFileUrl,
     fetchFile: fetchFileRaw,
-    fileSize: async (path) => (await getFileInfo(path)).size,
     videoFormat: getVideoFormat,
     pixelFormat: getPixelFormat,
     readingResolvers,
@@ -120,6 +114,10 @@ export function servedPreviewSources(): PreviewSources {
  * open the clip, its guides and looks, then its bookmark. */
 export const PREVIEW_CLIP_MENU = "preview.clip";
 
+/** A previewed still's or page's More options, given `{ file, bookmark }`:
+ * the ways to open the file, then its bookmark. */
+export const PREVIEW_FILE_MENU = "preview.file";
+
 export interface FilePreviewDeps extends PreviewSources {
   /** The pane's box, which the preview fills. A run of clicks is told apart
    * by where its first press landed, here or on the preview. */
@@ -134,15 +132,13 @@ export interface FilePreviewDeps extends PreviewSources {
   loadFile(path: string): Promise<FileResponse>;
   /** What draws a document of another type on its page. */
   formats: Pick<FormatRegistry, "get">;
-  /** Draws the menu of the toolbar's open button, and those a page opens. */
+  /** Draws the ⋮'s menus, and those a page opens. */
   contextMenu: ContextMenuService;
   /** Where a previewed Table's picture that has gone says why. */
   dialog: DialogService;
   /** A space link, a path cell or a picture clicked on a previewed page,
    * opened as reading view opens a link. */
   openPath(path: string): void;
-  /** The toolbar's open button: the file in a new tab after this one. */
-  openBeside(path: string): void;
   /** A double-click or Enter on the preview: the file at `index`, in place.
    * A pane that leaves it out opens nothing on either. */
   openInPlace?(index: number): void;
@@ -177,29 +173,17 @@ function previewButton(className: string, label: string): HTMLButtonElement {
   return button;
 }
 
-// The toolbar's zoom, as a click on the picture's middle. Its glyph names
-// where a click goes, as the reading toggle's does, and it is inert on a
-// picture already at full size.
-function zoomButton(zoom: FrameZoom): { button: HTMLButtonElement; draw(): void } {
-  const button = previewButton("icon-button file-preview-zoom", "Zoom in");
-  const draw = () => {
-    const zooms = zoom.clickZooms();
-    button.classList.toggle("is-zoomed", zooms === "out");
-    button.setAttribute("aria-label", zooms === "out" ? "Zoom out" : "Zoom in");
-    button.setAttribute("aria-disabled", String(zooms === undefined));
-  };
-  button.addEventListener("click", () => {
-    zoom.click();
-    draw();
-  });
-  draw();
-  return { button, draw };
+// A still's or a page's overlay shows whatever the file's size: where its
+// facts don't fit, its ⋮ stays, alone, so the file can still be opened.
+function showOverlay(hud: HTMLElement, factsFit: boolean): void {
+  hud.hidden = false;
+  hud.classList.toggle("is-bare", !factsFit);
 }
 
-// The rest of a click run whose first click closed the preview, or opened
-// its file in a new tab, lands on whatever lies there now: what the pane
-// lists, or the button of a group's toolbar under the one pressed. None of
-// it may press anything, so the window takes it until a press starts a new run.
+// The rest of a click run whose first click closed the preview lands on
+// whatever lies there now: what the pane lists, or a button of the group's
+// toolbar the backdrop covered. None of it may press anything, so the window
+// takes it until a press starts a new run.
 function swallowRest(): void {
   const swallow = (event: MouseEvent) => {
     if (event.detail < 2) return;
@@ -223,13 +207,6 @@ const CLOSING: KeyframeAnimationOptions = { duration: 120, easing: "cubic-bezier
 const AWAY: Keyframe = { opacity: 0, transform: "scale(0.95)" };
 const ARRIVED: Keyframe = { opacity: 1, transform: "none" };
 
-// A previewed file's frame, and the controls its kind puts on the toolbar
-// before Open.
-interface Previewed {
-  frame: HTMLElement;
-  controls: HTMLElement[];
-}
-
 export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   const preview = document.createElement("div");
   preview.className = "file-preview";
@@ -238,21 +215,36 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   previewStage.className = "file-preview-stage";
   const previewPrev = previewButton("file-preview-nav is-prev", "Previous");
   const previewNext = previewButton("file-preview-nav is-next", "Next");
-  // The previewed file's controls, a still's zoom and the button that opens
-  // it in a new tab, then a line and Close.
-  const previewToolbar = document.createElement("div");
-  previewToolbar.className = "floating-toolbar file-preview-toolbar";
-  const previewLine = document.createElement("span");
-  previewLine.className = "floating-toolbar-line";
-  previewLine.setAttribute("aria-hidden", "true");
-  const previewClose = previewButton("icon-button file-preview-close", "Close preview");
-  preview.append(previewPrev, previewStage, previewNext, previewToolbar);
+  preview.append(previewPrev, previewStage, previewNext);
   deps.host.append(preview);
   const stopLineLength = deps.readableLineLength.subscribe((on) => preview.classList.toggle("wide-editor", !on));
 
   let previewIndex: number | undefined;
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
+  let previewMore: MoreOptionsButton | undefined;
+
+  // The shown file's menu under its ⋮, or closed there.
+  function openMoreOptions(anchor: HTMLElement, path: string, menu: string): void {
+    if (deps.contextMenu.isOpen(anchor)) deps.contextMenu.close();
+    else {
+      deps.contextMenu.open({
+        menu,
+        arg: { file: path, bookmark: path },
+        anchor,
+        align: "end",
+        ariaLabel: "More options",
+      });
+    }
+  }
+
+  // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
+  // player's own.
+  function fileMoreOptions(path: string): HTMLButtonElement {
+    previewMore = moreOptionsButton("media-hud-more", (anchor) => openMoreOptions(anchor, path, PREVIEW_FILE_MENU));
+    previewMore.element.tabIndex = -1;
+    return previewMore.element;
+  }
 
   // The file at `index`, when it is one a preview shows.
   function previewableAt(index: number): { file: PreviewFile; kind: PreviewKind } | undefined {
@@ -268,6 +260,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     previewPlayer = undefined;
     previewLook?.dispose();
     previewLook = undefined;
+    previewMore?.dispose();
+    previewMore = undefined;
     for (const video of previewStage.querySelectorAll("video")) {
       video.pause();
       video.removeAttribute("src");
@@ -289,19 +283,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const opening = previewIndex === undefined;
     settleClose();
     stopPreviewMedia();
-    const { frame, controls } = isPageKind(shown.kind)
-      ? pagePreview(shown.file, shown.kind)
-      : mediaPreview(shown.file, shown.kind);
+    const frame = isPageKind(shown.kind) ? pagePreview(shown.file, shown.kind) : mediaPreview(shown.file, shown.kind);
     previewStage.append(frame);
-    const openButton = createOpenButton({
-      path: shown.file.path,
-      open: () => {
-        deps.openBeside(shown.file.path);
-        swallowRest();
-      },
-      contextMenu: deps.contextMenu,
-    });
-    previewToolbar.replaceChildren(...controls, openButton, previewLine, previewClose);
     preview.hidden = false;
     previewIndex = index;
     markEnds(index);
@@ -321,28 +304,19 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // The image view's overlay, in the previewed picture's own frame: the
   // dimensions with their ratio along the top, as the image and video views
   // write them, then a clip's LOOK badge and frame rate or a still's color
-  // mode; a still's name and size along the bottom, a clip's length left to
-  // the pill.
+  // mode; a still's name and ⋮ along the bottom, a clip's length and ⋮ left
+  // to the pill.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
-  function mediaPreview(file: PreviewFile, kind: PreviewKind): Previewed {
+  function mediaPreview(file: PreviewFile, kind: PreviewKind): HTMLElement {
     const isVideo = kind === "video";
-    const [name, size, dimensions, format] = hudCells(4);
+    const [name, dimensions, format] = hudCells(3);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    if (file.size !== undefined) size.textContent = formatFileSize(file.size);
-    else {
-      deps.fileSize?.(file.path).then(
-        (bytes) => {
-          size.textContent = formatFileSize(bytes);
-        },
-        () => undefined,
-      );
-    }
     previewLook = isVideo ? lookBadge(deps.videoLut) : undefined;
     const hud = previewLook
       ? hudRoot([dimensions, previewLook.element, format])
-      : hudRoot([dimensions, format], [name, size]);
+      : hudRoot([dimensions, format], [name, fileMoreOptions(file.path)]);
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
       dimensions.textContent = formatDimensions(width, height, "");
@@ -389,6 +363,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         fill(width, height);
         fitPreview();
       });
+      // One that never decodes has no size to fit, and keeps its ⋮.
+      img.addEventListener("error", () => showOverlay(hud, false));
       media = img;
     }
     // The overlay follows the media: `:is(img, video):hover + .media-hud`.
@@ -400,43 +376,38 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         volume: deps.videoVolume,
         guides: deps.videoGuides,
         lut: deps.videoLut,
-        moreOptions: videoMoreOptions(deps.contextMenu, file.path, PREVIEW_CLIP_MENU),
+        moreOptions: (anchor) => openMoreOptions(anchor, file.path, PREVIEW_CLIP_MENU),
       });
       frame.append(previewPlayer.element);
     }
     const zoom = media instanceof HTMLImageElement ? frameZoom(frame, media, () => fitPreview()) : undefined;
-    const zoomControl = zoom === undefined ? undefined : zoomButton(zoom);
     if (media instanceof HTMLImageElement) wireEntryDrag(media, () => ({ path: file.path, type: "file" }));
     // The picture, or zoomed the frame, mat and all.
-    zoomPreview = (target, at) => {
-      if (zoom === undefined || !(target === media || target === frame) || !zoom.click(at)) return false;
-      zoomControl?.draw();
-      return true;
-    };
+    zoomPreview = (target, at) => zoom !== undefined && (target === media || target === frame) && zoom.click(at);
     fitPreview = () => {
       if (!decoded || !media.isConnected) return;
       const shown = media.getBoundingClientRect();
-      hud.hidden = !hudFits(shown.width, shown.height);
+      if (isVideo) hud.hidden = !hudFits(shown.width, shown.height);
+      else showOverlay(hud, hudFits(shown.width, shown.height));
       zoom?.fit(shown.width, fullWidth);
-      zoomControl?.draw();
     };
     // Measured again as the overlay is about to show, so a layout change no
     // observer saw can't leave it on a picture too small for it.
     media.addEventListener("pointerenter", () => fitPreview());
     media.src = deps.rawFileUrl(file.path);
-    return { frame, controls: zoomControl ? [zoomControl.button] : [] };
+    return frame;
   }
 
   // A document or a Table as its reading view, on a page that scrolls on its
-  // own, with one bar along the bottom: its name, and its size. A document's
-  // is the count the status bar gives it once it is open.
-  function pagePreview(file: PreviewFile, kind: PageKind): Previewed {
+  // own, with one bar along the bottom: its name, its size and its ⋮. A
+  // document's size is the count the status bar gives it once it is open.
+  function pagePreview(file: PreviewFile, kind: PageKind): HTMLElement {
     const page = createPage(kind);
     page.classList.add("file-preview-page");
     const [name, count] = hudCells(2);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    const hud = hudRoot([name, count]);
+    const hud = hudRoot([name, count, fileMoreOptions(file.path)]);
     const load = pageLoad;
     void loadPage(page, file.path, kind, deps, () => load !== pageLoad).then((counted) => {
       if (counted !== undefined) count.textContent = counted;
@@ -446,9 +417,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     fitPreview = () => {
       if (!page.isConnected) return;
       fitPage(frame, page);
-      hud.hidden = !hudFits(frame.clientWidth, frame.clientHeight);
+      showOverlay(hud, hudFits(frame.clientWidth, frame.clientHeight));
     };
-    return { frame, controls: [] };
+    return frame;
   }
 
   // A previewed page scrolls by the keys a focused scroller takes: focus
@@ -523,10 +494,6 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
 
   previewPrev.addEventListener("click", () => stepPreview(-1));
   previewNext.addEventListener("click", () => stepPreview(1));
-  previewClose.addEventListener("click", () => {
-    closePreview();
-    swallowRest();
-  });
 
   // A click on the backdrop closes the preview, as one on a still already at
   // full size does; a still shrunk to fit zooms instead. A player keeps its
@@ -534,13 +501,13 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // follow links: a link to a space file opens it here, as reading view does.
   //
   // A click opens the preview, so a double-click's second click lands on it:
-  // that one must not close or zoom it, play or pause a clip, nor press a
-  // button on the toolbar. The double-click opens the file as one does
-  // everywhere else, or nothing in a pane that opens nothing in place.
+  // that one must not close or zoom it, play or pause a clip, nor open a
+  // menu from a ⋮. The double-click opens the file as one does everywhere
+  // else, or nothing in a pane that opens nothing in place.
   //
-  // A double-click begun on an open page, on a still that zooms, on the
-  // toolbar or on a clip is theirs: it selects a word, zooms in and out, is
-  // one press of a button, or goes full screen. An arrow's is two steps.
+  // A double-click begun on an open page, on a still that zooms, on a ⋮ or
+  // on a clip is theirs: it selects a word, zooms in and out, is one press of
+  // the ⋮, or goes full screen. An arrow's is two steps.
   preview.addEventListener("click", (event) => {
     const target = event.target as Element;
     const link = target.closest<HTMLElement>(".file-preview-page a[data-space-path]");
@@ -566,24 +533,17 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     },
     true,
   );
-  // A double-click begun on what opened the preview presses nothing here.
-  previewToolbar.addEventListener(
-    "click",
-    (event) => {
-      if (event.detail > 1 && !pressedInPreview) event.stopPropagation();
-    },
-    true,
-  );
-  // Nor on a clip, its controls or its LOOK badge, where it would pause the
-  // clip or turn the shared Loop or look.
+  // A double-click begun on what opened the preview presses nothing on a
+  // clip, its controls, its LOOK badge or a ⋮, where it would pause the clip,
+  // turn the shared Loop or look, or open a menu.
   previewStage.addEventListener(
     "click",
     (event) => {
       const target = event.target;
-      const onClip =
+      const pressable =
         target instanceof HTMLVideoElement ||
-        (target instanceof Element && target.closest(".video-player, .media-hud-badge") !== null);
-      if (onClip && event.detail > 1 && !pressedInPreview) event.stopPropagation();
+        (target instanceof Element && target.closest(".video-player, .media-hud-badge, .media-hud-more") !== null);
+      if (pressable && event.detail > 1 && !pressedInPreview) event.stopPropagation();
     },
     true,
   );
@@ -604,7 +564,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   preview.addEventListener("dblclick", (event) => {
     const target = event.target;
     if (!pressedInPreview || !(target instanceof Element) || target === previewPrev || target === previewNext) return;
-    if (target.closest(".file-preview-page, .file-preview-frame, .file-preview-toolbar")) return;
+    if (target.closest(".file-preview-frame, .file-preview-document")) return;
     if (previewIndex !== undefined) deps.openInPlace?.(previewIndex);
   });
 

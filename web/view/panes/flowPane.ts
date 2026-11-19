@@ -53,12 +53,11 @@ export interface FlowPaneDeps
   logEntry: (level: ConsoleEntryLevel, kind: string, label: string, content: string) => ConsoleEntry;
   // What the group's status bar counts of a run's notices.
   notices: Pick<FileNotices, "begin" | "add">;
-  // What a result's preview reads, and where its Open button, and a link
-  // on a previewed page, open a file.
+  // What a result's preview reads, and where a link on a previewed page
+  // opens a file.
   previewSources: PreviewSources;
   formats: Pick<FormatRegistry, "get">;
   openPath: (path: string) => void;
-  openBeside: (path: string) => void;
 }
 
 export interface FlowPane extends EditorPane {
@@ -83,10 +82,9 @@ export type FlowPaneWiring = Omit<
   | "notices"
   | "previewSources"
   | "openPath"
-  | "openBeside"
   | "openToSide"
   | "saveAppMode"
-> & { tabs: () => Pick<Tabs, "openSpacePath" | "openEntryBeside"> };
+> & { tabs: () => Pick<Tabs, "openSpacePath"> };
 
 export function flowPane({ tabs, ...deps }: FlowPaneWiring): EditorPaneDescriptor {
   return {
@@ -102,7 +100,6 @@ export function flowPane({ tabs, ...deps }: FlowPaneWiring): EditorPaneDescripto
         ...deps,
         previewSources: servedPreviewSources(),
         openPath: (path) => void tabs().openSpacePath(path),
-        openBeside: (path) => void tabs().openEntryBeside(path),
         onRendered: () => group.rendered(),
         onRunCount: (count) => group.setFlowRuns(count),
         onPlaceChange: () => group.placeChanged(),
@@ -168,7 +165,6 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     previewSources,
     formats,
     openPath,
-    openBeside,
     onRunCount,
     onPlaceChange,
     onViewChange,
@@ -183,7 +179,6 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     contextMenu: deps.contextMenu,
     dialog: deps.dialog,
     openPath,
-    openBeside,
   });
   const problems = createFlowProblemReport(reportProblems);
   const jobs = createFlowJobs({

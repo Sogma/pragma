@@ -2,10 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileResponse } from "../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../web/core/paths.ts";
-import { createFilePreview, PREVIEW_CLIP_MENU } from "../../web/filePreview.ts";
+import { createFilePreview, PREVIEW_CLIP_MENU, PREVIEW_FILE_MENU } from "../../web/filePreview.ts";
 import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats } from "../../web/services/formats.ts";
 import { fireDrag } from "./support/drag.ts";
+import { fakeContextMenu } from "./support/fakeContextMenu.ts";
 import { testPreviewSources } from "./support/previewSources.ts";
 
 // jsdom runs no animations, so each run is recorded and ended by hand.
@@ -18,6 +19,9 @@ interface Run {
 }
 
 let runs: Run[] = [];
+
+// jsdom decodes nothing: a picture counts as decoded once it has loaded.
+HTMLImageElement.prototype.decode ??= () => Promise.resolve();
 
 beforeEach(() => {
   runs = [];
@@ -60,20 +64,19 @@ function setup({ files = STILLS, inPlace = true } = {}) {
   document.body.append(host);
   const refocus = vi.fn();
   const openInPlace = inPlace ? vi.fn() : undefined;
-  const contextMenu = { open: vi.fn(), close: vi.fn(), isOpen: () => false };
+  const contextMenu = fakeContextMenu();
   const sources = testPreviewSources();
   const preview = createFilePreview({
     ...sources,
     host,
     refocus,
     count: () => files.length,
-    fileAt: (index) => (files[index] ? { path: files[index], name: files[index].slice(7) } : undefined),
+    fileAt: (index) => (files[index] ? { path: files[index], name: files[index].split("/").pop() ?? "" } : undefined),
     loadFile: vi.fn(async (): Promise<FileResponse> => ({ kind: "missing" }) as unknown as FileResponse),
     formats: createFormats(),
     contextMenu,
     dialog: createDialogService(),
     openPath: vi.fn(),
-    openBeside: vi.fn(),
     openInPlace,
   });
   const overlay = host.querySelector(".file-preview") as HTMLElement;
@@ -195,6 +198,20 @@ describe("a double-click on what opened the preview", () => {
     pause.mockRestore();
   });
 
+  it("never opens the menu of a ⋮ it lands on", () => {
+    const { preview, overlay, contextMenu } = setup();
+    preview.show(0);
+    const more = overlay.querySelector(".media-hud-more") as HTMLButtonElement;
+    press(more, "click", 2);
+    expect(contextMenu.opened).toHaveLength(0);
+    expect(preview.shownIndex()).toBe(0);
+
+    // Begun on the ⋮, the click is its own.
+    press(more, "mousedown", 1);
+    press(more, "click", 1);
+    expect(contextMenu.opened).toHaveLength(1);
+  });
+
   it("never turns the look of a clip whose LOOK badge it lands on", () => {
     const { preview, overlay, look } = setup({ files: ["clips/a.mp4"] });
     look.set({ lut: "panchromatic", on: true });
@@ -248,23 +265,117 @@ describe("a previewed clip's LOOK badge", () => {
   });
 });
 
-// The clip's own menu adds the ways to open it, as the toolbar's open
-// button's menu offers them, before its bookmark.
-describe("a previewed clip's More options", () => {
-  it("opens the preview's clip menu for the clip's file under its button", () => {
+// Each kind's ways to open its file sit in a ⋮ at the foot of what it
+// shows: a clip's in its player, a still's and a page's at the end of the
+// bottom bar. Nothing lies over the group's toolbar.
+describe("a previewed file's More options", () => {
+  const bars = (overlay: HTMLElement) =>
+    [...overlay.querySelectorAll(".media-hud-bar")].map((bar) =>
+      [...bar.children].map((cell) => (cell.matches(".media-hud-more") ? "⋮" : cell.textContent)),
+    );
+  // jsdom lays nothing out: the picture decodes at `size`, shown at `shown`.
+  function decode(overlay: HTMLElement, shown: [number, number], size: [number, number] = [4000, 3000]) {
+    const img = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: size[0] });
+    Object.defineProperty(img, "naturalHeight", { value: size[1] });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: shown[0], height: shown[1] }) as DOMRect;
+    img.dispatchEvent(new Event("load"));
+    return img;
+  }
+
+  it("opens the preview's clip menu for the clip's file under its player's button", () => {
     const { preview, overlay, contextMenu } = setup({ files: ["clips/a.mp4"] });
     preview.show(0);
     const more = overlay.querySelector(".video-player-more") as HTMLButtonElement;
+    expect(overlay.querySelector(".media-hud-more")).toBeNull();
 
     more.click();
-    expect(contextMenu.open).toHaveBeenCalledWith({
-      menu: PREVIEW_CLIP_MENU,
-      arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4" },
-      anchor: more,
-      align: "end",
-      ariaLabel: "More options",
-    });
+    expect(contextMenu.opened).toEqual([
+      {
+        menu: PREVIEW_CLIP_MENU,
+        arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4" },
+        anchor: more,
+        align: "end",
+        ariaLabel: "More options",
+      },
+    ]);
     expect(preview.shownIndex()).toBe(0);
+  });
+
+  it("ends a still's bottom bar, after its name, and opens the file's menu under it", () => {
+    const { preview, overlay, contextMenu } = setup();
+    preview.show(0);
+    decode(overlay, [600, 450]);
+    expect(bars(overlay)).toEqual([
+      ["4000 × 3000 (4:3)", ""],
+      ["a.png", "⋮"],
+    ]);
+    const more = overlay.querySelector(".media-hud-more") as HTMLButtonElement;
+    expect([more.tabIndex, more.getAttribute("aria-label")]).toEqual([-1, "More options"]);
+
+    more.click();
+    expect(contextMenu.opened).toEqual([
+      {
+        menu: PREVIEW_FILE_MENU,
+        arg: { file: "stills/a.png", bookmark: "stills/a.png" },
+        anchor: more,
+        align: "end",
+        ariaLabel: "More options",
+      },
+    ]);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    // A second press closes it, the preview staying.
+    more.click();
+    expect(contextMenu.isOpen()).toBe(false);
+    expect(preview.shownIndex()).toBe(0);
+
+    // The next file's bar has its own, for its own file.
+    preview.key("ArrowRight");
+    (overlay.querySelector(".media-hud-more") as HTMLButtonElement).click();
+    expect(contextMenu.opened.at(-1)?.arg).toEqual({ file: "stills/b.png", bookmark: "stills/b.png" });
+  });
+
+  it("ends a page's bar, after its name and count", async () => {
+    const { preview, overlay, contextMenu } = setup({ files: ["notes/a.md"] });
+    preview.show(0);
+    await settle();
+    expect(bars(overlay)).toEqual([["a.md", "", "⋮"]]);
+    const hud = overlay.querySelector(".file-preview-document > .media-hud") as HTMLElement;
+    expect(hud.hidden).toBe(false);
+
+    (overlay.querySelector(".media-hud-more") as HTMLButtonElement).click();
+    expect(contextMenu.opened.at(-1)).toMatchObject({ menu: PREVIEW_FILE_MENU, arg: { file: "notes/a.md" } });
+  });
+
+  it("lays nothing over the group's toolbar: the arrows are the only controls beside the file", () => {
+    const { preview, overlay } = setup({ files: ["stills/a.png", "clips/b.mp4", "notes/c.md"] });
+    for (const index of [0, 1, 2]) {
+      preview.show(index);
+      expect([...overlay.children].map((child) => child.className)).toEqual([
+        "file-preview-nav is-prev",
+        "file-preview-stage",
+        "file-preview-nav is-next",
+      ]);
+    }
+  });
+
+  // The facts would cover most of a small picture, so they go, and the ⋮
+  // stays: without it, a pane that opens nothing in place couldn't open it.
+  it("stays alone on a still too small for its facts, or one that never decodes", () => {
+    const { preview, overlay } = setup();
+    preview.show(0);
+    const hud = overlay.querySelector(".media-hud") as HTMLElement;
+    expect(hud.hidden).toBe(true);
+    const img = decode(overlay, [180, 135], [180, 135]);
+    expect([hud.hidden, hud.classList.contains("is-bare")]).toEqual([false, true]);
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 450 }) as DOMRect;
+    preview.fit();
+    expect([hud.hidden, hud.classList.contains("is-bare")]).toEqual([false, false]);
+
+    preview.key("ArrowRight");
+    const broken = overlay.querySelector(".media-hud") as HTMLElement;
+    overlay.querySelector(".file-preview-frame img")?.dispatchEvent(new Event("error"));
+    expect([broken.hidden, broken.classList.contains("is-bare")]).toEqual([false, true]);
   });
 });
 

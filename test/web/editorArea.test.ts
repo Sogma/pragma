@@ -6,7 +6,7 @@ import { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { NAME_ORDER, type SortChoice } from "../../src/protocol/folderSort.ts";
 import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClient.ts";
-import { PREVIEW_CLIP_MENU } from "../../web/filePreview.ts";
+import { PREVIEW_CLIP_MENU, PREVIEW_FILE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
 import { installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
@@ -489,6 +489,28 @@ describe("editor area", () => {
       ["Looks", "guides"],
       ["Bookmark", "bookmark"],
     ]);
+  });
+
+  it("offers a previewed still's or page's Open, Open in new tab and Open to the side, then its Bookmark", async () => {
+    const { tabs, workspace, area, commands, menus } = await setup();
+    await tabs.openEntry("a.md");
+    commands.register({
+      id: "bookmarks.add",
+      label: "Bookmark",
+      when: (_, arg) => typeof arg === "object" && arg !== null && "bookmark" in arg,
+      run: vi.fn(),
+    });
+    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
+    const target = { file: "b.md", bookmark: "b.md" };
+    expect(menus.resolve(PREVIEW_FILE_MENU, context, target).map((item) => [item.label, item.group])).toEqual([
+      ["Open", "open"],
+      ["Open in new tab", "open"],
+      ["Open to the side", "open"],
+      ["Bookmark", "bookmark"],
+    ]);
+
+    await commands.run("editor.openInNewTab", context, target);
+    await vi.waitFor(() => expect(paths(workspace.groups()[0].tabs)).toEqual(["a.md", "b.md"]));
   });
 
   it("offers a graph node's Open, Open in new tab and Open to the side, a folder's as a gallery", async () => {

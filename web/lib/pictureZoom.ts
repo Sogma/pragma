@@ -154,16 +154,10 @@ interface Pose {
 export interface FrameZoom {
   /** Measures the picture again, shown `shownWidth` wide of `fullWidth`. */
   fit(shownWidth: number, fullWidth: number): void;
-  /** A click on the picture: zooms in on the point clicked, on its middle
-   * with none, or fits it again. False when there is nothing to zoom, the
-   * picture at full size. */
-  click(at?: Point): boolean;
-  /** What a click does now: zooms "in", or "out" to fit the picture again;
-   * undefined at full size, where it does nothing. */
-  clickZooms(): "in" | "out" | undefined;
+  /** A click on the picture: zooms in on the point clicked, or fits it
+   * again. False when there is nothing to zoom, the picture at full size. */
+  click(at: Point): boolean;
 }
-
-const middleOf = (box: DOMRect): Point => ({ clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 });
 
 /** Zooms the picture in `frame`, the box it shares with its overlay
  * (mediaHud.ts), inside a size container: zoomed, the frame grows with the
@@ -224,14 +218,14 @@ export function frameZoom(frame: HTMLElement, img: HTMLImageElement, measured: (
     animations[0].finished.then(finish, () => {});
   }
 
-  function zoomIn(at: Point | undefined): void {
+  function zoomIn(at: Point): void {
     const box = frame.getBoundingClientRect();
     const fitted = img.getBoundingClientRect();
     zoomed = true;
     frame.classList.remove("is-zoomable");
     frame.classList.add("is-zoomed");
     const full = img.getBoundingClientRect();
-    keepClickedPoint(img, fitted, frame, at ?? middleOf(fitted));
+    keepClickedPoint(img, fitted, frame, at);
     const { scrollLeft: left, scrollTop: top } = frame;
     const from = { box, x: 0, y: 0, scale: fitted.width / full.width };
     animate(from, { box: frame.getBoundingClientRect(), x: -left, y: -top, scale: 1 }, () => {
@@ -266,6 +260,5 @@ export function frameZoom(frame: HTMLElement, img: HTMLImageElement, measured: (
       else return false;
       return true;
     },
-    clickZooms: () => (zoomed ? "out" : zoomable ? "in" : undefined),
   };
 }

@@ -238,8 +238,6 @@ export interface GalleryPaneDeps {
   renderer: ThumbnailRenderer;
   /** A file, shown in this tab in place of the folder. */
   openEntry(path: string, from?: OpenSource): void;
-  /** A file, in a new tab after this one, the folder staying in its own. */
-  openEntryBeside(path: string): void;
   /** A space link, a path cell or a picture clicked on a previewed page,
    * opened as reading view opens a link. */
   openPath(path: string): void;
@@ -359,7 +357,6 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     videoGuides: deps.videoGuides,
     videoLut: deps.videoLut,
     openPath: deps.openPath,
-    openBeside: deps.openEntryBeside,
     openInPlace: (index) => open(index),
     shown: (index) => select(index),
   });
@@ -1123,7 +1120,7 @@ export interface GalleryWiring {
   menus: MenuRegistry;
   contextMenu: ContextMenuService;
   /** A getter: the tab session is built after the panes are registered. */
-  tabs(): Pick<Tabs, "openEntry" | "openEntryBeside" | "openFolder" | "openFolderToSide" | "openSpacePath">;
+  tabs(): Pick<Tabs, "openEntry" | "openFolder" | "openFolderToSide" | "openSpacePath">;
   /** For Sort by's property picker. */
   dialog(): DialogService;
   formats: Pick<FormatRegistry, "get">;
@@ -1228,7 +1225,6 @@ export function galleryPane(wiring: GalleryWiring): EditorPaneDescriptor {
     formats: wiring.formats,
     renderer,
     openEntry: (path, from) => void wiring.tabs().openEntry(path, { from }),
-    openEntryBeside: (path) => void wiring.tabs().openEntryBeside(path),
     openPath: (path) => void wiring.tabs().openSpacePath(path),
     openFolder: (path) => void wiring.tabs().openFolder(path),
     openMenu: (at, tile) => wiring.contextMenu.open({ ...galleryMenu(tile), at }),

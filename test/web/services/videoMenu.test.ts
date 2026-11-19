@@ -38,22 +38,6 @@ describe("videoMoreOptions", () => {
     expect(contextMenu.isOpen()).toBe(false);
     expect(contextMenu.opened).toHaveLength(1);
   });
-
-  it("opens a surface's own registered menu in their place, given the same argument", () => {
-    const contextMenu = fakeContextMenu();
-    const anchor = document.createElement("button");
-
-    videoMoreOptions(contextMenu, "takes/a.mp4", "preview.clip")(anchor);
-    expect(contextMenu.opened).toEqual([
-      {
-        menu: "preview.clip",
-        arg: { file: "takes/a.mp4", bookmark: "takes/a.mp4" },
-        anchor,
-        align: "end",
-        ariaLabel: "More options",
-      },
-    ]);
-  });
 });
 
 describe("lutsMenuItem", () => {

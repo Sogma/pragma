@@ -571,10 +571,9 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
   metadataProperties: () => MetadataProperties;
   // Keeps the layout picked for the Table at `path` on this install.
   saveLayout: (path: string, layout: TableLayout) => Promise<void>;
-  // What a media cell's preview reads, and where its open button opens.
+  // What a media cell's preview reads.
   previewSources: PreviewSources;
   formats: Pick<FormatRegistry, "get">;
-  openBeside: (rootedPath: string) => void;
 }
 
 // What a descriptor is wired with: everything but the hooks a pane takes
@@ -582,8 +581,8 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
 // the opens it makes through the tabs.
 export type TablePaneWiring = Omit<
   TablePaneDeps,
-  "isReadingView" | "onRendered" | "dialogHost" | "saveLayout" | "previewSources" | "openPath" | "openBeside"
-> & { tabs: () => Pick<Tabs, "openSpacePath" | "openEntryBeside"> };
+  "isReadingView" | "onRendered" | "dialogHost" | "saveLayout" | "previewSources" | "openPath"
+> & { tabs: () => Pick<Tabs, "openSpacePath"> };
 
 export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescriptor {
   return {
@@ -595,7 +594,6 @@ export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescrip
         saveLayout: postTableLayout,
         previewSources: servedPreviewSources(),
         openPath: (path) => void tabs().openSpacePath(path),
-        openBeside: (path) => void tabs().openEntryBeside(path),
         isReadingView: () => group.isReadingView(),
         onRendered: () => group.rendered(),
         dialogHost: group.element,
@@ -620,7 +618,6 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     contextMenu: deps.contextMenu,
     dialog: deps.dialog,
     openPath: deps.openPath,
-    openBeside: deps.openBeside,
   });
   const view = createTableView({ ...deps, editorTable: element, openMedia: media.open });
   const properties = deps.metadataProperties();

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import type { FlowFileResponse, Tab } from "../../../../web/core/apiClient.ts";
+import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
 import type { FlowViewDeps } from "../../../../web/flow/xyflowAdapter.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createFlowPane } from "../../../../web/view/panes/flowPane.ts";
@@ -68,7 +69,6 @@ function setup(reportProblems = vi.fn(), hooks: Record<string, unknown> = {}) {
     contextMenu: { open: vi.fn(), close: vi.fn(), isOpen: () => false },
     dialog: createDialogService(),
     openPath: vi.fn(),
-    openBeside: vi.fn(),
     onViewChange: vi.fn(),
     ...hooks,
   } as never);
@@ -133,8 +133,9 @@ describe("flowPane", () => {
   });
 
   it("previews a result's file over the pane, holding its keys off the canvas until it closes", async () => {
-    const openBeside = vi.fn();
-    const pane = setup(vi.fn(), { openBeside });
+    const openPath = vi.fn();
+    const contextMenu = { open: vi.fn(), close: vi.fn(), isOpen: () => false };
+    const pane = setup(vi.fn(), { openPath, contextMenu });
     document.body.append(pane.element);
     await pane.setInput(tab, current, file());
     const canvasPane = pane.element.querySelector(".flow-pane") as HTMLElement;
@@ -147,14 +148,19 @@ describe("flowPane", () => {
     expect(document.activeElement).toBe(pane.element);
     expect(pane.hasTransient?.()).toBe(true);
 
-    // One file: no arrows, and nothing opens in place, only from the toolbar.
+    // One file: no arrows, and nothing opens in place, only from its ⋮.
     const enter = new KeyboardEvent("keydown", { key: "Enter", cancelable: true });
     pane.element.dispatchEvent(enter);
     preview.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
-    expect([enter.defaultPrevented, openBeside.mock.calls.length]).toEqual([false, 0]);
+    expect([enter.defaultPrevented, openPath.mock.calls.length]).toEqual([false, 0]);
     expect(preview.querySelectorAll('.file-preview-nav:not([aria-disabled="true"])')).toHaveLength(0);
-    (preview.querySelector(".file-preview-toolbar .preview-open") as HTMLButtonElement).click();
-    expect(openBeside).toHaveBeenCalledWith("art/a-0123456789ab.png");
+    (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
+    expect(contextMenu.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        menu: PREVIEW_FILE_MENU,
+        arg: { file: "art/a-0123456789ab.png", bookmark: "art/a-0123456789ab.png" },
+      }),
+    );
 
     pane.dismissTransient?.();
     expect(preview.hidden).toBe(true);

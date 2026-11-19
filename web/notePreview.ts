@@ -218,11 +218,10 @@ export interface OpenTarget {
   contextMenu: Pick<ContextMenuService, "open">;
 }
 
-/** A preview's button that opens what it shows in a new tab, on a link's
- * page or the gallery's toolbar, so what holds the preview keeps its tab.
- * Out of the tab order, and a press never takes focus or a text selection
- * from what holds the preview. */
-export function createOpenButton(target: OpenTarget): HTMLButtonElement {
+/** A link preview's button that opens what it shows in a new tab, so what
+ * holds the preview keeps its tab. Out of the tab order, and a press never
+ * takes focus or a text selection from what holds the preview. */
+function createOpenButton(target: OpenTarget): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "icon-button preview-open";

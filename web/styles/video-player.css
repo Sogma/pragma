@@ -235,9 +235,10 @@
 }
 
 /* The preview's pill: a quick look's few controls, floating over the
-   picture's foot. Narrower, Loop goes first, then the speaker and More
-   options, so the bar keeps room to seek. The length stays at every width:
-   the preview's bars leave it to the pill.
+   picture's foot. Narrower, Loop goes first, then the speaker and full
+   screen, then the length, so the bar keeps room to seek. The ⋮ stays at
+   every width: in a preview it holds the ways to open the clip, and a
+   double-click there still fills the screen.
 
    The hud bars' fill and nothing more, no blur, border or shadow: the same
    overlay as the bars, in another shape. */
@@ -279,7 +280,13 @@
 
 @container video-player (width < 300px) {
   .is-pill .video-player-volume,
-  .is-pill .video-player-more {
+  .is-pill .video-player-full-screen {
+    display: none;
+  }
+}
+
+@container video-player (width < 220px) {
+  .is-pill .video-player-time.is-total {
     display: none;
   }
 }

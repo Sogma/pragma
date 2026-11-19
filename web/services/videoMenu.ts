@@ -1,7 +1,7 @@
 // A video player's More options menu: Guides and Looks, then Bookmark or
 // Remove from Bookmarks for the clip's file, the items the tree's and a
-// tab's menus offer, or a menu a surface registers with more, as the
-// preview does with the ways to open it.
+// tab's menus offer. The preview registers its own from the rows here, with
+// the ways to open the clip before them.
 //
 // The argument names the file twice, as a Bookmarks row's does: `file` for
 // the open commands, `bookmark` for the bookmark ones. A command that finds
@@ -100,12 +100,10 @@ export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
 }
 
 /** Opens the menu for the clip at `path` under its button, or closes it
- * there: the registered `menu`, or Guides, Looks and the clip's Bookmark
- * items. */
+ * there: Guides, Looks and the clip's Bookmark items. */
 export function videoMoreOptions(
   contextMenu: ContextMenuService,
   path: string,
-  menu?: string,
   guides: GuidesChoice = videoGuides,
   lut: LutChoice = videoLut,
 ): (anchor: HTMLElement) => void {
@@ -119,7 +117,7 @@ export function videoMoreOptions(
         { command: "bookmarks.remove", group: "bookmark" },
       ];
       contextMenu.open({
-        ...(menu === undefined ? { items } : { menu }),
+        items,
         arg: { file: path, bookmark: path },
         anchor,
         align: "end",

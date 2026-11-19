@@ -236,25 +236,6 @@ describe("frameZoom", () => {
     expect(frame.className).toBe("");
   });
 
-  // A toolbar's button has no point on the picture to give.
-  it("zooms in on the picture's middle given no point", () => {
-    const { frame, zoom } = setup();
-    expect(zoom.click()).toBe(true);
-    expect(frame.className).toBe("is-zoomed");
-    expect([frame.scrollLeft, frame.scrollTop]).toEqual([108 + 1200 - 508, 58 + 800 - 358]);
-  });
-
-  it("says what a click does: zooms in, out to fit, or nothing at full size", () => {
-    const { zoom } = setup();
-    expect(zoom.clickZooms()).toBe("in");
-    zoom.click(click());
-    expect(zoom.clickZooms()).toBe("out");
-    zoom.click(click());
-    expect(zoom.clickZooms()).toBe("in");
-    zoom.fit(600, 600);
-    expect(zoom.clickZooms()).toBeUndefined();
-  });
-
   it("is grabbed by a drag only while zoomed", () => {
     const { frame, img, zoom } = setup();
     pointer("pointerdown", img, 300, 300);
@@ -375,7 +356,7 @@ describe("frameZoom", () => {
 
     // Mid-run, the picture's box is the run's, not the one the zoom starts
     // from once the run ends.
-    it("finds the middle of the picture as it stands once a running zoom ends", () => {
+    it("finds the point clicked on the picture as it stands once a running zoom ends", () => {
       const { frame, img, zoom } = setup();
       animated(frame);
       animated(img);
@@ -383,7 +364,7 @@ describe("frameZoom", () => {
       zoom.click(click());
       frame.scrollLeft = 0;
       frame.scrollTop = 0;
-      zoom.click();
+      zoom.click(click(208 + 300, 158 + 200));
       expect([frame.scrollLeft, frame.scrollTop]).toEqual([108 + 1200 - 508, 58 + 800 - 358]);
     });
 

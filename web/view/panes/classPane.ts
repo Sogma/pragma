@@ -291,7 +291,6 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     contextMenu: deps.contextMenu,
     dialog: deps.dialog,
     openPath: deps.openPath,
-    openBeside: deps.openBeside,
   });
   const properties = deps.metadataProperties();
   // Find searches the rows' titles and values, never replacing them.

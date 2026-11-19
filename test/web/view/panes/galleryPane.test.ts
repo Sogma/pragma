@@ -12,10 +12,11 @@ import type {
 import { setLibraryPermissions } from "../../../../web/core/libraries.ts";
 import { noteDragInFlight } from "../../../../web/core/paths.ts";
 import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
+import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
 import type { NamingSurface } from "../../../../web/lib/inlineEdit.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
 import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
-import { PAGE_PREVIEW_SCALE, PREVIEW_OPEN_MENU, pageZoom } from "../../../../web/notePreview.ts";
+import { PAGE_PREVIEW_SCALE, pageZoom } from "../../../../web/notePreview.ts";
 import { type CommandContext, createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { setLocalSort } from "../../../../web/services/folderSorts.ts";
@@ -136,7 +137,6 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
     formats: createFormats(),
     renderer: renderer(),
     openEntry: vi.fn(),
-    openEntryBeside: vi.fn(),
     openPath: vi.fn(),
     openFolder: vi.fn(),
     openMenu: vi.fn(),
@@ -260,7 +260,6 @@ describe("a folder's open commands", () => {
     const menus = createMenus(commands);
     const tabs = {
       openEntry: vi.fn(),
-      openEntryBeside: vi.fn(),
       openFolder: vi.fn(),
       openFolderToSide: vi.fn(),
       openSpacePath: vi.fn(),
@@ -311,7 +310,6 @@ describe("the toolbar's Sort by", () => {
     const menus = createMenus(commands);
     const tabs = {
       openEntry: vi.fn(),
-      openEntryBeside: vi.fn(),
       openFolder: vi.fn(),
       openFolderToSide: vi.fn(),
       openSpacePath: vi.fn(),
@@ -891,57 +889,15 @@ describe("the gallery pane", () => {
     });
 
     // Enter and a double-click on the tile open it in the gallery's place.
-    it("opens in a new tab from the toolbar's open button, without zooming", async () => {
+    it("opens the file's menu from its ⋮, without zooming", async () => {
       const { pane, deps } = setup([file("frame.png")]);
       await open(pane);
       const { preview, frame } = previewStill(pane, "frame");
-      const button = preview.querySelector(".file-preview-toolbar .preview-open") as HTMLButtonElement;
+      const button = preview.querySelector(".media-hud-more") as HTMLButtonElement;
       press(button, "mousedown", 1);
       press(button, "click", 1);
-      expect(deps.openEntryBeside).toHaveBeenCalledWith("lib:footage/frame.png");
+      expect(deps.contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: PREVIEW_FILE_MENU }));
       expect(deps.openEntry).not.toHaveBeenCalled();
-      expect(frame.classList.contains("is-zoomed")).toBe(false);
-    });
-
-    // The toolbar's zoom is a click on the picture's middle, whose glyph and
-    // name say where the next click goes. It follows a click on the picture.
-    it("zooms from the toolbar on the picture's middle, and out again", async () => {
-      const { pane, deps } = setup([file("frame.png")]);
-      await open(pane);
-      const { preview, img, frame } = previewStill(pane, "frame");
-      const button = preview.querySelector(".file-preview-zoom") as HTMLButtonElement;
-      const shown = () => [button.getAttribute("aria-label"), button.classList.contains("is-zoomed")];
-      expect([...shown(), button.getAttribute("aria-disabled")]).toEqual(["Zoom in", false, "false"]);
-
-      press(button, "mousedown", 1);
-      press(button, "click", 1);
-      expect(frame.classList.contains("is-zoomed")).toBe(true);
-      // The fitted picture's middle, 208 + 300 and 158 + 200, stays put.
-      expect([frame.scrollLeft, frame.scrollTop]).toEqual([108 + 1200 - 508, 58 + 800 - 358]);
-      expect(shown()).toEqual(["Zoom out", true]);
-
-      press(img, "mousedown", 1);
-      press(img, "click", 1);
-      expect(frame.classList.contains("is-zoomed")).toBe(false);
-      expect(shown()).toEqual(["Zoom in", false]);
-      press(button, "mousedown", 1);
-      press(button, "click", 1);
-      press(button, "mousedown", 2);
-      press(button, "click", 2);
-      press(button, "dblclick", 2);
-      expect(frame.classList.contains("is-zoomed")).toBe(false);
-      expect(preview.hidden).toBe(false);
-      expect(deps.openEntry).not.toHaveBeenCalled();
-    });
-
-    it("leaves the toolbar's zoom inert on a picture already at full size", async () => {
-      const { pane } = setup([file("icon.png")]);
-      await open(pane);
-      const { preview, frame } = previewStill(pane, "icon", [300, 200]);
-      const button = preview.querySelector(".file-preview-zoom") as HTMLButtonElement;
-      expect(button.getAttribute("aria-disabled")).toBe("true");
-      press(button, "mousedown", 1);
-      press(button, "click", 1);
       expect(frame.classList.contains("is-zoomed")).toBe(false);
       expect(preview.hidden).toBe(false);
     });
@@ -1360,34 +1316,33 @@ describe("the gallery pane", () => {
     expect(submit).toHaveBeenCalledWith("b.png");
   });
 
-  // One toolbar for every kind, nothing over the file itself: a still's zoom,
-  // the open button, which opens a new tab, a line, and Close.
-  it("puts the previewed file's controls on the toolbar, then a line and Close", async () => {
+  // Every kind's ways to open sit in one ⋮ at its foot: a still's and a
+  // page's ends its bottom bar, a clip's its player. Nothing lies over the
+  // group's toolbar, which the backdrop dims.
+  it("puts the previewed file's ⋮ at its foot, and nothing over the group's toolbar", async () => {
     const { pane } = setup([file("frame.png"), file("logo.svg"), file("take.mp4"), file("scene.md")]);
     await open(pane);
     const preview = pane.element.querySelector(".file-preview") as HTMLElement;
-    const toolbar = () =>
-      [...preview.querySelectorAll(".file-preview-toolbar > *")].map(
-        (item) => item.getAttribute("aria-label") ?? item.className,
-      );
-    const after = ["floating-toolbar-line", "Close preview"];
-
-    for (const [name, controls] of Object.entries({
-      frame: ["Zoom in", "Open in new tab"],
-      logo: ["Zoom in", "Open in new tab"],
-      take: ["Open in new tab"],
-      scene: ["Open in new tab"],
+    for (const [name, place] of Object.entries({
+      frame: ".file-preview-frame .media-hud-bar:last-child > .media-hud-more:last-child",
+      logo: ".file-preview-frame .media-hud-bar:last-child > .media-hud-more:last-child",
+      take: ".file-preview-frame .video-player-more",
+      scene: ".file-preview-document .media-hud-bar > .media-hud-more:last-child",
     })) {
       tileNamed(pane, name).click();
-      expect(toolbar(), name).toEqual([...controls, ...after]);
-      expect(preview.querySelector(".file-preview-stage .preview-open"), name).toBeNull();
+      const mores = [...preview.querySelectorAll("[aria-label='More options']")];
+      expect(
+        mores.map((more) => more.matches(place)),
+        name,
+      ).toEqual([true]);
+      expect(preview.querySelector(".floating-toolbar"), name).toBeNull();
       pane.dismissTransient?.();
     }
   });
 
-  // Close lies over the group's ⋮, which the backdrop dims: the rest of a
+  // The backdrop lies over the group's ⋮, which it dims: the rest of a
   // double-click on it presses nothing there, and a new run does.
-  it("closes from the toolbar, the rest of its double-click pressing nothing beneath", async () => {
+  it("closes from the backdrop, the rest of its double-click pressing nothing beneath", async () => {
     const { pane } = setup([file("frame.png")]);
     await open(pane);
     const preview = pane.element.querySelector(".file-preview") as HTMLElement;
@@ -1399,9 +1354,8 @@ describe("the gallery pane", () => {
       target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, detail }));
 
     tileNamed(pane, "frame").click();
-    const close = preview.querySelector(".file-preview-close") as HTMLButtonElement;
-    press(close, "mousedown", 1);
-    press(close, "click", 1);
+    press(preview, "mousedown", 1);
+    press(preview, "click", 1);
     expect(preview.hidden).toBe(true);
     press(beneath, "mousedown", 2);
     press(beneath, "click", 2);
@@ -1413,9 +1367,9 @@ describe("the gallery pane", () => {
     expect(pressed).toHaveBeenCalledTimes(1);
   });
 
-  // A tile at the grid's top right lies under the toolbar: the rest of a
-  // double-click on it lands on a button there, and opens the tile.
-  it("opens on a double-click begun on its tile, the rest of it landing on the toolbar", async () => {
+  // A tile can lie under the preview's ⋮: the rest of a double-click on it
+  // lands on the ⋮, opening no menu, and opens the tile.
+  it("opens on a double-click begun on its tile, the rest of it landing on the ⋮", async () => {
     const { pane, deps } = setup([file("frame.png")]);
     await open(pane);
     const preview = pane.element.querySelector(".file-preview") as HTMLElement;
@@ -1424,32 +1378,33 @@ describe("the gallery pane", () => {
 
     press(tileNamed(pane, "frame"), "mousedown", 1);
     tileNamed(pane, "frame").click();
-    const close = preview.querySelector(".file-preview-close") as HTMLButtonElement;
-    press(close, "mousedown", 2);
-    press(close, "click", 2);
-    press(close, "dblclick", 2);
+    const more = preview.querySelector(".media-hud-more") as HTMLButtonElement;
+    press(more, "mousedown", 2);
+    press(more, "click", 2);
+    press(more, "dblclick", 2);
     expect(preview.hidden).toBe(false);
+    expect(deps.contextMenu.open).not.toHaveBeenCalled();
     expect(deps.openEntry).toHaveBeenCalledTimes(1);
     expect(deps.openEntry).toHaveBeenCalledWith("lib:footage/frame.png", expect.anything());
   });
 
-  it("offers the open button's menu for the previewed file on a right-click, keeping the preview", async () => {
+  it("offers the previewed file's menu from its ⋮, keeping the preview", async () => {
     const { pane, deps } = setup([file("frame.png", { thumbnail: true })]);
     await open(pane);
     const preview = pane.element.querySelector(".file-preview") as HTMLElement;
     tileNamed(pane, "frame").click();
-    const button = preview.querySelector(".file-preview-toolbar .preview-open") as HTMLButtonElement;
+    const button = preview.querySelector(".media-hud-more") as HTMLButtonElement;
 
-    button.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 7, clientY: 9 }));
+    button.click();
     expect(deps.contextMenu.open).toHaveBeenCalledWith({
-      menu: PREVIEW_OPEN_MENU,
-      arg: { file: "lib:footage/frame.png" },
-      at: { x: 7, y: 9 },
-      ariaLabel: "Open in new tab",
+      menu: PREVIEW_FILE_MENU,
+      arg: { file: "lib:footage/frame.png", bookmark: "lib:footage/frame.png" },
+      anchor: button,
+      align: "end",
+      ariaLabel: "More options",
     });
     expect(deps.openMenu).not.toHaveBeenCalled();
     expect(deps.openEntry).not.toHaveBeenCalled();
-    expect(deps.openEntryBeside).not.toHaveBeenCalled();
     expect(preview.hidden).toBe(false);
   });
 
@@ -1468,15 +1423,16 @@ describe("the gallery pane", () => {
       );
 
     tileNamed(pane, "frame").click();
-    expect(bars()).toEqual(["100 × 100 (1:1) | ", "frame.png | 4.2 MB"]);
+    expect(bars()).toEqual(["100 × 100 (1:1) | ", "frame.png | "]);
+    expect(preview.querySelector(".media-hud-bar:last-child > :last-child")?.matches(".media-hud-more")).toBe(true);
     // The color mode the header read gives, at the right.
     expect(deps.pixelFormat).toHaveBeenCalledWith("lib:footage/frame.png");
-    await vi.waitFor(() => expect(bars()).toEqual(["100 × 100 (1:1) | RGBA 8-bit", "frame.png | 4.2 MB"]));
+    await vi.waitFor(() => expect(bars()).toEqual(["100 × 100 (1:1) | RGBA 8-bit", "frame.png | "]));
     const img = preview.querySelector("img") as HTMLImageElement;
     Object.defineProperty(img, "naturalWidth", { value: 3840 });
     Object.defineProperty(img, "naturalHeight", { value: 2160 });
     img.dispatchEvent(new Event("load"));
-    expect(bars()).toEqual(["3840 × 2160 (16:9) | RGBA 8-bit", "frame.png | 4.2 MB"]);
+    expect(bars()).toEqual(["3840 × 2160 (16:9) | RGBA 8-bit", "frame.png | "]);
 
     pane.dismissTransient?.();
     tileNamed(pane, "take").click();
@@ -1516,15 +1472,14 @@ describe("a previewed note", () => {
     expect(pageZoom(900, 900)).toBe(1);
   });
 
-  // A double-click on Open is one open: its first click opened the note
-  // already, and the rest would land on the note's own toolbar.
-  it("shows below full size, and opens the note from the toolbar", async () => {
+  // A double-click begun on the ⋮ is two presses of it, and opens nothing in
+  // the gallery's place.
+  it("shows below full size, and offers the note's menu from the ⋮ ending its bar", async () => {
     const { pane, deps } = await previewed("scene.md");
     const note = previewOf(pane).querySelector(".file-preview-document") as HTMLElement;
-    const control = previewOf(pane).querySelector(".file-preview-toolbar .preview-open") as HTMLButtonElement;
+    const control = note.querySelector(".media-hud-bar > .media-hud-more") as HTMLButtonElement;
     expect(note.style.getPropertyValue("--page-scale")).toBe(String(PAGE_PREVIEW_SCALE));
-    expect(note.querySelector(".preview-open")).toBeNull();
-    expect(control.getAttribute("aria-label")).toBe("Open in new tab");
+    expect(control.getAttribute("aria-label")).toBe("More options");
 
     for (const [type, detail] of [
       ["mousedown", 1],
@@ -1535,9 +1490,12 @@ describe("a previewed note", () => {
     ] as const) {
       control.dispatchEvent(new MouseEvent(type, { bubbles: true, detail }));
     }
-    expect(deps.openEntryBeside).toHaveBeenCalledTimes(1);
-    expect(deps.openEntryBeside).toHaveBeenCalledWith("notes/scene.md");
+    expect(deps.contextMenu.open).toHaveBeenCalledTimes(2);
+    expect(deps.contextMenu.open).toHaveBeenCalledWith(
+      expect.objectContaining({ menu: PREVIEW_FILE_MENU, arg: { file: "notes/scene.md", bookmark: "notes/scene.md" } }),
+    );
     expect(deps.openEntry).not.toHaveBeenCalled();
+    expect(previewOf(pane).hidden).toBe(false);
   });
 
   // The count is over what the editor would hold, frontmatter and title
@@ -1553,7 +1511,7 @@ describe("a previewed note", () => {
     expect(pageOf(pane).querySelector("h1")).toBeNull();
     expect(pageOf(pane).querySelector(".editor-reading-content p")?.textContent).toBe("Ada climbs the stairs.");
     const bar = [...previewOf(pane).querySelectorAll(".media-hud-bar > *")].map((cell) => cell.textContent);
-    expect(bar).toEqual(["scene.md", "4 words · 27 characters"]);
+    expect(bar).toEqual(["scene.md", "4 words · 27 characters", ""]);
     expect(pane.inspector?.textContent).toContain("scene.md");
   });
 
@@ -1716,7 +1674,7 @@ describe("a previewed Table", () => {
       "two",
     ]);
     const bar = [...previewOf(pane).querySelectorAll(".media-hud-bar > *")].map((cell) => cell.textContent);
-    expect(bar).toEqual(["takes.table.html", "2 columns · 2 rows"]);
+    expect(bar).toEqual(["takes.table.html", "2 columns · 2 rows", ""]);
   });
 
   it("stays open for a click on its page, opens a path cell's entry here, and steps on", async () => {
@@ -1770,7 +1728,7 @@ describe("a previewed screenplay", () => {
       "Ada climbs.",
     ]);
     const bar = [...previewOf(pane).querySelectorAll(".media-hud-bar > *")].map((cell) => cell.textContent);
-    expect(bar).toEqual(["act.fountain", "7 words · 44 characters"]);
+    expect(bar).toEqual(["act.fountain", "7 words · 44 characters", ""]);
 
     const destroy = vi.spyOn(view, "destroy");
     press(pane.element, "ArrowRight");

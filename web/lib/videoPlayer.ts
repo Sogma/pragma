@@ -8,6 +8,7 @@
 // the picture's own box and never size it.
 import { DisposableStore, listen } from "./disposable.ts";
 import { formatDuration } from "./dom.ts";
+import { moreOptionsButton } from "./moreOptionsButton.ts";
 import { createGuidesOverlay, type GuidesChoice } from "./videoGuides.ts";
 import { createLutLayer, type LutChoice, toggleLook } from "./videoLut.ts";
 
@@ -127,9 +128,7 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   volumeSlider.setAttribute("aria-valuemin", "0");
   volumeSlider.setAttribute("aria-valuemax", "100");
   const volumeBox = box("video-player-volume", mute, box("video-player-volume-popup", volumeSlider));
-  const more = controlButton("video-player-more", "More options");
-  more.setAttribute("aria-haspopup", "true");
-  more.setAttribute("aria-expanded", "false");
+  const more = store.add(moreOptionsButton("video-player-more", (anchor) => options.moreOptions(anchor))).element;
   const fullScreen = controlButton("video-player-full-screen", "Full screen");
   const markIn = controlButton("video-player-mark is-in", "Set In point");
   const markOut = controlButton("video-player-mark is-out", "Set Out point");
@@ -440,28 +439,6 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
       element.classList.remove("is-volume-open");
     });
   }
-  // A pick from the menu hands focus back to this button, away from the
-  // surface whose keys the player takes, so it goes on to what had it when
-  // the button was pressed. Pressed by key, the button had it, and keeps it.
-  let focusBeforeMenu: Element | null = null;
-  on(more, "click", () => {
-    focusBeforeMenu = document.activeElement;
-    options.moreOptions(more);
-  });
-  on(more, "focus", () => {
-    const to = focusBeforeMenu;
-    focusBeforeMenu = null;
-    if (to === null || to === more) return;
-    if (to instanceof HTMLElement && to.isConnected) to.focus({ preventScroll: true });
-    if (document.activeElement === more) more.blur();
-  });
-  // A menu closed with no pick hands nothing back, so a later Tab onto the
-  // button stays there.
-  const menuClosed = new MutationObserver(() => {
-    if (more.getAttribute("aria-expanded") === "false") focusBeforeMenu = null;
-  });
-  menuClosed.observe(more, { attributeFilter: ["aria-expanded"] });
-  store.add(() => menuClosed.disconnect());
   on(fullScreen, "click", toggleFullScreen);
   on(markIn, "click", setIn);
   on(markOut, "click", setOut);

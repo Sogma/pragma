@@ -4,7 +4,7 @@ import { metadataText } from "../../../../src/protocol/metadata.ts";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
 import type { TableLayout } from "../../../../src/protocol/types.ts";
 import type { FileResponse, TableFileResponse } from "../../../../web/core/apiClient.ts";
-import { formatFileSize } from "../../../../web/lib/dom.ts";
+import { PREVIEW_FILE_MENU } from "../../../../web/filePreview.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
@@ -52,18 +52,17 @@ function setup(loaded: FileResponse = file()) {
   const scheduleSave = vi.fn<(path: string, content: string) => void>();
   const saveLayout = vi.fn<(path: string, layout: TableLayout) => Promise<void>>(async () => {});
   const openPath = vi.fn<(path: string) => void>();
-  const openBeside = vi.fn<(path: string) => void>();
+  const contextMenu = testContextMenu();
   let reading = false;
   const pane = createTablePane({
     loadFile,
     noteRevision: vi.fn(),
     dialog: createDialogService(),
-    contextMenu: testContextMenu(),
+    contextMenu,
     isReadingView: () => reading,
     scheduleSave,
     onRendered,
     openPath,
-    openBeside,
     previewSources: testPreviewSources(),
     formats: createFormats(),
     dialogHost: document.body,
@@ -75,7 +74,7 @@ function setup(loaded: FileResponse = file()) {
     reading = on;
     pane.refresh?.();
   };
-  return { pane, loadFile, onRendered, scheduleSave, saveLayout, openPath, openBeside, setReadingView };
+  return { pane, loadFile, onRendered, scheduleSave, saveLayout, openPath, contextMenu, setReadingView };
 }
 
 const current = { isCurrent: () => true };
@@ -280,10 +279,10 @@ describe("a media cell's preview", () => {
     expect(shown(pane)).toBe("/raw?path=stills/a.png");
     expect(document.activeElement).toBe(pane.element);
     expect(pane.hasTransient?.()).toBe(true);
-    // A cell holds only a path, so the size is read from the file.
-    await vi.waitFor(() =>
-      expect(previewOf(pane).querySelector(".media-hud")?.textContent).toContain(formatFileSize(2048)),
-    );
+    // A cell holds only a path, which names the file along the bottom, by its ⋮.
+    const bottom = [...previewOf(pane).querySelectorAll(".media-hud-bar:last-child > *")];
+    expect(bottom.map((cell) => cell.className)).toEqual(["media-hud-name", "icon-button media-hud-more"]);
+    expect(bottom[0].textContent).toBe("a.png");
 
     press(pane, "ArrowRight");
     expect(shown(pane)).toBe("/raw?path=stills/b.mp4");
@@ -297,8 +296,8 @@ describe("a media cell's preview", () => {
     expect(document.activeElement).toBe(thumbs(pane)[4]);
   });
 
-  it("opens the file in place on a double-click begun on the cell, and in a new tab from the toolbar", async () => {
-    const { pane, openPath, openBeside } = setup(shots());
+  it("opens the file in place on a double-click begun on the cell, and offers the other ways from its ⋮", async () => {
+    const { pane, openPath, contextMenu } = setup(shots());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
     const thumb = thumbs(pane)[0];
     fire(thumb, "mousedown", 1);
@@ -310,8 +309,11 @@ describe("a media cell's preview", () => {
     fire(preview, "dblclick", 2);
     expect(openPath).toHaveBeenCalledWith("stills/a.png");
 
-    (preview.querySelector(".file-preview-toolbar .preview-open") as HTMLButtonElement).click();
-    expect(openBeside).toHaveBeenCalledWith("stills/a.png");
+    const open = vi.spyOn(contextMenu, "open");
+    (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({ menu: PREVIEW_FILE_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
+    );
   });
 
   it("opens a file it has no preview of in place, as a click did", async () => {
