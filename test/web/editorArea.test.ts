@@ -194,6 +194,7 @@ async function setup(split = splitSetting(), dialog = {} as DialogService) {
     stripHost,
     panes,
     formats: documentPaneDeps.formats,
+    loadFile,
     commands,
     menus,
     keybindings: createKeybindings(commands),

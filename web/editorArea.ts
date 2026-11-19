@@ -62,14 +62,18 @@ import { isGalleryPane, treeRowMenu } from "./view/panes/galleryPane.ts";
 import { versionPane } from "./view/panes/versionPane.ts";
 import { type AppIndicators, createStatusbar, PATH_FOLDER_MENU, type Statusbar } from "./view/statusbar.ts";
 import { createTabDrag, type TabDragStrip } from "./view/tabDrag.ts";
+import { installTabPreview } from "./view/tabPreview.ts";
 
 export interface EditorAreaDeps {
   // The row the groups sit in, and the header's tab area their strips go in.
   root: HTMLElement;
   stripHost: HTMLElement;
   panes: EditorPaneRegistry;
-  // Each format's actions, which the toolbar's commands run.
+  // Each format's actions, which the toolbar's commands run, and what draws
+  // a document of its type on a tab's preview.
   formats: FormatRegistry;
+  // A file as a document route reads it, for a tab's preview.
+  loadFile(path: string): Promise<FileResponse>;
   commands: CommandRegistry;
   menus: MenuRegistry;
   keybindings: KeybindingRegistry;
@@ -139,6 +143,8 @@ interface TabTarget {
 
 interface GroupParts {
   readonly element: HTMLElement;
+  // Where the group's pane shows, under its strip and over its status bar.
+  readonly host: HTMLElement;
   readonly view: EditorGroupView;
   readonly chrome: EditorChrome;
   readonly statusbar: Statusbar;
@@ -227,6 +233,18 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       partsFor(target).view.attach(tab, pill, at);
       void tabs.moveToOtherGroup(source.id, index, at);
     },
+  });
+
+  // A tab whose file isn't on screen shows it while the pointer rests on its
+  // pill, in the pill's own group.
+  installTabPreview(deps.stripHost, {
+    loadFile: deps.loadFile,
+    readingResolvers: spaceTree.readingResolvers,
+    formats: deps.formats,
+    dialog: deps.dialog(),
+    contextMenu: deps.contextMenu,
+    pathNames: spaceTree.pathNames,
+    areaOf: (pill) => shownParts().find((record) => record.view.strip.contains(pill))?.host,
   });
 
   // The two tabs of a file that scrolls as one wear a mark; the pointer on
@@ -425,7 +443,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       indexOf: (pill) => view.indexOf(pill),
       settle: () => view.settle(),
     };
-    return { element, view, chrome, statusbar, store, dragStrip, stripShows: undefined };
+    return { element, host, view, chrome, statusbar, store, dragStrip, stripShows: undefined };
   }
 
   function partsFor(group: EditorGroup): GroupParts {

@@ -1,8 +1,8 @@
 // A note, a Table, or a document of another type in its format's locked
 // editor, shown on a plain page as its reading view: the gallery's preview of
-// its tile, and the one a link to it opens while the pointer rests on the
-// link. Either shows at most at a set share of full size, with a control that
-// opens the file.
+// its tile, the one a link to it opens while the pointer rests on the link,
+// and a tab's (view/tabPreview.ts). Each shows at most at a set share of full
+// size; the gallery's and a link's with a control that opens the file.
 //
 // The page lays out at a note's measure, narrower than the editor's, and is
 // zoomed to the size shown, so a note's lines break at the same words
@@ -250,10 +250,11 @@ export function createOpenControl(target: OpenTarget): HTMLElement {
   return element;
 }
 
-// How long the pointer rests on a link before its page shows, and how long a
-// shown page waits once the pointer has left both: time to cross the gap
-// from the link onto the page.
-const OPEN_DELAY_MS = 300;
+/** How long the pointer rests on what a page previews before the page
+ * shows. */
+export const PREVIEW_DELAY_MS = 300;
+// How long a shown page waits once the pointer has left it and its link:
+// time to cross the gap from the link onto the page.
 const CLOSE_DELAY_MS = 300;
 // Between the link and the page, and between the page and its bounds.
 const GAP = 6;
@@ -265,6 +266,22 @@ const HOLE_ROOM = 3;
 const HOLE_RADIUS = 4;
 // Held alone, a modifier types nothing.
 const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "AltGraph", "Meta"]);
+
+/** Sizes a page shown beside what opened it: as wide as its share of full
+ * size within `span` px, and as tall as its file within a Letter page of
+ * that width and `room` px. Returns the width it shows at, 0 for a page not
+ * laid out. */
+export function sizePage(page: HTMLElement, span: number, room: number): number {
+  for (const property of ["zoom", "width", "max-height"]) page.style.removeProperty(property);
+  const natural = page.offsetWidth;
+  if (natural === 0) return 0;
+  const width = Math.min(span, natural * PAGE_PREVIEW_SCALE);
+  const zoom = pageZoom(width, natural);
+  page.style.setProperty("zoom", String(zoom));
+  page.style.width = `${width / zoom}px`;
+  page.style.maxHeight = `${Math.min(width * PAGE_RATIO, room) / zoom}px`;
+  return width;
+}
 
 export interface LinkPreviewDeps extends PageSource {
   /** Opens a link on the page as a click on a link in the container opens one. */
@@ -376,7 +393,7 @@ export function installLinkPreview(container: HTMLElement, deps: LinkPreviewDeps
   function wait(link: HTMLElement): void {
     forget();
     pending = link;
-    openTimer = window.setTimeout(() => void open(link), OPEN_DELAY_MS);
+    openTimer = window.setTimeout(() => void open(link), PREVIEW_DELAY_MS);
   }
 
   // A link or a cell followed from the page, which goes first.
@@ -458,28 +475,14 @@ export function installLinkPreview(container: HTMLElement, deps: LinkPreviewDeps
     else frame.style.bottom = `${window.innerHeight - box.top + GAP}px`;
   }
 
-  // The page's width at its own measure, before it is sized to show.
-  function naturalWidth(page: HTMLElement): number {
-    for (const property of ["zoom", "width", "max-height"]) page.style.removeProperty(property);
-    return page.offsetWidth;
-  }
-
-  // As wide as the page's share of full size, within `span`, and as tall as
-  // the file, within a Letter page of that width and `room`.
+  // The page sized within `span` and `room`, and the height its frame takes.
   function size(
     preview: Preview,
     span: { left: number; right: number },
     room: number,
   ): { width: number; height: number } {
-    const { frame, page } = preview;
-    const natural = naturalWidth(page);
-    if (natural === 0) return { width: 0, height: 0 };
-    const width = Math.min(span.right - span.left, natural * PAGE_PREVIEW_SCALE);
-    const zoom = pageZoom(width, natural);
-    page.style.setProperty("zoom", String(zoom));
-    page.style.width = `${width / zoom}px`;
-    page.style.maxHeight = `${Math.min(width * PAGE_RATIO, room) / zoom}px`;
-    return { width, height: frame.getBoundingClientRect().height };
+    const width = sizePage(preview.page, span.right - span.left, room);
+    return { width, height: width === 0 ? 0 : preview.frame.getBoundingClientRect().height };
   }
 
   // A wait starts on a move only: a link redrawn or scrolled under a still

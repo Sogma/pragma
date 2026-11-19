@@ -724,14 +724,13 @@ async function main(): Promise<void> {
   });
   // The editor groups, each with its own chrome and title bar (editorArea.ts).
   const editorArea = createEditorArea({
+    ...paneDeps,
     root: editorGroups,
     stripHost: headerTabs,
     panes: editorPanes,
-    formats,
     commands,
     menus,
     keybindings,
-    contextMenu,
     dialog: () => dialog,
     indicators,
     notices: fileNotices,

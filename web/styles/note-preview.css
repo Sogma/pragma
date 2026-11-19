@@ -1,6 +1,6 @@
 /* A note, a Table or another document on a plain page (web/notePreview.ts):
-   the gallery's preview of one and a link's. A page, not a picture: no mat,
-   the arrows' border and shadow.
+   the gallery's preview of one, a link's and a tab's. A page, not a picture:
+   no mat, the arrows' border and shadow.
 
    Laid out at full size, a note's line length inside reading view's 24px
    inset, and zoomed to the size shown: a note's text shrinks rather than
@@ -77,6 +77,37 @@
 
 .link-preview > * {
   grid-area: 1 / 1;
+}
+
+/* A tab's preview, placed and sized by its opener under the tab: the tab's
+   path over its page, in one box. A glance, never a place to go: it takes no
+   pointer, so moving onto it is leaving the tab, which takes it down. */
+.tab-preview {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+  pointer-events: none;
+}
+
+/* The box is the preview's, so the page inside draws none of its own. */
+.tab-preview > .preview-page {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Level with the page's title, which sits 24px in at full size and so about
+   22px in at the share a page shows at. */
+.tab-preview-path {
+  padding: 6px 22px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--small-font-size);
 }
 
 /* The pane behind a link's preview, muted: the page's own colour laid over

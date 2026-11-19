@@ -210,10 +210,43 @@ describe("createEditorGroupView", () => {
     expect(children).toEqual(["editor-tab", "editor-tab active", "icon-button editor-group-new-tab"]);
     const labels = Array.from(strip.querySelectorAll(".editor-tab-label")).map((el) => el.textContent);
     expect(labels).toEqual(["b", "New tab"]);
-    expect(strip.querySelector<HTMLElement>(".editor-tab")?.dataset.tooltip).toBe("a/b.table.html");
+    const [table, blank] = strip.querySelectorAll<HTMLElement>(".editor-tab");
+    expect([table.dataset.spacePath, blank.dataset.tooltip]).toEqual(["a/b.table.html", "New tab"]);
 
     strip.querySelector<HTMLButtonElement>(".editor-group-new-tab")?.click();
     expect(tabs.onNew).toHaveBeenCalledTimes(1);
+  });
+
+  // A tab not shown whose file a page draws names it for its preview
+  // (tabPreview.ts), which shows the path in place of the tooltip.
+  it("names a tab's file for its preview while the tab isn't shown, and gives every other a tooltip", () => {
+    const { stripHost, group } = setup();
+    const kept = { id: "v1", time: Date.UTC(2026, 10, 2, 9, 30), source: "edit" } as const;
+    const tabs: Tab[] = [
+      { kind: "document", path: "notes/a.md", documentType: "note" },
+      { kind: "document", path: "story/act.fountain", documentType: "screenplay" },
+      { kind: "table", path: "b.table.html" },
+      { kind: "flow", path: "c.flow.html" },
+      { kind: "version", path: "notes/a.md", version: kept },
+      { kind: "document", path: "notes/plain.txt", documentType: "note" },
+    ];
+    const drawn = () =>
+      [...stripHost.querySelectorAll<HTMLElement>(".editor-tab")].map(
+        (pill) => pill.dataset.spacePath ?? `tooltip: ${pill.dataset.tooltip}`,
+      );
+
+    group.renderTabs(tabs, 0);
+    expect(drawn()).toEqual([
+      "tooltip: notes/a.md",
+      "story/act.fountain",
+      "b.table.html",
+      "tooltip: c.flow.html",
+      expect.stringMatching(/^tooltip: notes\/a\.md, kept /),
+      "tooltip: notes/plain.txt",
+    ]);
+
+    group.renderTabs(tabs, 2);
+    expect(drawn().slice(0, 3)).toEqual(["notes/a.md", "story/act.fountain", "tooltip: b.table.html"]);
   });
 
   it("hands a right-click on a pill to the tab's own menu, in place of the browser's", () => {

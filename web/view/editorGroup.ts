@@ -16,6 +16,7 @@ import { type EntryIcon, folderTitle, isForeignRootTab, stripExtension } from ".
 import { entryIconAt } from "../core/spaceTree.ts";
 import { dateTimeLabel, versionWhen } from "../lib/dateText.ts";
 import { must, setEntryIcon } from "../lib/dom.ts";
+import { pageKind } from "../notePreview.ts";
 import type { EditorPane, EditorPaneRegistry, PaneGroup, PaneTabKind } from "../services/editorPanes.ts";
 
 export interface EditorGroupTabCallbacks {
@@ -97,6 +98,22 @@ function tabTitle(tab: Tab): string {
   if (tab.kind === "find-context") return `Find in context: ${tab.path || "(space root)"}`;
   if (tab.kind === "version") return `${tab.path}, kept ${dateTimeLabel(tab.version.time)}`;
   return tab.path;
+}
+
+// A tab not shown whose file a page draws previews it while the pointer rests
+// on its pill (tabPreview.ts). The pill carries the path for that, as a link
+// does, and the preview shows the path in place of the tooltip, which would
+// open over it. Only a document's or a Table's tab: a version's shows another
+// text.
+function previewedPath(tab: Tab, shown: boolean): string | undefined {
+  if (shown || (tab.kind !== "document" && tab.kind !== "table")) return undefined;
+  return pageKind(tab.path) ? tab.path : undefined;
+}
+
+// Writes a data attribute only where it changes, and takes it away for none.
+function setData(element: HTMLElement, key: string, value: string | undefined): void {
+  if (value === undefined) delete element.dataset[key];
+  else if (element.dataset[key] !== value) element.dataset[key] = value;
 }
 
 // A file's tab shows the icon its tree row does, and only then: a plain file
@@ -267,14 +284,15 @@ function setSelected(pill: HTMLButtonElement, on: boolean): void {
   pill.tabIndex = on ? 0 : -1;
 }
 
-// Brings a pill in line with its tab. A kept pill is drawn again on every
-// render, so nothing is written that already matches.
+// Brings a pill in line with its tab, once its selection is set. A kept pill
+// is drawn again on every render, so nothing is written that already matches.
 function drawPill(pill: HTMLButtonElement, tab: Tab, panelId: string): void {
   // A file outside the space says so on its tab — the stripe's colour is
   // about which root it lives in, not whether it can be edited.
   pill.classList.toggle("foreign-root", isForeignRootTab(tab));
-  const title = tabTitle(tab);
-  if (pill.dataset.tooltip !== title) pill.dataset.tooltip = title;
+  const previewed = previewedPath(tab, pill.classList.contains("active"));
+  setData(pill, "spacePath", previewed);
+  setData(pill, "tooltip", previewed === undefined ? tabTitle(tab) : undefined);
   if (panelId && pill.getAttribute("aria-controls") !== panelId) pill.setAttribute("aria-controls", panelId);
 
   const icon = tabIcon(tab);
@@ -683,7 +701,10 @@ export function createEditorGroupView(options: EditorGroupOptions): EditorGroupV
     // steps down: what the model draws next matches, so nothing rises.
     attach(tab, pill, at) {
       const was = drawnActive === undefined ? -1 : drawnTabs.indexOf(drawnActive);
-      if (was !== -1) setSelected(drawnPills[was], false);
+      if (was !== -1) {
+        setSelected(drawnPills[was], false);
+        drawPill(drawnPills[was], drawnTabs[was], host.id);
+      }
       const list = [...drawnTabs];
       list.splice(at, 0, tab);
       drawnTabs = list;
