@@ -25,6 +25,7 @@ import {
   FRAME_KINDS,
   type FrameKind,
   GET_FIELD_SLOTS,
+  intValue,
   nodePorts,
   type SlotSpec,
   TEMPLATE_VARIABLE_SLOTS,
@@ -137,6 +138,27 @@ interface AddChoice {
 }
 
 const FRAME_LABELS: Record<FrameKind, string> = { start: "Start frame", end: "End frame" };
+
+// The longest a pin's value shows on hover: a long text is cut short.
+const PIN_VALUE_MAX = 50;
+
+/** A pin's value as its dot shows it: one line, at most PIN_VALUE_MAX
+ * characters. */
+export function pinValueText(value: string): string {
+  const line = value.replace(/\s+/g, " ").trim();
+  return line.length > PIN_VALUE_MAX ? `${line.slice(0, PIN_VALUE_MAX - 1)}…` : line;
+}
+
+// The values a Prompt, a Choice or an Int keeps in its config, by output
+// port, as a run hands them on; undefined for a node that keeps none there.
+function configPinValues(node: FlowNodeInstance): Record<string, string | undefined> | undefined {
+  const text = (key: string) => (typeof node.config[key] === "string" ? (node.config[key] as string) : "");
+  if (node.type === "prompt") return { text: text("text") };
+  if (node.type === "choice") return { text: text("text") || choiceOptions(node.config)[0] };
+  if (node.type !== "int") return undefined;
+  const value = intValue(text("value"));
+  return { int: value === undefined ? undefined : String(value) };
+}
 
 const TEMPLATE_VARIABLE_VIEW: SlotView = { ...TEMPLATE_VARIABLE_SLOTS, noun: "variable" };
 const GET_FIELD_VIEW: SlotView = { ...GET_FIELD_SLOTS, noun: "field" };
@@ -372,6 +394,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // its hold on the Spellcheck setting.
   const textEditors = new Map<string, Disposable>();
   const generationViews = new Map<string, GenerationView>();
+  // A dot beside its file, whose label is hidden, with the name it shows
+  // while it has no value of its own to show.
+  const unnamedDots = new WeakMap<HTMLElement, string>();
   // Each Load Video's clip, by node id, so its player goes with the card.
   const clipPickers = new Map<string, ClipPicker>();
   // Per slotted node, what shows or hides its "+" for what's revealed and
@@ -416,6 +441,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     layoutChanged: deps.onLayoutChange,
     previewResult: deps.previewResult,
     contextMenu: deps.contextMenu,
+    showPinValues,
   });
 
   // A node's error line: a run's failure, or a loader's missing file before
@@ -528,12 +554,36 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     deps.onLayoutChange(nodeId);
   }
 
-  // A pin's description is the tooltip of its pin, its name and its field,
-  // never of its row: a path pin's row also holds the drop target, and a
-  // model field keeps its own tooltip, the model's full name.
+  // A pin's description is the tooltip of its name and its field, never of
+  // its dot, which shows the value a node holds itself, nor of its row: a
+  // path pin's row also holds the drop target, and a model field keeps its
+  // own tooltip, the model's full name.
   function describePin(port: FlowPort | undefined, ...els: HTMLElement[]): void {
     if (!port?.description) return;
     for (const el of els) el.dataset.tooltip = port.description;
+  }
+
+  // What a node's output dots show on hover: the values it holds itself, a
+  // loaded file's facts or what is typed or picked on it, on one line. Every
+  // dot the call doesn't name shows nothing; a node that holds none has no
+  // dot tooltips at all.
+  function showPinValues(node: FlowNodeInstance, values: Record<string, string | undefined>): void {
+    for (const port of nodePorts(node).outputs) {
+      const handle = outputHandleEls.get(`${node.id}:${port.id}`);
+      const value = values[port.id];
+      if (!handle) continue;
+      const name = unnamedDots.get(handle);
+      if (value) handle.dataset.tooltip = pinValueText(value);
+      else if (name) handle.dataset.tooltip = name;
+      else delete handle.dataset.tooltip;
+    }
+  }
+
+  // The values Prompt, Choice and Int keep in their config, shown again on
+  // each edit that changes them.
+  function showConfigPinValues(node: FlowNodeInstance): void {
+    const values = configPinValues(node);
+    if (values) showPinValues(node, values);
   }
 
   function createPortRow(node: FlowNodeInstance, port: FlowPort, type: XYHandleType): HTMLDivElement {
@@ -544,7 +594,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     label.className = "flow-port-label";
     label.textContent = port.label;
     const handle = createHandleEl(nodeId, port.id, type, port.type);
-    describePin(port, handle, label);
+    describePin(port, label);
     // A plain input marked optional (FlowPort.required === false, e.g.
     // generate's image_1-image_5) fades like a widget input's unconnected pin.
     // Always starts unconnected: the canvas's correction pass and live edge
@@ -576,6 +626,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const { label, description } = port;
     const named = description && new RegExp(`\\b${label}\\b`, "i").test(description);
     handle.dataset.tooltip = !description ? label : named ? description : `${label}\n${description}`;
+    unnamedDots.set(handle, handle.dataset.tooltip);
   }
 
   // A path pin's row, moved from the inputs to the left of the drop target
@@ -639,6 +690,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const save = (value: string) => {
       node.config[field.key] = value;
       deps.persistGraph();
+      showConfigPinValues(node);
     };
 
     if (field.type === "integer") {
@@ -827,7 +879,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       control = input;
     }
     control.classList.add("nodrag");
-    describePin(port, handle, label, ...(modelKind ? [] : [control]));
+    describePin(port, label, ...(modelKind ? [] : [control]));
     const key = `${node.id}:${port.id}`;
     inputWidgetEls.set(key, control);
     optionalHandleEls.set(key, handle);
@@ -857,7 +909,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const label = document.createElement("span");
     label.className = "flow-port-label";
     label.textContent = port.label;
-    describePin(port, handle, label);
+    describePin(port, label);
     row.append(handle, label);
     const key = `${node.id}:${port.id}`;
     optionalHandleEls.set(key, handle);
@@ -975,7 +1027,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const label = document.createElement("span");
     label.className = "flow-port-label";
     label.textContent = port.label;
-    describePin(port, handle, label);
+    describePin(port, label);
 
     const select = createSelectControl(
       affixModeOf(node),
@@ -1098,7 +1150,6 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     });
     describePin(
       nodePorts(node).inputs.find((port) => port.id === portId),
-      handle,
       input,
     );
     row.append(handle, name);
@@ -1437,7 +1488,6 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     describePin(
       nodePorts(node).outputs.find((port) => port.id === portId),
       control,
-      handle,
     );
     row.append(control, handle);
     return row;
@@ -1500,6 +1550,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
             if (!update.docChanged) return;
             node.config.text = update.state.doc.toString();
             deps.persistGraph();
+            showConfigPinValues(node);
           }),
         ],
       }),
@@ -1535,6 +1586,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const select = createSelectControl("", [], (value) => {
       node.config.text = value;
       deps.persistGraph();
+      showConfigPinValues(node);
     });
     pickField.append(pickLabel, select);
 
@@ -1566,6 +1618,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       if (picked() && !choiceOptions(node.config).includes(picked())) delete node.config.text;
       renderPick();
       deps.persistGraph();
+      showConfigPinValues(node);
     });
     attachPlaceholderSuggestions(textarea, () => dateChoices(new Date()));
 
@@ -1985,6 +2038,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     }
     outputsEl.append(...createMissingPinRows(flowNode, "source"));
     bodyEl.append(inputsEl, outputsEl);
+    showConfigPinValues(flowNode);
 
     const contentEl = document.createElement("div");
     contentEl.className = "flow-node-content";

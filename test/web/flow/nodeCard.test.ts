@@ -505,13 +505,15 @@ describe("nodeCard", () => {
     }
   }
 
-  it("describes a pin over the pin, its name and its field, never its row", () => {
+  // The dot is left for a value its node holds itself.
+  it("describes a pin over its name and its field, never its dot or its row", () => {
     const { cards } = setup();
     const row = rowNamed(cards.build(node("resolvePath")), "base");
     const description = portDescription("resolvePath", "base");
     expect(description).toBeTruthy();
     expect(row.dataset.tooltip).toBeUndefined();
-    for (const part of [".handle", ".flow-port-label", "input"]) {
+    expect(row.querySelector<HTMLElement>(".handle")?.dataset.tooltip).toBeUndefined();
+    for (const part of [".flow-port-label", "input"]) {
       expect(row.querySelector<HTMLElement>(part)?.dataset.tooltip, part).toBe(description);
     }
   });
@@ -558,7 +560,7 @@ describe("nodeCard", () => {
 
     const write = cards.build(node("writeNote"));
     expect(pin(write, "target")).toBe("path");
-    expect(pin(write, "source")).toBe(description(FLOW_NODE_REGISTRY.writeNote.outputs));
+    expect(pin(write, "source")).toBeUndefined();
   });
 
   it("describes a slot's pin over the pin and the field beside it", () => {
@@ -566,15 +568,44 @@ describe("nodeCard", () => {
     const variable = cards.build(node("templateVariables")).querySelector(".flow-port-row.has-label") as HTMLElement;
     const description = portDescription("templateVariables", "var_1");
     expect(description).toBeTruthy();
-    for (const part of [".handle", ".flow-variable-name-input"]) {
-      expect(variable.querySelector<HTMLElement>(part)?.dataset.tooltip, part).toBe(description);
-    }
+    expect(variable.querySelector<HTMLElement>(".handle")?.dataset.tooltip).toBeUndefined();
+    expect(variable.querySelector<HTMLElement>(".flow-variable-name-input")?.dataset.tooltip).toBe(description);
 
     withDescription(FLOW_NODE_REGISTRY.getField.outputs[0], (slotDescription) => {
       const field = cards.build(node("getField")).querySelector(".flow-node-outputs .flow-port-row") as HTMLElement;
-      expect(field.querySelector<HTMLElement>(".handle")?.dataset.tooltip).toBe(slotDescription);
+      expect(field.querySelector<HTMLElement>(".handle")?.dataset.tooltip).toBeUndefined();
       expect((field.firstElementChild as HTMLElement).dataset.tooltip).toBe(slotDescription);
     });
+  });
+
+  // A node that holds its own value shows it on the dot that hands it on.
+  it("shows a Prompt's text on its dot, on one line and cut to 50 characters", () => {
+    const { cards } = setup();
+    const dot = (el: HTMLElement) =>
+      el.querySelector<HTMLElement>('.handle.source[data-handleid="text"]')?.dataset.tooltip;
+    expect(dot(cards.build(node("prompt", { text: "Steam rises" })))).toBe("Steam rises");
+    const long = "A red cup on a wooden table,\nsteam rising past a window at dawn, rain outside";
+    expect(dot(cards.build({ ...node("prompt", { text: long }), id: "prompt-2" }))).toBe(
+      "A red cup on a wooden table, steam rising past a …",
+    );
+  });
+
+  it("shows an Int's number and a Choice's pick, the first option while none is picked", () => {
+    const { cards } = setup();
+    const dot = (el: HTMLElement, port: string) =>
+      el.querySelector<HTMLElement>(`.handle.source[data-handleid="${port}"]`)?.dataset.tooltip;
+    expect(dot(cards.build(node("int", { value: "42" })), "int")).toBe("42");
+    expect(dot(cards.build({ ...node("int"), id: "int-2" }), "int")).toBe("0");
+    expect(dot(cards.build(node("choice", { options: "Dawn\nDusk" })), "text")).toBe("Dawn");
+    expect(dot(cards.build({ ...node("choice", { options: "Dawn\nDusk", text: "Dusk" }), id: "c-2" }), "text")).toBe(
+      "Dusk",
+    );
+  });
+
+  it("leaves the dots of a node that holds no value of its own without a tooltip", () => {
+    const { cards } = setup();
+    const el = cards.build(node("joinText"));
+    expect(el.querySelector<HTMLElement>('.handle.source[data-handleid="text"]')?.dataset.tooltip).toBeUndefined();
   });
 
   it("keeps a collapsed card's caption at the width the card has open", () => {
@@ -1003,7 +1034,7 @@ describe("an Applet node's card", () => {
     const frame = [...rebuilt.querySelectorAll<HTMLElement>(".flow-node-outputs .flow-port-row")].find(
       (row) => row.querySelector(".flow-port-label")?.textContent === "frame",
     );
-    expect(frame?.querySelector<HTMLElement>(".handle")?.dataset.tooltip).toBe("The camera's view.");
+    expect(frame?.querySelector<HTMLElement>(".flow-port-label")?.dataset.tooltip).toBe("The camera's view.");
   });
 
   it("draws its pins from the ports its config records, named by their ids", () => {

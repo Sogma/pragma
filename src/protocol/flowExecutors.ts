@@ -288,8 +288,14 @@ function nodePath(
 
 // What a node hands on names its entry from the root, so the path means one
 // entry wherever it is wired or written.
+/** The path a node hands on for one its Flow stores: from the root, `/…`, or
+ * `lib:<id>/…` in a library. */
+export function rootPathOf(flowPath: string, declared: string): string {
+  return formatRootPath(resolveDeclaredPath(dirnameOf(flowPath), declared));
+}
+
 function outputPath(context: NodeExecutionContext, declared: string): PortValue {
-  return { type: "text", value: formatRootPath(resolveDeclaredPath(dirnameOf(context.flowPath), declared)) };
+  return { type: "text", value: rootPathOf(context.flowPath, declared) };
 }
 
 // A loader's `path`, the file it read; "" when it read none.
@@ -798,7 +804,7 @@ const loadVideo: NodeExecutor = async (node, inputs, context): Promise<Record<st
   const result = await context.sandbox.read("flow", context.flowPath, videoPath);
   if (result.kind !== "video") throw new Error(`"${videoPath}" is no longer a video clip`);
   const { kind: _kind, ...clip } = result;
-  const path = formatRootPath(resolveDeclaredPath(dirnameOf(context.flowPath), videoPath));
+  const path = rootPathOf(context.flowPath, videoPath);
   // A fact the header doesn't give leaves its output out, as an unwired one.
   const facts: Record<string, PortValue> = {};
   const { width, height, duration, frameRate } = clip;

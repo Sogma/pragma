@@ -9,7 +9,8 @@
 // everything else is its own DOM.
 
 import type { ClipFacts } from "../../src/protocol/api.ts";
-import type { PortValue } from "../../src/protocol/flowExecutors.ts";
+import { formatAspectRatio } from "../../src/protocol/aspectRatio.ts";
+import { type PortValue, rootPathOf } from "../../src/protocol/flowExecutors.ts";
 import { FLOW_NODE_REGISTRY } from "../../src/protocol/flowNodes.ts";
 import { basenameOf, formatRootedPath, isLibraryRoot, type RootedPath } from "../../src/protocol/rootedPath.ts";
 import {
@@ -37,7 +38,7 @@ import {
   tableContentsLabel,
 } from "../core/paths.ts";
 import { pathNames } from "../core/spaceTree.ts";
-import { formatDimensions, formatDuration, formatFrameRate } from "../lib/dom.ts";
+import { formatFrameRate } from "../lib/dom.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 import { appendSelectOptions, createSelectControl, fillPickSelect, regenerateHint } from "./controls.ts";
@@ -94,6 +95,9 @@ export interface PickerDeps {
   previewResult(path: string): void;
   // Where a result clip's More options menu opens.
   contextMenu: ContextMenuService;
+  // What a loader's output dots show on hover: the facts of the file it read,
+  // by output port; a port left out shows nothing.
+  showPinValues(node: FlowNodeInstance, values: Record<string, string | undefined>): void;
 }
 
 export interface Pickers {
@@ -393,16 +397,41 @@ function createSpaceDropTarget(
 
 // A read's 404: nothing at the path, as after its file moved or went. Its
 // message is the one a run reports for the same path.
-/** A clip's size, length and frame rate, as far as its header gives them. */
-export function describeClip(clip: Omit<ClipFacts, "mediaType" | "digest">): string {
+// A length in seconds, or a size in pixels, to at most three decimals.
+const measure = (value: number | null, unit: string): string | undefined =>
+  value === null ? undefined : `${Number(value.toFixed(3))} ${unit}`;
+
+/** What a Load Video's output dots show for the clip it read, by port. The
+ * `video` dot shows nothing: it hands on a clip, never text. */
+export function clipPinValues(clip: ClipFacts, name: string, path: string): Record<string, string | undefined> {
   const { width, height, duration, frameRate, variableFrameRate } = clip;
-  return [
-    width !== null && height !== null ? formatDimensions(width, height, "") : undefined,
-    duration !== null ? formatDuration(duration) : undefined,
-    formatFrameRate({ codec: null, frameRate, variableFrameRate }),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  return {
+    name,
+    width: measure(width, "px"),
+    height: measure(height, "px"),
+    aspect_ratio: width !== null && height !== null ? formatAspectRatio(width, height) : undefined,
+    duration: measure(duration, "s"),
+    fps: formatFrameRate({ codec: null, frameRate, variableFrameRate }),
+    path,
+  };
+}
+
+/** What a Load Image's output dots show for the picture it read, by port;
+ * `path` is blank for a picture picked from the computer. The `image` dot
+ * shows nothing: it hands on a picture, never text. */
+export function picturePinValues(
+  picture: { width: number; height: number },
+  name: string,
+  path: string,
+): Record<string, string | undefined> {
+  const { width, height } = picture;
+  return {
+    name,
+    width: `${width} px`,
+    height: `${height} px`,
+    aspect_ratio: formatAspectRatio(width, height),
+    path: path || undefined,
+  };
 }
 
 function isMissingFile(error: unknown): error is ApiError {
@@ -527,6 +556,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     function clear(): void {
       deps.pickedImages.delete(node.id);
       zone.replaceChildren("Click or drop an image", input);
+      deps.showPinValues(node, {});
       showLocation("");
       if (node.config.imagePath !== undefined) {
         node.config.imagePath = undefined;
@@ -535,11 +565,17 @@ export function createPickers(deps: PickerDeps): Pickers {
     }
 
     // A picture from the computer has no file to preview, so it says so to
-    // the pointer (widgets.css).
-    function showPreview(dataUrl: string, file: PickedFile, stored = true): void {
-      const picture = createPickedPicture(dataUrl, file).el;
-      picture.classList.toggle("unstored", !stored);
-      zone.replaceChildren(picture, input);
+    // the pointer (widgets.css). The output dots take its size once decoded.
+    function showPreview(dataUrl: string, file: PickedFile, pins: { name: string; path: string }, stored = true): void {
+      const { el, img } = createPickedPicture(dataUrl, file);
+      el.classList.toggle("unstored", !stored);
+      zone.replaceChildren(el, input);
+      deps.showPinValues(node, {});
+      img.addEventListener("load", () => {
+        const { naturalWidth: width, naturalHeight: height } = img;
+        if (!width || !height) return;
+        deps.showPinValues(node, picturePinValues({ width, height }, pins.name, pins.path));
+      });
     }
 
     function handleFile(file: File): void {
@@ -552,7 +588,8 @@ export function createPickers(deps: PickerDeps): Pickers {
         const dataUrl = typeof reader.result === "string" ? reader.result : "";
         const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
         deps.pickedImages.set(node.id, { mediaType: file.type, data: base64, name: file.name });
-        showPreview(dataUrl, { name: file.name, size: file.size }, false);
+        const pins = { name: stripExtension(file.name), path: "" };
+        showPreview(dataUrl, { name: file.name, size: file.size }, pins, false);
         showLocation("", file.name);
         if (node.config.imagePath !== undefined) {
           node.config.imagePath = undefined;
@@ -579,11 +616,13 @@ export function createPickers(deps: PickerDeps): Pickers {
         const result = await deps.read(storedPath);
         if (result?.kind !== "image") return;
         deps.pickedImages.delete(node.id);
-        showPreview(`data:${result.mediaType};base64,${result.data}`, storedFile(shown(storedPath), result.data));
+        const pins = { name: stripExtension(basenameOf(storedPath)), path: rootPathOf(deps.flowPath(), storedPath) };
+        showPreview(`data:${result.mediaType};base64,${result.data}`, storedFile(shown(storedPath), result.data), pins);
       } catch (error) {
         if (isMissingFile(error)) {
           // An earlier picture would stand for a file Run can't read.
           zone.replaceChildren("Click or drop an image", input);
+          deps.showPinValues(node, {});
           location.setMissing(error.message);
         } else {
           zone.textContent = error instanceof Error ? error.message : "Couldn't load that image.";
@@ -701,11 +740,16 @@ export function createPickers(deps: PickerDeps): Pickers {
     async function refresh(consented = false): Promise<void> {
       const path = stored();
       clip.show(path ? shown(path) : undefined);
+      clip.showFacts(undefined);
+      deps.showPinValues(node, {});
       if (!path || pathWired(node)) return;
       if (!(await deps.ensureCapability({ type: "readFile", path }, consented))) return;
       try {
         const result = await deps.read(path);
-        if (result?.kind === "video") target.setDetail(describeClip(result));
+        if (result?.kind !== "video") return;
+        clip.showFacts(result);
+        const name = stripExtension(basenameOf(path));
+        deps.showPinValues(node, clipPinValues(result, name, rootPathOf(deps.flowPath(), path)));
       } catch (error) {
         if (!isMissingFile(error)) {
           target.showMessage(error instanceof Error ? error.message : "Couldn't read that clip.");
@@ -742,10 +786,9 @@ export function createPickers(deps: PickerDeps): Pickers {
     deps.bindExposeToggle(node, "videoPath", "video", target.elements[0], target.elements[0]);
     void refresh();
 
-    // The facts line goes under the clip it describes, not under the chip as
-    // on the other loaders.
-    const [chip, facts] = target.elements;
-    wrap.append(chip, clip.el, facts);
+    // The clip's facts are on its hover bar, so the chip takes no stat line.
+    const [chip] = target.elements;
+    wrap.append(chip, clip.el);
     return { el: wrap, target: chip, dispose: clip.dispose };
   }
 

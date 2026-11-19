@@ -5,7 +5,7 @@ import type { FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE, noteDragInFlight } from "../../../web/core/paths.ts";
 import type { WritePathOptions } from "../../../web/core/spaceTree.ts";
-import { createPickers, describeClip, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
+import { createPickers, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
 import { fakeDrag } from "../support/drag.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
@@ -64,6 +64,7 @@ function setup(overrides: Partial<PickerDeps> = {}) {
     remount: vi.fn(),
     previewResult: vi.fn(),
     contextMenu: fakeContextMenu(),
+    showPinValues: vi.fn(),
     ...overrides,
   };
   return { deps, pickers: createPickers(deps) };
@@ -915,19 +916,88 @@ describe("pickers", () => {
   });
 });
 
-describe("a Load Video card's facts line", () => {
-  it("gives the size, length and frame rate, marking a rate that varies as its average", () => {
-    const facts = { width: 1080, height: 1920, duration: 10.5 };
-    expect(describeClip({ ...facts, frameRate: 24000 / 1001, variableFrameRate: false })).toBe(
-      "1080 × 1920 (9:16) · 0:10 · 23.976 fps",
-    );
-    expect(describeClip({ ...facts, frameRate: 29.97, variableFrameRate: true })).toBe(
-      "1080 × 1920 (9:16) · 0:10 · 30 fps (variable)",
+// A loader's output dots show the file it read, as its pins will hand it on.
+describe("a loader's dot values", () => {
+  const wired = (_nodeId: string, port: string) =>
+    port === "path" ? { node: node("resolvePath"), portId: "path" } : undefined;
+
+  it("gives a Load Video's dots the clip's facts once it is read", async () => {
+    const clip = {
+      kind: "video",
+      mediaType: "video/mp4",
+      digest: "ab".repeat(32),
+      width: 480,
+      height: 854,
+      duration: 6.006,
+      frameRate: 24,
+      variableFrameRate: false,
+    } as SandboxReadResult;
+    const { deps, pickers } = setup({ read: vi.fn(async () => clip) });
+    const flowNode = node("loadVideo", { videoPath: "shots/take.mp4" });
+    pickers.createVideoPicker(flowNode);
+    await vi.waitFor(() =>
+      expect(deps.showPinValues).toHaveBeenLastCalledWith(flowNode, {
+        name: "take",
+        width: "480 px",
+        height: "854 px",
+        aspect_ratio: "9:16",
+        duration: "6.006 s",
+        fps: "24 fps",
+        path: "/shots/take.mp4",
+      }),
     );
   });
 
-  it("leaves out what the header doesn't give", () => {
-    const none = { width: null, height: null, duration: null, frameRate: null, variableFrameRate: false };
-    expect(describeClip({ ...none, duration: 4 })).toBe("0:04");
+  // The facts sit on the clip's hover bar, as the file preview lays them,
+  // and the card has no line of them under the clip.
+  it("lays a Load Video's clip facts along the clip's top, with no line under it", async () => {
+    const clip = {
+      kind: "video",
+      mediaType: "video/mp4",
+      digest: "ab".repeat(32),
+      width: 1080,
+      height: 1920,
+      duration: 10,
+      frameRate: 29.97,
+      variableFrameRate: true,
+    } as SandboxReadResult;
+    const { pickers } = setup({ read: vi.fn(async () => clip) });
+    const picker = pickers.createVideoPicker(node("loadVideo", { videoPath: "shots/phone.mp4" }));
+    const hud = picker.el.querySelector<HTMLElement>(".media-hud") as HTMLElement;
+    expect(hud.hidden).toBe(true);
+    await vi.waitFor(() => expect(hud.hidden).toBe(false));
+    expect([...hud.querySelectorAll(".media-hud-bar > span")].map((cell) => cell.textContent)).toEqual([
+      "1080 × 1920 (9:16)",
+      "30 fps (variable)",
+    ]);
+    expect(picker.el.querySelector(".flow-node-detail")).toBeNull();
+  });
+
+  it("leaves a Load Video's dots empty while its path comes on a wire", async () => {
+    const { deps, pickers } = setup({ sourceOf: vi.fn(wired) });
+    const flowNode = node("loadVideo", { videoPath: "shots/take.mp4" });
+    pickers.createVideoPicker(flowNode);
+    await tick();
+    expect(deps.showPinValues).toHaveBeenLastCalledWith(flowNode, {});
+    expect(deps.read).not.toHaveBeenCalled();
+  });
+
+  it("gives a Load Image's dots its picture's facts once the picture decodes", async () => {
+    const picture = { kind: "image", mediaType: "image/png", data: "iVBORw0KGgo=" } as SandboxReadResult;
+    const { deps, pickers } = setup({ read: vi.fn(async () => picture) });
+    const flowNode = node("loadImage", { imagePath: "art/door.png" });
+    const picker = pickers.createDropzone(flowNode);
+    await vi.waitFor(() => expect(picker.el.querySelector("img")).toBeTruthy());
+    const img = picker.el.querySelector("img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 1024 });
+    Object.defineProperty(img, "naturalHeight", { value: 768 });
+    img.dispatchEvent(new Event("load"));
+    expect(deps.showPinValues).toHaveBeenLastCalledWith(flowNode, {
+      name: "door",
+      width: "1024 px",
+      height: "768 px",
+      aspect_ratio: "4:3",
+      path: "/art/door.png",
+    });
   });
 });
