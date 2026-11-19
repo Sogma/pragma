@@ -59,6 +59,7 @@ import {
 import { EMPTY_TAB_MENU } from "./view/panes/emptyPane.ts";
 import { isFlowPane } from "./view/panes/flowPane.ts";
 import { isGalleryPane, treeRowMenu } from "./view/panes/galleryPane.ts";
+import { lutPane } from "./view/panes/lutPane.ts";
 import { versionPane } from "./view/panes/versionPane.ts";
 import { type AppIndicators, createStatusbar, PATH_FOLDER_MENU, type Statusbar } from "./view/statusbar.ts";
 import { createTabDrag, type TabDragStrip } from "./view/tabDrag.ts";
@@ -483,6 +484,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     await tabs.reloadPath(path);
   }
   panes.register(versionPane({ restore: restoreVersion }));
+  panes.register(lutPane());
 
   // The focused group's pane first, so a document open on both sides takes
   // a proposal where the writer is working.

@@ -19,6 +19,7 @@ import {
   nodeFileType,
   pendingFileType,
   pragmaFileLabel,
+  rawTabKind,
   shownTitle,
   stripExtension,
   tableContentsLabel,
@@ -223,6 +224,15 @@ describe("mediaTabKind / fileTypeClass", () => {
       expect(fileTypeClass(path), path).toBe(kind);
     }
     expect(mediaTabKind("notes/paper.pdf.md")).toBeUndefined();
+  });
+
+  it("opens a LUT as a tab of its own, which no media kind names", () => {
+    expect(rawTabKind("looks/Print.CUBE")).toBe("lut");
+    expect(fileTypeClass("looks/Print.CUBE")).toBe("lut");
+    expect(fileTypeLabel("lut")).toBe("LUT");
+    expect(mediaTabKind("looks/Print.CUBE")).toBeUndefined();
+    expect(rawTabKind("refs/paper.pdf")).toBe("pdf");
+    expect(rawTabKind("notes/print.cube.md")).toBeUndefined();
   });
 
   it("names Pragma's own formats for their icons", () => {

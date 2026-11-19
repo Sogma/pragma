@@ -19,6 +19,7 @@ import {
   isClassFile,
   isFlowFile,
   isFountainFile,
+  isLutFile,
   isMarkdownFile,
   isTableFile,
   pdfMediaTypeForPath,
@@ -159,10 +160,17 @@ export function mediaTabKind(path: string): "image" | "video" | "pdf" | undefine
   return undefined;
 }
 
+/** The tab kind a file opens as when its pane reads it from the raw-file
+ * route itself: media, or a LUT. */
+export function rawTabKind(path: string): "image" | "video" | "pdf" | "lut" | undefined {
+  return mediaTabKind(path) ?? (isLutFile(path) ? "lut" : undefined);
+}
+
 export type FileType =
   | "image"
   | "video"
   | "pdf"
+  | "lut"
   | "markdown"
   | "readme"
   | "fountain"
@@ -183,8 +191,8 @@ export type FileType =
 // colours instead, which only the tree knows: a surface holding a tree node
 // asks below, any other through core/spaceTree.ts.
 export function fileTypeClass(path: string): FileType | undefined {
-  const media = mediaTabKind(path);
-  if (media) return media;
+  const raw = rawTabKind(path);
+  if (raw) return raw;
   if (isAgentsFile(path)) return "agents";
   if (isReadme(path)) return "readme";
   if (isMarkdownFile(path)) return "markdown";
@@ -246,6 +254,7 @@ const FILE_TYPE_LABELS: Record<FileType, string> = {
   image: "Image",
   video: "Video",
   pdf: "PDF",
+  lut: "LUT",
   markdown: "Note",
   readme: "Readme",
   fountain: "Screenplay",

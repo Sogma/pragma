@@ -20,7 +20,7 @@ import {
   isFlowFile,
   isMarkdownFile,
   isTableFile,
-  mediaTypeForPath,
+  rawFileTypeForPath,
 } from "../protocol/types.ts";
 import { entryDescription } from "./descriptions.ts";
 import { documentIndex } from "./documentIndex.ts";
@@ -44,7 +44,7 @@ export const OPENABLE_EXTENSIONS = new Set([".md", ".fountain"]);
 export function isLibraryVisibleFile(name: string): boolean {
   if (isHiddenName(name)) return false;
   return (
-    mediaTypeForPath(name) !== undefined ||
+    rawFileTypeForPath(name) !== undefined ||
     OPENABLE_EXTENSIONS.has(path.extname(name)) ||
     isTableFile(name) ||
     isClassFile(name)

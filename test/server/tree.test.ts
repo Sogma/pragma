@@ -170,6 +170,18 @@ describe("buildTree — every file type", () => {
   });
 });
 
+describe("buildTree — LUTs", () => {
+  beforeEach(() => writeFileSync(path.join(library, "shots", "Print.CUBE"), ""));
+
+  const shotNames = async (root: "space" | "library") =>
+    (await buildTree(library, library, root)).find((node) => node.name === "shots")?.children?.map((node) => node.name);
+
+  it("lists a .cube in the space and in a library, with no setting asked", async () => {
+    expect(await shotNames("space")).toEqual(["day1", "Print.CUBE"]);
+    expect(await shotNames("library")).toEqual(["day1", "Print.CUBE"]);
+  });
+});
+
 describe("listRootPaths", () => {
   beforeEach(() => {
     writeFileSync(path.join(library, "scripts/budget.csv"), "");

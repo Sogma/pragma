@@ -591,6 +591,7 @@ export function mountSpaceRoutes(
     "image",
     "video",
     "pdf",
+    "lut",
     "table",
     "class",
     "flow",

@@ -226,6 +226,13 @@ describe("the layout route", () => {
     expect(await readLayoutGroups(root)).toEqual({ groups: [placed], focusedGroup: 0 });
   });
 
+  it("keeps a LUT's tab", async () => {
+    const root = await space();
+    const group = { tabs: [{ kind: "lut", path: "looks/print.cube" }], activeTabIndex: 0 };
+    expect(await post(root, [group])).toBe(204);
+    expect(await readLayoutGroups(root)).toEqual({ groups: [group], focusedGroup: 0 });
+  });
+
   it("keeps a Flow tab's view, and refuses one that isn't an offset and a zoom", async () => {
     const root = await space();
     const tab = { kind: "flow", path: "a.flow.html", viewport: { x: -120, y: 40.5, zoom: 0.75 } };

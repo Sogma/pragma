@@ -1,0 +1,55 @@
+/* A LUT's tab (web/view/panes/lutPane.ts): the test strip as it is and
+   through the LUT, one over the other so each color sits above its graded
+   self. */
+.editor-lut {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  background: var(--bg-primary);
+}
+
+/* The [hidden] rule beats the unconditional display. */
+.lut-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(100%, 720px);
+}
+
+.lut-body[hidden] {
+  display: none;
+}
+
+.lut-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+}
+
+/* The hairline keeps the ramp's white end from melting into a light pane. */
+.lut-strip canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--box-radius);
+  box-shadow: 0 0 0 1px var(--border-muted);
+}
+
+.lut-strip figcaption {
+  color: var(--text-secondary);
+  font-size: var(--small-font-size);
+}
+
+/* A missing file, or one that isn't a LUT this can apply, centered. */
+.lut-message {
+  margin: auto 0;
+  max-width: 480px;
+  color: var(--text-muted);
+  text-align: center;
+}

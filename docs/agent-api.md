@@ -96,7 +96,7 @@ The MCP encoding of the same surface. Every tool reads except `run_flow`, which 
 
 **Visible** is narrower than "inside the space", and the same in every tool. A dot-prefixed folder never appears — so `.trash/` and `.git/` are not listed — and a document with `visibility: private` in its frontmatter, or frontmatter that doesn't parse, is excluded from listing, search, and reading alike. What a tool will not list it will not read: naming such a path directly answers the same "no such document" as naming one that does not exist.
 
-Raster images, video and PDFs are listed but not readable as text, and a search returns a bounded number of matches. A note's section is named by its heading or that heading's anchor and comes with its subsections; a link is counted only between visible files.
+Raster images, video, PDFs and LUTs are listed but not readable as text, and a search returns a bounded number of matches. A note's section is named by its heading or that heading's anchor and comes with its subsections; a link is counted only between visible files.
 
 **The spec** is `protocol.md` and its Flow node catalog, `flow-nodes.md`, as this install ships them — the formats and rules a space's documents follow — not space content, so it reads the same to every token. A section comes with its subsections, and any heading's anchor names one, a node type's being its type id, so a model can follow the spec's own links.
 

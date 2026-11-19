@@ -33,7 +33,7 @@ import { parseSortChoice, toSortValue } from "../../protocol/folderSort.ts";
 import { isPrivate, parseFrontmatter, withoutPublishState } from "../../protocol/frontmatter.ts";
 import { deleteSogmaDocument } from "../../protocol/publisher.ts";
 import { sameRoot } from "../../protocol/rootedPath.ts";
-import { isMarkdownFile, mediaTypeForPath } from "../../protocol/types.ts";
+import { isMarkdownFile, rawFileTypeForPath } from "../../protocol/types.ts";
 import { documentIndex } from "../documentIndex.ts";
 import { readFolderProperties, writeFolderProperties } from "../folderProperties.ts";
 import { moveHistory } from "../history.ts";
@@ -217,12 +217,14 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
       const name = sanitizeEntryName(requested.split(/[/\\]/).pop() ?? "");
       if (!name) return c.text("Invalid name", 400);
 
-      // The extension decides, and only media passes. The bytes are never
+      // The extension decides, and only media and LUTs pass. The bytes are never
       // sniffed: a root is a folder of files a person also opens in other
       // tools, so a `.png` that isn't one is their file to keep, not this
       // route's to second-guess — and a permissive sniff is how an executable
       // gets written under a name the tree renders as a picture.
-      if (!mediaTypeForPath(name)) return c.text("Only image, video and PDF files can be added this way", 415);
+      if (!rawFileTypeForPath(name)) {
+        return c.text("Only image, video, PDF and LUT files can be added this way", 415);
+      }
 
       const parent = resolveRootedPath(spaceRoot, atRoot(c.req.query("dir")), "write");
       const parentDir = parent.filePath;

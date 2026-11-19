@@ -11,6 +11,7 @@ import { isPrivate, readFrontmatter, withoutPublishState } from "../protocol/fro
 import { isPrivateContent } from "../protocol/privacy.ts";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
 import {
+  isLutFile,
   isMarkdownFile,
   notARasterImage,
   pdfMediaTypeForPath,
@@ -314,6 +315,7 @@ export async function readSpaceFile(spaceRoot: string, relativePath: string): Pr
   if (pdfMediaTypeForPath(onDisk) !== undefined) {
     throw new Error("This is a PDF file. Its text can't be read yet.");
   }
+  if (isLutFile(onDisk)) throw new Error("This is a LUT file. Its contents can't be read as text.");
   const bytes = await readFile(filePath);
   if (bytes.subarray(0, 8000).includes(0)) throw new Error("This file isn't text, so it can't be read.");
   const content = bytes.toString("utf8");

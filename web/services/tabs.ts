@@ -23,7 +23,7 @@ import type {
   TabHistory,
 } from "../core/apiClient.ts";
 import { ensureLibraryPermissions } from "../core/libraries.ts";
-import { isForeignRootTab, isReadOnlyTab, mediaTabKind } from "../core/paths.ts";
+import { isForeignRootTab, isReadOnlyTab, rawTabKind } from "../core/paths.ts";
 import { noteUnlistedWrites } from "../core/spaceTree.ts";
 import { type Direction, historyAfter, pruned, repathed, type Step, step } from "../core/tabHistory.ts";
 import type { EditorGroup } from "../core/workspace.ts";
@@ -545,7 +545,7 @@ export function createTabs(deps: TabsDeps): Tabs {
   // pane to read the bytes of.
   async function openMedia(
     group: EditorGroup,
-    kind: "image" | "video" | "pdf",
+    kind: "image" | "video" | "pdf" | "lut",
     filePath: string,
     token: number,
     beside: boolean,
@@ -670,7 +670,7 @@ export function createTabs(deps: TabsDeps): Tabs {
     // has to be known before the tab renders rather than a moment after,
     // or the pane opens locked and then silently unlocks itself.
     if (isLibraryPath(filePath)) await ensureLibraryPermissions();
-    const media = mediaTabKind(filePath);
+    const media = rawTabKind(filePath);
     await (media
       ? openMedia(group, media, filePath, token, beside, arrival)
       : openFile(group, filePath, token, beside, arrival, view));
@@ -778,6 +778,8 @@ export function createTabs(deps: TabsDeps): Tabs {
         return { kind: "video", path };
       case "pdf":
         return { kind: "pdf", path };
+      case "lut":
+        return { kind: "lut", path };
       case "table":
         return { kind: "table", path };
       case "class":

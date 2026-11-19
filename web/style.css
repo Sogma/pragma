@@ -51,6 +51,7 @@
 @import "./styles/video-volume.css" layer(components);
 @import "./styles/video-guides.css" layer(components);
 @import "./styles/video-lut.css" layer(components);
+@import "./styles/lut-pane.css" layer(components);
 @import "./styles/copy-button.css" layer(primitives);
 @import "./styles/code-block.css" layer(primitives);
 @import "./styles/syntax.css" layer(primitives);

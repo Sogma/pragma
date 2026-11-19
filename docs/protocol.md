@@ -23,7 +23,7 @@ The shared model consists of [document kinds](#document-kinds), [portable tools]
 
 A **space** is a directory tree containing the work and the tools that act on it. A **library** is another root declared by the space and located by the host; its addressing and boundaries are defined in [Addresses and libraries](#addresses-and-libraries).
 
-**Files, documents and notes.** Anything in a space or library is a **file**: a **document** when of a kind below, **media** when an image, video or PDF. A Fountain text document is a **screenplay**, any other a **note**.
+**Files, documents and notes.** Anything in a space or library is a **file**: a **document** when of a kind below, **media** when an image, video or PDF, a **LUT** when a `.cube` color lookup table (see [LUTs](#luts)). A Fountain text document is a **screenplay**, any other a **note**.
 
 A file's **document kind** is decided by extension alone, in any case, never by frontmatter or any in-file marker. Compound suffixes are matched whole (`.table.html`, not the last extension segment).
 
@@ -283,7 +283,7 @@ A reference survives the move of either entry it joins. A host that moves an ent
 
 #### World names
 
-A screenplay links the names it already spells, with nothing written into the file, so it prints unchanged in any Fountain app. Its **world** is every file under the folder its `screenplay.world` setting names (see [Scopes](#scopes)), except media — images, video and PDFs — so a picture kept beside the note it illustrates never shares that note's name; a screenplay no scope gives that setting has none. A name is compared, folding case and Unicode, with each world file's basename less its extension (a compound one like `.table.html` whole), and exactly one match links it; anything else stays plain text. Names are read from three kinds of line:
+A screenplay links the names it already spells, with nothing written into the file, so it prints unchanged in any Fountain app. Its **world** is every file under the folder its `screenplay.world` setting names (see [Scopes](#scopes)), except media — images, video and PDFs — and LUTs, so a picture kept beside the note it illustrates never shares that note's name; a screenplay no scope gives that setting has none. A name is compared, folding case and Unicode, with each world file's basename less its extension (a compound one like `.table.html` whole), and exactly one match links it; anything else stays plain text. Names are read from three kinds of line:
 
 - a **character cue**: the whole cue, less a forced cue's `@`, a dual cue's `^` and any extension such as `(V.O.)`;
 - a **scene heading**: the text between the `INT.`/`EXT.` prefix (or a forced heading's `.`) and any scene number (a `#`, letters, digits, `-` or `.`, and a `#`, ending the line but for its notes, as in `#110A#`), read outside any note as parts separated by ` - `. Two or more leading parts that resolve together link whole, the most parts first, so `INT. VOSTOK STATION - KITCHEN - DAY` links a room's `Vostok Station - Kitchen` file before the station's own. Otherwise the location is the first part alone; a later part never links on its own;
@@ -833,6 +833,12 @@ A Flow has two views over the same graph: the **graph canvas** and **App Mode**,
 - Both dimensions are positive integers. Any other value reads as absent; an absent size uses the host's default for that item.
 - The host determines cell heights, gaps, and defaults, and may cap `rows`. A host presenting App Mode as a list may ignore sizes.
 - Sizes never reorder a run's inputs or results. The [capability digest](#capability-digest) excludes them, so resizing does not require renewed consent.
+
+### LUTs
+
+A LUT is a 3D color lookup table in the Cube format. Keyword lines come first: `LUT_3D_SIZE` gives the points along each axis, `TITLE` a name, and `DOMAIN_MIN` and `DOMAIN_MAX` each channel's input range, 0 to 1 unless given (`LUT_3D_INPUT_RANGE` gives one range for all three). Then comes one row of three numbers, red, green and blue, per point of the cube, red changing fastest, then green, then blue. A line starting `#` is a comment, and a keyword a host doesn't read is passed over.
+
+A host shows a color through a LUT by blending the eight points around it, and a color outside the input range takes the nearest edge's. A file with a 1D table, alone or before its cube, is still a LUT; a host that can't apply one says so. A LUT is never read or edited as text.
 
 ## Execution and authority
 

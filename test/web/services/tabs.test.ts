@@ -99,9 +99,10 @@ describe("restore", () => {
             { kind: "document", path: "b.md" },
             { kind: "document", path: "data.zip" },
             { kind: "pdf", path: "c.pdf" },
+            { kind: "lut", path: "looks/print.cube" },
             { kind: "document", path: "a.fountain" },
           ],
-          activeTabIndex: 3,
+          activeTabIndex: 4,
         },
       ]),
     });
@@ -109,9 +110,10 @@ describe("restore", () => {
     expect(workspace.focusedGroup().tabs).toEqual([
       { kind: "document", path: "b.md", documentType: "note", deferred: true },
       { kind: "pdf", path: "c.pdf" },
+      { kind: "lut", path: "looks/print.cube" },
       { kind: "document", path: "a.fountain", documentType: "screenplay", deferred: true },
     ]);
-    expect(workspace.focusedGroup().activeTabIndex).toBe(2);
+    expect(workspace.focusedGroup().activeTabIndex).toBe(3);
     expect(deps.loadFile).not.toHaveBeenCalled();
     expect(log).toEqual([]);
 

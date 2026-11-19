@@ -42,6 +42,7 @@ import {
   isTableFile,
   mediaTypeForPath,
   rasterImageMediaTypeForPath,
+  rawFileTypeForPath,
   thumbnailKindForPath,
   vectorImageMediaTypeForPath,
   videoMediaTypeForPath,
@@ -130,7 +131,8 @@ const VECTOR_IMAGE_PAGE_POLICY =
 export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteContext): void {
   // Binary counterpart to /api/file, read-only, and never decoded as utf8 —
   // a text decode corrupts an image's, a video's or a PDF's bytes. The media
-  // panes and reading view's inline embeds point their src here.
+  // panes and reading view's inline embeds point their src here, and a LUT's
+  // readers fetch it here.
   //
   // `path` may name the space (bare) or a library (`lib:<id>/…`); the
   // resolver, not this route, decides read access.
@@ -140,8 +142,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       if (!relativePath) return c.text("Missing path query parameter", 400);
 
       const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
-      const mediaType = mediaTypeForPath(filePath);
-      if (!mediaType) return c.text("Not a recognized image, video or PDF file", 404);
+      const mediaType = rawFileTypeForPath(filePath);
+      if (!mediaType) return c.text("Not a recognized image, video, PDF or LUT file", 404);
 
       const { size } = await stat(filePath);
       const range = parseByteRange(c.req.header("range"), size);

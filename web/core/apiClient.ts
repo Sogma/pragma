@@ -419,6 +419,8 @@ export type Tab = (
   | { kind: "image"; path: string }
   | { kind: "video"; path: string }
   | { kind: "pdf"; path: string }
+  // A LUT's facts and a test strip shown through it.
+  | { kind: "lut"; path: string }
   | { kind: "table"; path: string }
   // A Class's notes, read-only, as rows.
   | { kind: "class"; path: string }

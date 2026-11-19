@@ -109,6 +109,16 @@ describe("a screenplay's world", () => {
   });
 });
 
+describe("a world beside its LUTs", () => {
+  it("leaves out a LUT, so a look named for a place never unlinks the place's note", () => {
+    const world = createWorldIndex(
+      [...SPACE, "projects/forbidden/world/characters/Lina.cube"],
+      "projects/forbidden/world",
+    );
+    expect(resolveWorldName(world, "LINA")).toBe("projects/forbidden/world/characters/Lina.md");
+  });
+});
+
 describe("names in a character cue", () => {
   it("links the whole cue", () => {
     expect(linked("LINA", "character")).toEqual(["LINA → Lina.md"]);

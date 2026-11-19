@@ -3,7 +3,7 @@
 // A link never does this; a wikilink is a path, so a file of the same name
 // elsewhere can't change what it opens.
 import { entryNameKey } from "./entryName.ts";
-import { hasKnownKind } from "./types.ts";
+import { hasKnownKind, isLutFile } from "./types.ts";
 import { wikilinkStem } from "./wikilink.ts";
 
 /** Every file in one root, keyed the two ways a name is looked up. Both are
@@ -13,8 +13,8 @@ export interface NameIndex {
   /** Folded full path → the path as written. */
   byPath: ReadonlyMap<string, string>;
   /** Folded stem → every path carrying it, in listing order. Two entries
-   * means neither. A file of no kind is left out, so listing one never makes
-   * a name ambiguous. */
+   * means neither. A file of no kind, or a LUT, is left out, so listing one
+   * never makes a name ambiguous. */
   byStem: ReadonlyMap<string, readonly string[]>;
 }
 
@@ -26,7 +26,7 @@ export function createNameIndex(paths: readonly string[]): NameIndex {
   for (const filePath of paths) {
     const folded = entryNameKey(filePath);
     if (!byPath.has(folded)) byPath.set(folded, filePath);
-    if (!hasKnownKind(filePath)) continue;
+    if (!hasKnownKind(filePath) || isLutFile(filePath)) continue;
     const stem = entryNameKey(wikilinkStem(filePath));
     const sharing = byStem.get(stem);
     if (sharing) sharing.push(filePath);

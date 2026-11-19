@@ -48,6 +48,11 @@
   --entry-glyph: var(--icon-pdf);
 }
 
+/* Not media, but no Pragma format either, so it keeps the default color. */
+[data-entry-icon="lut"] {
+  --entry-glyph: var(--icon-cube);
+}
+
 [data-entry-icon="fountain"] {
   --entry-glyph: var(--icon-fountain);
 }

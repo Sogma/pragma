@@ -8,6 +8,7 @@ import {
   imageMediaTypeForPath,
   isFlowFile,
   isFountainFile,
+  isLutFile,
   isMarkdownFile,
   isNewerFormatVersion,
   isTableFile,
@@ -18,6 +19,7 @@ import {
   parseTimestamp,
   pdfMediaTypeForPath,
   rasterImageMediaTypeForPath,
+  rawFileTypeForPath,
   splitDocumentName,
   thumbnailKindForPath,
   vectorImageMediaTypeForPath,
@@ -119,6 +121,23 @@ describe("pdfMediaTypeForPath", () => {
     expect(pdfMediaTypeForPath("SCAN_0001.PDF")).toBe("application/pdf");
     expect(pdfMediaTypeForPath("refs.pdf/notes.md")).toBeUndefined();
     expect(pdfMediaTypeForPath("paper.pdf.md")).toBeUndefined();
+  });
+});
+
+describe("LUTs", () => {
+  it("reads a .cube in any case, and only the file's own extension", () => {
+    expect(isLutFile("looks/Film Print.cube")).toBe(true);
+    expect(isLutFile("LOOKS/REC709.CUBE")).toBe(true);
+    expect(isLutFile("cube.cube/notes.md")).toBe(false);
+    expect(isLutFile("print.cube.md")).toBe(false);
+  });
+
+  it("is a kind Pragma knows, neither a document nor media, served raw as plain text", () => {
+    expect(hasKnownKind("looks/print.cube")).toBe(true);
+    expect(mediaTypeForPath("looks/print.cube")).toBeUndefined();
+    expect(rawFileTypeForPath("looks/print.cube")).toBe("text/plain");
+    expect(rawFileTypeForPath("cover.png")).toBe("image/png");
+    expect(rawFileTypeForPath("notes.md")).toBeUndefined();
   });
 });
 

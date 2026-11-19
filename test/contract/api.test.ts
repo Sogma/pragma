@@ -2377,7 +2377,7 @@ describe("API contract — libraries", () => {
     await writeFile(path.join(libraryRoot, "takes", "take.mkv"), videoBytes);
     const res = await fetch(`${testServer.baseUrl}/api/file/raw?path=${encodeURIComponent("lib:lib/takes/take.mkv")}`);
     expect(res.status).toBe(404);
-    expect(await res.text()).toBe("Not a recognized image, video or PDF file");
+    expect(await res.text()).toBe("Not a recognized image, video, PDF or LUT file");
   });
 
   // Reading a video as text would build a gigabyte-scale string only to
@@ -3739,10 +3739,22 @@ describe("API contract — space upload", () => {
     expect(existsSync(path.join(testServer.spaceRoot, "cre\u0300me.png"))).toBe(true);
   });
 
-  it("refuses a name that isn't an image, a video or a PDF", async () => {
+  it("refuses a name that isn't an image, a video, a PDF or a LUT", async () => {
     const res = await upload("", "payload.sh");
     expect(res.status).toBe(415);
     expect(existsSync(path.join(testServer.spaceRoot, "payload.sh"))).toBe(false);
+  });
+
+  it("takes a dropped LUT, which the raw-file route serves back as plain text", async () => {
+    const cube = "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
+    const res = await upload("", "Print.CUBE", cube);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ path: "Print.CUBE", name: "Print.CUBE" });
+
+    const raw = await fetch(`${testServer.baseUrl}/api/file/raw?path=${encodeURIComponent("Print.CUBE")}`);
+    expect(raw.status).toBe(200);
+    expect(raw.headers.get("content-type")).toBe("text/plain");
+    expect(await raw.text()).toBe(cube);
   });
 
   it("takes a dropped PDF", async () => {

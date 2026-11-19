@@ -57,10 +57,10 @@ function deps(overrides: Partial<DroppedImportDeps> = {}) {
 }
 
 describe("importDroppedFiles", () => {
-  it("routes notes to create, media to upload, and refuses the rest by name", async () => {
+  it("routes notes to create, media and LUTs to upload, and refuses the rest by name", async () => {
     const d = deps();
     const result = await importDroppedFiles(
-      [file("a.md"), file("take.mp4"), file("still.png"), file("paper.pdf"), file("x.zip")],
+      [file("a.md"), file("take.mp4"), file("still.png"), file("paper.pdf"), file("Print.CUBE"), file("x.zip")],
       "lib:one/batch",
       d,
     );
@@ -70,9 +70,16 @@ describe("importDroppedFiles", () => {
       ["lib:one/batch", "take.mp4"],
       ["lib:one/batch", "still.png"],
       ["lib:one/batch", "paper.pdf"],
+      ["lib:one/batch", "Print.CUBE"],
     ]);
     expect(result).toEqual({
-      imported: ["lib:one/batch/a.md", "lib:one/batch/take.mp4", "lib:one/batch/still.png", "lib:one/batch/paper.pdf"],
+      imported: [
+        "lib:one/batch/a.md",
+        "lib:one/batch/take.mp4",
+        "lib:one/batch/still.png",
+        "lib:one/batch/paper.pdf",
+        "lib:one/batch/Print.CUBE",
+      ],
       refused: ["x.zip"],
       failed: [],
       cancelled: false,
@@ -167,7 +174,7 @@ describe("describeImportProblems", () => {
       failed: [{ name: "bad.mp4", reason: "No such folder" }],
       cancelled: true,
     });
-    expect(message).toContain("x.zip: not a note, image, video or PDF.");
+    expect(message).toContain("x.zip: not a note, image, video, PDF or LUT.");
     expect(message).toContain("bad.mp4: No such folder");
     expect(message).toContain("cancelled");
   });

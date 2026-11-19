@@ -360,6 +360,7 @@ export interface LayoutTab {
     | "image"
     | "video"
     | "pdf"
+    | "lut"
     | "table"
     | "class"
     | "flow"

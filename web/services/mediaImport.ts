@@ -1,9 +1,9 @@
 // A drop of files from outside pragma onto a tree. Markdown becomes a
-// document, images, video and PDFs go to the upload route, and anything else is
-// refused by name. One service for every tree, so the space and a library
+// document, images, video, PDFs and LUTs go to the upload route, and anything
+// else is refused by name. One service for every tree, so the space and a library
 // take a drop the same way, with one progress dialog: a footage take is
 // large enough that a silent wait reads as a failure, and worth stopping.
-import { isMarkdownFile, mediaTypeForPath } from "../../src/protocol/types.ts";
+import { isMarkdownFile, rawFileTypeForPath } from "../../src/protocol/types.ts";
 import type { CreateEntryResponse, UploadEntryResponse } from "../core/apiClient.ts";
 import { formatFileSize } from "../lib/dom.ts";
 import type { DialogService } from "./dialog.ts";
@@ -46,7 +46,7 @@ export async function importDroppedFiles(
   deps: DroppedImportDeps,
 ): Promise<DroppedImportResult> {
   const result: DroppedImportResult = { imported: [], refused: [], failed: [], cancelled: false };
-  const media = files.filter((file) => mediaTypeForPath(file.name) !== undefined);
+  const media = files.filter((file) => rawFileTypeForPath(file.name) !== undefined);
   const notes = files.filter((file) => isMarkdownFile(file.name));
   for (const file of files) {
     if (!media.includes(file) && !notes.includes(file)) result.refused.push(file.name);
@@ -133,7 +133,7 @@ export async function importDroppedFiles(
 export function describeImportProblems(result: DroppedImportResult): string | undefined {
   const parts: string[] = [];
   if (result.refused.length > 0) {
-    parts.push(`${result.refused.join(", ")}: not a note, image, video or PDF.`);
+    parts.push(`${result.refused.join(", ")}: not a note, image, video, PDF or LUT.`);
   }
   for (const { name, reason } of result.failed) parts.push(`${name}: ${reason}`);
   if (result.cancelled) parts.push("Copying was cancelled; files not yet started were skipped.");

@@ -392,7 +392,7 @@ export function documentTypeFor(filePath: string): DocumentType {
 }
 
 /** Whether a file is of a kind the protocol defines: text, one of Pragma's
- * own kinds, or media. Where a name is looked up, a file of no kind never
+ * own kinds, media or a LUT. Where a name is looked up, a file of no kind never
  * matches one, so listing it never makes a name ambiguous. */
 export function hasKnownKind(filePath: string): boolean {
   return (
@@ -402,7 +402,7 @@ export function hasKnownKind(filePath: string): boolean {
     isClassFile(filePath) ||
     isFlowFile(filePath) ||
     isAppletFile(filePath) ||
-    mediaTypeForPath(filePath) !== undefined
+    rawFileTypeForPath(filePath) !== undefined
   );
 }
 
@@ -533,6 +533,27 @@ export type SpaceMediaType = ImageMediaType | SpaceVideoMediaType | SpacePdfMedi
  * candidate wherever an image is expected. */
 export function mediaTypeForPath(filePath: string): SpaceMediaType | undefined {
   return imageMediaTypeForPath(filePath) ?? videoMediaTypeForPath(filePath) ?? pdfMediaTypeForPath(filePath);
+}
+
+/** A LUT, a color lookup table (docs/protocol.md's LUTs section), is neither
+ * a document nor media. Its bytes are text that only a LUT reader reads, so
+ * it is served as plain text and never read as a document. */
+export type LutMediaType = "text/plain";
+
+// Case-insensitive for the same reason RASTER_IMAGE_EXTENSIONS is.
+export const LUT_EXTENSIONS: Record<string, LutMediaType> = {
+  ".cube": "text/plain",
+};
+
+export function isLutFile(filePath: string): boolean {
+  return extensionMediaType(LUT_EXTENSIONS, filePath) !== undefined;
+}
+
+/** What the raw-file route serves a file as: media or a LUT, the files a
+ * pane reads as bytes, never as a document's text. They are also the files
+ * a drop copies in through the upload route. */
+export function rawFileTypeForPath(filePath: string): SpaceMediaType | LutMediaType | undefined {
+  return mediaTypeForPath(filePath) ?? extensionMediaType(LUT_EXTENSIONS, filePath);
 }
 
 /** A thumbnail's longest edge, in pixels: what the client renders to and
