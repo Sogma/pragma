@@ -45,7 +45,11 @@
   margin-top: auto;
 }
 
+/* The gutter this leaves on the left is where the typing dots rise beside
+   the latest bubble; a bubble as wide as the column would run into their
+   throws. */
 #chat-messages .chat-message.user {
+  max-width: calc(100% - 48px);
   border-radius: var(--box-radius);
   background: var(--color-accent-bg);
   align-self: flex-end;
@@ -95,13 +99,21 @@
    where a reply's text will start.
 
    The dots share one box and one path, a third of a loop apart. The
-   translate each sets is the row they rest in when the reduced-motion
-   reset ends their animations at once. */
+   translate each sets is the row the juggle catches them on, where they
+   rest when the reduced-motion reset ends their animations at once. */
 #chat-messages .chat-message.typing-indicator {
   display: grid;
   grid-template: 31px / 27px;
   padding: 4px 8px;
   border: 1px solid transparent;
+}
+
+/* Under the user's bubble the box reaches up into the bubble's gutter and
+   down into the transcript's bottom padding, so the bubble sits lower and
+   the dots rest midway between it and the message box. To move the dots
+   without moving the bubble, take from one margin what you add to the other. */
+#chat-messages .chat-message.user + .typing-indicator {
+  margin: -17px 0 -6px;
 }
 
 #chat-messages .chat-message.typing-indicator span {
@@ -110,19 +122,19 @@
   height: 6px;
   border-radius: 50%;
   background: var(--text-muted);
-  translate: 0px 12px;
+  translate: 0px 18.2px;
   animation:
     typing-juggle-x 1.4s linear infinite,
     typing-juggle-y 1.4s linear infinite;
 }
 
 #chat-messages .chat-message.typing-indicator span:nth-child(2) {
-  translate: 10px 12px;
+  translate: 10px 18.2px;
   animation-delay: -0.467s;
 }
 
 #chat-messages .chat-message.typing-indicator span:nth-child(3) {
-  translate: 20px 12px;
+  translate: 20px 18.2px;
   animation-delay: -0.933s;
 }
 
