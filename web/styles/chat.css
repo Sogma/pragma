@@ -245,6 +245,37 @@
   padding: 8px;
 }
 
+/* "Looked at:" and its image beside it, or several listed under it, one a
+   line. The paths' column may narrow past its widest path, so a long one
+   gives way from its start (path-label.css) where running text would drop
+   it below the words, and the words keep to one line. Each path is only as
+   wide as it reads, so its tooltip doesn't reach past it. */
+.chat-looked-at {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+}
+
+/* Under the words, the paths' column takes the row's width: sized to its
+   paths, a long one would run past the card uncut. */
+.chat-looked-at.is-list {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.chat-looked-at-words {
+  flex: none;
+}
+
+.chat-looked-at-paths {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .chat-confirm-actions {
   display: flex;
   gap: 6px;

@@ -299,9 +299,21 @@ describe("a turn about the screen", () => {
     await sendTurn();
     const reply = document.querySelector("#chat-messages .chat-message.assistant");
     expect(reply?.textContent).toBe("Two red dots.");
-    expect(reply?.nextElementSibling?.textContent).toBe("Looked at shots/frame.png and logo.png.");
-    const labels = [...(reply?.nextElementSibling?.querySelectorAll<HTMLElement>(".path-label") ?? [])];
+    const note = reply?.nextElementSibling;
+    expect(note?.querySelector(".chat-looked-at-words")?.textContent).toBe("Looked at:");
+    expect(note?.querySelector(".chat-looked-at")?.classList.contains("is-list")).toBe(true);
+    const labels = [...(note?.querySelectorAll<HTMLElement>(".chat-looked-at-paths > .path-label") ?? [])];
     expect(labels.map((label) => label.dataset.tooltip)).toEqual(["shots/frame.png", "logo.png"]);
+    expect(labels.map((label) => label.textContent)).toEqual(["shots/frame.png", "logo.png"]);
+  });
+
+  it("keeps one image on the line beside Looked at:", async () => {
+    vi.mocked(postChat).mockResolvedValueOnce({ reply: "A red dot.", lookedAt: ["logo.png"] });
+
+    await sendTurn();
+    const note = document.querySelector("#chat-messages .chat-message.assistant")?.nextElementSibling;
+    expect(note?.querySelector(".chat-looked-at")?.classList.contains("is-list")).toBe(false);
+    expect(note?.querySelectorAll(".chat-looked-at-paths > .path-label")).toHaveLength(1);
   });
 });
 

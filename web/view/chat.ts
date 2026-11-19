@@ -40,6 +40,22 @@ type Sentence = (string | Node)[];
 
 const named = (path: string, after?: string): HTMLElement => createPathLabel(path, pathNames, { after, compact: true });
 
+// "Looked at:" and the image beside it, or with several, the images listed
+// under it, one a line. Not a sentence: in running text a path too long for
+// the rest of the line drops below the words whole (chat.css).
+function lookedAtRow(paths: string[]): HTMLElement {
+  const words = document.createElement("span");
+  words.className = "chat-looked-at-words";
+  words.textContent = "Looked at:";
+  const images = document.createElement("div");
+  images.className = "chat-looked-at-paths";
+  images.append(...paths.map((path) => named(path)));
+  const row = document.createElement("div");
+  row.className = paths.length > 1 ? "chat-looked-at is-list" : "chat-looked-at";
+  row.append(words, images);
+  return row;
+}
+
 // The transcript's glide to a message that lands: the Find card's curve
 // (--card-slide, find-card.css) over a longer run.
 const GLIDE: KeyframeAnimationOptions = { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
@@ -749,14 +765,7 @@ export function wireChat(deps: ChatDeps): Chat {
       appendMessage(thread, { role: "assistant", content: reply });
       thread.history = [...thread.history, { role: "assistant", content: reply }];
       // Each image it looked at went to the model, which the writer is told.
-      if (lookedAt) {
-        const images = lookedAt.map((path, index) => named(path, index === lookedAt.length - 1 ? "." : ""));
-        appendNote(
-          thread,
-          "Looked at ",
-          ...images.flatMap((image, index) => (index === 0 ? [image] : [" and ", image])),
-        );
-      }
+      if (lookedAt) appendNote(thread, lookedAtRow(lookedAt));
       // The mode the turn was sent in, not the chip's now: the model was told
       // its changes were made, so they're applied even if the chip moved. An
       // edit to another file goes over it in the editor while it's on screen.
