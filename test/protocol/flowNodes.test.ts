@@ -259,6 +259,17 @@ describe("computeFlowCapabilities", () => {
     expect(caps).toEqual([{ type: "readFile", path: "space:portrait.png" }]);
   });
 
+  it("derives a readFile capability from a loadVideo node's configured videoPath, a library's included", () => {
+    const caps = capabilitiesOf(
+      graphOf([
+        node({ id: "n1", type: "loadVideo", config: { videoPath: "shots/take.mp4" } }),
+        node({ id: "n2", type: "loadVideo", config: { videoPath: "lib:footage/take.mov" } }),
+        node({ id: "n3", type: "loadVideo", config: {} }),
+      ]),
+    );
+    expect(caps.map(flowCapabilityKey)).toEqual(["readFile:space:shots/take.mp4", "readFile:lib:footage/take.mov"]);
+  });
+
   it("derives a writeDocument capability from a writeNote node's configured notePath, and nothing without one", () => {
     expect(
       capabilitiesOf(graphOf([node({ id: "n1", type: "writeNote", config: { notePath: "notes/log.md" } })])),

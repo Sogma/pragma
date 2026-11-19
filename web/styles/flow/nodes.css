@@ -286,3 +286,30 @@
 .flow-node[data-node-type="getField"] .flow-node-outputs {
   flex: 1 1 auto;
 }
+
+/* A Prompt's mentions and {{name}} variables, chips that stay real,
+   cursor-navigable text, each in the colour of the pin it names: @image_N
+   amber as .handle.image's --color-warning, @video_N the video pins' pink,
+   {{name}} the text port's blue. They colour only their own spans, which
+   CodeMirror's injected theme never styles, so a layer holds them. */
+.cm-image-mention,
+.cm-video-mention,
+.cm-variable-mention {
+  border-radius: var(--control-radius);
+  padding: 0 3px;
+}
+
+.cm-image-mention {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.cm-video-mention {
+  color: var(--type-video);
+  background: color-mix(in srgb, var(--type-video) 14%, transparent);
+}
+
+.cm-variable-mention {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+}

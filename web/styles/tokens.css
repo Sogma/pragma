@@ -175,6 +175,7 @@
   --type-boolean: #15803d;
   --type-image: #ff9b2e;
   --type-object: #7c3aed;
+  --type-video: #db2777;
   /* Code colors, one per kind of token: a widely used code editor's default
      light theme here and its dark one in the dark block, so an applet's code
      reads as it does there. */
@@ -304,6 +305,7 @@ html[data-theme="dark"] {
   --type-boolean: #4ade80;
   --type-image: #fb923c;
   --type-object: #a78bfa;
+  --type-video: #f472b6;
   --syntax-bracket: #808080;
   --syntax-tag: #569cd6;
   --syntax-attribute: #9cdcfe;

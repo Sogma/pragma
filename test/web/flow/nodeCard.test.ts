@@ -122,17 +122,54 @@ describe("a Generate node's reference pins", () => {
     expect(add(el).getAttribute("aria-label")).toBe("Add frame or reference");
     expect(add(el).textContent).toBe("Frame or reference");
     add(el).click();
-    expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["End frame", "Image reference"]);
+    expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual([
+      "End frame",
+      "Image reference",
+      "Video reference",
+    ]);
+  });
+
+  it("adds a Generate Video's clips below its images, as many as the model takes", () => {
+    const { cards, opened, modelFields } = setup();
+    modelFields.references.set("higgsfield/seedance_2_0", 9);
+    modelFields.videoCounts.set("higgsfield/seedance_2_0", 1);
+    modelFields.frameLists.set("higgsfield/seedance_2_0", []);
+    const flowNode = node("generateVideo", { model: "higgsfield/seedance_2_0" });
+    const el = cards.build(flowNode);
+    const shown = () =>
+      [...el.querySelectorAll<HTMLElement>(".flow-reference-row")]
+        .filter((row) => !row.hidden)
+        .map((row) => row.querySelector(".flow-port-label")?.textContent);
+    add(el).click();
+    expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["Image reference", "Video reference"]);
+    opened
+      .at(-1)
+      ?.items?.find((item) => item.label === "Video reference")
+      ?.run?.({} as CommandContext, undefined);
+    expect(shown()).toEqual(["video_1"]);
+    expect(flowNode.config.videoSlots).toEqual([1]);
+    // The model takes one clip, so the "+" adds images alone, above the clips.
+    expect(add(el).getAttribute("aria-label")).toBe("Add image reference");
+    add(el).click();
+    add(el).click();
+    expect(shown()).toEqual(["image_1", "image_2", "video_1"]);
+
+    const trash = el.querySelectorAll<HTMLElement>(".flow-reference-row:not([hidden]) .flow-remove-variable-button");
+    trash[2].click();
+    expect(shown()).toEqual(["image_1", "image_2"]);
+    expect(flowNode.config.videoSlots).toEqual([]);
   });
 
   it("follows the model as a pick or an arriving list redraws its field", () => {
     const { cards, modelFields } = setup();
+    modelFields.videoCounts.set("", 0);
     const flowNode = node("generateVideo");
     const el = cards.build(flowNode);
     const addRow = add(el).closest<HTMLElement>(".flow-add-variable-row");
     add(el).click();
     expect(addRow?.hidden).toBe(false);
     modelFields.references.set("higgsfield/seedance_2_0", 1);
+    modelFields.videoCounts.set("higgsfield/seedance_2_0", 0);
     const field = modelFields.fields.find((entry) => entry.kind === "video");
     field?.onPick("higgsfield/seedance_2_0");
     field?.onRedraw?.();

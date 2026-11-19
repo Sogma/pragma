@@ -28,6 +28,8 @@ function formatValue(value: PortValue): string {
       return String(value.value);
     case "image":
       return `<${value.mediaType}, ${Math.ceil((value.data.length * 3) / 4)} bytes>`;
+    case "video":
+      return value.path;
     default:
       return JSON.stringify(value.value);
   }

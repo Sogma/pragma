@@ -378,22 +378,3 @@ html[data-theme="dark"] #editor .cm-cursor {
   outline: none;
   border-color: var(--border-focus);
 }
-
-/* generate's @image_N mentions, rendered as a chip while staying real,
-   cursor-navigable text. Colour matches .handle.image's --color-warning, so a
-   mention ties back to the amber image pins. */
-.cm-image-mention {
-  color: var(--color-warning);
-  background: var(--color-warning-bg);
-  border-radius: var(--control-radius);
-  padding: 0 3px;
-}
-
-/* {{name}} template variables: blue, matching .handle.text's accent, the text
-   port's pin colour, by the same chip-mirrors-port convention. */
-.cm-variable-mention {
-  color: var(--color-accent);
-  background: var(--color-accent-bg);
-  border-radius: var(--control-radius);
-  padding: 0 3px;
-}

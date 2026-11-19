@@ -38,6 +38,10 @@ function runContent(outcome: FlowRunOutcome) {
   const images: { type: "image"; data: string; mimeType: string }[] = [];
   const results = outcome.results.map(({ nodeId, port, value }) => {
     const name = `${nodeId}.${port}`;
+    if (value.type === "video") {
+      const { type: _type, ...clip } = value;
+      return { name, value: clip };
+    }
     if (value.type !== "image") return { name, value: value.value };
     images.push({ type: "image", data: value.data, mimeType: value.mediaType });
     return { name, value: `(image ${images.length}, attached below)` };

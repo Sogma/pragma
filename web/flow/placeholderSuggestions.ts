@@ -10,13 +10,7 @@
 import { Prec } from "@codemirror/state";
 import { type EditorView, keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { DATE_OFFERS, fillDates, readClock } from "../../src/protocol/datePlaceholders.ts";
-import {
-  FLOW_NODE_REGISTRY,
-  IMAGE_REFERENCE_SLOTS,
-  IMAGE_REFERENCES_MAX,
-  TEMPLATE_VARIABLE_SLOTS,
-  TEMPLATE_VARIABLES_MAX,
-} from "../../src/protocol/flowNodes.ts";
+import { FLOW_NODE_REGISTRY, TEMPLATE_VARIABLE_SLOTS, TEMPLATE_VARIABLES_MAX } from "../../src/protocol/flowNodes.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
 import { createSuggestionList, type SuggestionAnchor, type SuggestionRow } from "../lib/suggestionList.ts";
 
@@ -52,8 +46,9 @@ export function promptChoices(graph: FlowGraph, nodeId: string, now: Date): Plac
   return [...slots, ...dateChoices(now)];
 }
 
-/** What a Prompt's text offers after `@`: the image pins wired into each
- * Generate node it reaches, straight or through a Template Variables. */
+/** What a Prompt's text offers after `@`: the reference pins, images and
+ * clips, wired into each Generate node it reaches, straight or through a
+ * Template Variables. */
 export function promptPins(graph: FlowGraph, nodeId: string): PlaceholderChoice[] {
   const pins: PlaceholderChoice[] = [];
   const reach = (from: string, visited: Set<string>): void => {
@@ -67,12 +62,14 @@ export function promptPins(graph: FlowGraph, nodeId: string): PlaceholderChoice[
       }
       const definition = FLOW_NODE_REGISTRY[target.type];
       if (!definition?.referenceSlots || edge.targetPort !== "prompt") continue;
-      for (let pin = 1; pin <= IMAGE_REFERENCES_MAX; pin++) {
-        const port = IMAGE_REFERENCE_SLOTS.portId(pin);
-        const text = `@${port}`;
-        const wired = graph.edges.some((other) => other.target === target.id && other.targetPort === port);
-        if (wired && !pins.some((choice) => choice.text === text)) {
-          pins.push({ text, detail: `Wired into ${definition.label}` });
+      for (const spec of [definition.referenceSlots, definition.videoReferenceSlots]) {
+        for (let pin = 1; spec && pin <= spec.max; pin++) {
+          const port = spec.portId(pin);
+          const text = `@${port}`;
+          const wired = graph.edges.some((other) => other.target === target.id && other.targetPort === port);
+          if (wired && !pins.some((choice) => choice.text === text)) {
+            pins.push({ text, detail: `Wired into ${definition.label}` });
+          }
         }
       }
     }

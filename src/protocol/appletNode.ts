@@ -90,6 +90,8 @@ function portValue(port: FlowPort, raw: unknown): PortValue | string {
       return typeof raw === "boolean" ? { type: "boolean", value: raw } : `"${port.id}" takes true or false`;
     case "object":
       return raw === undefined ? `"${port.id}" takes a value` : { type: "object", value: raw };
+    case "video":
+      return `"${port.id}" can't carry a clip: an Applet port is never a video`;
     case "image": {
       // A data URL, which is what a canvas gives, or the port value itself.
       const match = typeof raw === "string" ? DATA_URL.exec(raw) : undefined;

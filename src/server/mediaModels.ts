@@ -11,15 +11,16 @@ import type { GroupedModelOption, ModelProviderSummary, ProviderKind } from "../
 import type { ProviderImageJobs, ProviderImageModel } from "../protocol/imageGeneration.ts";
 import { assertMakesImages, imageModelFor, providerApiKey } from "../protocol/modelProvider.ts";
 import { SetupError } from "../protocol/setupNeed.ts";
-import type { ProviderVideoModel } from "../protocol/videoGeneration.ts";
+import type { DeclaredVideoInputs, ProviderVideoModel } from "../protocol/videoGeneration.ts";
 import {
   higgsfieldImageJobs,
   higgsfieldImageModel,
   higgsfieldModels,
+  higgsfieldVideoInputs,
   higgsfieldVideoModel,
   type ModelChoice,
 } from "./higgsfieldMcp.ts";
-import { modelSupport } from "./modelSupport.ts";
+import { modelSupport, supportWith } from "./modelSupport.ts";
 
 type MediaKind = "image" | "video";
 
@@ -28,10 +29,13 @@ interface Adapter<Model> {
   list: (server: ResolvedMcpServer) => Promise<ModelChoice[]>;
 }
 
+// What a model takes, as its server's catalog declares it.
+type DeclaredInputs = (signal?: AbortSignal) => Promise<DeclaredVideoInputs>;
+
 interface ServerAdapters {
   // A server that makes each image as a job says how to start and check one.
   image?: Adapter<ProviderImageModel> & { jobs?: (server: ResolvedMcpServer, modelId: string) => ProviderImageJobs };
-  video?: Adapter<ProviderVideoModel>;
+  video?: Adapter<ProviderVideoModel> & { inputs?: (server: ResolvedMcpServer, modelId: string) => DeclaredInputs };
 }
 
 // The MCP servers pragma's own nodes can use, by the host each serves: the
@@ -44,7 +48,11 @@ const ADAPTERS: Record<string, ServerAdapters> = {
       jobs: higgsfieldImageJobs,
       list: (server) => higgsfieldModels(server, "image"),
     },
-    video: { model: higgsfieldVideoModel, list: (server) => higgsfieldModels(server, "video") },
+    video: {
+      model: higgsfieldVideoModel,
+      inputs: higgsfieldVideoInputs,
+      list: (server) => higgsfieldModels(server, "video"),
+    },
   },
 };
 
@@ -77,6 +85,8 @@ export interface ResolvedVideoModel {
   providerId: string;
   modelId: string;
   host?: string;
+  // What its server's catalog says it takes, where the server says.
+  inputs?: DeclaredInputs;
 }
 
 // A host as the model support file names one (docs/model-support.md): an
@@ -179,7 +189,14 @@ export function resolveVideoModel(
         : `No provider "${providerId}" is configured for video model "${chosen}".`,
     );
   }
-  return { model: serverAdapter(server, "video").model(server, modelId), providerId, modelId, host: hostOf(server) };
+  const adapter = serverAdapter(server, "video");
+  return {
+    model: adapter.model(server, modelId),
+    providerId,
+    modelId,
+    host: hostOf(server),
+    ...(adapter.inputs ? { inputs: adapter.inputs(server, modelId) } : {}),
+  };
 }
 
 // Listing asks the server, which takes seconds; a Flow opened twice in a few
@@ -255,7 +272,7 @@ async function listMediaModels(kind: MediaKind, config: PragmaGlobalConfig): Pro
             label: `${model.label} (${server.label})`,
             provider: server.id,
             model: model.label,
-            ...supportOf(model.id, hostOf(server)),
+            ...supportOf(model.id, hostOf(server), model.takes),
           });
         }
       } catch (error) {
@@ -266,10 +283,13 @@ async function listMediaModels(kind: MediaKind, config: PragmaGlobalConfig): Pro
   return listing;
 }
 
-// What the model support file says a listed model takes, which a node's
-// card follows: how many references, and which frames. Nothing for a model
-// it doesn't list.
-function supportOf(modelId: string, host: string | undefined): Pick<GroupedModelOption, "references" | "frames"> {
-  const { references, frames } = modelSupport(modelId, host);
+// What a listed model takes, which a node's card follows: how many
+// references, and which frames.
+function supportOf(
+  modelId: string,
+  host: string | undefined,
+  declared?: DeclaredVideoInputs,
+): Pick<GroupedModelOption, "references" | "frames"> {
+  const { references, frames } = supportWith(modelSupport(modelId, host), declared);
   return { ...(Object.keys(references).length ? { references } : {}), ...(frames ? { frames } : {}) };
 }

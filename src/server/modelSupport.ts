@@ -3,6 +3,7 @@ import path from "node:path";
 import { PACKAGE_ROOT } from "../config/packageRoot.ts";
 import type { ReferenceCounts } from "../protocol/api.ts";
 import { FRAME_KINDS, type FrameKind } from "../protocol/flowNodes.ts";
+import type { DeclaredVideoInputs } from "../protocol/videoGeneration.ts";
 
 // The format and the rules for its facts are docs/model-support.md's. A
 // mistake in the file fails the generation that reads it, naming the entry,
@@ -61,6 +62,21 @@ export function supportIn(list: readonly Entry[], modelId: string, host?: string
     if (words) mention[kind] = words;
   }
   return { references: { ...entry.references, ...exception?.references }, mention, ...(frames ? { frames } : {}) };
+}
+
+/** What a model takes: the file's counts and frames, and where the file says
+ * nothing, what its server's catalog declares, a kind the catalog doesn't
+ * declare counting as none. A run is checked, and a card drawn, by this. */
+export function supportWith(
+  support: ModelSupport,
+  declared?: DeclaredVideoInputs,
+): { references: ReferenceCounts; frames?: FrameKind[] } {
+  const references: ReferenceCounts = { ...support.references };
+  for (const kind of KINDS) {
+    if (declared && references[kind] === undefined && !declared.references.includes(kind)) references[kind] = 0;
+  }
+  const frames = support.frames ?? declared?.frames;
+  return { references, ...(frames ? { frames } : {}) };
 }
 
 // An id names one model exactly, or every id it starts when it ends in `*`;

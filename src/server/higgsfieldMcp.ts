@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ResolvedMcpServer } from "../config/loadConfig.ts";
+import type { FrameKind } from "../protocol/flowNodes.ts";
 import type {
   ImageCallResult,
   ImageCheck,
@@ -9,7 +10,12 @@ import type {
   ProviderImageJobs,
   ProviderImageModel,
 } from "../protocol/imageGeneration.ts";
-import type { ProviderVideoModel, VideoStartResult, VideoStatusResult } from "../protocol/videoGeneration.ts";
+import type {
+  DeclaredVideoInputs,
+  ProviderVideoModel,
+  VideoStartResult,
+  VideoStatusResult,
+} from "../protocol/videoGeneration.ts";
 import { nearestResolution, resolutionName, resolutionShortSide } from "../protocol/videoResolution.ts";
 import { fetchPublic, type PublicFile } from "./fetchPublic.ts";
 import { withMcpBearer } from "./mcpTools.ts";
@@ -28,6 +34,13 @@ export interface MediaCache {
   set(digest: string, mediaId: string): Promise<void>;
   drop(digest: string): Promise<void>;
 }
+
+// The extension `media_upload` reads a file's kind from, where a media type's
+// subtype isn't one; any other type goes as its subtype.
+const UPLOAD_EXTENSIONS: Record<string, string> = { "image/jpeg": "jpg", "video/quicktime": "mov" };
+
+// The kinds `media_confirm` takes for a generation's input.
+const CONFIRM_TYPES = new Set(["image", "video", "audio"]);
 
 export interface HiggsfieldDeps {
   mediaCache?: MediaCache;
@@ -103,7 +116,8 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   }
 
   async function upload(client: Client, mediaType: string, bytes: Uint8Array, signal?: AbortSignal): Promise<string> {
-    const extension = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
+    const [kind, subtype] = mediaType.split("/");
+    const extension = UPLOAD_EXTENSIONS[mediaType] ?? (subtype || "png");
     const answer = await call(
       client,
       "media_upload",
@@ -113,16 +127,17 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
     const slot = (answer.uploads as Fields[] | undefined)?.[0];
     const uploadUrl = typeof slot?.upload_url === "string" ? slot.upload_url : undefined;
     const mediaId = typeof slot?.media_id === "string" ? slot.media_id : undefined;
-    if (!uploadUrl || !mediaId) throw new Error(`${server.label} gave no address to upload a reference image to.`);
+    if (!uploadUrl || !mediaId) throw new Error(`${server.label} gave no address to upload a reference to.`);
     // A presigned URL carries temporary credentials: it never reaches a log.
+    // The bytes go as they are, never copied: a clip can run to hundreds of MB.
     const put = await putFn(uploadUrl, {
       method: "PUT",
       headers: { "content-type": mediaType },
-      body: new Uint8Array(bytes),
+      body: bytes as Uint8Array<ArrayBuffer>,
       signal,
     });
-    if (!put.ok) throw new Error(`Uploading a reference image to ${server.label} answered ${put.status}.`);
-    await call(client, "media_confirm", { type: "image", media_id: mediaId }, signal);
+    if (!put.ok) throw new Error(`Uploading a reference to ${server.label} answered ${put.status}.`);
+    await call(client, "media_confirm", { type: CONFIRM_TYPES.has(kind) ? kind : "image", media_id: mediaId }, signal);
     return mediaId;
   }
 
@@ -246,13 +261,9 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   // Minimax's `768`). A model that picks its own resolution lists none.
   async function details(client: Client, modelId: string, signal?: AbortSignal) {
     const entry = await call(client, "models_explore", { action: "get", model_id: modelId }, signal);
-    const medias = Array.isArray(entry.medias) ? (entry.medias as Fields[]) : [];
     const parameters = Array.isArray(entry.parameters) ? (entry.parameters as Fields[]) : [];
     const options = parameters.find((parameter) => parameter.name === "resolution")?.options;
-    return {
-      roles: medias.flatMap((media) => (Array.isArray(media.roles) ? media.roles.map(String) : [])),
-      resolutions: Array.isArray(options) ? options.map(String) : [],
-    };
+    return { roles: rolesOf(entry), resolutions: Array.isArray(options) ? options.map(String) : [] };
   }
 
   return {
@@ -428,6 +439,51 @@ const REFERENCE_ROLES: Record<string, string> = {
   audio: "audio_references",
 };
 
+// What each video model's catalog entry declares, kept a while: a run asks
+// before it names its result, and an unchanged Run otherwise asks nothing.
+const DECLARED_TTL_MS = 10 * 60_000;
+const declaredInputs = new Map<string, { at: number; inputs: DeclaredVideoInputs }>();
+
+// What a video model takes, by the roles its catalog entry declares: the
+// same roles its job start places inputs by.
+function declaredFromRoles(roles: readonly string[]): DeclaredVideoInputs {
+  const frames: FrameKind[] = [
+    ...(roles.includes(FRAMES.first_frame.role) ? (["start"] as const) : []),
+    ...(roles.includes(FRAMES.last_frame.role) ? (["end"] as const) : []),
+  ];
+  const references = (["image", "video", "audio"] as const).filter((kind) => roles.includes(REFERENCE_ROLES[kind]));
+  return { references, frames };
+}
+
+function rolesOf(entry: Fields): string[] {
+  const medias = Array.isArray(entry.medias) ? (entry.medias as Fields[]) : [];
+  return medias.flatMap((media) => (Array.isArray(media.roles) ? media.roles.map(String) : []));
+}
+
+/** What one of this server's video models takes, read from the roles its catalog entry
+ * declares. */
+export function higgsfieldVideoInputs(
+  server: ResolvedMcpServer,
+  modelId: string,
+  deps: HiggsfieldDeps = {},
+): (signal?: AbortSignal) => Promise<DeclaredVideoInputs> {
+  const session = higgsfieldSession(server, deps);
+  const key = `${server.id}\n${modelId}`;
+  return async (signal) => {
+    const kept = declaredInputs.get(key);
+    if (kept && Date.now() - kept.at < DECLARED_TTL_MS) return kept.inputs;
+    const client = await session.connect();
+    try {
+      const { roles } = await session.details(client, modelId, signal);
+      const inputs = declaredFromRoles(roles);
+      declaredInputs.set(key, { at: Date.now(), inputs });
+      return inputs;
+    } finally {
+      await client.close().catch(() => {});
+    }
+  };
+}
+
 /** One Higgsfield video model. Its jobs run minutes, so it starts a job and
  * checks it as two calls: the operation is the job id, which any later
  * connection can wait on. No video model takes a seed (a model may refuse
@@ -576,6 +632,8 @@ export function wholeRatio(ratio: string): string {
 export interface ModelChoice {
   id: string;
   label: string;
+  // What a video model's catalog entry declares it takes.
+  takes?: DeclaredVideoInputs;
 }
 
 /** The models of one kind the server offers, for a node's model picker. The
@@ -612,6 +670,7 @@ export async function higgsfieldModels(server: ResolvedMcpServer, type: "image" 
       .map((entry) => ({
         id: String(entry.id),
         label: typeof entry.name === "string" ? entry.name : String(entry.id),
+        ...(type === "video" ? { takes: declaredFromRoles(rolesOf(entry)) } : {}),
       }));
   } finally {
     await client.close().catch(() => {});

@@ -5,8 +5,8 @@ import type { ModelKind } from "../../../web/lib/modelPicker.ts";
 // A Flow's model fields as a card or App Mode sees them: each create is
 // recorded, and returns a plain picker-classed button. The pickers' own
 // drawing and menu are modelOptions.test.ts's. `references` holds how many
-// reference images a ref's model takes and `frameLists` which frames, as its
-// list would say.
+// reference images a ref's model takes, `videoCounts` how many clips, and
+// `frameLists` which frames, as its list would say.
 export interface FakeField {
   kind: ModelKind;
   value(): string;
@@ -19,14 +19,17 @@ export interface FakeField {
 export function fakeModelFields(): ModelFields & {
   fields: FakeField[];
   references: Map<string, number>;
+  videoCounts: Map<string, number>;
   frameLists: Map<string, FrameKind[]>;
 } {
   const fields: FakeField[] = [];
   const references = new Map<string, number>();
+  const videoCounts = new Map<string, number>();
   const frameLists = new Map<string, FrameKind[]>();
   return {
     fields,
     references,
+    videoCounts,
     frameLists,
     create(kind, value, onPick, options = {}) {
       const button = document.createElement("button");
@@ -35,6 +38,7 @@ export function fakeModelFields(): ModelFields & {
       return button;
     },
     imageReferences: (_kind, ref) => references.get(ref),
+    videoReferences: (_kind, ref) => videoCounts.get(ref),
     frames: (_kind, ref) => frameLists.get(ref),
   };
 }

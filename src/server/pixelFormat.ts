@@ -7,10 +7,29 @@
 // frame header can sit behind hundreds of kilobytes of embedded profile and
 // metadata segments, and the walk below jumps from one segment's length to
 // the next rather than reading what it skips.
+import { open } from "node:fs/promises";
 import type { PixelFormat } from "../protocol/api.ts";
 
 /** `length` bytes from `offset`, or fewer at the end of the file. */
 export type ByteReader = (offset: number, length: number) => Promise<Buffer>;
+
+// Positional reads through one open handle, for the header readers: they
+// jump between a file's boxes and segments rather than reading it through.
+export async function withHeaderReader<T>(
+  filePath: string,
+  use: (read: ByteReader, size: number) => Promise<T>,
+): Promise<T> {
+  const handle = await open(filePath, "r");
+  try {
+    const { size } = await handle.stat();
+    return await use(async (offset, length) => {
+      const { buffer, bytesRead } = await handle.read(Buffer.alloc(length), 0, length, offset);
+      return buffer.subarray(0, bytesRead);
+    }, size);
+  } finally {
+    await handle.close();
+  }
+}
 
 export class UnreadablePixelFormat extends Error {
   constructor(mediaType: string, detail: string) {

@@ -360,6 +360,7 @@ describe("the pins", () => {
       ["addRow", "table_path", "tablePath"],
       ["loadNote", "path", "notePath"],
       ["loadImage", "path", "imagePath"],
+      ["loadVideo", "path", "videoPath"],
       ["writeNote", "path", "notePath"],
       ["addToNote", "path", "notePath"],
       ["writeFolderNote", "path", "folderPath"],

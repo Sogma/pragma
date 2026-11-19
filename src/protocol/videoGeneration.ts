@@ -1,5 +1,6 @@
 import { experimental_getVideoStatus, experimental_startVideo } from "ai";
 import type { GenerationCost } from "./api.ts";
+import type { FrameKind } from "./flowNodes.ts";
 import { describeWarning, notesOf } from "./imageGeneration.ts";
 
 /**
@@ -21,6 +22,15 @@ export type VideoCallOptions = Parameters<NonNullable<ProviderVideoModel["doStar
 export type VideoStartResult = Awaited<ReturnType<NonNullable<ProviderVideoModel["doStart"]>>>;
 export type VideoStatusResult = Awaited<ReturnType<NonNullable<ProviderVideoModel["doStatus"]>>>;
 export type VideoOperation = VideoStartResult["operation"];
+
+/** What a provider's catalog says a video model takes: which kinds of
+ * reference, and which frames. A host asks before it names a result, so an
+ * input the model would ignore never changes the name or rides into a paid
+ * job. */
+export interface DeclaredVideoInputs {
+  references: Array<"image" | "video" | "audio">;
+  frames: FrameKind[];
+}
 /** A finished clip Pragma can save. An "uploaded" clip is left out: the
  * provider delivered it to storage the caller manages, with no URL or bytes,
  * and Pragma never asks for that, so a job that ends that way fails. */

@@ -61,6 +61,10 @@
   --node-glyph: var(--icon-folder);
 }
 
+[data-node-type="loadVideo"] {
+  --node-glyph: var(--icon-video);
+}
+
 [data-node-type="generateText"] {
   --node-glyph: var(--icon-sparkles);
 }

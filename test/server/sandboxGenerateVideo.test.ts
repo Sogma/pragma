@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  ftruncateSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MockVideoModelV4 } from "ai/test";
@@ -411,5 +422,156 @@ describe("performSandboxGenerateVideo", () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     rmSync(path.join(space, "clips"), { recursive: true });
     expect((await failure(run()))?.status).toBe(400);
+  });
+});
+
+// A clip goes from Load Video to a reference pin by reference: the server
+// reads it under the Flow's own grants, once, and only if it is still the
+// clip that was read.
+describe("video references", () => {
+  const CLIP = Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 7, 7, 7]);
+  const digestOf = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+  const loadNode = (id: string, videoPath: string) => ({
+    id,
+    type: "loadVideo",
+    position: { x: 0, y: 0 },
+    config: { videoPath },
+  });
+  const flowWith = (paths: string[]) =>
+    `<!DOCTYPE html><html data-format="flow" data-format-version="1.0" data-id="flow_c"><head><script type="application/json" data-role="graph">${JSON.stringify(
+      {
+        nodes: [
+          { id: "g", type: "generateVideo", position: { x: 0, y: 0 }, config: { outputFolderPath: "clips" } },
+          ...paths.map((videoPath, index) => loadNode(`l${index}`, videoPath)),
+        ],
+        edges: [],
+      },
+    )}</script></head><body></body></html>`;
+  const clip = (pin: number, file = "shots/take.mp4", bytes = CLIP) => ({
+    pin,
+    path: `/${file}`,
+    digest: digestOf(bytes),
+  });
+  let doc: SandboxDocument;
+  let inputs: ResolvedVideoModel["inputs"];
+
+  const runnerOn = (modelId: string) =>
+    createJobRunner({
+      store: () => store,
+      resolve: () => ({ ...resolve(), modelId, ...(inputs ? { inputs } : {}) }),
+      resolveImage: () => {
+        throw new Error("no image models here");
+      },
+      sleep: () => new Promise((wake) => setTimeout(wake, 1)),
+      now: Date.now,
+      spaceRoot: (spaceId) => loadGlobalConfig().spaces?.[spaceId]?.path,
+    });
+  const send = (fields: Partial<GenerateVideoRequestBody>, modelId = "seedance_2_0") =>
+    performSandboxGenerateVideo(space, doc, body(fields), undefined, runnerOn(modelId));
+
+  beforeEach(async () => {
+    inputs = undefined;
+    mkdirSync(path.join(space, "shots"));
+    writeFileSync(path.join(space, "shots", "take.mp4"), CLIP);
+    writeFileSync(path.join(space, "shots", "copy.mp4"), CLIP);
+    writeFileSync(path.join(space, "c.flow.html"), flowWith(["shots/take.mp4", "shots/copy.mp4"]));
+    doc = await readSandboxDocument(space, "flow", "c.flow.html");
+    await grantCapability(space, doc.subject, "generateVideo:space:clips");
+  });
+
+  const grantReads = async () => {
+    await grantCapability(space, doc.subject, "readFile:space:shots/take.mp4");
+    await grantCapability(space, doc.subject, "readFile:space:shots/copy.mp4");
+  };
+
+  it("sends the clip's bytes as a video reference in the model's words, read under the Flow's grant", async () => {
+    await grantReads();
+    await send({ prompt: "Move like @video_1", videoReferences: [clip(1)] });
+    expect(starts[0].prompt).toBe("Move like @Video1");
+    const [sent] = starts[0].inputReferences ?? [];
+    expect(sent?.type === "file" && [sent.mediaType, [...sent.data]]).toEqual(["video/mp4", [...CLIP]]);
+  });
+
+  it("needs the clip's read declared and granted, and starts nothing without", async () => {
+    expect((await failure(send({ videoReferences: [clip(1)] })))?.status).toBe(403);
+    const elsewhere = { pin: 1, path: "/elsewhere/take.mp4", digest: digestOf(CLIP) };
+    expect((await failure(send({ videoReferences: [elsewhere] })))?.status).toBe(400);
+    expect(starts).toHaveLength(0);
+  });
+
+  it("refuses a clip that changed after Load Video read it", async () => {
+    await grantReads();
+    const stale = { ...clip(1), digest: digestOf(Buffer.from("an older take")) };
+    const refused = await failure(send({ videoReferences: [stale] }));
+    expect(refused?.status).toBe(400);
+    expect(refused?.message).toMatch(/changed after Load Video read it/);
+    expect(starts).toHaveLength(0);
+  });
+
+  it("refuses clips past 256 MiB in all before reading any", async () => {
+    // Sparse files: their size is what's checked, so nothing is written out.
+    for (const name of ["take.mp4", "copy.mp4"]) {
+      const handle = openSync(path.join(space, "shots", name), "w");
+      ftruncateSync(handle, 129 * 1024 * 1024);
+      closeSync(handle);
+    }
+    await grantReads();
+    const refused = await failure(send({ videoReferences: [clip(1), clip(2, "shots/copy.mp4")] }));
+    expect(refused?.status).toBe(400);
+    expect(refused?.message).toBe("The reference clips come to 258 MiB, over the 256 MiB one generation can send");
+    expect(starts).toHaveLength(0);
+  });
+
+  it("names a result by the clip's digest, never its path", async () => {
+    await grantReads();
+    const first = await send({ videoReferences: [clip(1)] });
+    const moved = await send({ videoReferences: [clip(1, "shots/copy.mp4")] });
+    expect(moved).toMatchObject({ path: first.path, reused: true });
+    expect(starts).toHaveLength(1);
+  });
+
+  it("leaves out clips past the model's count, and refuses a prompt naming one", async () => {
+    await grantReads();
+    const four = [clip(1), clip(2), clip(3), clip(4)];
+    const result = await send({ prompt: "Cut between the takes", videoReferences: four });
+    expect(result.warnings).toContain("test/seedance_2_0 takes 3 reference videos, so video_4 was left out");
+    expect(starts[0].inputReferences).toHaveLength(3);
+    const named = await failure(send({ prompt: "End on @video_4", videoReferences: four }));
+    expect(named?.message).toBe(
+      "The prompt names @video_4, but test/seedance_2_0 takes 3 reference videos, so video_4 was left out",
+    );
+  });
+
+  // The clean break: what a model would ignore stays out of the job and the
+  // name alike, so swapping it never pays for a new result.
+  it("asks an unlisted model's catalog what it takes, and keeps what it doesn't take out of the job and the name", async () => {
+    await grantReads();
+    inputs = async () => ({ references: ["image"], frames: ["start"] });
+    const without = await send({}, "m");
+    const ignored = await send({ videoReferences: [clip(1)] }, "m");
+    expect(ignored).toMatchObject({ path: without.path, reused: true });
+    expect(starts).toHaveLength(1);
+
+    const named = await failure(send({ prompt: "Move like @video_1", videoReferences: [clip(1)] }, "m"));
+    expect(named?.message).toBe(
+      "The prompt names @video_1, but test/m takes no reference videos, so video_1 was left out",
+    );
+    expect(starts).toHaveLength(1);
+
+    const frame = { mediaType: "image/png", data: PNG_BASE64 };
+    const started = await send({ startFrame: frame, endFrame: frame }, "m");
+    expect(started.warnings).toContain("test/m takes no end frame, so end_frame was left out");
+    expect(starts[1].frameImages?.map((each) => each.frameType)).toEqual(["first_frame"]);
+    const startOnly = await send({ startFrame: frame }, "m");
+    expect(startOnly).toMatchObject({ path: started.path, reused: true });
+  });
+
+  it("sends everything when the catalog can't be read, as before anyone asked", async () => {
+    await grantReads();
+    inputs = async () => {
+      throw new Error("signed out");
+    };
+    await send({ videoReferences: [clip(1)] }, "m");
+    expect(starts[0].inputReferences).toHaveLength(1);
   });
 });

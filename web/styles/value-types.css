@@ -22,6 +22,10 @@
   --type-color: var(--type-object);
 }
 
+.type-video {
+  --type-color: var(--type-video);
+}
+
 /* A Table column's or Class field's type: the glyph names the field type, the
    colour the port type it becomes in a Flow, so an integer column matches
    the number pin it wires into. */

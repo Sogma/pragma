@@ -13,6 +13,7 @@ import path from "node:path";
 import { findSpaceId, loadGlobalConfig } from "../config/loadConfig.ts";
 import {
   type AddRowResponse,
+  type ClipFacts,
   EFFORT_LEVELS,
   type GenerateImageRequestBody,
   type GenerateImageResponse,
@@ -26,11 +27,12 @@ import {
   type ReferenceImagePayload,
   type SandboxKind,
   type SandboxReadResult,
+  type VideoReferencePayload,
 } from "../protocol/api.ts";
 import { generationEffort } from "../protocol/dispatchAction.ts";
 import { fileStemFor } from "../protocol/entryName.ts";
 import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
-import type { AffixMode } from "../protocol/flowNodes.ts";
+import type { AffixMode, FrameKind } from "../protocol/flowNodes.ts";
 import {
   computeFlowCapabilities,
   type WiredAccess,
@@ -42,7 +44,7 @@ import {
 import { callImageModel } from "../protocol/imageGeneration.ts";
 import { addTextToNote } from "../protocol/markdownTitle.ts";
 import { stampTableDates } from "../protocol/metadata.ts";
-import { DEFAULT_IMAGE_MENTION, mentionedImagePins, spellImageMentions } from "../protocol/referenceMentions.ts";
+import { DEFAULT_MENTIONS, type MentionKind, mentionedPins, spellMentions } from "../protocol/referenceMentions.ts";
 import { formatRootPath, formatWrittenPath, resolveDeclaredPath } from "../protocol/relativeReference.ts";
 import {
   dirnameOf,
@@ -67,9 +69,11 @@ import {
   isTableFile,
   newRowValue,
   noFileAt,
+  notAVideo,
   rasterImageMediaTypeForPath,
+  videoMediaTypeForPath,
 } from "../protocol/types.ts";
-import { startVideoJob } from "../protocol/videoGeneration.ts";
+import { type DeclaredVideoInputs, startVideoJob } from "../protocol/videoGeneration.ts";
 import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol/videoResolution.ts";
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
@@ -79,12 +83,14 @@ import { writeDocument } from "./history.ts";
 import { type JobOutcome, type JobRunner, jobRunner } from "./jobRunner.ts";
 import type { JobRecord } from "./jobs.ts";
 import { type ResolvedImageModel, type ResolvedVideoModel, resolveImageModel } from "./mediaModels.ts";
-import { modelSupport } from "./modelSupport.ts";
+import { type ModelSupport, modelSupport, supportWith } from "./modelSupport.ts";
 import { placeContext, readContext } from "./pathContext.ts";
+import { withHeaderReader } from "./pixelFormat.ts";
 import { resolveHeldPath } from "./rootedFiles.ts";
 import { recordDocumentChange } from "./saveDocument.ts";
 import { readSpaceFile, resolveWithinSpace, withFileLock, writeFileAtomic } from "./spaceFiles.ts";
 import { listRootPaths, scopesOnDisk } from "./tree.ts";
+import { readClipHeader, UnreadableVideoFormat } from "./videoFormat.ts";
 
 // One declared capability, kind-agnostic: its grant key, plus the type and
 // target address the read and write routes match a request against.
@@ -193,15 +199,36 @@ export function findReadCapability(doc: SandboxDocument, target: RootedPath): Sa
   return declaredFor(doc, "readFile", target);
 }
 
+/** The SHA-256 of a file's bytes, as hex, read through rather than held. */
+export async function fileDigest(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk as Buffer);
+  return hash.digest("hex");
+}
+
+// A clip's facts and digest, never its bytes: a run hands the clip on by
+// reference, and whoever sends it reads the bytes then (protocol.md's Ports
+// and types).
+async function readClip(filePath: string, mediaType: string, shown: string): Promise<ClipFacts> {
+  try {
+    const header = await withHeaderReader(filePath, (read, size) => readClipHeader(mediaType, read, size));
+    const { width, height, duration, frameRate } = header;
+    return { mediaType, digest: await fileDigest(filePath), width, height, duration, frameRate };
+  } catch (error) {
+    if (error instanceof UnreadableVideoFormat) throw new SandboxRequestError(400, `"${shown}": ${error.message}`);
+    throw error;
+  }
+}
+
 /** Reads a granted target, parsed by its kind. `resolvedTargetPath` is a
  * rooted path (the space written bare), already
  * resolved from its document-relative form; the rooted resolver, not the
  * space's, lands a library path in its own root and refuses an unregistered
  * library.
  *
- * Only raster images are read from a library (protocol.md's Capabilities and
- * grants): the Table reader would work there, but a library listed for
- * display is no permission to hand its content to a running graph.
+ * Only raster images and clips are read from a library (protocol.md's
+ * Capabilities and grants): the Table reader would work there, but a library
+ * listed for display is no permission to hand its content to a running graph.
  */
 export async function readSandboxTarget(spaceRoot: string, resolvedTargetPath: string): Promise<SandboxReadResult> {
   const { filePath, rooted } = resolveHeldPath(spaceRoot, resolvedTargetPath, "read");
@@ -210,6 +237,8 @@ export async function readSandboxTarget(spaceRoot: string, resolvedTargetPath: s
   try {
     const mediaType = rasterImageMediaTypeForPath(filePath);
     if (mediaType) return { kind: "image", mediaType, data: (await readFile(filePath)).toString("base64") };
+    const videoType = videoMediaTypeForPath(filePath);
+    if (videoType) return { kind: "video", ...(await readClip(filePath, videoType, resolvedTargetPath)) };
     // Not readTableFile: it reads a file that isn't there as an empty one,
     // and a Flow would run on nothing. Blank or unparseable text still reads
     // as empty, as it does there. Through the space read, so a private one is
@@ -220,7 +249,10 @@ export async function readSandboxTarget(spaceRoot: string, resolvedTargetPath: s
     }
 
     if (inLibrary) {
-      throw new SandboxRequestError(400, `Only raster images can be read from a library: "${resolvedTargetPath}"`);
+      throw new SandboxRequestError(
+        400,
+        `Only raster images and video clips can be read from a library: "${resolvedTargetPath}"`,
+      );
     }
     return { kind: "text", content: await readSpaceFile(spaceRoot, rooted.path) };
   } catch (error) {
@@ -610,45 +642,158 @@ interface SentReferences {
   warnings: string[];
 }
 
-// The references a model gets, and the prompt naming them in its words for
-// a reference (docs/model-support.md). Past the number the model takes, the
+function takesText(model: string, kind: MentionKind, limit: number | undefined): string {
+  const noun = `reference ${kind}`;
+  return limit ? `${model} takes ${limit} ${noun}${limit === 1 ? "" : "s"}` : `${model} takes no ${noun}s`;
+}
+
+// The references of one kind a model gets, and the prompt naming them in its
+// words for one (docs/model-support.md). Past the number the model takes, the
 // rest are left out and said so, and a prompt naming one of those is refused.
-function sentReferences(
+function keptReferences<T extends { pin: number }>(
   prompt: string,
-  given: readonly ReferenceImagePayload[],
-  resolved: { modelId: string; host?: string },
+  kind: MentionKind,
+  given: readonly T[],
+  limit: number | undefined,
+  words: string | undefined,
   model: string,
-): SentReferences {
-  const support = modelSupport(resolved.modelId, resolved.host);
-  const limit = support.references.image;
-  const kept = limit === undefined ? given : given.slice(0, limit);
-  const leftOut = given.slice(kept.length).map((reference) => `image_${reference.pin}`);
-  const takes = `${model} takes ${limit} reference ${limit === 1 ? "image" : "images"}`;
-  for (const pin of mentionedImagePins(prompt)) {
-    if (leftOut.includes(`image_${pin}`)) {
-      throw new SandboxRequestError(400, `The prompt names @image_${pin}, but ${takes}, so image_${pin} was left out`);
+): { prompt: string; kept: T[]; warnings: string[] } {
+  const kept = limit === undefined ? [...given] : given.slice(0, limit);
+  const leftOut = given.slice(kept.length).map((reference) => `${kind}_${reference.pin}`);
+  const takes = takesText(model, kind, limit);
+  for (const pin of mentionedPins(prompt, kind)) {
+    if (leftOut.includes(`${kind}_${pin}`)) {
+      throw new SandboxRequestError(
+        400,
+        `The prompt names @${kind}_${pin}, but ${takes}, so ${kind}_${pin} was left out`,
+      );
     }
   }
   let spelled: string;
   try {
-    spelled = spellImageMentions(
-      prompt,
-      kept.map((reference) => reference.pin),
-      support.mention.image ?? DEFAULT_IMAGE_MENTION,
-    );
+    const pins = kept.map((reference) => reference.pin);
+    spelled = spellMentions(prompt, kind, pins, words ?? DEFAULT_MENTIONS[kind]);
   } catch (error) {
     throw new SandboxRequestError(400, error instanceof Error ? error.message : String(error));
   }
-  return {
+  const warnings = leftOut.length
+    ? [`${takes}, so ${leftOut.join(", ")} ${leftOut.length === 1 ? "was" : "were"} left out`]
+    : [];
+  return { prompt: spelled, kept, warnings };
+}
+
+// The reference images a model gets, decoded for it.
+function sentImages(
+  prompt: string,
+  given: readonly ReferenceImagePayload[],
+  support: ModelSupport,
+  limit: number | undefined,
+  model: string,
+): SentReferences {
+  const {
     prompt: spelled,
-    references: kept.map((reference) => ({
-      mediaType: reference.mediaType,
-      data: new Uint8Array(Buffer.from(reference.data, "base64")),
-    })),
-    warnings: leftOut.length
-      ? [`${takes}, so ${leftOut.join(", ")} ${leftOut.length === 1 ? "was" : "were"} left out`]
-      : [],
+    kept,
+    warnings,
+  } = keptReferences(prompt, "image", given, limit, support.mention.image, model);
+  const references = kept.map((reference) => ({
+    mediaType: reference.mediaType,
+    data: new Uint8Array(Buffer.from(reference.data, "base64")),
+  }));
+  return { prompt: spelled, references, warnings };
+}
+
+// What a video model takes: the support file's word first, then, for what it
+// leaves unsaid about what a request sends, its server's catalog. A catalog
+// that can't be read says nothing, so everything goes and the job's start
+// reports what it couldn't place.
+async function videoModelTakes(
+  resolved: ResolvedVideoModel,
+  support: ModelSupport,
+  sends: Record<MentionKind | "frames", boolean>,
+): Promise<ReturnType<typeof supportWith>> {
+  const unsaid =
+    (sends.image && support.references.image === undefined) ||
+    (sends.video && support.references.video === undefined) ||
+    (sends.frames && support.frames === undefined);
+  if (!unsaid || !resolved.inputs) return supportWith(support);
+  let declared: DeclaredVideoInputs;
+  try {
+    declared = await resolved.inputs();
+  } catch {
+    return supportWith(support);
+  }
+  return supportWith(support, declared);
+}
+
+// The frames a model gets. One it has no place for is left out and said so
+// before the result is named, so a frame it would ignore never changes the
+// name or rides into the job.
+function sentFrames(
+  given: Record<FrameKind, Uint8Array | undefined>,
+  taken: readonly FrameKind[] | undefined,
+  model: string,
+): { frames: Record<FrameKind, Uint8Array | undefined>; warnings: string[] } {
+  const warnings: string[] = [];
+  const keep = (kind: FrameKind): Uint8Array | undefined => {
+    const frame = given[kind];
+    if (!frame || !taken || taken.includes(kind)) return frame;
+    warnings.push(`${model} takes no ${kind} frame, so ${kind}_frame was left out`);
+    return undefined;
   };
+  return { frames: { start: keep("start"), end: keep("end") }, warnings };
+}
+
+// The most a request's clips may come to in all. They are read whole for
+// the provider, so this bounds the host's memory; past it nothing is read.
+export const VIDEO_REFERENCE_BYTES_MAX = 256 * 1024 * 1024;
+
+/** Reads each clip a request sends, by the address its value names, under
+ * the document's grants, once, so the bytes sent are the bytes checked
+ * against the digest its read gave. */
+async function readVideoReferences(
+  spaceRoot: string,
+  doc: SandboxDocument,
+  clips: readonly VideoReferencePayload[],
+): Promise<Array<{ mediaType: string; data: Uint8Array; digest: string }>> {
+  const files: Array<{ clip: VideoReferencePayload; filePath: string; mediaType: string }> = [];
+  let total = 0;
+  for (const clip of clips) {
+    const target = resolveDeclared(doc, clip.path);
+    const capability = findReadCapability(doc, target) ?? wiredRequest(doc, "read", target);
+    if (!capability) throw new SandboxRequestError(400, `${doc.label} doesn't declare a read of "${clip.path}"`);
+    await requireGranted(spaceRoot, doc, capability.key);
+    const { filePath } = resolveHeldPath(spaceRoot, formatRootedPath(target), "read");
+    const mediaType = videoMediaTypeForPath(filePath);
+    if (!mediaType) throw new SandboxRequestError(400, notAVideo(clip.path));
+    const size = await stat(filePath).then(
+      (found) => found.size,
+      (error: NodeJS.ErrnoException) => {
+        throw error.code === "ENOENT" ? new SandboxRequestError(404, noFileAt(clip.path)) : error;
+      },
+    );
+    total += size;
+    files.push({ clip, filePath, mediaType });
+  }
+  if (total > VIDEO_REFERENCE_BYTES_MAX) {
+    const mib = (bytes: number) => `${Math.ceil(bytes / (1024 * 1024))} MiB`;
+    throw new SandboxRequestError(
+      400,
+      `The reference clips come to ${mib(total)}, over the ${mib(VIDEO_REFERENCE_BYTES_MAX)} one generation can send`,
+    );
+  }
+  const read: Array<{ mediaType: string; data: Uint8Array; digest: string }> = [];
+  for (const { clip, filePath, mediaType } of files) {
+    const data = await readFile(filePath);
+    const digest = createHash("sha256").update(data).digest("hex");
+    if (digest !== clip.digest) {
+      throw new SandboxRequestError(
+        400,
+        `"${clip.path}" changed after Load Video read it. Run again to send it as it is now`,
+      );
+    }
+    read.push({ mediaType, data, digest });
+  }
+  return read;
 }
 
 /** An image already in the folder for a request's inputs, one made at
@@ -688,7 +833,14 @@ export async function startSandboxGenerateImage(
     throw new SandboxRequestError(400, error instanceof Error ? error.message : String(error));
   }
   const model = `${resolved.providerId}/${resolved.modelId}`;
-  const { prompt, references, warnings } = sentReferences(body.prompt, body.references, resolved, model);
+  const support = modelSupport(resolved.modelId, resolved.host);
+  const { prompt, references, warnings } = sentImages(
+    body.prompt,
+    body.references,
+    support,
+    support.references.image,
+    model,
+  );
   const key = createHash("sha256")
     .update(
       JSON.stringify({
@@ -875,7 +1027,8 @@ export async function startSandboxGenerateVideo(
     frame ? new Uint8Array(Buffer.from(frame.data, "base64")) : undefined;
   const startFrame = bytes(body.startFrame);
   const endFrame = bytes(body.endFrame);
-  if ((startFrame || endFrame) && body.references?.length) {
+  const clipsGiven = body.videoReferences ?? [];
+  if ((startFrame || endFrame) && (body.references?.length || clipsGiven.length)) {
     throw new SandboxRequestError(400, "A video generation takes frames or references, not both");
   }
   const duration = body.duration && /^\d+$/.test(body.duration) ? Number(body.duration) : undefined;
@@ -883,17 +1036,41 @@ export async function startSandboxGenerateVideo(
   // Take 1 is the first result, written blank, so going back to it finds it.
   const take = body.take && /^\d+$/.test(body.take) && Number(body.take) > 1 ? String(Number(body.take)) : "";
   const model = `${resolved.providerId}/${resolved.modelId}`;
-  const { prompt, references, warnings } = sentReferences(body.prompt, body.references ?? [], resolved, model);
+  // What the model takes is settled before the result is named: an input it
+  // would ignore is left out of the name as it is out of the job.
+  const support = modelSupport(resolved.modelId, resolved.host);
+  const takes = await videoModelTakes(resolved, support, {
+    image: (body.references?.length ?? 0) > 0,
+    video: clipsGiven.length > 0,
+    frames: startFrame !== undefined || endFrame !== undefined,
+  });
+  const images = sentImages(body.prompt, body.references ?? [], support, takes.references.image, model);
+  const clips = keptReferences(
+    images.prompt,
+    "video",
+    clipsGiven,
+    takes.references.video,
+    support.mention.video,
+    model,
+  );
+  const prompt = clips.prompt;
+  const { frames, warnings: frameWarnings } = sentFrames({ start: startFrame, end: endFrame }, takes.frames, model);
+  const videos = await readVideoReferences(spaceRoot, doc, clips.kept);
+  const references = [...images.references, ...videos.map(({ mediaType, data }) => ({ mediaType, data }))];
+  const warnings = [...frameWarnings, ...images.warnings, ...clips.warnings];
   const hashOf = (data: Uint8Array | undefined) => (data ? createHash("sha256").update(data).digest("hex") : "");
   const key = createHash("sha256")
     .update(
       JSON.stringify({
         model,
         prompt,
-        startFrame: hashOf(startFrame),
-        endFrame: hashOf(endFrame),
-        // Left out when none go, so a clip made without any keeps its name.
-        ...(references.length ? { references: references.map((reference) => hashOf(reference.data)) } : {}),
+        startFrame: hashOf(frames.start),
+        endFrame: hashOf(frames.end),
+        // Each left out when none go, so a clip made without any keeps its name.
+        ...(images.references.length
+          ? { references: images.references.map((reference) => hashOf(reference.data)) }
+          : {}),
+        ...(videos.length ? { videoReferences: videos.map((video) => video.digest) } : {}),
         aspectRatio: body.aspectRatio ?? "",
         // Left out at Default, never "", so a Default clip keeps its name.
         ...(shortSide ? { resolution: resolutionName(shortSide) } : {}),
@@ -937,8 +1114,8 @@ export async function startSandboxGenerateVideo(
         async () => {
           const started = await startVideoJob(resolved.model, {
             prompt,
-            startFrame,
-            endFrame,
+            startFrame: frames.start,
+            endFrame: frames.end,
             references,
             aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
             resolution: shortSide ? resolutionSize(shortSide) : undefined,

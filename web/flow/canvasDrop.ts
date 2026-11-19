@@ -5,7 +5,13 @@
 
 import { APPLET_NODE_TYPE } from "../../src/protocol/appletNode.ts";
 import { isLibraryRoot, type RootedPath } from "../../src/protocol/rootedPath.ts";
-import { isAppletFile, isMarkdownFile, isTableFile, rasterImageMediaTypeForPath } from "../../src/protocol/types.ts";
+import {
+  isAppletFile,
+  isMarkdownFile,
+  isTableFile,
+  rasterImageMediaTypeForPath,
+  videoMediaTypeForPath,
+} from "../../src/protocol/types.ts";
 import { draggedPathInFlight, readDraggedPath } from "../core/paths.ts";
 import { flowStoredPath } from "./flowPaths.ts";
 
@@ -30,11 +36,12 @@ export function paneFlowPosition(
 /** Which node a file dragged out of the space tree becomes, and the config
  * key its path goes in. Only kinds with one obvious answer: a `.table.html`
  * could as well mean loadRandomRow and a folder either folder loader, and
- * a silent guess is worse than the palette. Only `imagePath` can name a
- * library file. */
+ * a silent guess is worse than the palette. Only `imagePath` and `videoPath`
+ * can name a library file. */
 function loadNodeForDroppedFile(dragged: RootedPath): { type: string; configKey: string } | undefined {
   const { path } = dragged;
   if (rasterImageMediaTypeForPath(path)) return { type: "loadImage", configKey: "imagePath" };
+  if (videoMediaTypeForPath(path)) return { type: "loadVideo", configKey: "videoPath" };
   // Every node below resolves its path against the space and nothing else,
   // so a library path has no meaning in one — the same refusal every
   // space-only drop target already makes (LIBRARY_DROP_REFUSAL, paths.ts).

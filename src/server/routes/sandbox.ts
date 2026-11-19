@@ -17,7 +17,9 @@ import type {
   SandboxReadResult,
   SandboxUnattendedRequestBody,
   SandboxWriteRequestBody,
+  VideoReferencePayload,
 } from "../../protocol/api.ts";
+import { VIDEO_REFERENCES_MAX } from "../../protocol/flowNodes.ts";
 import { localDay, parseLocalDay } from "../../protocol/localDay.ts";
 import { grantCapability, revokeCapability, setUnattended } from "../grants.ts";
 import { jobRunner } from "../jobRunner.ts";
@@ -98,6 +100,30 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
         mediaType: requireString(fields.mediaType, "reference mediaType"),
         data: requireString(fields.data, "reference data"),
       };
+    });
+  }
+
+  // A Generate Video's clips, each by its pin, its address and the digest
+  // its read gave. Read field by field, as every field here is: one this
+  // route doesn't name never reaches the server half.
+  function readVideoReferences(value: unknown): VideoReferencePayload[] | undefined {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value)) throw new SandboxRequestError(400, "videoReferences must be a list");
+    return value.map((reference) => {
+      const fields = (reference ?? {}) as { pin?: unknown; path?: unknown; digest?: unknown };
+      const pin = fields.pin;
+      if (typeof pin !== "number" || !Number.isInteger(pin) || pin < 1 || pin > VIDEO_REFERENCES_MAX) {
+        throw new SandboxRequestError(
+          400,
+          `A video reference's pin must be a whole number from 1 to ${VIDEO_REFERENCES_MAX}`,
+        );
+      }
+      const path = requireString(fields.path, "video reference path");
+      if (!path) throw new SandboxRequestError(400, "Missing video reference path");
+      const digest = requireString(fields.digest, "video reference digest");
+      if (!/^[0-9a-f]{64}$/.test(digest))
+        throw new SandboxRequestError(400, "A video reference's digest must be a SHA-256 in hex");
+      return { pin, path, digest };
     });
   }
 
@@ -235,6 +261,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
       startFrame: frame(request.startFrame, "startFrame"),
       endFrame: frame(request.endFrame, "endFrame"),
       references: readReferences(request.references),
+      videoReferences: readVideoReferences(request.videoReferences),
       model: optional(request.model),
       aspectRatio: optional(request.aspectRatio),
       resolution: optional(request.resolution),

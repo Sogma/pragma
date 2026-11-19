@@ -514,6 +514,10 @@ export function videoMediaTypeForPath(filePath: string): SpaceVideoMediaType | u
   return extensionMediaType(VIDEO_EXTENSIONS, filePath);
 }
 
+export function notAVideo(rootedPath: string): string {
+  return `"${rootedPath}" is not a video clip: an MP4, M4V, MOV or WebM file`;
+}
+
 export function pdfMediaTypeForPath(filePath: string): SpacePdfMediaType | undefined {
   return extensionMediaType(PDF_EXTENSIONS, filePath);
 }
@@ -635,7 +639,7 @@ export interface GenerateOptionsEnvelope {
  * `object` and `number` carry real runtime values, never pre-stringified
  * text. Edges match types exactly, with no coercion: converting is a node's
  * job, visible in the graph, never an implicit edge behavior. */
-export type FlowPortType = "text" | "image" | "boolean" | "object" | "number";
+export type FlowPortType = "text" | "image" | "boolean" | "object" | "number" | "video";
 
 // The one place "can this pin connect to that one" is decided by type, for
 // the editor's drag validation. Exact match, no coercion (see FlowPortType

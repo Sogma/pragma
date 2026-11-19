@@ -33,6 +33,8 @@ export interface ModelFields {
   // How many reference images the model a ref names takes, "" for the
   // default; undefined while its list hasn't come, or when nobody says.
   imageReferences(kind: ModelKind, ref: string): number | undefined;
+  // How many reference clips it takes, the same way.
+  videoReferences(kind: ModelKind, ref: string): number | undefined;
   // Which frames it takes, the same way.
   frames(kind: ModelKind, ref: string): FrameKind[] | undefined;
 }
@@ -136,6 +138,9 @@ export function createModelFields({ contextMenu, modelLists }: ModelFieldsDeps):
     },
     imageReferences(kind, ref) {
       return listed(kind, ref)?.references?.image;
+    },
+    videoReferences(kind, ref) {
+      return listed(kind, ref)?.references?.video;
     },
     frames(kind, ref) {
       return listed(kind, ref)?.frames;

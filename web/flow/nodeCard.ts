@@ -30,7 +30,7 @@ import {
   TEMPLATE_VARIABLE_SLOTS,
 } from "../../src/protocol/flowNodes.ts";
 import { missingPortIds } from "../../src/protocol/flowProblems.ts";
-import { imageMentions } from "../../src/protocol/referenceMentions.ts";
+import { referenceMentions } from "../../src/protocol/referenceMentions.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 import {
   type AppletManifest,
@@ -75,7 +75,14 @@ import {
 } from "./controls.ts";
 import type { FlowMenus } from "./flowMenus.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
-import { type AddRowPicker, createPickers, type FieldPicker, type GenerationView, type PathPicker } from "./pickers.ts";
+import {
+  type AddRowPicker,
+  type ClipPicker,
+  createPickers,
+  type FieldPicker,
+  type GenerationView,
+  type PathPicker,
+} from "./pickers.ts";
 import {
   attachPlaceholderSuggestions,
   dateChoices,
@@ -102,6 +109,7 @@ const LOADER_TYPES = new Set([
   "loadFolderNote",
   "loadImage",
   "loadFolderImage",
+  "loadVideo",
 ]);
 
 // A pin's row, built among the ports, and its port, for moving it beside
@@ -116,6 +124,9 @@ interface PlacedPin {
 // adds the noun its buttons call a slot.
 interface SlotView extends SlotSpec {
   noun: string;
+  // The dataset key a row carries its slot under: two kinds of slot share
+  // one container on a Generate Video, and each counts only its own rows.
+  rowKey?: "slot" | "videoSlot";
 }
 
 // One thing a slotted node's "+" can add, as its menu would name it.
@@ -181,8 +192,11 @@ function buildMentionDecorations(view: EditorView): DecorationSet {
     // adding — RangeSetBuilder requires strictly increasing positions, which
     // one matchAll pass gets for free but combining two doesn't.
     const matches: { start: number; end: number; className: string }[] = [];
-    for (const mention of imageMentions(text)) {
-      matches.push({ start: from + mention.start, end: from + mention.end, className: "cm-image-mention" });
+    for (const kind of ["image", "video"] as const) {
+      for (const mention of referenceMentions(text, kind)) {
+        const className = kind === "image" ? "cm-image-mention" : "cm-video-mention";
+        matches.push({ start: from + mention.start, end: from + mention.end, className });
+      }
     }
     for (const match of text.matchAll(TEMPLATE_VARIABLE_PATTERN)) {
       const start = from + (match.index ?? 0);
@@ -358,6 +372,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // its hold on the Spellcheck setting.
   const textEditors = new Map<string, Disposable>();
   const generationViews = new Map<string, GenerationView>();
+  // Each Load Video's clip, by node id, so its player goes with the card.
+  const clipPickers = new Map<string, ClipPicker>();
   // Per slotted node, what shows or hides its "+" for what's revealed and
   // what the picked model takes.
   const slotAddRefreshers = new Map<string, () => void>();
@@ -1005,9 +1021,10 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
 
   // The slots a slotted node shows: those revealed, and any row the card has
   // drawn since, such as a wired one whose wire has gone.
-  function shownSlots(node: FlowNodeInstance, spec: SlotSpec, container: HTMLElement): number[] {
+  function shownSlots(node: FlowNodeInstance, spec: SlotView, container: HTMLElement): number[] {
+    const key = spec.rowKey ?? "slot";
     const drawn = [...container.children].flatMap((child) =>
-      child instanceof HTMLElement && child.dataset.slot ? [Number(child.dataset.slot)] : [],
+      child instanceof HTMLElement && child.dataset[key] ? [Number(child.dataset[key])] : [],
     );
     return [...new Set([...revealedSlots(node, spec), ...drawn])].sort((a, b) => a - b);
   }
@@ -1159,6 +1176,11 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       menuLabel: string;
       word: (options: AddChoice[]) => string;
       others: () => AddChoice[];
+      // What else it can add, listed after its own slot: a Generate Video's clips.
+      after?: () => AddChoice[];
+      // Where a new row goes when none is numbered past it, if not just
+      // above the "+".
+      endsBefore?: () => Element | undefined;
     },
   ): HTMLDivElement {
     const row = document.createElement("div");
@@ -1190,11 +1212,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       const floor = spec.floor ?? 1;
       node.config[spec.slotsKey] = [...slots.filter((n) => n > floor), next];
       const added = buildRow(next);
-      added.dataset.slot = String(next);
+      const key = spec.rowKey ?? "slot";
+      added.dataset[key] = String(next);
       const after = [...container.children].find(
-        (child) => child instanceof HTMLElement && Number(child.dataset.slot) > next,
+        (child) => child instanceof HTMLElement && Number(child.dataset[key]) > next,
       );
-      container.insertBefore(added, after ?? row);
+      container.insertBefore(added, after ?? choices?.endsBefore?.() ?? row);
       refresh();
       deps.onLayoutChange(node.id);
       deps.persistGraph();
@@ -1202,6 +1225,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const available = (): AddChoice[] => [
       ...(choices?.others() ?? []),
       ...(full(shownSlots(node, spec, container)) ? [] : [{ label: choices?.slotLabel ?? spec.noun, add: addSlot }]),
+      ...(choices?.after?.() ?? []),
     ];
     const label = (options: AddChoice[]) =>
       options.length === 1 ? `Add ${options[0].label.toLowerCase()}` : (choices?.menuLabel ?? `Add ${spec.noun}`);
@@ -1243,23 +1267,54 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     return { kind, ref: typeof node.config.model === "string" ? node.config.model : "" };
   }
 
-  // A Generate node's reference pins: each revealed one a plain optional image
-  // pin with its Remove, then the "+". It stops at the number the picked model
-  // takes, or at the ceiling while the model comes on a wire or nobody says.
-  // On a node with frames it also brings back a frame the model takes.
+  // A Generate node's reference pins: each revealed one a plain optional pin
+  // with its Remove, the images first and then a Generate Video's clips, then
+  // the "+". Each kind stops at the number the picked model takes, or at the
+  // ceiling while the model comes on a wire or nobody says. On a node with
+  // frames the "+" also brings back a frame the model takes.
   function createReferenceRows(node: FlowNodeInstance, view: SlotView, container: HTMLDivElement): HTMLDivElement[] {
     const ports = nodePorts(node).inputs;
-    const build = (slot: number): HTMLDivElement => {
-      const port = ports.find((candidate) => candidate.id === view.portId(slot));
-      const row = port ? createPortRow(node, port, "target") : document.createElement("div");
-      row.classList.add("flow-reference-row");
-      row.dataset.slot = String(slot);
-      row.appendChild(createRemoveSlotButton(node, view, slot, row, container));
-      return row;
-    };
-    const limit = () => {
+    const builder =
+      (kind: SlotView) =>
+      (slot: number): HTMLDivElement => {
+        const port = ports.find((candidate) => candidate.id === kind.portId(slot));
+        const row = port ? createPortRow(node, port, "target") : document.createElement("div");
+        row.classList.add("flow-reference-row");
+        row.dataset[kind.rowKey ?? "slot"] = String(slot);
+        row.appendChild(createRemoveSlotButton(node, kind, slot, row, container));
+        return row;
+      };
+    const build = builder(view);
+    const limitOf = (count: (kind: ModelKind, ref: string) => number | undefined) => () => {
       const picked = pickedModel(node);
-      return picked ? deps.modelFields.imageReferences(picked.kind, picked.ref) : undefined;
+      return picked ? count(picked.kind, picked.ref) : undefined;
+    };
+    const videoSpec = FLOW_NODE_REGISTRY[node.type]?.videoReferenceSlots;
+    const videoView: SlotView | undefined = videoSpec && { ...videoSpec, noun: "video reference", rowKey: "videoSlot" };
+    const buildVideo = videoView && builder(videoView);
+    const videoLimit = limitOf(deps.modelFields.videoReferences);
+    let addRow: HTMLDivElement | undefined;
+    const videoRows = (): HTMLElement[] =>
+      [...container.children].filter(
+        (child): child is HTMLElement => child instanceof HTMLElement && child.dataset.videoSlot !== undefined,
+      );
+    // The next clip's row, placed among the clips, which sit below the images.
+    const videoChoices = (): AddChoice[] => {
+      if (!videoView || !buildVideo) return [];
+      const slots = shownSlots(node, videoView, container);
+      const next = nextSlot(slots, videoView);
+      const most = videoLimit();
+      if (next === undefined || (most !== undefined && slots.length >= most)) return [];
+      const add = () => {
+        node.config[videoView.slotsKey] = [...slots, next];
+        const added = buildVideo(next);
+        const after = videoRows().find((child) => Number(child.dataset.videoSlot) > next);
+        container.insertBefore(added, after ?? addRow ?? null);
+        slotAddRefreshers.get(node.id)?.();
+        deps.onLayoutChange(node.id);
+        deps.persistGraph();
+      };
+      return [{ label: "Video reference", add }];
     };
     const framed = FLOW_NODE_REGISTRY[node.type]?.framePorts !== undefined;
     const choices = {
@@ -1267,8 +1322,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       menuLabel: "Add frame or reference",
       word: (options: AddChoice[]) => (options.some((option) => option.frame) ? "Frame or reference" : "Reference"),
       others: () => (framed ? frameChoices(node) : []),
+      after: videoChoices,
+      endsBefore: () => videoRows()[0],
     };
-    return [...revealedSlots(node, view).map(build), createAddSlotRow(node, view, container, build, limit, choices)];
+    addRow = createAddSlotRow(node, view, container, build, limitOf(deps.modelFields.imageReferences), choices);
+    const clips = videoView && buildVideo ? revealedSlots(node, videoView).map(buildVideo) : [];
+    return [...revealedSlots(node, view).map(build), ...clips, addRow];
   }
 
   function takenFrames(node: FlowNodeInstance): readonly FrameKind[] {
@@ -1851,9 +1910,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const ports = nodePorts(flowNode);
     const columns = flowNode.type === ADD_ROW_NODE_TYPE ? addRowNodeConfig(flowNode.config).columns : [];
     const referenceSlots = definition.referenceSlots;
-    const referencePorts = new Set(
-      referenceSlots ? Array.from({ length: referenceSlots.max }, (_, i) => referenceSlots.portId(i + 1)) : [],
-    );
+    const slotPorts = (spec: SlotSpec | undefined) =>
+      spec ? Array.from({ length: spec.max }, (_, i) => spec.portId(i + 1)) : [];
+    const referencePorts = new Set([...slotPorts(referenceSlots), ...slotPorts(definition.videoReferenceSlots)]);
     let pathPin: PlacedPin | undefined;
     for (const port of ports.inputs) {
       const column = columns.find((candidate) => candidate.id === port.id);
@@ -1937,6 +1996,13 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     if (flowNode.type === "loadImage") {
       pathPicker = pickers.createDropzone(flowNode);
       contentEl.appendChild(pathPicker.el);
+    } else if (flowNode.type === "loadVideo") {
+      // A remount builds the card again without forgetting the node first.
+      clipPickers.get(flowNode.id)?.dispose();
+      const clipPicker = pickers.createVideoPicker(flowNode);
+      clipPickers.set(flowNode.id, clipPicker);
+      pathPicker = clipPicker;
+      contentEl.appendChild(clipPicker.el);
     }
 
     if (flowNode.type === "loadRow" && selectedPortLabelEl) {
@@ -2096,6 +2162,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       textEditors.delete(nodeId);
       generationViews.get(nodeId)?.dispose();
       generationViews.delete(nodeId);
+      clipPickers.get(nodeId)?.dispose();
+      clipPickers.delete(nodeId);
       heldViews.delete(nodeId);
       contextReports.delete(nodeId);
       resultEls.delete(nodeId);

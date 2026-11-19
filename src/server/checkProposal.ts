@@ -171,8 +171,13 @@ const SLOTTED: Record<string, SlotSpec> = {
 // The slots past the floor an editor shows: every one named, keyed or wired,
 // and any the Flow already lists. A run reads every slot either way.
 function fillSlots(node: FlowNodeInstance, graph: FlowGraph): void {
-  const spec = SLOTTED[node.type] ?? FLOW_NODE_REGISTRY[node.type]?.referenceSlots;
-  if (!spec) return;
+  const definition = FLOW_NODE_REGISTRY[node.type];
+  for (const spec of [SLOTTED[node.type] ?? definition?.referenceSlots, definition?.videoReferenceSlots]) {
+    if (spec) fillSlotsOf(node, graph, spec);
+  }
+}
+
+function fillSlotsOf(node: FlowNodeInstance, graph: FlowGraph, spec: SlotSpec): void {
   const first = (spec.floor ?? 1) + 1;
   const listed = node.config[spec.slotsKey];
   const slots = new Set(

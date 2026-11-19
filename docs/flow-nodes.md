@@ -273,12 +273,12 @@ Makes the host's image call: `prompt`, the connected images as references in pin
 
 **Generate Video (AI)**: a clip from a video model, saved into a folder.
 
-- **Inputs:** `prompt: text`, `start_frame: image` (optional), `end_frame: image` (optional), `image_1`–`image_30: image` (optional), `model: text` (video-model select widget), `aspect_ratio: text` (select widget: blank, `16:9`, `9:16`, `1:1`, `4:3`, `3:4`, `21:9`), `resolution: text` (select widget: blank, `480p`, `720p`, `1080p`, `4K`), `duration: text` (select widget: blank, `3`, `4`, `5`, `6`, `8`, `10`, `12`, `15`), `prefix: text` (text widget)
+- **Inputs:** `prompt: text`, `start_frame: image` (optional), `end_frame: image` (optional), `image_1`–`image_30: image` (optional), `video_1`–`video_10: video` (optional), `model: text` (video-model select widget), `aspect_ratio: text` (select widget: blank, `16:9`, `9:16`, `1:1`, `4:3`, `3:4`, `21:9`), `resolution: text` (select widget: blank, `480p`, `720p`, `1080p`, `4K`), `duration: text` (select widget: blank, `3`, `4`, `5`, `6`, `8`, `10`, `12`, `15`), `prefix: text` (text widget)
 - **Outputs:** `path: text`, `file_name: text`
-- **Config:** `outputFolderPath`, `take`, `imageSlots`, `removedFrames`
+- **Config:** `outputFolderPath`, `take`, `imageSlots`, `videoSlots`, `removedFrames`
 - **Capability:** generateVideo(`outputFolderPath`)
 
-Makes the host's video call: `prompt`; either the frames, `start_frame` as the clip's first and `end_frame` as its last, or the reference images, shown, mentioned and sent as [`generateImage`](#generateimage)'s are; the chosen model (unconnected, the host's default video model), an aspect ratio as [`generateImage`](#generateimage) takes one, `resolution`, the clip's short side as `720p`, `4K` or a frame size such as `1280x720` (blank, the model's default), and `duration`, whole seconds (blank, the model's default). An editor shows the frame pins the chosen model takes, less those `removedFrames` lists by frame, `start` or `end`, and always one with a wire. A node given both frames and references fails. A frame or reference the model has no place for is left out, and a setting it changed or ignored is reported, not failed. No port carries video, so the clip leaves by `path` and `file_name`, written as `generateImage`'s are. A result is found, named and copied as `generateImage`'s is, `video` taking the place of `image`, its digest also taking the frames' bytes, the resolution and the duration, and `take` in place of a seed. `take` never reaches the model, since video models take no seed: Regenerating moves it to the next whole number, and take 1 is written blank, so clearing it finds the first result again. A clip is a job that can outlast the request waiting on it, so a host records each job as it starts: a run whose inputs match a recorded job waits on it instead of starting another, and the host saves a stopped run's clip, after a restart too. What the provider quoted before the job is reported on the node as a quote, since the charge can differ.
+Makes the host's video call: `prompt`; either the frames, `start_frame` as the clip's first and `end_frame` as its last, or the references: images, shown, mentioned and sent as [`generateImage`](#generateimage)'s are, and clips, shown the same way under `videoSlots`, mentioned as `@video_N`, and sent by reference: the host reads each under the Flow's grants, fails the node when one doesn't match the digest its read gave, and sends at most 256 MiB of clips in all; the chosen model (unconnected, the host's default video model), an aspect ratio as [`generateImage`](#generateimage) takes one, `resolution`, the clip's short side as `720p`, `4K` or a frame size such as `1280x720` (blank, the model's default), and `duration`, whole seconds (blank, the model's default). An editor shows the frame pins the chosen model takes, less those `removedFrames` lists by frame, `start` or `end`, and always one with a wire. A node given both frames and references fails. A frame or reference the model has no place for, as the host's model support file says or, where it says nothing, the provider's catalog, is left out and reported, and stays out of the result's digest; a prompt naming a left-out reference fails the node before anything is sent. A setting the model changed or ignored is reported, not failed. The clip leaves by `path` and `file_name`, written as `generateImage`'s are. A result is found, named and copied as `generateImage`'s is, `video` taking the place of `image`, its digest also taking the bytes of the frames sent, each clip's digest, the resolution and the duration, and `take` in place of a seed. `take` never reaches the model, since video models take no seed: Regenerating moves it to the next whole number, and take 1 is written blank, so clearing it finds the first result again. A clip is a job that can outlast the request waiting on it, so a host records each job as it starts: a run whose inputs match a recorded job waits on it instead of starting another, and the host saves a stopped run's clip, after a restart too. What the provider quoted before the job is reported on the node as a quote, since the charge can differ.
 
 ## Image
 
@@ -302,6 +302,19 @@ It reads a raster image: a PNG, JPEG, GIF or WebP. A vector image (SVG) is not o
 - **Capability:** readFile(`folderPath`)
 
 Lists its folder's raster images non-recursively and reads the currently selected one, giving [`loadImage`](#loadimage)'s outputs. Its capability is the **folder**, so one grant covers every child, present or future, matched by address however either path is written. The child is stored as a drop of it would be.
+
+## Video
+
+### `loadVideo`
+
+**Load Video**: one video clip.
+
+- **Inputs:** `path: text` (optional)
+- **Outputs:** `video: video`, `name: text`, `width: number`, `height: number`, `aspect_ratio: text`, `duration: number`, `path: text`
+- **Config:** `videoPath`, `optional`
+- **Capability:** readFile(`videoPath`)
+
+It reads a clip, an MP4, M4V, MOV or WebM file, in the space or a library, stored or wired; a path naming anything else fails the node before anything is asked. It hands the clip on as a `video` value, by reference and never its bytes (see [Ports and types](protocol.md#ports-and-types)). `name` is the filename without extension; `width`, `height` and `duration`, in seconds, come from the clip's header, each left out when the header doesn't give it, and `aspect_ratio` is written as [`loadImage`](#loadimage)'s. Only a tree drag stores `videoPath`, and nothing is picked from the computer: a clip goes on as a file the host can read. `optional` works as on [`loadImage`](#loadimage).
 
 ## Editor
 

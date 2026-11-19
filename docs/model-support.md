@@ -4,7 +4,7 @@
 
 ## What a host does with it
 
-- **A node's "+" stops at the model's count.** A Generate node shows its reference pins one at a time, and its "+" hides once the picked model's `references.image` are shown. With the model on a wire, or a model the file gives no count, it stops at the nodes' pin ceiling instead.
+- **A node's "+" stops at the model's count.** A Generate node shows its reference pins one at a time, and its "+" hides once the picked model's count of that kind is shown: `references.image`, or `references.video` for Generate Video's clips. Where the file gives a model no count of a kind, the server's catalog decides, a kind it doesn't declare counting as none; with the model on a wire, or where nothing says, the "+" stops at the nodes' pin ceiling.
 - **A run sends no more than the count.** References past it are left out and reported on the node, and a prompt naming one of them fails the node.
 - **A Generate Video node shows the frames the model takes.** Its `start_frame` and `end_frame` pins show for the frames in the model's `frames`, both for a model the file says nothing of, and always a wired one. A frame the node removed comes back from the "+".
 - **A mention goes in the model's own words.** Each `@image_N` in a prompt is sent as the model's `mention.image`, `{n}` set to that image's place among those sent. A model with none gets the default words, `reference image {n}`.
@@ -50,7 +50,7 @@ Each key under `models` is a model's name as its maker writes it, one entry per 
 | Field | Holds |
 |---|---|
 | `ids` | The ids hosts call the model by, such as a host's machine name (`seedance_2_5`) and the maker's API id (`gpt-image-2`). An id ending in `*` covers every id that starts with the rest (`gpt-image-*`). An exact id wins over a `*` one, and a longer `*` one over a shorter. Ids fold case, and no two entries share one. |
-| `references` | For `image`, `video` and `audio`, the most of that kind one request takes, as a whole number. The Generate nodes send images; the other counts come from the same docs, for a node that sends those. |
+| `references` | For `image`, `video` and `audio`, the most of that kind one request takes, as a whole number. The Generate nodes send images, and Generate Video clips too; the audio counts come from the same docs, for a node that sends audio. |
 | `frames` | The frames a video model takes as frames, `start` and `end`, which its docs offer as a first- and last-frame setting rather than as a reference. `[]` for none. |
 | `mention` | For each kind, the words the model's docs use for one reference, with `{n}` where its place among those of its kind goes (`@Image{n}`). |
 | `source` | The official page each fact was read from, or a list of them. Required. |

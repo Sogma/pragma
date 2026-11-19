@@ -22,6 +22,7 @@ const graph: FlowGraph = {
       appModeOrder: 1,
     },
     { id: "image-1", type: "loadImage", position: { x: 0, y: 0 }, config: {}, exposed: ["imagePath"] },
+    { id: "video-1", type: "loadVideo", position: { x: 0, y: 0 }, config: {}, exposed: ["videoPath"] },
     { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: {}, exposed: ["model"] },
     // Connect-only sockets are never inputs, even if a hand-edited file says so.
     { id: "gen-2", type: "generateText", position: { x: 0, y: 0 }, config: {}, exposed: ["prompt"] },
@@ -36,6 +37,7 @@ describe("a flow's run inputs", () => {
       { name: "join-1.text_1", nodeId: "join-1", field: "text_1", label: "Greeting · text_1", type: "text" },
       { name: "join-1.text_2", nodeId: "join-1", field: "text_2", label: "Greeting · text_2", type: "text" },
       { name: "image-1.imagePath", nodeId: "image-1", field: "imagePath", label: "Load Image · Image", type: "path" },
+      { name: "video-1.videoPath", nodeId: "video-1", field: "videoPath", label: "Load Video · Video", type: "path" },
       { name: "gen-1.model", nodeId: "gen-1", field: "model", label: "Generate Text (AI) · model", type: "model" },
     ]);
   });

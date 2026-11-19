@@ -42,6 +42,7 @@ const PICKERS: Record<string, Record<string, string>> = {
   loadRow: { selectedValue: "Selected row" },
   loadFolderNote: { notePath: "Selected note" },
   loadFolderImage: { imagePath: "Selected image" },
+  loadVideo: { videoPath: "Video" },
   generateImage: { outputFolderPath: "Results folder" },
   generateVideo: { outputFolderPath: "Results folder" },
 };

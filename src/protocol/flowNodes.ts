@@ -82,7 +82,7 @@ export interface FlowNodeInputWidget {
 // of value a Flow reads and shapes, then generation, then the open document,
 // and the Applet container last, where node editors put groups. A list rather
 // than the registry's key order, so declaring a type never moves a category.
-export const FLOW_NODE_CATEGORIES = ["Text", "Image", "Data", "AI", "Editor", "Applets"] as const;
+export const FLOW_NODE_CATEGORIES = ["Text", "Image", "Video", "Data", "AI", "Editor", "Applets"] as const;
 
 export type FlowNodeCategory = (typeof FLOW_NODE_CATEGORIES)[number];
 
@@ -113,6 +113,8 @@ export interface FlowNodeTypeDefinition {
   // Reference image pins among `inputs`, which an editor shows one at a
   // time, as many as the picked model takes. A run reads every one wired.
   referenceSlots?: SlotSpec;
+  // Reference clip pins, shown and read as the image ones are.
+  videoReferenceSlots?: SlotSpec;
   // Frame pins among `inputs`, by frame. An editor shows one while the picked
   // model takes that frame and the node hasn't removed it, which
   // `config.removedFrames` lists; a wired one always shows, and a run reads it.
@@ -202,6 +204,10 @@ function numberPort(id: string, description?: string): FlowPort {
   return builtInPort(id, "number", description);
 }
 
+function videoPort(id: string, description?: string): FlowPort {
+  return builtInPort(id, "video", description);
+}
+
 function configString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
   return typeof value === "string" ? value : "";
@@ -265,6 +271,25 @@ function imageReferencePorts(): FlowPort[] {
   return Array.from({ length: IMAGE_REFERENCES_MAX }, (_, index) => {
     const id = IMAGE_REFERENCE_SLOTS.portId(index + 1);
     return { ...imagePort(id, `The prompt can name it as @${id}.`), required: false };
+  });
+}
+
+// Generate Video's reference clips, as its reference images are: up to the
+// most any model takes in the model support file, one "+" at a time and none
+// at first, each named in a prompt by its id, `@video_2`.
+export const VIDEO_REFERENCES_MAX = 10;
+
+export const VIDEO_REFERENCE_SLOTS: SlotSpec = {
+  slotsKey: "videoSlots",
+  max: VIDEO_REFERENCES_MAX,
+  floor: 0,
+  portId: (slot) => `video_${slot}`,
+};
+
+function videoReferencePorts(): FlowPort[] {
+  return Array.from({ length: VIDEO_REFERENCES_MAX }, (_, index) => {
+    const id = VIDEO_REFERENCE_SLOTS.portId(index + 1);
+    return { ...videoPort(id, `The prompt can name it as @${id}.`), required: false };
   });
 }
 
@@ -564,9 +589,9 @@ const IMAGE_OUTPUTS: FlowPort[] = [
  * grant (docs/flow-nodes.md's "loadImage" section). That path may name a
  * library's file, read under the same `readFile` as a space path.
  *
- * Every other picker refuses a non-space path: what sits below its read (a
- * Table's parse, a folder listing, a note's privacy check) resolves space
- * paths only. */
+ * Every other picker but Load Video's refuses a non-space path: what sits
+ * below its read (a Table's parse, a folder listing, a note's privacy check)
+ * resolves space paths only. */
 const loadImage = withPathInput(
   {
     type: "loadImage",
@@ -623,6 +648,49 @@ const loadFolderImage: FlowNodeTypeDefinition = {
     return path ? { type: "readFile", path } : undefined;
   },
 };
+
+/** Loads one clip by reference: its facts and digest, never its bytes, which
+ * the host reads only when a node sends the clip on (docs/flow-nodes.md's
+ * "loadVideo" section). A tree drag stores `videoPath`, which may name a
+ * library's clip as Load Image's may. No pick from the computer: a run's clip
+ * has to be a file the host can read. */
+const loadVideo = withPathInput(
+  {
+    type: "loadVideo",
+    label: "Load Video",
+    description: "One video clip.",
+    category: "Video",
+    keywords: ["clip", "movie", "footage", "reference", "file"],
+    version: "1.0",
+    inputs: [],
+    outputs: [
+      videoPort("video", "The clip, for a node that takes one, such as a video reference."),
+      textPort("name", "The file name, without its extension."),
+      numberPort("width"),
+      numberPort("height"),
+      textPort("aspect_ratio", "The nearest common ratio, such as 16:9 or 9:16."),
+      numberPort("duration", "In seconds."),
+      textPort("path"),
+    ],
+    configFields: [
+      {
+        key: "optional",
+        label: "Optional",
+        type: "checkbox",
+        description: "With nothing picked, gives no outputs instead of failing.",
+      },
+    ],
+    configKeys: ["videoPath", "optional"],
+    capabilityFor: (config) => {
+      const path = configString(config, "videoPath");
+      return path ? { type: "readFile", path } : undefined;
+    },
+  },
+  "videoPath",
+  "read",
+  "The clip's path in the space or library.",
+  true,
+);
 
 // The pin whose wired path sends the files around it with a generation.
 const CONTEXT_PORT = "context";
@@ -745,9 +813,9 @@ const VIDEO_RESOLUTIONS = ["480p", "720p", "1080p", "4K"];
 const VIDEO_DURATIONS = ["3", "4", "5", "6", "8", "10", "12", "15"];
 
 /** Generates a clip into a folder dragged onto the node, as generateImage
- * does an image (docs/flow-nodes.md's "generateVideo" section). No port
- * carries video, so the clip leaves by its `path`. No video model takes a
- * seed, so a `take` that never reaches the model names each new result. */
+ * does an image (docs/flow-nodes.md's "generateVideo" section). The clip
+ * leaves by its `path`. No video model takes a seed, so a `take` that never
+ * reaches the model names each new result. */
 const generateVideo: FlowNodeTypeDefinition = {
   type: "generateVideo",
   label: "Generate Video (AI)",
@@ -758,10 +826,11 @@ const generateVideo: FlowNodeTypeDefinition = {
   version: "1.0",
   reuse: "always",
   inputs: [
-    textPort("prompt", "It can name a reference as @image_1."),
+    textPort("prompt", "It can name a reference as @image_1 or @video_1."),
     { ...imagePort("start_frame"), required: false },
     { ...imagePort("end_frame"), required: false },
     ...imageReferencePorts(),
+    ...videoReferencePorts(),
     textPort("model"),
     textPort("aspect_ratio"),
     textPort("resolution", "The clip's short side."),
@@ -770,6 +839,7 @@ const generateVideo: FlowNodeTypeDefinition = {
   ],
   outputs: [textPort("path"), textPort("file_name", "Without its extension.")],
   referenceSlots: IMAGE_REFERENCE_SLOTS,
+  videoReferenceSlots: VIDEO_REFERENCE_SLOTS,
   framePorts: { start: "start_frame", end: "end_frame" },
   configFields: [
     {
@@ -779,7 +849,13 @@ const generateVideo: FlowNodeTypeDefinition = {
       description: "Which take of the clip, never sent to the model. Regenerate moves it on.",
     },
   ],
-  configKeys: ["outputFolderPath", "take", IMAGE_REFERENCE_SLOTS.slotsKey, "removedFrames"],
+  configKeys: [
+    "outputFolderPath",
+    "take",
+    IMAGE_REFERENCE_SLOTS.slotsKey,
+    VIDEO_REFERENCE_SLOTS.slotsKey,
+    "removedFrames",
+  ],
   regenerate: {
     key: "take",
     next: (current) => String((/^\d+$/.test(current) ? Math.max(1, Number(current)) : 1) + 1),
@@ -1291,6 +1367,7 @@ export const FLOW_NODE_REGISTRY: Record<string, FlowNodeTypeDefinition> = {
   loadFolderNote,
   loadImage,
   loadFolderImage,
+  loadVideo,
   generateText,
   prompt,
   choice,

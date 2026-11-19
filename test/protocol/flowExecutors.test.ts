@@ -99,6 +99,101 @@ describe("the Load Image executor's capability", () => {
   });
 });
 
+// A clip goes on by reference (protocol.md's Ports and types): the run holds
+// its facts and digest, and the host reads the bytes only where they're sent.
+describe("the Load Video node", () => {
+  const CLIP = {
+    kind: "video",
+    mediaType: "video/mp4",
+    digest: "ab".repeat(32),
+    width: 1920,
+    height: 1080,
+    duration: 5,
+    frameRate: 25,
+  };
+  const videoNode = (config: Record<string, unknown>): FlowNodeInstance => ({
+    id: "loadVideo-1",
+    type: "loadVideo",
+    position: { x: 0, y: 0 },
+    config,
+  });
+
+  beforeEach(() => sandboxRead.mockResolvedValue(CLIP));
+
+  it("hands the clip on by reference, with its facts, from the root", async () => {
+    const outputs = await NODE_EXECUTORS.loadVideo(videoNode({ videoPath: "shots/take.mp4" }), {}, context());
+    expect(sandboxRead).toHaveBeenCalledWith("flow", "picture.flow.html", "shots/take.mp4");
+    const { kind: _kind, ...facts } = CLIP;
+    expect(outputs).toEqual({
+      video: { type: "video", path: "/shots/take.mp4", ...facts },
+      name: { type: "text", value: "take" },
+      width: { type: "number", value: 1920 },
+      height: { type: "number", value: 1080 },
+      aspect_ratio: { type: "text", value: "16:9" },
+      duration: { type: "number", value: 5 },
+      path: { type: "text", value: "/shots/take.mp4" },
+    });
+  });
+
+  it("asks to read a library's clip on its rooted path, and names it there", async () => {
+    const ensureCapability = vi.fn(async (_capability: FlowCapabilityDeclaration) => true);
+    const outputs = await NODE_EXECUTORS.loadVideo(
+      videoNode({ videoPath: "lib:footage/take.mov" }),
+      {},
+      context({ ensureCapability }),
+    );
+    expect(ensureCapability.mock.calls[0][0]).toEqual({ type: "readFile", path: "lib:footage/take.mov" });
+    expect(outputs.video).toMatchObject({ type: "video", path: "lib:footage/take.mov" });
+  });
+
+  it("takes a wired path in place of the stored one, asking for that file", async () => {
+    const ensureCapability = vi.fn(async (_capability: FlowCapabilityDeclaration) => true);
+    const wired = { path: { type: "text" as const, value: "shots/other.webm" } };
+    const outputs = await NODE_EXECUTORS.loadVideo(
+      videoNode({ videoPath: "shots/take.mp4" }),
+      wired,
+      context({ ensureCapability }),
+    );
+    expect(ensureCapability.mock.calls[0][0]).toEqual({
+      type: "readFile",
+      path: "space:shots/other.webm",
+      wired: true,
+    });
+    expect(outputs.path).toEqual({ type: "text", value: "/shots/other.webm" });
+  });
+
+  it("leaves out each fact the clip's header doesn't give", async () => {
+    sandboxRead.mockResolvedValue({ ...CLIP, width: null, height: null, duration: null, frameRate: null });
+    const outputs = await NODE_EXECUTORS.loadVideo(videoNode({ videoPath: "shots/take.mp4" }), {}, context());
+    expect(Object.keys(outputs).sort()).toEqual(["name", "path", "video"]);
+    expect(outputs.video).toMatchObject({ width: null, duration: null });
+  });
+
+  it("fails a path that isn't a clip before anything is asked", async () => {
+    const ensureCapability = vi.fn(async () => true);
+    await expect(
+      NODE_EXECUTORS.loadVideo(videoNode({ videoPath: "art/still.png" }), {}, context({ ensureCapability })),
+    ).rejects.toThrow('"art/still.png" is not a video clip');
+    expect(ensureCapability).not.toHaveBeenCalled();
+    expect(sandboxRead).not.toHaveBeenCalled();
+  });
+
+  it("refuses to read on a denied grant", async () => {
+    const denied = context({ ensureCapability: vi.fn(async () => false) });
+    await expect(NODE_EXECUTORS.loadVideo(videoNode({ videoPath: "shots/take.mp4" }), {}, denied)).rejects.toThrow(
+      /Permission denied/,
+    );
+    expect(sandboxRead).not.toHaveBeenCalled();
+  });
+
+  it("fails with nothing picked, unless it's optional, when it gives nothing at all", async () => {
+    await expect(NODE_EXECUTORS.loadVideo(videoNode({}), {}, context())).rejects.toThrow(/Drag a clip/);
+    expect(await NODE_EXECUTORS.loadVideo(videoNode({ optional: "true" }), {}, context())).toEqual({});
+    const emptyWire = { path: { type: "text" as const, value: "" } };
+    expect(await NODE_EXECUTORS.loadVideo(videoNode({ optional: "true" }), emptyWire, context())).toEqual({});
+  });
+});
+
 // A grant to read what the node then refuses would be a prompt for nothing.
 describe("Load Image and Load Folder Image refuse a vector image", () => {
   it("fails a stored or wired SVG before anything is asked", async () => {

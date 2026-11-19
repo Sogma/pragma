@@ -21,8 +21,10 @@ import {
   isMarkdownFile,
   isTableFile,
   notARasterImage,
+  notAVideo,
   RASTER_IMAGE_MEDIA_TYPES,
   rasterImageMediaTypeForPath,
+  videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../core/apiClient.ts";
 import {
@@ -34,6 +36,7 @@ import {
   tableContentsLabel,
 } from "../core/paths.ts";
 import { pathNames } from "../core/spaceTree.ts";
+import { formatDimensions, formatDuration, formatFrameRate } from "../lib/dom.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 import { appendSelectOptions, createSelectControl, fillPickSelect, regenerateHint } from "./controls.ts";
@@ -94,6 +97,7 @@ export interface PickerDeps {
 
 export interface Pickers {
   createDropzone(node: FlowNodeInstance): PathPicker;
+  createVideoPicker(node: FlowNodeInstance): ClipPicker;
   createLoadTablePicker(node: FlowNodeInstance, selectedLabelEl: HTMLElement): PathPicker;
   createLoadRandomRowPicker(node: FlowNodeInstance, selectedLabelEl: HTMLElement): PathPicker;
   createLoadNotePicker(node: FlowNodeInstance): PathPicker;
@@ -116,6 +120,12 @@ export interface GenerationView {
   el: HTMLDivElement;
   // A run's outputs, or none, and the lines the run reported under them.
   show(outputs: Record<string, PortValue | undefined> | undefined, lines: readonly string[]): void;
+  dispose(): void;
+}
+
+/** A Load Video node's clip: the file it names, and the player it plays in,
+ * which `dispose` lets go of when the card goes. */
+export interface ClipPicker extends PathPicker {
   dispose(): void;
 }
 
@@ -382,6 +392,23 @@ function createSpaceDropTarget(
 
 // A read's 404: nothing at the path, as after its file moved or went. Its
 // message is the one a run reports for the same path.
+/** A clip's size, length and frame rate, as far as its header gives them. */
+export function describeClip(clip: {
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  frameRate: number | null;
+}): string {
+  const { width, height, duration, frameRate } = clip;
+  return [
+    width !== null && height !== null ? formatDimensions(width, height, "") : undefined,
+    duration !== null ? formatDuration(duration) : undefined,
+    formatFrameRate({ codec: null, frameRate, variableFrameRate: false }),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function isMissingFile(error: unknown): error is ApiError {
   return error instanceof ApiError && error.status === 404;
 }
@@ -656,6 +683,74 @@ export function createPickers(deps: PickerDeps): Pickers {
 
     wrap.append(chip, zone);
     return { el: wrap, target: chip };
+  }
+
+  // loadVideo's card: a drag from the tree, the space's or a library's,
+  // stores `config.videoPath`, and the clip plays under it. Nothing from the
+  // computer: a run hands a clip on by reference, so it has to be a file the
+  // host can read.
+  function createVideoPicker(node: FlowNodeInstance): ClipPicker {
+    const wrap = document.createElement("div");
+    wrap.className = "flow-node-config";
+    const target = loaderTarget(node, "file", "Drag a clip from your space here");
+    const clip = createResultClip("flow-node-video-result", deps.previewResult, deps.contextMenu);
+    const stored = () => (typeof node.config.videoPath === "string" ? node.config.videoPath : "");
+    target.setPath(stored());
+    clearsTo(node, target, () => delete node.config.videoPath);
+
+    // Reads the clip's facts only to describe it, or to say it's gone, under
+    // the capability the run checks. A drag from the tree is its own consent,
+    // so only a clip named by the saved file, or one whose grant was revoked,
+    // prompts.
+    async function refresh(consented = false): Promise<void> {
+      const path = stored();
+      clip.show(path ? shown(path) : undefined);
+      if (!path || pathWired(node)) return;
+      if (!(await deps.ensureCapability({ type: "readFile", path }, consented))) return;
+      try {
+        const result = await deps.read(path);
+        if (result?.kind === "video") target.setDetail(describeClip(result));
+      } catch (error) {
+        if (!isMissingFile(error)) {
+          target.showMessage(error instanceof Error ? error.message : "Couldn't read that clip.");
+          return;
+        }
+        clip.show(undefined);
+        target.setMissing(error.message);
+      }
+    }
+
+    target.onDrop((event) => {
+      if (desktopFiles(event).length > 0) {
+        target.showMessage("Add the clip to your space first, then drag it from the tree");
+        return;
+      }
+      // The whole rooted string, so a library's clip keeps naming its library.
+      const dragged = readDraggedPath(event);
+      if (!dragged) return;
+      if (!videoMediaTypeForPath(dragged.path)) {
+        target.showMessage(notAVideo(formatRootedPath(dragged)));
+        return;
+      }
+      const consented = isEntryDrop(event);
+      const path = dropPath(dragged);
+      node.config.videoPath = path;
+      target.setPath(path);
+      deps.persistGraph();
+      void (async () => {
+        // The grant is checked against the graph on disk, so this edit has to
+        // land there first.
+        if (await deps.saveGraphNow()) await refresh(consented);
+      })();
+    });
+    deps.bindExposeToggle(node, "videoPath", "video", target.elements[0], target.elements[0]);
+    void refresh();
+
+    // The facts line goes under the clip it describes, not under the chip as
+    // on the other loaders.
+    const [chip, facts] = target.elements;
+    wrap.append(chip, clip.el, facts);
+    return { el: wrap, target: chip, dispose: clip.dispose };
   }
 
   // loadRow's config: a drag-only drop target and a live "Selected row"
@@ -1402,6 +1497,7 @@ export function createPickers(deps: PickerDeps): Pickers {
 
   return {
     createDropzone,
+    createVideoPicker,
     createLoadTablePicker,
     createLoadRandomRowPicker,
     createLoadNotePicker,

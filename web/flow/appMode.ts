@@ -32,8 +32,10 @@ import {
   chartSpecFrom,
   isMarkdownFile,
   notARasterImage,
+  notAVideo,
   RASTER_IMAGE_MEDIA_TYPES,
   rasterImageMediaTypeForPath,
+  videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
@@ -199,10 +201,13 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   // A Chart's exposed rows, drawn, keyed by node id — rebuilt with the form
   // like appModeOutputEls.
   const appModeChartViews = new Map<string, ChartView>();
-  // A Generate Video node's exposed path as its clip, keyed by node id: the
-  // path is what a caller outside the app receives, the clip how it reads here.
-  const appModeClipViews = new Map<string, { value: HTMLElement; clip: ResultClip }>();
+  // An exposed clip, keyed by node id, with the port it comes on: a `video`
+  // output, or a Generate Video's `path`, which is what a caller outside the
+  // app receives while the clip is how it reads here.
+  const appModeClipViews = new Map<string, { value: HTMLElement; clip: ResultClip; port: string }>();
   const appModeAppletFrames = new Map<string, AppletFrame>();
+  // Each Load Video picker's clip, let go of with the form.
+  const appModePickerClips = new Set<ResultClip>();
   // Each reusing node's Regenerate, by node id. It shows only beside a result
   // its field shows, since it asks for another, and on a node that holds on
   // request only while it holds, so a switch edit here updates it in place.
@@ -342,6 +347,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     appModeClipViews.set(node.id, {
       value,
       clip: createResultClip("flow-app-clip", deps.previewResult, deps.contextMenu),
+      port: port.id,
     });
     showAppModeClip(node.id, undefined);
     wrap.appendChild(value);
@@ -377,6 +383,8 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     appModeClipViews.clear();
     for (const frame of appModeAppletFrames.values()) frame.dispose();
     appModeAppletFrames.clear();
+    for (const clip of appModePickerClips) clip.dispose();
+    appModePickerClips.clear();
   }
 
   // The Applet itself, a second instance over the same node: what it reports
@@ -710,6 +718,76 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
+  // loadVideo's pick, built apart from the card's as the image field is: a
+  // drag from the tree, a library's included, writes the same
+  // config.videoPath, and the clip plays where it was dropped.
+  function buildAppModeVideoField(node: FlowNodeInstance): HTMLDivElement {
+    const wrap = document.createElement("div");
+    wrap.className = "flow-app-field";
+    const label = document.createElement("label");
+    label.className = "flow-config-label";
+    label.textContent = "Video";
+    const prompt = "Drop a clip from your space";
+    const zone = document.createElement("div");
+    zone.className = "flow-dropzone flow-app-video-zone nodrag";
+    const clip = createResultClip("flow-app-clip", deps.previewResult, deps.contextMenu);
+    appModePickerClips.add(clip);
+
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.className = "nodrag flow-node-image-choose";
+    clearButton.textContent = "Clear";
+
+    function show(path: string): void {
+      clip.show(path ? flowTreePath(deps.flowPath(), path) : undefined);
+      zone.replaceChildren(path ? clip.el : prompt);
+      clearButton.hidden = !path;
+    }
+
+    clearButton.addEventListener("click", () => {
+      delete node.config.videoPath;
+      persistAppModeEdit(node.id);
+      show("");
+    });
+    zone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      zone.classList.add("drag-over");
+    });
+    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+    zone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      zone.classList.remove("drag-over");
+      const dragged = readDraggedPath(event);
+      if (!dragged) {
+        if (desktopFiles(event).length > 0) zone.textContent = "Add the clip to your space first, then drag it in";
+        return;
+      }
+      if (!videoMediaTypeForPath(dragged.path)) {
+        zone.textContent = notAVideo(formatRootedPath(dragged));
+        return;
+      }
+      const storedPath = flowStoredPath(deps.flowPath(), dragged);
+      node.config.videoPath = storedPath;
+      persistAppModeEdit(node.id);
+      show(storedPath);
+      void (async () => {
+        if (!(await deps.saveGraphNow())) {
+          zone.textContent = "Couldn't save before requesting permission.";
+          return;
+        }
+        // Only a tree drag reaches here, and that drag named this exact file.
+        await deps.ensureCapability({ type: "readFile", path: storedPath }, true);
+      })();
+    });
+
+    show(typeof node.config.videoPath === "string" ? node.config.videoPath : "");
+    const buttons = document.createElement("div");
+    buttons.className = "flow-node-image-buttons";
+    buttons.append(clearButton);
+    wrap.append(label, zone, buttons);
+    return wrap;
+  }
+
   // loadRow's "Selected row" App Mode control — a live <select> over
   // whatever's currently at the (non-exposed, fixed-in-the-graph)
   // config.tablePath, same refresh-on-open read as the graph card's
@@ -823,7 +901,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     }
     const outputPort = nodePorts(node).outputs.find((p) => p.id === id);
     if (node.type === "chart" && id === "rows") return field(buildAppModeChartField(node), "chart");
-    if (node.type === "generateVideo" && outputPort?.id === "path") {
+    if ((node.type === "generateVideo" && outputPort?.id === "path") || outputPort?.type === "video") {
       return field(buildAppModeClipField(node, outputPort), "videoResult");
     }
     if (outputPort) {
@@ -843,6 +921,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     }
 
     if (node.type === "loadImage" && id === "imagePath") return field(buildAppModeImageField(node), "imagePicker");
+    if (node.type === "loadVideo" && id === "videoPath") return field(buildAppModeVideoField(node), "videoResult");
     if (node.type === "loadRow" && id === "selectedValue") return field(buildAppModeTableRowField(node), "line");
     if (node.type === "loadFolderNote" && id === "notePath") {
       return field(buildAppModeFolderChildField(node, "Selected note", "notePath", isMarkdownFile), "line");
@@ -1096,6 +1175,10 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       return;
     }
     el.className = "flow-app-output-value";
+    if (value.type === "video") {
+      el.textContent = value.path;
+      return;
+    }
     if (value.type === "image") {
       el.replaceChildren();
       const img = document.createElement("img");
@@ -1158,15 +1241,11 @@ export function createAppMode(deps: AppModeDeps): AppMode {
         if (error) view.showError(error);
         else view.show(rows?.type === "object" && Array.isArray(rows.value) ? rows.value : undefined);
       }
-      for (const nodeId of appModeClipViews.keys()) {
+      for (const [nodeId, view] of appModeClipViews) {
         if (!included(nodeId)) continue;
-        const path = outcome.outputs.get(nodeId)?.path;
-        showAppModeClip(
-          nodeId,
-          path?.type === "text" && path.value ? path.value : undefined,
-          outcome.errors.get(nodeId),
-          outcome.needs?.get(nodeId),
-        );
+        const value = outcome.outputs.get(nodeId)?.[view.port];
+        const path = value?.type === "video" ? value.path : value?.type === "text" ? value.value : "";
+        showAppModeClip(nodeId, path || undefined, outcome.errors.get(nodeId), outcome.needs?.get(nodeId));
       }
       for (const [nodeId, frame] of appModeAppletFrames) {
         if (!included(nodeId)) continue;

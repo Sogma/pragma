@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -21,6 +22,7 @@ import {
   SandboxRequestError,
 } from "../../src/server/sandbox.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
+import { isoVideo, trackHeader } from "../support/videoFixtures.ts";
 
 const manifestScript = (manifest: object) =>
   `<script type="application/json" data-role="manifest">${JSON.stringify(manifest)}</script>`;
@@ -57,6 +59,9 @@ const TABLE = readFileSync(
   "utf8",
 );
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// A 1920x1080 clip, five seconds long at 25 frames a second.
+const CLIP = isoVideo({ tkhd: trackHeader(1920, 1080), movie: [600, 3000] });
+const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
 let space: string;
 let library: string;
@@ -141,6 +146,27 @@ describe("sandbox documents", () => {
     expect(await readSandboxTarget(space, "notes/a.md")).toEqual({ kind: "text", content: "# A\n" });
   });
 
+  // A clip goes on by reference (protocol.md's Ports and types): its bytes
+  // are read only by whoever sends them.
+  it("reads a clip as its facts and digest, never its bytes", async () => {
+    writeFileSync(path.join(space, "clip.mp4"), CLIP);
+    expect(await readSandboxTarget(space, "clip.mp4")).toEqual({
+      kind: "video",
+      mediaType: "video/mp4",
+      digest: sha256(CLIP),
+      width: 1920,
+      height: 1080,
+      duration: 5,
+      frameRate: 25,
+    });
+  });
+
+  it("fails a clip whose header can't be read, naming it", async () => {
+    writeFileSync(path.join(space, "broken.mp4"), Buffer.from("not a clip at all"));
+    await expect(readSandboxTarget(space, "broken.mp4")).rejects.toThrow(/"broken\.mp4": Could not read/);
+    expect(await statusOf(readSandboxTarget(space, "broken.mp4"))).toBe(400);
+  });
+
   // A vector image is not a raster image (protocol.md): it reads as the text it is.
   it("reads a vector image as text, and refuses one in a library", async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"/>';
@@ -212,6 +238,15 @@ describe("reading a library", () => {
       kind: "image",
       mediaType: "image/png",
       data: PNG.toString("base64"),
+    });
+  });
+
+  it("reads a clip out of a library, as Load Video may name one", async () => {
+    writeFileSync(path.join(library, "take.mov"), CLIP);
+    expect(await readSandboxTarget(space, "lib:footage/take.mov")).toMatchObject({
+      kind: "video",
+      mediaType: "video/quicktime",
+      digest: sha256(CLIP),
     });
   });
 

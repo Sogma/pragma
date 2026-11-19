@@ -21,6 +21,12 @@ export const RESULT_MP4 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70,
 export interface HiggsfieldStandIn {
   url: string;
   uploads: Array<{ contentType: string; bytes: number }>;
+  // Each media_upload's file name, which the server tells a file's kind by,
+  // and each media_confirm's type, in call order.
+  uploadNames: string[];
+  confirmTypes: string[];
+  // How many models_explore gets have answered.
+  explores: number;
   generateCalls: Array<Record<string, unknown>>;
   // Price asks (`get_cost`), which submit nothing, and the price they answer.
   costCalls: Array<Record<string, unknown>>;
@@ -66,18 +72,23 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
 
   const answers = (name: string, args: Record<string, unknown>): Record<string, unknown> => {
     if (name === "media_upload") {
+      standIn.uploadNames.push(String(args.filename));
       const result = fixture("upload");
       const content = result.structuredContent as { uploads: Array<Record<string, unknown>> };
       content.uploads[0].upload_url = `${base}/upload/${standIn.uploads.length + 1}`;
       return result;
     }
-    if (name === "media_confirm") return fixture("confirm");
+    if (name === "media_confirm") {
+      standIn.confirmTypes.push(String(args.type));
+      return fixture("confirm");
+    }
     if (name === "models_explore") {
       if (args.action === "list") {
         const result = fixture("models-list-video");
         (result.structuredContent as { items: unknown[] }).items.push(...(standIn.extraVideoModels ?? []));
         return result;
       }
+      standIn.explores++;
       const result = fixture("models-get");
       const entry = result.structuredContent as {
         medias: Array<{ roles: string[] }>;
@@ -142,6 +153,9 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
   const standIn: HiggsfieldStandIn = {
     url: "",
     uploads: [],
+    uploadNames: [],
+    confirmTypes: [],
+    explores: 0,
     generateCalls: [],
     costCalls: [],
     creditsExact: 0.12,

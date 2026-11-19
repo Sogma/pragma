@@ -9,6 +9,7 @@
 import { addRowNodeConfig, cellText } from "./addRowNode.ts";
 import type {
   AddRowResponse,
+  ClipFacts,
   EffortLevel,
   GenerateImageRequestBody,
   GenerateImageResponse,
@@ -22,6 +23,7 @@ import type {
   ReferenceImagePayload,
   SandboxKind,
   SandboxReadResult,
+  VideoReferencePayload,
 } from "./api.ts";
 import { appletNodeConfig } from "./appletNode.ts";
 import { formatAspectRatio } from "./aspectRatio.ts";
@@ -39,10 +41,12 @@ import {
   intValue,
   numberToTextDigits,
   TEMPLATE_VARIABLES_MAX,
+  VIDEO_REFERENCE_SLOTS,
+  VIDEO_REFERENCES_MAX,
 } from "./flowNodes.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
 import { splitNoteTitle } from "./markdownTitle.ts";
-import { mentionedImagePins } from "./referenceMentions.ts";
+import { type MentionKind, mentionedPins } from "./referenceMentions.ts";
 import { formatRootPath, formatWrittenPath, readWrittenPath, resolveDeclaredPath } from "./relativeReference.ts";
 import {
   basenameOf,
@@ -64,8 +68,10 @@ import {
   isMarkdownFile,
   isTableFile,
   notARasterImage,
+  notAVideo,
   rasterImageMediaTypeForPath,
   splitDocumentName,
+  videoMediaTypeForPath,
 } from "./types.ts";
 import { resolutionShortSide } from "./videoResolution.ts";
 
@@ -125,7 +131,10 @@ export type PortValue =
   | { type: "image"; mediaType: string; data: string }
   | { type: "boolean"; value: boolean }
   | { type: "object"; value: unknown }
-  | { type: "number"; value: number };
+  | { type: "number"; value: number }
+  // A clip by its address from the root, never its bytes: whoever uses the
+  // bytes asks the host, which reads them under the Flow's grant there.
+  | ({ type: "video"; path: string } & ClipFacts);
 
 /** Runtime-only state a node executor needs beyond the graph itself. */
 export interface NodeExecutionContext {
@@ -324,11 +333,23 @@ function wiredReferences(inputs: Record<string, PortValue>): ReferenceImagePaylo
   return references;
 }
 
+// The clips wired into a Generate Video's reference pins, in pin order, by
+// reference: the host reads each one's bytes under the Flow's grants.
+function wiredVideoReferences(inputs: Record<string, PortValue>): VideoReferencePayload[] {
+  const references: VideoReferencePayload[] = [];
+  for (let pin = 1; pin <= VIDEO_REFERENCES_MAX; pin++) {
+    const port = inputs[VIDEO_REFERENCE_SLOTS.portId(pin)];
+    if (port?.type === "video") references.push({ pin, path: port.path, digest: port.digest });
+  }
+  return references;
+}
+
 // Fails a mention of an empty pin before anything is asked or spent.
-function checkMentions(text: string, references: readonly ReferenceImagePayload[]): void {
-  for (const pin of mentionedImagePins(text)) {
+function checkMentions(text: string, kind: MentionKind, references: readonly { pin: number }[]): void {
+  const noun = kind === "image" ? "image" : "clip";
+  for (const pin of mentionedPins(text, kind)) {
     if (!references.some((reference) => reference.pin === pin)) {
-      throw new Error(`The prompt names @image_${pin}, but no image is connected to image_${pin}`);
+      throw new Error(`The prompt names @${kind}_${pin}, but no ${noun} is connected to ${kind}_${pin}`);
     }
   }
 }
@@ -343,7 +364,7 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
     throw new Error(`Aspect ratio "${aspectRatio}" isn't width:height, such as 16:9`);
   }
   const references = wiredReferences(inputs);
-  checkMentions(prompt, references);
+  checkMentions(prompt, "image", references);
 
   const granted = await context.ensureCapability({ type: "generateImage", path: folder });
   if (!granted) throw new Error(`Permission denied to generate images into "${folder}"`);
@@ -417,14 +438,16 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
   const startFrame = frame("start_frame");
   const endFrame = frame("end_frame");
   const references = wiredReferences(inputs);
+  const videoReferences = wiredVideoReferences(inputs);
   // A video model's call takes frames or references, never both, as a model
   // maker's docs split a first-frame task from a reference task.
-  if ((startFrame || endFrame) && references.length) {
+  if ((startFrame || endFrame) && (references.length || videoReferences.length)) {
     throw new Error(
       'Generate Video sends frames or references, not both. Connect the frame to a reference pin instead, and say what it is in the prompt, such as "@image_1 is the first frame"',
     );
   }
-  checkMentions(prompt, references);
+  checkMentions(prompt, "image", references);
+  checkMentions(prompt, "video", videoReferences);
 
   const granted = await context.ensureCapability({ type: "generateVideo", path: folder });
   if (!granted) throw new Error(`Permission denied to generate videos into "${folder}"`);
@@ -436,6 +459,7 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
     startFrame,
     endFrame,
     ...(references.length ? { references } : {}),
+    ...(videoReferences.length ? { videoReferences } : {}),
     model,
     aspectRatio: aspectRatio || undefined,
     resolution: resolution || undefined,
@@ -759,6 +783,37 @@ const loadImage: NodeExecutor = async (node, inputs, context): Promise<Record<st
   };
 };
 
+// loadImage's read for a clip, which the run holds by reference: a node that
+// sends it on has the host read the bytes then, under the Flow's grants.
+const loadVideo: NodeExecutor = async (node, inputs, context): Promise<Record<string, PortValue>> => {
+  const { path: videoPath, wired } = nodePath(node, inputs, context);
+  if (!videoPath) {
+    if (configBoolean(node, "optional")) return {};
+    throw new Error(wired ? "Nothing reached its path input" : "Drag a clip from the tree onto this node");
+  }
+  // Before anything is asked: a grant to read what the node refuses is no use.
+  if (!videoMediaTypeForPath(videoPath)) throw new Error(notAVideo(videoPath));
+  const granted = await context.ensureCapability(readCapability(videoPath, wired));
+  if (!granted) throw new Error(`Permission denied to read "${videoPath}"`);
+  const result = await context.sandbox.read("flow", context.flowPath, videoPath);
+  if (result.kind !== "video") throw new Error(`"${videoPath}" is no longer a video clip`);
+  const { kind: _kind, ...clip } = result;
+  const path = formatRootPath(resolveDeclaredPath(dirnameOf(context.flowPath), videoPath));
+  // A fact the header doesn't give leaves its output out, as an unwired one.
+  const facts: Record<string, PortValue> = {};
+  const { width, height, duration } = clip;
+  if (width !== null) facts.width = { type: "number", value: width };
+  if (height !== null) facts.height = { type: "number", value: height };
+  if (width !== null && height !== null) facts.aspect_ratio = { type: "text", value: formatAspectRatio(width, height) };
+  if (duration !== null) facts.duration = { type: "number", value: duration };
+  return {
+    video: { type: "video", path, ...clip },
+    name: { type: "text", value: stripExtension(fileNameOf(videoPath)) },
+    ...facts,
+    path: { type: "text", value: path },
+  };
+};
+
 // loadImage's read with the *folder* as the capability, as in loadFolderNote.
 // No OS-pick fallback: this node is always space-sourced, so an unset
 // selection is an error, not an ephemeral-pick lookup.
@@ -794,7 +849,7 @@ async function generationRequest(
   const prompt = inputs.prompt?.type === "text" ? inputs.prompt.value : "";
   if (!prompt.trim()) throw new Error(`${node.type} node has no prompt connected`);
   const references = wiredReferences(inputs);
-  checkMentions(prompt, references);
+  checkMentions(prompt, "image", references);
 
   const granted = await context.ensureCapability({ type: "generateText" });
   if (!granted) throw new Error("Permission denied to run an AI generation");
@@ -1222,6 +1277,7 @@ export const NODE_EXECUTORS: Record<string, NodeExecutor> = {
   loadFolderNote,
   loadImage,
   loadFolderImage,
+  loadVideo,
   generateText,
   prompt,
   choice,

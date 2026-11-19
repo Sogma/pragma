@@ -895,12 +895,25 @@ export interface PutFileResponse {
 // Flow's, the one kind whose documents declare capabilities.
 export type SandboxKind = "flow";
 
+/** A clip a granted read found, by reference: never its bytes, which can
+ * run to gigabytes. `digest` is the SHA-256 of the bytes as hex; the rest is
+ * what its header gives, null where it gives nothing. */
+export interface ClipFacts {
+  mediaType: string;
+  digest: string;
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  frameRate: number | null;
+}
+
 // What a granted read comes back as: a table or image already parsed —
 // there is no table-HTML parser in the browser, and image bytes can't be read
-// as text — or any other file's text.
+// as text — a clip's facts, or any other file's text.
 export type SandboxReadResult =
   | { kind: "table"; columns: TableColumn[]; rows: TableRow[] }
   | { kind: "image"; mediaType: string; data: string }
+  | ({ kind: "video" } & ClipFacts)
   | { kind: "text"; content: string };
 
 // A generation's reply is the dispatch result itself, unwrapped.
@@ -1770,6 +1783,15 @@ export interface ReferenceImagePayload extends PickedImagePayload {
   pin: number;
 }
 
+// A clip wired into a Generate Video's `video_<pin>`, by reference: its
+// address from the root and the digest its read gave. The host reads the
+// bytes under the Flow's grants and refuses them if they no longer match.
+export interface VideoReferencePayload {
+  pin: number;
+  path: string;
+  digest: string;
+}
+
 // An image generation into `folder`, which must be the folder the document
 // declares. `references` go in pin order, and the host spells the prompt's
 // mentions of them for the model; `seed` is part of the result's name
@@ -1810,7 +1832,7 @@ export interface GenerateImageResponse {
 
 // A video generation into `folder`, the folder the document declares. The
 // frames are the clip's first and last; `references` go as an image
-// generation's do, never beside a frame. `resolution` is a size such as
+// generation's do, and `videoReferences` beside them, never beside a frame. `resolution` is a size such as
 // `720p`, `duration` whole seconds; `take` names the result and never reaches
 // the model, and `prefix` starts its file name in place of "video".
 export interface GenerateVideoRequestBody {
@@ -1819,6 +1841,7 @@ export interface GenerateVideoRequestBody {
   startFrame?: PickedImagePayload;
   endFrame?: PickedImagePayload;
   references?: ReferenceImagePayload[];
+  videoReferences?: VideoReferencePayload[];
   model?: string;
   aspectRatio?: string;
   resolution?: string;

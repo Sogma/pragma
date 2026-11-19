@@ -87,6 +87,7 @@ function rootFailure(graph: FlowGraph, result: RunResult): Error | undefined {
 function display(value: PortValue): string {
   if (value.type === "text") return value.value;
   if (value.type === "image") return "(image)";
+  if (value.type === "video") return value.path;
   if (value.type === "object") return JSON.stringify(value.value, null, 2);
   return String(value.value);
 }

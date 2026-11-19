@@ -10,6 +10,7 @@ import {
   higgsfieldImageJobs,
   higgsfieldImageModel,
   higgsfieldModels,
+  higgsfieldVideoInputs,
   higgsfieldVideoModel,
   type MediaCache,
   wholeRatio,
@@ -312,6 +313,37 @@ describe("higgsfieldVideoModel", () => {
     ]);
   });
 
+  // media_upload tells a file's kind by its name, and media_confirm is told
+  // it, so a clip that went up as an image would never be a video reference.
+  it("uploads a clip named by its own extension, confirms it as video, and places it as a video reference", async () => {
+    standIn.videoRoles = ["image_references", "video_references"];
+    const job = await startVideoJob(videoModel("seedance_2_5"), {
+      prompt: "move as in Video 1 and Video 2",
+      references: [
+        { mediaType: "video/mp4", data: new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 1]) },
+        { mediaType: "video/quicktime", data: new Uint8Array([0, 0, 0, 0x14, 0x66, 0x74, 0x79, 0x70, 2]) },
+      ],
+    });
+    expect(job.warnings).toEqual([]);
+    expect(standIn.uploadNames).toEqual(["reference.mp4", "reference.mov"]);
+    expect(standIn.confirmTypes).toEqual(["video", "video"]);
+    expect(standIn.uploads.map((upload) => upload.contentType)).toEqual(["video/mp4", "video/quicktime"]);
+    expect(standIn.generateCalls[0].medias).toEqual([
+      { value: MEDIA_ID, role: "video_references" },
+      { value: MEDIA_ID, role: "video_references" },
+    ]);
+  });
+
+  it("still names and confirms a picture as an image", async () => {
+    standIn.videoRoles = ["image_references"];
+    await startVideoJob(videoModel("seedance_2_5"), {
+      prompt: "Image 1 turns",
+      references: [{ mediaType: "image/jpeg", data: START }],
+    });
+    expect(standIn.uploadNames).toEqual(["reference.jpg"]);
+    expect(standIn.confirmTypes).toEqual(["image"]);
+  });
+
   it("leaves out references the model takes no role for, and says so once", async () => {
     standIn.videoRoles = ["start_image"];
     const job = await startVideoJob(videoModel("grok_video_v15_lite"), {
@@ -418,8 +450,12 @@ describe("higgsfieldImageJobs", () => {
 describe("higgsfieldModels", () => {
   it("lists a video model only if it takes a start frame, which an edit tool doesn't", async () => {
     expect(await higgsfieldModels(server, "video")).toEqual([
-      { id: "grok_video_v15_lite", label: "Grok Imagine Video 1.5 Lite" },
-      { id: "seedance1_5", label: "Seedance 1.5 Pro" },
+      {
+        id: "grok_video_v15_lite",
+        label: "Grok Imagine Video 1.5 Lite",
+        takes: { references: [], frames: ["start"] },
+      },
+      { id: "seedance1_5", label: "Seedance 1.5 Pro", takes: { references: [], frames: ["start", "end"] } },
     ]);
   });
 
@@ -435,7 +471,18 @@ describe("higgsfieldModels", () => {
     expect(await higgsfieldModels(server, "video")).toContainEqual({
       id: "kling_o3_image_reference",
       label: "Kling 3.0 Omni",
+      takes: { references: ["image"], frames: [] },
     });
+  });
+});
+
+describe("higgsfieldVideoInputs", () => {
+  it("reads what a model takes from its catalog entry's roles, and asks once a while", async () => {
+    standIn.videoRoles = ["start_image", "image_references", "video_references"];
+    const inputs = higgsfieldVideoInputs(server, "inputs_probe_model", { mediaCache: memoryCache() });
+    expect(await inputs()).toEqual({ references: ["image", "video"], frames: ["start"] });
+    expect(await inputs()).toEqual({ references: ["image", "video"], frames: ["start"] });
+    expect(standIn.explores).toBe(1);
   });
 });
 
