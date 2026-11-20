@@ -551,12 +551,29 @@ describe("markdownLinks", () => {
         { path: "projects/a.md", mentions: [span("[a](", "a.md")] },
       ],
       missing: ["b", "lost.md"],
+      pending: [],
     });
   });
 
-  it("finds nothing outside a loaded root", async () => {
+  it("holds a link into a root whose listing is still to land as pending, until it lands or fails", async () => {
     const spaceTree = await freshSpaceTree();
-    expect(spaceTree.markdownLinks("lib:footage/read-me.md", "[[a]]")).toEqual({ found: [], missing: ["a"] });
+    vi.stubGlobal("fetch", serve(SAMPLE_TREE, undefined, { footage: [{ name: "a.md", path: "a.md", type: "file" }] }));
+    const landed = vi.fn();
+    spaceTree.onLibraryTreeLoaded(landed);
+    const links = (docPath: string) => spaceTree.markdownLinks(docPath, "[[a]] [[b]]");
+
+    expect(links("lib:footage/read-me.md")).toEqual({ found: [], missing: [], pending: ["a", "b"] });
+    await vi.waitFor(() => expect(landed).toHaveBeenCalled());
+    expect(links("lib:footage/read-me.md")).toEqual({
+      found: [{ path: "lib:footage/a.md", mentions: [{ from: 2, to: 3 }] }],
+      missing: ["b"],
+      pending: [],
+    });
+
+    expect(links("lib:gone/read-me.md").pending).toEqual(["a", "b"]);
+    await vi.waitFor(() =>
+      expect(links("lib:gone/read-me.md")).toEqual({ found: [], missing: ["a", "b"], pending: [] }),
+    );
   });
 });
 

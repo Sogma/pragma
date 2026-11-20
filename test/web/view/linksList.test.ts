@@ -112,6 +112,15 @@ describe("the Links tab's list", () => {
     expect(list.element.hasAttribute("data-empty")).toBe(false);
   });
 
+  it("lists a link whose root's listing is still to land nowhere, yet never says the file has no links", () => {
+    const { list } = setup();
+    list.render({ found: [{ path: "notes/a.md", mentions: [] }], missing: [], pending: ["lib:footage/cover"] });
+    expect(groups(list.element)).toEqual([["notes", "a"]]);
+    list.render({ found: [], missing: [], pending: ["cover"] });
+    expect(list.element.textContent).toBe("");
+    expect(list.element.hasAttribute("data-empty")).toBe(false);
+  });
+
   it("opens a row's description on its chevron, keeps it open across redraws, and reads it again when told to", async () => {
     const { list, deps } = setup();
     deps.describe.mockImplementation(async (path: string) =>

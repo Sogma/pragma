@@ -359,9 +359,13 @@ function pathIndexOf(root: PathRoot): PathIndex | undefined {
   return listing && indexesOf(listing).paths;
 }
 
-// Whether the listing of `root` is still to land, so what a path into it
-// names can't be told. A library whose listing failed to load names nothing.
-function listingPending(root: PathRoot): boolean {
+// Whether a path written in a document in the folder `docDir` points into a
+// root whose listing is still to land, so what it names can't be told. A
+// library whose listing failed to load names nothing.
+function pendingFrom(docDir: string, written: string, form: PathForm): boolean {
+  const read = readWrittenPath(docDir, written, form);
+  if (!read) return false;
+  const { root } = read.target;
   return isLibraryRoot(root) ? libraryPaths.pending(root.library) : currentPaths === undefined;
 }
 
@@ -415,10 +419,7 @@ export function readingResolvers(docPath: string) {
 export function readingResolversIn(docDir: string) {
   const found = (written: string, form: PathForm) => linkTarget(resolveWrittenPath(docDir, written, form, pathIndexOf));
   const markdown = (href: string) => found(href, "markdown") ?? resolveFileReference(docDir, href);
-  const pending = (written: string, form: PathForm) => {
-    const read = readWrittenPath(docDir, written, form);
-    return read !== undefined && listingPending(read.target.root);
-  };
+  const pending = (written: string, form: PathForm) => pendingFrom(docDir, written, form);
   return {
     image(href: string): string | undefined {
       const path = markdown(href);
@@ -555,10 +556,12 @@ export function holdsDocumentType(folder: string, type: DocumentType): boolean {
 
 /** What a document links to: each file it names, once, in order of first
  * mention, with where it names it and, when worth showing, how often; then
- * the targets that name no file, as written. */
+ * the targets that name no file, as written, and those pointing into a root
+ * whose listing is still to land, which can't be told either way. */
 export interface DocumentLinks {
   found: { path: string; count?: number; mentions: { from: number; to: number }[] }[];
   missing: string[];
+  pending?: string[];
 }
 
 /** A Markdown document's links, as the protocol reads a note's, mentions as
@@ -566,10 +569,11 @@ export interface DocumentLinks {
 export function markdownLinks(docPath: string, content: string): DocumentLinks {
   const found = new Map<string, { from: number; to: number }[]>();
   const missing = new Set<string>();
+  const pending = new Set<string>();
   for (const link of noteLinks(content)) {
     const hit = resolvePathFrom(docPath, link.raw, link.form);
     if (hit === undefined) {
-      missing.add(link.raw.trim());
+      (pendingFrom(dirnameOf(docPath), link.raw, link.form) ? pending : missing).add(link.raw.trim());
       continue;
     }
     if (hit.type === "directory") continue;
@@ -577,7 +581,11 @@ export function markdownLinks(docPath: string, content: string): DocumentLinks {
     if (mentions) mentions.push({ from: link.from, to: link.to });
     else found.set(hit.path, [{ from: link.from, to: link.to }]);
   }
-  return { found: [...found].map(([path, mentions]) => ({ path, mentions })), missing: [...missing] };
+  return {
+    found: [...found].map(([path, mentions]) => ({ path, mentions })),
+    missing: [...missing],
+    pending: [...pending],
+  };
 }
 
 /** `paths` in the order the file tree draws them, each root's tree in turn;

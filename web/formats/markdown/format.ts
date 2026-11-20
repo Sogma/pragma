@@ -90,7 +90,7 @@ export function markdownFormat(deps: MarkdownFormatDeps): TextFormat {
     links(model, state) {
       const content = model.content();
       const start = content.length - state.doc.length;
-      const { found, missing } = deps.links.markdownLinks(model.path, content);
+      const { found, missing, pending } = deps.links.markdownLinks(model.path, content);
       return {
         found: found.map((link) => ({
           ...link,
@@ -99,6 +99,7 @@ export function markdownFormat(deps: MarkdownFormatDeps): TextFormat {
             .map((mention) => ({ from: mention.from - start, to: mention.to - start })),
         })),
         missing,
+        pending,
       };
     },
     renderReading(model) {

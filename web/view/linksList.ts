@@ -318,8 +318,11 @@ export function createLinksList(deps: LinksListDeps): LinksList {
     shownClassLinks = classLinks;
     shownLinkedFrom = linkedFrom;
     const flat = deps.oneList.get();
-    const { found, missing } = links;
-    const linksNothing = found.length === 0 && missing.length === 0 && classLinks.length === 0;
+    // A link whose root's listing is still to land is listed nowhere until it
+    // lands, but still counts as a link: under "Not found" it would be called
+    // missing, and uncounted the tab would say the file links to nothing.
+    const { found, missing, pending = [] } = links;
+    const linksNothing = found.length + missing.length + pending.length + classLinks.length === 0;
     // The tab dims only when it has nothing to list either way.
     element.toggleAttribute("data-empty", linksNothing && linkedFrom.length === 0);
     const groups: HTMLElement[] = [];

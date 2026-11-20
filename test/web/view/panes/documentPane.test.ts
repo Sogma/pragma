@@ -819,6 +819,22 @@ describe("documentPane", () => {
     expect(links(pane).textContent).toBe("No links in this file.");
   });
 
+  it("lists a link whose root's listing is still to land only once it lands", async () => {
+    let listed = false;
+    const markdownLinks = () =>
+      listed
+        ? { found: [{ path: "lib:footage/cover.md", mentions: [] }], missing: [] }
+        : { found: [], missing: [], pending: ["lib:footage/cover"] };
+    const { pane, documents } = setup("document", noteFile(), { markdownLinks });
+    documents.adopt(noteFile({ content: "# Song\n\nSee [[lib:footage/cover]]\n" }));
+    await pane.setInput(songTab(), current);
+    expect(links(pane).textContent).toBe("");
+
+    listed = true;
+    pane.spaceChanged();
+    expect(links(pane).querySelector(".inspector-link-name")?.textContent).toBe("cover");
+  });
+
   it("lists no links or properties for raw code", () => {
     const { pane } = setup("applet-source");
     expect(pane.links).toBeUndefined();
