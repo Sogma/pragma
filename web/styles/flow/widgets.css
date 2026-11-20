@@ -208,6 +208,13 @@
   opacity: 1;
 }
 
+/* A drag over a Load Video's clip, which takes its chip's drops: the chip
+   above says "Drop to replace". */
+.flow-node-video-result.drag-over {
+  outline: 1px dashed var(--color-accent);
+  outline-offset: 2px;
+}
+
 .flow-node-report {
   margin: 4px 0;
   font-size: 11px;

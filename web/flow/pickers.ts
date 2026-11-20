@@ -261,6 +261,9 @@ interface SpaceDropTarget {
   // A refusal or error, shown in place of the chip for a few seconds.
   showMessage(message: string): void;
   onDrop(handler: (event: DragEvent) => void): void;
+  // Lets `area` take the chip's drops too: a drag over it marks it and has
+  // the chip say what a drop does, and a drop runs the chip's handler.
+  addDropArea(area: HTMLElement): void;
   // The chip menu's Clear: what the node forgets with its path.
   onClear(handler: () => void): void;
 }
@@ -330,11 +333,29 @@ function createSpaceDropTarget(
     loader?.fileMissing(message);
   }
 
-  el.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    el.classList.add("drag-over");
-  });
-  el.addEventListener("dragleave", () => el.classList.remove("drag-over"));
+  // An area keeps its children's pointer events, as a player's controls
+  // need, so a drag crossing one fires dragleave on the area: only leaving
+  // the area ends its drag-over state.
+  let dropHandler: ((event: DragEvent) => void) | undefined;
+  function takeDrops(area: HTMLElement): void {
+    const mark = (over: boolean) => {
+      el.classList.toggle("drag-over", over);
+      area.classList.toggle("drag-over", over);
+    };
+    area.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      mark(true);
+    });
+    area.addEventListener("dragleave", (event) => {
+      if (!area.contains(event.relatedTarget as Node | null)) mark(false);
+    });
+    area.addEventListener("drop", (event) => {
+      event.preventDefault();
+      mark(false);
+      dropHandler?.(event);
+    });
+  }
+  takeDrops(el);
   // The empty prompt and a file picked from the computer name nothing in
   // the space to open, so they get no menu.
   let clear: (() => void) | undefined;
@@ -383,12 +404,9 @@ function createSpaceDropTarget(
       messageTimer = setTimeout(render, MESSAGE_MS);
     },
     onDrop: (handler) => {
-      el.addEventListener("drop", (event) => {
-        event.preventDefault();
-        el.classList.remove("drag-over");
-        handler(event);
-      });
+      dropHandler = handler;
     },
+    addDropArea: takeDrops,
     onClear: (handler) => {
       clear = handler;
     },
@@ -578,9 +596,18 @@ export function createPickers(deps: PickerDeps): Pickers {
       });
     }
 
+    // The zone and the chip take the same drops, and the chip says why one is
+    // refused while it names a file: in the zone the message would take the
+    // place of a picture the node still holds and Run still reads. With
+    // nothing picked the chip is hidden, so the zone's prompt says it.
+    function refuse(message: string): void {
+      if (chip.hidden) zone.replaceChildren(message, input);
+      else location.showMessage(message);
+    }
+
     function handleFile(file: File): void {
       if (!(RASTER_IMAGE_MEDIA_TYPES as readonly string[]).includes(file.type)) {
-        zone.textContent = `Unsupported type: ${file.type || "unknown"}`;
+        refuse(`Unsupported type: ${file.type || "unknown"}`);
         return;
       }
       const reader = new FileReader();
@@ -647,9 +674,7 @@ export function createPickers(deps: PickerDeps): Pickers {
       })();
     }
 
-    // The zone and the chip take the same drops; each refuses one in its own
-    // place.
-    function takeDrop(event: DragEvent, refuse: (message: string) => void): void {
+    function takeDrop(event: DragEvent): void {
       const [file] = desktopFiles(event);
       if (file) {
         handleFile(file);
@@ -684,19 +709,8 @@ export function createPickers(deps: PickerDeps): Pickers {
       const file = input.files?.[0];
       if (file) handleFile(file);
     });
-    zone.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      zone.classList.add("drag-over");
-    });
-    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-    zone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      zone.classList.remove("drag-over");
-      takeDrop(event, (message) => {
-        zone.textContent = message;
-      });
-    });
-    location.onDrop((event) => takeDrop(event, location.showMessage));
+    location.onDrop(takeDrop);
+    location.addDropArea(zone);
 
     const storedPath = typeof node.config.imagePath === "string" ? node.config.imagePath : "";
     showLocation(storedPath);
@@ -783,6 +797,10 @@ export function createPickers(deps: PickerDeps): Pickers {
         if (await deps.saveGraphNow()) await refresh(consented);
       })();
     });
+    // The clip is most of the card, so it takes the chip's drops too. Here and
+    // not in the shared player: a Generate Video result plays in that player,
+    // and a result is never a pick.
+    target.addDropArea(clip.el);
     deps.bindExposeToggle(node, "videoPath", "video", target.elements[0], target.elements[0]);
     void refresh();
 

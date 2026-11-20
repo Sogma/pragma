@@ -631,21 +631,108 @@ describe("pickers", () => {
   });
 
   it("the image's chip takes a drop as the zone does, refusing one on the chip and keeping the picture", async () => {
+    vi.useFakeTimers();
+    try {
+      const image: SandboxReadResult = { kind: "image", mediaType: "image/png", data: "AAAA" };
+      const { pickers } = setup({ read: vi.fn(async () => image) });
+      const flowNode = node("loadImage", { imagePath: "refs/pic.png" });
+      const el = pickers.createDropzone(flowNode).el;
+      await vi.runAllTimersAsync();
+      expect(chipOf(el).textContent).toBe("refs/pic.png");
+
+      drop(chipOf(el), "notes/a.md");
+      expect(chipOf(el).textContent).toBe("Not a raster image: notes/a.md");
+      expect(pictureOf(el).querySelector("img")).not.toBeNull();
+      vi.advanceTimersByTime(5000);
+
+      // In the picture's place, the message would stand for a picture the
+      // node still holds.
+      drop(pictureOf(el), "notes/b.md");
+      expect(chipOf(el).textContent).toBe("Not a raster image: notes/b.md");
+      const pdf = new File([new Uint8Array([1])], "brief.pdf", { type: "application/pdf" });
+      pictureOf(el).dispatchEvent(fakeDrag("drop", { files: [pdf] }).event);
+      expect(chipOf(el).textContent).toBe("Unsupported type: application/pdf");
+      expect(pictureOf(el).querySelector("img")).not.toBeNull();
+      expect(flowNode.config.imagePath).toBe("refs/pic.png");
+      vi.advanceTimersByTime(5000);
+      expect(chipOf(el).textContent).toBe("refs/pic.png");
+
+      drop(chipOf(el), "art/other.png");
+      expect(flowNode.config.imagePath).toBe("art/other.png");
+      expect(chipOf(el).textContent).toBe("art/other.png");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a drag over the image's picture has its chip say what a drop does, as Load Video's clip does", async () => {
     const image: SandboxReadResult = { kind: "image", mediaType: "image/png", data: "AAAA" };
     const { pickers } = setup({ read: vi.fn(async () => image) });
-    const flowNode = node("loadImage", { imagePath: "refs/pic.png" });
-    const el = pickers.createDropzone(flowNode).el;
+    const el = pickers.createDropzone(node("loadImage", { imagePath: "refs/pic.png" })).el;
     await tick();
     await tick();
-    expect(chipOf(el).textContent).toBe("refs/pic.png");
+    const zone = pictureOf(el);
+    const img = zone.querySelector("img") as HTMLImageElement;
+    const marked = () => [chipOf(el).classList.contains("drag-over"), zone.classList.contains("drag-over")];
 
-    drop(chipOf(el), "notes/a.md");
-    expect(chipOf(el).textContent).toBe("Not a raster image: notes/a.md");
-    expect(pictureOf(el).querySelector("img")).not.toBeNull();
+    img.dispatchEvent(fakeDrag("dragover").event);
+    expect(marked()).toEqual([true, true]);
+    // Off the picture onto the zone's own padding is still over the zone.
+    img.dispatchEvent(new MouseEvent("dragleave", { bubbles: true, relatedTarget: zone }));
+    expect(marked()).toEqual([true, true]);
+    zone.dispatchEvent(new MouseEvent("dragleave", { bubbles: true, relatedTarget: el }));
+    expect(marked()).toEqual([false, false]);
+  });
 
-    drop(chipOf(el), "art/other.png");
-    expect(flowNode.config.imagePath).toBe("art/other.png");
-    expect(chipOf(el).textContent).toBe("art/other.png");
+  // The clip is most of the card. A drag over it has the chip say what a
+  // drop does, and crossing the player's controls on the way keeps that up.
+  it("a Load Video's clip takes its chip's drops, the chip saying what one does", async () => {
+    const { deps, pickers } = setup();
+    const flowNode = node("loadVideo", { videoPath: "shots/take.mp4" });
+    const el = pickers.createVideoPicker(flowNode).el;
+    const clip = el.querySelector(".flow-node-video-result") as HTMLElement;
+    const video = clip.querySelector("video") as HTMLVideoElement;
+    const marked = () => [chipOf(el).classList.contains("drag-over"), clip.classList.contains("drag-over")];
+
+    const over = fakeDrag("dragover").event;
+    video.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+    expect(marked()).toEqual([true, true]);
+    const controls = clip.querySelector(".video-player") as HTMLElement;
+    video.dispatchEvent(new MouseEvent("dragleave", { bubbles: true, relatedTarget: controls }));
+    expect(marked()).toEqual([true, true]);
+    controls.dispatchEvent(new MouseEvent("dragleave", { bubbles: true, relatedTarget: el }));
+    expect(marked()).toEqual([false, false]);
+
+    drop(clip, "notes/a.md");
+    expect(chipOf(el).textContent).toBe('"notes/a.md" is not a video clip: an MP4, M4V, MOV or WebM file');
+    const mp4 = new File([new Uint8Array([1])], "take.mp4", { type: "video/mp4" });
+    video.dispatchEvent(fakeDrag("drop", { files: [mp4] }).event);
+    expect(chipOf(el).textContent).toBe("Add the clip to your space first, then drag it from the tree");
+    expect([flowNode.config.videoPath, clip.hidden]).toEqual(["shots/take.mp4", false]);
+
+    video.dispatchEvent(fakeDrag("dragover").event);
+    drop(video, "shots/other.mp4");
+    expect(marked()).toEqual([false, false]);
+    expect(flowNode.config.videoPath).toBe("shots/other.mp4");
+    expect(chipOf(el).textContent).toBe("shots/other.mp4");
+    await vi.waitFor(() =>
+      expect(deps.ensureCapability).toHaveBeenCalledWith({ type: "readFile", path: "shots/other.mp4" }, true),
+    );
+    expect(deps.saveGraphNow).toHaveBeenCalled();
+  });
+
+  it("a Generate Video result's clip takes no drops: a result is no pick", () => {
+    const { pickers } = setup();
+    const view = pickers.createGenerationPicker(node("generateVideo", { outputFolderPath: "clips" }), vi.fn());
+    view.show({ path: { type: "text", value: "/clips/a.mp4" } }, []);
+    const clip = view.el.querySelector(".flow-node-video-result") as HTMLElement;
+    expect(clip.hidden).toBe(false);
+
+    const over = fakeDrag("dragover").event;
+    clip.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(false);
+    expect(chipOf(view.el).classList.contains("drag-over")).toBe(false);
   });
 
   it("the image's chip reports a path with nothing at it as the other loaders do, dropping the old picture", async () => {
