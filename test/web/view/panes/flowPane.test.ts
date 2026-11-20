@@ -99,6 +99,7 @@ describe("flowPane", () => {
       flowPath: "flows/update.flow.html",
       startedAt: Date.now(),
       jobs: [],
+      starts: [],
       startingJob: false,
       nodes: [],
       cancel: vi.fn(),

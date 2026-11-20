@@ -61,6 +61,8 @@ describe("the browser's flow environment", () => {
         quote: { amount: 2, unit: "credits" },
       });
       expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/api/jobs?path=f.flow.html&waiting=j1");
+      // With no run to tell, the start goes without an id.
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).not.toHaveProperty("startId");
     } finally {
       vi.useRealTimers();
     }
@@ -134,7 +136,7 @@ describe("the browser's flow environment", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const heard: (string | undefined)[] = [];
-    const jobStarting = vi.fn(() => (job?: string) => void heard.push(job));
+    const jobStarting = vi.fn((_startId: string) => (job?: string) => void heard.push(job));
     const run = new AbortController();
     const { sandbox } = createFlowContext({
       flowPath: "f.flow.html",
@@ -148,6 +150,9 @@ describe("the browser's flow environment", () => {
     });
     const result = sandbox.generateVideo("flow", "f.flow.html", { folder: "clips", prompt: "a cup" }, run.signal);
     expect(jobStarting).toHaveBeenCalledTimes(1);
+    const [startId] = jobStarting.mock.calls[0];
+    expect(startId).toMatch(/^[0-9a-f]{32}$/);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ startId });
     expect(heard).toEqual([]);
     run.abort(new Error("The run was cancelled"));
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBeUndefined();

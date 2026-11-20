@@ -338,6 +338,20 @@ describe("canvasRun Cancel", () => {
     expect(shownReplies(deps.cards.showRunResult, "generate-2")).toEqual(["older"]);
   });
 
+  it("tells the Tools tab the id each of its starts went with, as the start's request carries it", async () => {
+    const answers = heldStarts();
+    const { canvasRun, lastRuns } = setUp(promptToVideo());
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(answers).toHaveLength(1));
+    const { startId } = vi.mocked(sandboxGenerateVideo).mock.calls[0][2];
+    expect(startId).toMatch(/^[0-9a-f]{32}$/);
+    expect(lastRuns()[0]).toMatchObject({ starts: [startId], startingJob: true, jobs: [] });
+    answers[0]("job-1");
+    await vi.waitFor(() => expect(lastRuns()[0]).toMatchObject({ starts: [startId], jobs: ["job-1"] }));
+    lastRuns()[0].cancel();
+    await running;
+  });
+
   it("cancels the job a cancelled run started, and one it hears of only afterwards", async () => {
     const answers = heldStarts();
     const { canvasRun, lastRuns } = setUp(promptToVideo());

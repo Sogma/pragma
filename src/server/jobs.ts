@@ -26,8 +26,10 @@ export interface JobRecord {
   // joins this job instead of paying for another.
   digest: string;
   spaceId: string;
-  // The document whose run started it, by its grant key.
+  // The document whose run started it, by its grant key, and the id that
+  // run sent with the start.
   document: string;
+  startId?: string;
   // Where the result goes, as a rooted path resolved in the space at save
   // time, and the folder as the node names it, for messages.
   folder: string;

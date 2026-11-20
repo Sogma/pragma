@@ -88,6 +88,13 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
     return value;
   }
 
+  // A start's id goes back with its job to every window listing it, so only
+  // a short token is kept. It never changes what the job makes, so any other
+  // value is left out rather than refusing the start.
+  function readStartId(value: unknown): string | undefined {
+    return typeof value === "string" && /^[\w-]{1,64}$/.test(value) ? value : undefined;
+  }
+
   // A Generate node's references, each with the pin it came in on; one sent
   // without a pin takes its place in the list as one.
   function readReferences(value: unknown): ReferenceImagePayload[] {
@@ -233,6 +240,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
         aspectRatio: typeof request.aspectRatio === "string" ? request.aspectRatio : undefined,
         seed: typeof request.seed === "string" ? request.seed : undefined,
         prefix: typeof request.prefix === "string" ? request.prefix : undefined,
+        startId: readStartId(request.startId),
       },
       c.req.raw.signal,
     );
@@ -268,6 +276,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
       duration: optional(request.duration),
       take: optional(request.take),
       prefix: optional(request.prefix),
+      startId: readStartId(request.startId),
     });
     if ("found" in started) return c.json<GenerateVideoRouteResponse>(started.found);
     await jobRunner().watched([started.job.id]);

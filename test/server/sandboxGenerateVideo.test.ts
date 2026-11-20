@@ -201,6 +201,19 @@ describe("performSandboxGenerateVideo", () => {
     });
   });
 
+  it("records the id the start was sent with on its job, and none when it came without one", async () => {
+    await grantCapability(space, flow.subject, "generateVideo:space:clips");
+    const started = await startSandboxGenerateVideo(space, flow, body({ startId: "start-1" }), runner);
+    if ("found" in started) throw new Error("expected a job");
+    expect(started.job.startId).toBe("start-1");
+    expect(only().startId).toBe("start-1");
+
+    records.clear();
+    const plain = await startSandboxGenerateVideo(space, flow, body({ prompt: "A kite at dusk" }), runner);
+    if ("found" in plain) throw new Error("expected a job");
+    expect(plain.job).not.toHaveProperty("startId");
+  });
+
   it("records what the provider says the job makes over the settings sent", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     reported = { aspectRatio: "16:9", resolution: "1080p", duration: 8 };

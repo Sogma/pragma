@@ -56,6 +56,12 @@ export interface FlowJobs {
 // cancel: one that failed comes back, to be cancelled again.
 const CANCELLING_MS = 15_000;
 
+// A run's job: by its id once the start answered, and before then by the id
+// the start went with, which the job carries from the moment it is recorded.
+// Matched by id alone, a job starting lists on its own beside its run.
+const ofRun = (run: CanvasRunInfo, job: JobView) =>
+  run.jobs.includes(job.id) || (job.startId !== undefined && run.starts.includes(job.startId));
+
 export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
   const feed = deps.feed ?? jobsFeed();
   const element = document.createElement("div");
@@ -72,8 +78,11 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
   const finished = new Map<string, JobView[]>();
   // The problems already told, by job and wording, so each is told once.
   const told = new Set<string>();
-  // The jobs cancelled here, by when, kept off Running until they end.
+  // The jobs cancelled here, by id, and those of the starts a cancelled run
+  // had sent, by start id: each by when, kept off Running until it ends.
   const cancelling = new Map<string, number>();
+  const beingCancelled = (job: JobView) =>
+    cancelling.has(job.id) || (job.startId !== undefined && cancelling.has(job.startId));
   let unfollow: (() => void) | undefined;
 
   function poke(): void {
@@ -82,11 +91,10 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
 
   // A run with a job started or starting has spent its credits.
   async function cancelRun(run: CanvasRunInfo): Promise<void> {
-    const jobs = run.jobs.map((id) => latest.find((each) => each.id === id));
-    const spent = run.startingJob || jobs.some((job) => job === undefined || isLive(job));
-    const job = jobs.findLast((each) => each !== undefined && isLive(each));
-    if (spent && !(await confirmCancel(deps.dialog.confirm, runParts(run), job))) return;
-    for (const id of run.jobs) cancelling.set(id, Date.now());
+    const known = run.jobs.map((id) => latest.find((each) => each.id === id));
+    const spent = run.startingJob || known.some((job) => job === undefined || isLive(job));
+    if (spent && !(await confirmCancel(deps.dialog.confirm, runParts(run), jobsOf(run).find(isLive)))) return;
+    for (const id of [...run.jobs, ...run.starts]) cancelling.set(id, Date.now());
     run.cancel();
     poke();
   }
@@ -112,17 +120,14 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
     poke();
   }
 
-  // A run's newest job the feed knows of, shown on the run's row while it goes.
-  function jobOf(run: CanvasRunInfo): JobView | undefined {
-    for (const id of [...run.jobs].reverse()) {
-      const job = latest.find((each) => each.id === id);
-      if (job) return job;
-    }
-    return undefined;
+  // A run's jobs the feed knows of, newest first: the first is shown on the
+  // run's row while it goes.
+  function jobsOf(run: CanvasRunInfo): JobView[] {
+    return latest.filter((job) => ofRun(run, job)).sort((a, b) => b.startedAt - a.startedAt);
   }
 
   function runParts(run: CanvasRunInfo): LiveParts {
-    const job = jobOf(run);
+    const job = jobsOf(run).at(0);
     const live = job !== undefined && isLive(job);
     return {
       title: `Run ${run.number} · started ${versionWhen(run.startedAt)}`,
@@ -173,8 +178,7 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
     held = !force && selectionInList();
     if (held) return;
     const mine = runs.filter((run) => run.flowPath === shown);
-    const started = new Set(mine.flatMap((run) => run.jobs));
-    const onItsOwn = running.filter((job) => !started.has(job.id) && !cancelling.has(job.id));
+    const onItsOwn = running.filter((job) => !mine.some((run) => ofRun(run, job)) && !beingCancelled(job));
     const live = [
       ...mine.map((run) => ({ at: run.startedAt, el: () => runRow(run) })),
       ...onItsOwn.map((job) => ({ at: job.startedAt, el: () => row(job) })),
@@ -211,9 +215,12 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
   function accept(path: string, jobs: readonly JobView[]): void {
     latest = jobs;
     running = jobs.filter(isLive);
-    for (const [id, at] of cancelling) {
-      const job = jobs.find((each) => each.id === id);
-      if ((job !== undefined && !isLive(job)) || Date.now() - at > CANCELLING_MS) cancelling.delete(id);
+    for (const [key, at] of cancelling) {
+      const job = jobs.find((each) => each.id === key || each.startId === key);
+      // The countdown waits while the job starts: the run that started it
+      // sends the cancel only once its start answers.
+      if (job?.stage === "starting") cancelling.set(key, Date.now());
+      else if ((job !== undefined && !isLive(job)) || Date.now() - at > CANCELLING_MS) cancelling.delete(key);
     }
     const list = finished.get(path) ?? [];
     const fresh = jobs.filter((job) => !isLive(job) && !list.some((seen) => seen.id === job.id));

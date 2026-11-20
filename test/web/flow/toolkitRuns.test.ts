@@ -65,7 +65,7 @@ describe("createToolkitRuns", () => {
     const { element, runs, add, stop, markJobsShown, confirm, cancelJob } = setUp(answer);
     runs.show("shots.md");
     const listed = add("Another take");
-    listed.jobStarting()("j1");
+    listed.jobStarting("start-1")("j1");
     await vi.advanceTimersByTimeAsync(2000);
     expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Another take · started /);
     expect(texts(element, ".flow-jobs-detail")).toEqual(["Shot 4, take 2"]);
@@ -107,7 +107,7 @@ describe("createToolkitRuns", () => {
     const { element, runs, add, onCount } = setUp(answer);
     runs.show("shots.md");
     const listed = add("Make clip");
-    listed.jobStarting()("j2");
+    listed.jobStarting("start-2")("j2");
     listed.ended();
     await vi.advanceTimersByTimeAsync(2000);
     expect(texts(element, ".flow-jobs-stage")).toEqual(["Rendering · 0:20 · quoted 70 credits"]);

@@ -25,6 +25,7 @@ function viewOf(job: JobRecord, config: PragmaGlobalConfig): JobView {
   const provider = providerOf(job, config);
   return {
     id: job.id,
+    ...(job.startId !== undefined ? { startId: job.startId } : {}),
     kind: job.kind,
     stage: job.stage,
     model: job.model,

@@ -74,6 +74,7 @@ const run = (id: number, fields: Partial<CanvasRunInfo> = {}): CanvasRunInfo => 
   flowPath: "v.flow.html",
   startedAt: Date.now(),
   jobs: [],
+  starts: [],
   startingJob: false,
   nodes: [],
   cancel: vi.fn(),
@@ -166,6 +167,73 @@ describe("createFlowJobs", () => {
     expect(texts(element, ".flow-jobs-title").every((title) => title?.startsWith("Generate Video"))).toBe(true);
     expect(element.getAttribute("data-running")).toBe("2");
     expect(onCount).toHaveBeenLastCalledWith(2);
+  });
+
+  // The host records a job before its provider takes it, and the run hears
+  // the job's id only once the provider has.
+  it("lists a job a run here is starting on that run's row, by the id its start went with", async () => {
+    const { element } = setUp([
+      live("a", { stage: "starting", startId: "start-1", quote: undefined }),
+      live("b", { stage: "starting", startId: "start-elsewhere", quote: undefined, summary: "A kite at dusk" }),
+    ]);
+    jobs?.show("v.flow.html");
+    jobs?.setRuns([run(1, { starts: ["start-1"], startingJob: true, nodes: ["Generate Video (AI)"] })]);
+    await vi.waitFor(() =>
+      expect(texts(element, ".flow-jobs-detail")).toEqual(["Steam rises from the red cup", "A kite at dusk"]),
+    );
+    const titles = texts(element, ".flow-jobs-title");
+    expect(titles[0]).toMatch(/^Run 1 · started /);
+    expect(titles[1]).toMatch(/^Generate Video · started /);
+    expect(texts(element, ".flow-jobs-settings")).toEqual([
+      "seedance_2_5 · 720p · 5 s · 16:9",
+      "seedance_2_5 · 720p · 5 s · 16:9",
+    ]);
+    expect(texts(element, ".flow-jobs-stage")).toEqual(["Starting the job", "Starting the job"]);
+    expect(element.getAttribute("data-running")).toBe("2");
+  });
+
+  it("keeps the job a cancelled run was starting off Running while it starts, and for the usual wait after", async () => {
+    const answer = [live("a", { stage: "starting", startId: "start-1", quote: undefined })];
+    const { element, confirm } = setUp(answer);
+    jobs?.show("v.flow.html");
+    const starting = run(1, { starts: ["start-1"], startingJob: true });
+    jobs?.setRuns([starting]);
+    await vi.waitFor(() => expect(texts(element, ".flow-jobs-stage")).toEqual(["Starting the job"]));
+    (element.querySelector(".flow-jobs-cancel") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(starting.cancel).toHaveBeenCalled());
+    const [summary] = confirm.mock.calls[0][0].message as [HTMLElement, string];
+    expect(summary.textContent).toContain(
+      "Steam rises from the red cupseedance_2_5 · 720p · 5 s · 16:9Starting the job",
+    );
+    jobs?.setRuns([]);
+    expect(element.hasAttribute("data-running")).toBe(false);
+
+    // Each poll draws the list afresh, and the clip it lists as saved says it landed.
+    const poll = async (job: JobView, landed: string) => {
+      const saved = live(landed, { stage: "saved", file: `clips/${landed}.mp4`, endedAt: Date.now() });
+      answer.splice(0, answer.length, job, saved);
+      jobs?.show("other.flow.html");
+      jobs?.show("v.flow.html");
+      await vi.waitFor(() => expect(texts(element, ".flow-jobs-title")).toContain(`${landed}.mp4`));
+    };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now");
+    try {
+      clock.mockReturnValue(now + 60_000);
+      await poll(live("a", { stage: "starting", startId: "start-1" }), "x");
+      expect(element.hasAttribute("data-running")).toBe(false);
+
+      // Started, it waits for the run's cancel; one that never lands brings it back.
+      clock.mockReturnValue(now + 70_000);
+      await poll(live("a", { startId: "start-1" }), "y");
+      expect(element.hasAttribute("data-running")).toBe(false);
+      clock.mockReturnValue(now + 80_000);
+      await poll(live("a", { startId: "start-1" }), "z");
+      expect(element.getAttribute("data-running")).toBe("1");
+      expect(element.querySelector(".flow-jobs-cancel")?.getAttribute("aria-label")).toBe("Cancel this job");
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   // Polls redraw the list every few seconds while a job runs, and a redraw

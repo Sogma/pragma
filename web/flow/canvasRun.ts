@@ -26,9 +26,10 @@ export interface CanvasRunInfo {
   number: number;
   flowPath: string;
   startedAt: number;
-  // The paid jobs it started, whether one is starting, and the nodes running
-  // in it now, by label.
+  // The paid jobs it started, the id each of its starts went with, whether
+  // one is starting, and the nodes running in it now, by label.
   jobs: readonly string[];
+  starts: readonly string[];
   startingJob: boolean;
   nodes: readonly string[];
   cancel(): void;
@@ -74,6 +75,7 @@ interface RunState {
   flowPath: string;
   startedAt: number;
   jobs: string[];
+  starts: string[];
   starting: number;
   // How many of this run's nodes are running, by node id.
   running: Map<string, number>;
@@ -111,6 +113,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         flowPath: run.flowPath,
         startedAt: run.startedAt,
         jobs: [...run.jobs],
+        starts: [...run.starts],
         startingJob: run.starting > 0,
         nodes: [...run.running.keys()].map((id) => run.labels.get(id) ?? id),
         cancel: () => cancel(run),
@@ -175,6 +178,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       flowPath: flow.file.path,
       startedAt: Date.now(),
       jobs: [],
+      starts: [],
       starting: 0,
       running: new Map(),
       labels: new Map(),
@@ -229,8 +233,9 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
         signal: state.controller.signal,
-        jobStarting: () => {
+        jobStarting: (startId) => {
           state.starting++;
+          state.starts.push(startId);
           report();
           return (job) => {
             state.starting--;

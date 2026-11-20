@@ -379,6 +379,21 @@ describe("an image a provider makes as a job", () => {
     expect(starts).toHaveLength(1);
   });
 
+  it("records the id the start was sent with on its job", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const { resolveJobs, runner } = jobProvider();
+    const started = await startSandboxGenerateImage(
+      space,
+      flow,
+      body({ startId: "start-1" }),
+      undefined,
+      resolveJobs,
+      runner,
+    );
+    if ("found" in started) throw new Error("expected a job");
+    expect(started.job.startId).toBe("start-1");
+  });
+
   it("waits on the job in-process for a headless run, and hands back the image and what it cost", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const { resolveJobs, runner } = jobProvider();

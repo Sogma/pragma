@@ -87,6 +87,17 @@ describe("/api/jobs", () => {
     });
   });
 
+  it("hands back the id each job's start was sent with, when it had one", async () => {
+    await store.add(job("a", { startId: "start-1", stage: "starting" }));
+    await store.add(job("b", { startedAt: 2 }));
+    const res = await app.request("/api/jobs?path=v.flow.html");
+    const { jobs } = (await res.json()) as JobsResponse;
+    expect(jobs.map((each) => [each.id, each.stage, each.startId])).toEqual([
+      ["b", "running", undefined],
+      ["a", "starting", "start-1"],
+    ]);
+  });
+
   it("renews the jobs a run in the window waits on, and only those still going", async () => {
     await store.add(job("waited"));
     await store.add(job("other"));

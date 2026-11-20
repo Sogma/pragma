@@ -58,7 +58,7 @@ async function generateVideo(
   signal?: AbortSignal,
   jobStarting?: JobStarting,
 ): Promise<GenerateVideoResponse> {
-  const started = await answered(sandboxGenerateVideo(kind, path, body), jobStarting?.());
+  const started = await answered((startId) => sandboxGenerateVideo(kind, path, { ...body, startId }), jobStarting);
   if (!("job" in started)) return started;
   const job = await savedJob(path, started.job, signal, "clip", body.folder);
   return {
@@ -81,7 +81,7 @@ async function generateImage(
   signal?: AbortSignal,
   jobStarting?: JobStarting,
 ): Promise<GenerateImageResponse> {
-  const started = await answered(sandboxGenerateImage(kind, path, body), jobStarting?.());
+  const started = await answered((startId) => sandboxGenerateImage(kind, path, { ...body, startId }), jobStarting);
   if (!("job" in started)) return started;
   const job = await savedJob(path, started.job, signal, "image", body.folder);
   const file = await fetchFileRaw(job.file ?? job.result);
@@ -125,18 +125,29 @@ async function savedJob(
   return { ...job, result: job.result };
 }
 
-/** Called as a paid job's start is sent; the function it returns hears the
- * job's id once the host has recorded it, or nothing when no job started. */
-export type JobStarting = () => (job?: string) => void;
+/** Called as a paid job's start is sent, with the id the start goes with,
+ * which the job carries from the moment it is recorded; the function it
+ * returns hears the job's id once the host answers, or nothing when no job
+ * started. */
+export type JobStarting = (startId: string) => (job?: string) => void;
 
-async function answered<T>(start: Promise<T>, started: ((job?: string) => void) | undefined): Promise<T> {
+// Not randomUUID: it exists only in a secure context, which a page served
+// over plain http from another machine isn't.
+function newStartId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function answered<T>(send: (startId?: string) => Promise<T>, jobStarting: JobStarting | undefined): Promise<T> {
+  if (!jobStarting) return send();
+  const startId = newStartId();
+  const started = jobStarting(startId);
   let answer: T | undefined;
   try {
-    answer = await start;
+    answer = await send(startId);
     return answer;
   } finally {
     const job = (answer as { job?: unknown } | undefined)?.job;
-    started?.(typeof job === "string" ? job : undefined);
+    started(typeof job === "string" ? job : undefined);
   }
 }
 

@@ -1795,12 +1795,19 @@ export interface VideoReferencePayload {
   digest: string;
 }
 
+// A generation that may start a paid job, sent with an id of the caller's
+// own for the start. The job carries it from the moment it is recorded, so
+// the caller can tell its job from others' before the start answers.
+export interface JobStartRequestBody {
+  startId?: string;
+}
+
 // An image generation into `folder`, which must be the folder the document
 // declares. `references` go in pin order, and the host spells the prompt's
 // mentions of them for the model; `seed` is part of the result's name
 // whether or not the model takes one. `prefix` starts the result's file name
 // in place of "image".
-export interface GenerateImageRequestBody {
+export interface GenerateImageRequestBody extends JobStartRequestBody {
   folder: string;
   prompt: string;
   references: ReferenceImagePayload[];
@@ -1838,7 +1845,7 @@ export interface GenerateImageResponse {
 // generation's do, and `videoReferences` beside them, never beside a frame. `resolution` is a size such as
 // `720p`, `duration` whole seconds; `take` names the result and never reaches
 // the model, and `prefix` starts its file name in place of "video".
-export interface GenerateVideoRequestBody {
+export interface GenerateVideoRequestBody extends JobStartRequestBody {
   folder: string;
   prompt: string;
   startFrame?: PickedImagePayload;
@@ -1900,6 +1907,8 @@ export interface JobSettings {
  * a waiting run had, `interrupted` a start the host closed in the middle of. */
 export interface JobView {
   id: string;
+  // The id its start was sent with, when the caller sent one.
+  startId?: string;
   kind: "video" | "image";
   stage: "starting" | "running" | "saved" | "failed" | "cancelled";
   model: string;

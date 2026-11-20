@@ -277,6 +277,18 @@ describe("createJobRunner starting", () => {
     const quiet = await runner.begin(other, async () => ({ operation: { job: "y" }, warnings: [], notes: [] }));
     expect(quiet.job.settings).toEqual({ duration: 5 });
   });
+
+  // A run hears its job's id only once the provider has taken the job, and
+  // lists the job before then by its start's id.
+  it("keeps the id the start was sent with on the job from the moment it is recorded", async () => {
+    let answer: (begun: VideoJob) => void = () => {};
+    const { id: _id, stage: _stage, startedAt: _startedAt, ...fields } = job("unused", { startId: "start-1" });
+    const started = runner.begin(fields, () => new Promise((resolve) => (answer = resolve)));
+    await vi.waitFor(() => expect(records.size).toBe(1));
+    expect([...records.values()][0]).toMatchObject({ stage: "starting", startId: "start-1" });
+    answer({ operation: { job: "x" }, warnings: [], notes: [] });
+    expect((await started).job).toMatchObject({ stage: "running", startId: "start-1" });
+  });
 });
 
 describe("createJobRunner cancelling", () => {
