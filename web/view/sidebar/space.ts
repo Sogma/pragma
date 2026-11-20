@@ -147,6 +147,9 @@ export interface SpaceViewDeps {
    * the Context switch does a folder's AGENTS.md. */
   editProperties(path: string, edit: (properties: Record<string, unknown>) => void): Promise<void>;
   open(path: string, options?: OpenOptions): Promise<void>;
+  /** Where a file just made opens: a new tab after the current one, so the
+   * file the writer was in stays open (docs/architecture.md, Files and views). */
+  openBeside(path: string): Promise<void>;
   openDirectory(path: string): void;
   /** The whole move of each entry, as one action — the server rename, and
    * every tab and model displaced by it. Resolves once the tree has been
@@ -576,7 +579,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   async function revealCreated(created: CreateEntryResponse, shown = hasRow): Promise<void> {
     await refresh();
     if (created.type !== "file") return;
-    if (shown(created.path)) void deps.open(created.path);
+    if (shown(created.path)) void deps.openBeside(created.path);
   }
 
   // ---- create ------------------------------------------------------------
@@ -620,7 +623,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
         await refresh();
         // A folder opens at its README, the one file every folder template has.
         const opened = created.type === "file" ? created.path : `${created.path}/README.md`;
-        if (shown(created.path)) void deps.open(opened);
+        if (shown(created.path)) void deps.openBeside(opened);
         return;
       }
       const seeded = type === "file" ? seedForKind(kind, name) : { fileName: name, content: undefined };
@@ -702,18 +705,18 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   // rename starts after the open settles, or the editor takes focus from it.
   //
   // Named on another surface, the copy opens once named instead: opened
-  // first, it would take the place of the field it is being named in.
+  // first, it would hide the field it is being named in.
   async function duplicate(node: SpaceTreeNode, naming?: NamingSurface): Promise<void> {
     try {
       const created = await postDuplicateEntry(node.path);
       await refresh();
       if (naming) {
         const listed = spaceTree.findEntry(created.path);
-        if (listed) naming.rename(listed.path, (name) => void renameNamed(listed, name).then(deps.open));
+        if (listed) naming.rename(listed.path, (name) => void renameNamed(listed, name).then(deps.openBeside));
         return;
       }
       if (!hasRow(created.path)) return;
-      await deps.open(created.path);
+      await deps.openBeside(created.path);
       const copy = spaceTree.findDirectoryChildren(dirnameOf(created.path))?.find((row) => row.path === created.path);
       if (copy) startRename(copy);
     } catch (error) {

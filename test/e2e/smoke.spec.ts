@@ -100,6 +100,32 @@ test("makes a note from an empty tab's New Note, at the space's top, in the tab'
   await expect(pills).toHaveCount(before);
 });
 
+test("opens a note made from the tree in a new tab after the one it was made from", async ({ page, request }) => {
+  const made = `new-tab-note-${Date.now()}`;
+  await page.goto("/");
+  await (await treeRow(page, "README.md")).click();
+  const label = page.locator(".editor-tab.active .editor-tab-label");
+  await expect(label).toHaveText("README");
+  const pills = page.locator(".editor-group-tabs").first().locator(".editor-tab");
+  const before = await pills.count();
+
+  await page.locator("#tree-new-file").click();
+  const field = page.locator("#tree-nodes .node-label.editing input");
+  await field.fill(made);
+  await field.press("Enter");
+
+  await expect(label).toHaveText(made);
+  await expect(pills).toHaveCount(before + 1);
+  const active = await pills.evaluateAll((all) => all.findIndex((pill) => pill.classList.contains("active")));
+  await expect(pills.nth(active - 1).locator(".editor-tab-label")).toHaveText("README");
+  // Later tests restore this layout and drag rows across the space's top,
+  // so the new tab and the note both go again.
+  await page.locator(".editor-tab.active .editor-tab-close").click();
+  await expect(pills).toHaveCount(before);
+  const deleted = await request.post("/api/space/delete", { data: { path: `${made}.md`, trash: false } });
+  expect(deleted.ok()).toBe(true);
+});
+
 // The open file's row is marked only while the focused tab shows that file.
 test("unmarks the open file's row while a folder's gallery or a blank tab has focus", async ({ page, request }) => {
   const stamp = Date.now();

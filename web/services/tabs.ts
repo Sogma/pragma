@@ -169,9 +169,9 @@ export interface Tabs {
    * the focused group. */
   openEntry(filePath: string, options?: OpenOptions): Promise<void>;
   /** The same open, into a new tab right after the current one rather than
-   * in its place — what a gallery opens a file with, so the gallery stays.
-   * A file already open still focuses its tab, and a blank current tab is
-   * replaced rather than kept beside it. */
+   * in its place, so what the tab showed stays: Open in new tab and a file
+   * just made both open this way. A file already open still focuses its
+   * tab, and a blank current tab is replaced rather than kept beside it. */
   openEntryBeside(filePath: string, options?: OpenOptions): Promise<void>;
   /** A path that didn't come from a rendered row (a reading-view link): the
    * tree is expanded to it first, and a path the space doesn't hold is

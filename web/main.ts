@@ -279,6 +279,7 @@ async function main(): Promise<void> {
       settingWords: (kind) => formats.scopeSettings(kind),
       editProperties: (path, edit) => documents.editProperties(path, edit),
       open: (path, options) => tabs.openEntry(path, options),
+      openBeside: (path) => tabs.openEntryBeside(path),
       openDirectory: (dir) => void tabs.openFolder(dir),
       move: (moves) => moveSpaceEntries(moves, { ...entryMoveDeps(), refreshTree: () => space.refresh() }),
       onDeleted: (path) => tabs.dropDeleted(path),
@@ -346,8 +347,7 @@ async function main(): Promise<void> {
     createTree,
     showExtensions: () => settings.showExtensions.get(),
     contextMenu,
-    openItem: (rootedPath) => void tabs.openEntry(rootedPath),
-    openDirectory: (rootedPath) => void tabs.openFolder(rootedPath),
+    tabs: () => tabs,
     moveEntry: (from, to) =>
       moveSpaceEntry(from, to, { ...entryMoveDeps(), refreshTree: () => librariesView.tree.reload() }),
     onDeleted: (path) => tabs.dropDeleted(path),

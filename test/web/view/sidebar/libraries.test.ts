@@ -38,6 +38,7 @@ function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
   // Every tree the panel creates draws through this one spy, so a test reads
   // what was drawn, and under which list path, without holding the tree.
   const renderTree = vi.fn<DrawTree>();
+  const tabs = { openEntry: vi.fn(), openEntryBeside: vi.fn(), openFolder: vi.fn() };
   return {
     fetchLibraries: vi.fn(async () => ({ libraries: [library("one"), library("two")] })),
     // Every folder lists the same entries unless a test says otherwise.
@@ -67,8 +68,7 @@ function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
       failed: [],
       cancelled: false,
     })),
-    openItem: vi.fn(),
-    openDirectory: vi.fn(),
+    tabs: () => tabs,
     show: vi.fn(),
     collapsed: { isCollapsed: vi.fn(() => true), setCollapsed: vi.fn(), expand: vi.fn(), reveal: vi.fn(() => false) },
     ...overrides,
@@ -261,7 +261,7 @@ describe("createLibrariesView", () => {
     for (const path of ["lib:one/notes.md", "lib:one/shots.table.html", "lib:one/looks.class.html"]) {
       ctx.onOpen(path, document.createElement("div"));
     }
-    expect(vi.mocked(d.openItem).mock.calls.map(([p]) => p)).toEqual([
+    expect(vi.mocked(d.tabs().openEntry).mock.calls.map(([p]) => p)).toEqual([
       "lib:one/notes.md",
       "lib:one/shots.table.html",
       "lib:one/looks.class.html",
@@ -278,7 +278,7 @@ describe("createLibrariesView", () => {
     expect(ctx.readOnly).toBe(true);
 
     ctx.onOpenDirectory?.("lib:one/shots");
-    expect(d.openDirectory).toHaveBeenCalledWith("lib:one/shots");
+    expect(d.tabs().openFolder).toHaveBeenCalledWith("lib:one/shots");
   });
 
   // A library's tree lists by name, so a sort picked for one of its folders
@@ -1198,7 +1198,7 @@ describe("a writable library's tree", () => {
     const [files, dir] = vi.mocked(d.importFiles).mock.calls[0];
     expect(dir).toBe("lib:one/batch");
     expect(files.map((f) => f.name)).toEqual(["take.mp4", "still.png"]);
-    await vi.waitFor(() => expect(d.openItem).toHaveBeenCalledWith("lib:one/batch/still.png"));
+    await vi.waitFor(() => expect(d.tabs().openEntry).toHaveBeenCalledWith("lib:one/batch/still.png"));
     expect(d.fetchLibraryFolder).toHaveBeenCalledTimes(2);
 
     const file = { name: "one.md", path: "batch/one.md", type: "file" } as SpaceTreeNode;
@@ -1288,7 +1288,7 @@ describe("a writable library's tree", () => {
     expect(vi.mocked(d.importFiles).mock.calls[0][1]).toBe("lib:one");
   });
 
-  it("creates under the clicked folder, in that library's root, then opens the file", async () => {
+  it("creates under the clicked folder, in that library's root, then opens the file in a new tab", async () => {
     const d = writableDeps();
     const libraries = await expanded(d);
     const folder: SpaceTreeNode = { name: "notes", path: "notes", type: "directory", children: [] } as SpaceTreeNode;
@@ -1301,7 +1301,8 @@ describe("a writable library's tree", () => {
     expect(d.createEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file");
     // The tree is re-read rather than patched, so what shows is what the
     // filesystem answered.
-    await vi.waitFor(() => expect(d.openItem).toHaveBeenCalledWith("lib:one/notes/take"));
+    await vi.waitFor(() => expect(d.tabs().openEntryBeside).toHaveBeenCalledWith("lib:one/notes/take"));
+    expect(d.tabs().openEntry).not.toHaveBeenCalled();
     expect(d.fetchLibraryFolder).toHaveBeenCalledTimes(2);
   });
 
@@ -1397,7 +1398,7 @@ describe("a writable library's tree", () => {
 
     await libraries.tree.create("lib:one/notes", "file", "take");
     expect(d.createEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file");
-    expect(d.openItem).toHaveBeenCalledWith("lib:one/notes/take");
+    expect(d.tabs().openEntryBeside).toHaveBeenCalledWith("lib:one/notes/take");
     expect(d.onChanged).toHaveBeenCalledTimes(1);
   });
 });

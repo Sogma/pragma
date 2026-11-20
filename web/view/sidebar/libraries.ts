@@ -50,6 +50,7 @@ import type { ContextMenuService, MenuRegistry } from "../../services/menus.ts";
 import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import { spaceChanges } from "../../services/spaceChanges.ts";
+import type { Tabs } from "../../services/tabs.ts";
 import type { ContextMenu } from "../contextMenu.ts";
 import type { DropZone, TreeRenderContext, TreeView } from "../fileTreeView.ts";
 
@@ -104,12 +105,11 @@ export interface LibrariesViewDeps {
   // Brings this panel to the front — supplied by whoever registered the
   // view, since a view doesn't know the rail it sits on.
   show: () => void;
-  // Takes a rooted path (`lib:<id>/…`), not a space-relative one — the same
+  // Read at use: the tab service is built after this view. Each open takes
+  // a rooted path (`lib:<id>/…`), not a space-relative one: the same
   // dispatcher the space tree opens through, since the image pane's
   // raw-file URL carries a rooted path unchanged.
-  openItem: (rootedPath: string) => void;
-  // A folder's gallery in the focused tab's place, at its rooted path too.
-  openDirectory: (rootedPath: string) => void;
+  tabs(): Pick<Tabs, "openEntry" | "openEntryBeside" | "openFolder">;
   // The tree's own context menu. Opened for a read-only library too, which
   // still opens a folder as a gallery; every action that writes checks the
   // target's `writable` itself.
@@ -260,8 +260,8 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   function renderContext(libraryId: string, writable: boolean): TreeRenderContext {
     return {
       root: { library: libraryId },
-      onOpen: (rootedPath) => deps.openItem(rootedPath),
-      onOpenDirectory: (rootedPath) => deps.openDirectory(rootedPath),
+      onOpen: (rootedPath) => void deps.tabs().openEntry(rootedPath),
+      onOpenDirectory: (rootedPath) => void deps.tabs().openFolder(rootedPath),
       // A read-only library's file rows offer nothing, so only its folders
       // open a menu — the one that opens them as a gallery.
       onContextMenu: (event, node) => {
@@ -401,7 +401,8 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     try {
       const created = await deps.createEntry(parentPath, name, type);
       await reload();
-      if (created.type === "file") deps.openItem(created.path);
+      // In a new tab, as every file just made opens (docs/architecture.md, Files and views).
+      if (created.type === "file") void deps.tabs().openEntryBeside(created.path);
     } catch (error) {
       report(error, `Failed to create ${type === "file" ? "note" : "folder"}.`);
     }
@@ -463,7 +464,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     const result = await deps.importFiles(files, dir);
     await reload();
     const last = result.imported.at(-1);
-    if (last) deps.openItem(last);
+    if (last) void deps.tabs().openEntry(last);
     const problems = describeImportProblems(result);
     if (problems) deps.notify(problems);
   }
