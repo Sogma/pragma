@@ -13,6 +13,7 @@ import {
   higgsfieldVideoInputs,
   higgsfieldVideoModel,
   type MediaCache,
+  taskMode,
   wholeRatio,
 } from "../../src/server/higgsfieldMcp.ts";
 import {
@@ -314,6 +315,27 @@ describe("higgsfieldVideoModel", () => {
     ]);
   });
 
+  // One model's mode stays text-to-video unless sent, and then refuses the
+  // references; another requires a mode.
+  it("sends the mode its placed inputs ask for, in the model's own words", async () => {
+    standIn.videoRoles = ["start_image", "image_references", "video_references"];
+    standIn.videoModes = ["text-to-video", "image-to-video", "reference-to-video", "video-edit"];
+    await startVideoJob(videoModel("kling_4_0_flash"), {
+      prompt: "pixel art as in Video 1",
+      references: [{ mediaType: "video/mp4", data: START }],
+    });
+    await startVideoJob(videoModel("kling_4_0_flash"), { prompt: "the cup turns", startFrame: START });
+    await startVideoJob(videoModel("kling_4_0_flash"), { prompt: "the cup turns" });
+    standIn.videoModes = ["std", "pro", "4k"];
+    await startVideoJob(videoModel("kling3_0"), { prompt: "the cup turns" });
+    expect(standIn.generateCalls.map((call) => call.mode)).toEqual([
+      "reference-to-video",
+      "image-to-video",
+      "text-to-video",
+      undefined,
+    ]);
+  });
+
   // media_upload tells a file's kind by its name, and media_confirm is told
   // it, so a clip that went up as an image would never be a video reference.
   it("uploads a clip named by its own extension, confirms it as video, and places it as a video reference", async () => {
@@ -425,6 +447,24 @@ describe("higgsfieldVideoModel", () => {
       status: "error",
       error: "This job names no Higgsfield job id.",
     });
+  });
+});
+
+describe("taskMode", () => {
+  const seedance = ["t2v", "omni_reference", "video_edit", "video_extension"];
+  it("picks the task the inputs ask for in each spelling, references over frames", () => {
+    expect(taskMode(seedance, { references: true, frames: true })).toBe("omni_reference");
+    expect(taskMode(seedance, { references: false, frames: false })).toBe("t2v");
+    expect(taskMode(["text-to-video", "reference-to-video", "edit"], { references: true, frames: false })).toBe(
+      "reference-to-video",
+    );
+  });
+
+  it("leaves the mode to the server where no option names the task", () => {
+    // A model taking a frame in omni_reference is moved there by the server.
+    expect(taskMode(seedance, { references: false, frames: true })).toBeUndefined();
+    expect(taskMode(["std", "pro", "4k"], { references: true, frames: false })).toBeUndefined();
+    expect(taskMode([], { references: false, frames: false })).toBeUndefined();
   });
 });
 

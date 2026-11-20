@@ -51,6 +51,8 @@ export interface HiggsfieldStandIn {
   // The resolutions it lists, the same way; empty for a model with no
   // resolution setting.
   videoResolutions?: string[];
+  // The `mode` options it lists; none when unset.
+  videoModes?: string[];
   // A job id the server refuses to name, as one from another account.
   refusedJobId?: string;
   // How many jobs_wait calls have answered.
@@ -92,7 +94,7 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
       const result = fixture("models-get");
       const entry = result.structuredContent as {
         medias: Array<{ roles: string[] }>;
-        parameters: Array<{ name: string; options?: unknown[] }>;
+        parameters: Array<{ name: string; required?: string; type?: string; options?: unknown[] }>;
       };
       if (standIn.videoRoles) entry.medias[0].roles = standIn.videoRoles;
       const listed = standIn.videoResolutions;
@@ -101,6 +103,8 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
           parameter.name !== "resolution" ? [parameter] : listed.length ? [{ ...parameter, options: listed }] : [],
         );
       }
+      if (standIn.videoModes)
+        entry.parameters.push({ name: "mode", required: "optional", type: "string", options: standIn.videoModes });
       return result;
     }
     if (name === "generate_image" || name === "generate_video") {

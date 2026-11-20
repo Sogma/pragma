@@ -268,13 +268,17 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   }
 
   // What a model's catalog entry declares: the frame roles it takes, such as
-  // start_image, and the resolutions it lists, in its own names (`720p`, or
-  // Minimax's `768`). A model that picks its own resolution lists none.
+  // start_image, the resolutions it lists, in its own names (`720p`, or
+  // Minimax's `768`), and its `mode` options. A model that picks its own
+  // resolution lists none.
   async function details(client: Client, modelId: string, signal?: AbortSignal) {
     const entry = await call(client, "models_explore", { action: "get", model_id: modelId }, signal);
     const parameters = Array.isArray(entry.parameters) ? (entry.parameters as Fields[]) : [];
-    const options = parameters.find((parameter) => parameter.name === "resolution")?.options;
-    return { roles: rolesOf(entry), resolutions: Array.isArray(options) ? options.map(String) : [] };
+    const listed = (name: string) => {
+      const options = parameters.find((parameter) => parameter.name === name)?.options;
+      return Array.isArray(options) ? options.map(String) : [];
+    };
+    return { roles: rolesOf(entry), resolutions: listed("resolution"), modes: listed("mode") };
   }
 
   return {
@@ -453,6 +457,26 @@ const REFERENCE_ROLES: Record<string, string> = {
   audio: "audio_references",
 };
 
+// The task a job's inputs ask for, in each spelling a model's `mode` lists
+// it. Without one the server keeps its default, which on some models is a
+// text-only mode that refuses references. A `mode` naming none of these is a
+// quality tier and is left alone; edit and extend are never picked.
+const TASK_MODES = {
+  references: ["reference-to-video", "omni_reference"],
+  frames: ["image-to-video"],
+  text: ["text-to-video", "t2v"],
+} as const;
+
+/** The `mode` a job's placed inputs ask for among `modes`, a model's own
+ * options, or undefined when it lists no such task. */
+export function taskMode(
+  modes: readonly string[],
+  placed: { references: boolean; frames: boolean },
+): string | undefined {
+  const task = placed.references ? "references" : placed.frames ? "frames" : "text";
+  return TASK_MODES[task].find((spelling) => modes.includes(spelling));
+}
+
 // What each video model's catalog entry declares, kept a while: a run asks
 // before it names its result, and an unchanged Run otherwise asks nothing.
 const DECLARED_TTL_MS = 10 * 60_000;
@@ -555,6 +579,12 @@ export function higgsfieldVideoModel(
           else unplaced.add(kind);
         }
         for (const kind of unplaced) warnings.push(leftOut(`${kind} references`));
+        const mode = taskMode(declared.modes, {
+          references: uploads.some((upload) => Object.values(REFERENCE_ROLES).includes(upload.role)),
+          frames: uploads.some(
+            (upload) => upload.role === FRAMES.first_frame.role || upload.role === FRAMES.last_frame.role,
+          ),
+        });
         const asked = options.resolution ? resolutionShortSide(options.resolution) : undefined;
         const resolution = asked ? nearestResolution(asked, declared.resolutions) : undefined;
         if (options.resolution && !resolution) warnings.push(leftOut("resolution"));
@@ -574,6 +604,7 @@ export function higgsfieldVideoModel(
               ? { aspect_ratio: wholeRatio(options.aspectRatio) }
               : {}),
             ...(resolution ? { resolution } : {}),
+            ...(mode ? { mode } : {}),
             ...(options.duration !== undefined ? { duration: Math.round(options.duration) } : {}),
             ...(placed.length ? { medias: placed } : {}),
           }),
