@@ -39,8 +39,10 @@ export interface VideoPlayerOptions {
   layout: PlayerLayout;
   loop: LoopChoice;
   volume: VolumeChoice;
-  /** The guides every player draws over its picture, under the controls. */
-  guides: GuidesChoice;
+  /** The guides drawn over the picture, under the controls. Given only where
+   * a clip is looked at for itself: a Flow's clip shows the file plain, as a
+   * run hands it on, and the preview it opens draws them. */
+  guides?: GuidesChoice;
   /** The look the picture shows through, under the guides. Given only where
    * a LOOK badge says it is on and turns it off: a picture graded with no
    * badge reads as the file's own colors. */
@@ -148,10 +150,10 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   seek.setAttribute("aria-valuemin", "0");
 
   const bar = box("video-player-bar");
-  const guides = createGuidesOverlay(options.guides);
+  const guides = options.guides === undefined ? undefined : createGuidesOverlay(options.guides);
   const lut = options.lut === undefined ? undefined : createLutLayer(video, options.lut);
   const element = box(`video-player is-${layout}`, bar);
-  element.prepend(guides.element);
+  if (guides) element.prepend(guides.element);
   if (lut) element.prepend(lut.element);
   if (review) {
     bar.append(
@@ -470,11 +472,13 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
     on(video, type, draw);
   }
   // Sized by the clip's header, and again when a stream changes its frame size mid-clip.
-  const sizeGuides = () => guides.setSize(video.videoWidth, video.videoHeight);
-  on(video, "loadedmetadata", sizeGuides);
-  on(video, "resize", sizeGuides);
-  sizeGuides();
-  store.add(() => guides.dispose());
+  if (guides) {
+    const sizeGuides = () => guides.setSize(video.videoWidth, video.videoHeight);
+    on(video, "loadedmetadata", sizeGuides);
+    on(video, "resize", sizeGuides);
+    sizeGuides();
+    store.add(() => guides.dispose());
+  }
   store.add(() => lut?.dispose());
   on(document, "fullscreenchange", drawState);
   store.add(() => cancelAnimationFrame(frameRequest));
@@ -509,7 +513,7 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
       else if (key === "ArrowRight") step(1);
       else if (key === "i" || key === "I") setIn();
       else if (key === "o" || key === "O") setOut();
-      else if (key === "g" || key === "G") toggleGuides(options.guides);
+      else if ((key === "g" || key === "G") && options.guides) toggleGuides(options.guides);
       // D, not L: L is the shuttle's.
       else if ((key === "d" || key === "D") && options.lut) toggleLook(options.lut);
       else return volumeKey(key);

@@ -1166,6 +1166,7 @@ describe("an Applet node's card", () => {
     expect(frame.querySelector("video")?.getAttribute("src")).toBe("/api/file/raw?path=clips%2Fsteam-0123456789ab.mp4");
     expect(frame.querySelector(".video-player")).not.toBeNull();
     expect(frame.querySelector(".video-lut")).toBeNull();
+    expect(frame.querySelector(".video-guides")).toBeNull();
     expect(el.querySelector(".flow-node-report")?.textContent).toBe("Quoted 2.4 credits.");
     expect(regenerate?.hidden).toBe(false);
     // A click on the picture previews the file, the card's copy paused.
@@ -1174,11 +1175,16 @@ describe("an Applet node's card", () => {
     expect(media[1]).toHaveBeenCalledTimes(1);
     expect(deps.previewResult).toHaveBeenCalledWith("clips/steam-0123456789ab.mp4");
     // Its ⋮ opens the menu the preview's does, ways to open the file
-    // included, less Looks: the card shows no look.
+    // included, less Looks and Guides: the card shows neither.
     frame.querySelector<HTMLButtonElement>(".video-player-more")?.click();
     expect(opened.at(-1)).toMatchObject({
       menu: MEDIA_MENU,
-      arg: { file: "clips/steam-0123456789ab.mp4", bookmark: "clips/steam-0123456789ab.mp4", looks: false },
+      arg: {
+        file: "clips/steam-0123456789ab.mp4",
+        bookmark: "clips/steam-0123456789ab.mp4",
+        looks: false,
+        guides: false,
+      },
     });
 
     cards.clearRunState();

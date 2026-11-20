@@ -59,8 +59,8 @@ function setup(
   const video = clip();
   const loop = options.loop ?? memorySetting(false);
   const volume = options.volume ?? memorySetting({ level: 1, muted: false });
-  const guides = options.guides ?? memorySetting(NO_GUIDES);
-  // `lut: undefined` given outright is a player with no look.
+  // `guides` or `lut` given outright as undefined is a player with none.
+  const guides = Object.hasOwn(options, "guides") ? options.guides : memorySetting(NO_GUIDES);
   const lut = Object.hasOwn(options, "lut") ? options.lut : memorySetting<Look>(NO_LOOK);
   const frame = document.createElement("div");
   frame.append(video);
@@ -547,6 +547,15 @@ describe("the guides", () => {
     const { player } = setup("pill", { guides });
     expect(player.key("g")).toBe(false);
     expect(guides.get()).toEqual(NO_GUIDES);
+  });
+
+  // A Flow's clip, which shows the file plain.
+  it("are left out of a player given none, which leaves G alone", () => {
+    const { video, player } = setup("review", { guides: undefined });
+    sized(video, 1920, 1080);
+    expect(player.element.querySelector(".video-guides")).toBeNull();
+    expect(player.element.firstElementChild?.classList.contains("video-lut")).toBe(true);
+    expect(player.key("g")).toBe(false);
   });
 
   it("stop following the shared choice once disposed", () => {

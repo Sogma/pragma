@@ -8,7 +8,7 @@ import { rawFileUrl } from "../core/apiClient.ts";
 import { mediaFrame, type ThumbnailHud, thumbnailHud } from "../lib/mediaHud.ts";
 import { createVideoPlayer, type VideoPlayer } from "../lib/videoPlayer.ts";
 import type { ContextMenuService } from "../services/menus.ts";
-import { videoGuides, videoLoop, videoVolume } from "../services/settings.ts";
+import { videoLoop, videoVolume } from "../services/settings.ts";
 import { moreOptionsMenu } from "../services/videoMenu.ts";
 
 export interface ResultClip {
@@ -65,15 +65,15 @@ export function createResultClip(
         video.pause();
         preview(path);
       };
-      // No look, and no Looks in its ⋮: the clip shows as a run hands it on,
-      // with no LOOK badge to say one is on. The preview it opens shows it.
+      // No look or guides, and neither row in its ⋮: the clip shows the file
+      // plain, as a run hands it on, with no LOOK badge to say a look is on.
+      // The preview it opens shows both.
       player = createVideoPlayer(video, {
         layout: "pill",
         loop: videoLoop,
         volume: videoVolume,
-        guides: videoGuides,
         pictureClick,
-        moreOptions: moreOptionsMenu(contextMenu, path, { looks: false }),
+        moreOptions: moreOptionsMenu(contextMenu, path, { looks: false, guides: false }),
       });
       frame.append(player.element);
     },

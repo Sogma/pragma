@@ -42,6 +42,12 @@ describe("moreOptionsMenu", () => {
       arg: { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false },
     });
   });
+
+  it("says so in the menu's argument for a viewer that draws no guides", () => {
+    const contextMenu = fakeContextMenu();
+    moreOptionsMenu(contextMenu, "takes/a.mp4", { guides: false })(document.createElement("button"));
+    expect(contextMenu.opened[0]?.arg).toEqual({ file: "takes/a.mp4", bookmark: "takes/a.mp4", guides: false });
+  });
 });
 
 describe("lutsMenuItem", () => {
@@ -92,6 +98,18 @@ describe("guidesMenuItem", () => {
     const { tiles } = guidesMenuItem(guides);
     return typeof tiles === "function" ? tiles(context, undefined) : (tiles ?? []);
   }
+
+  // A Flow's clip draws no guides, so a pick there would change nothing on it.
+  it("is offered on every viewer but one that draws no guides", () => {
+    const { when } = guidesMenuItem(memorySetting(NO_GUIDES));
+    const offered = (arg: unknown) => when?.(context, arg);
+    expect([
+      offered({ file: "takes/a.mp4", bookmark: "takes/a.mp4" }),
+      offered({ file: "stills/a.png", bookmark: "stills/a.png", looks: false }),
+      offered(undefined),
+      offered({ file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false, guides: false }),
+    ]).toEqual([true, true, true, false]);
+  });
 
   it("holds Social media, Broadcast and film, and Safe area, each tile with its glyph", () => {
     const [social, film, safe] = sections();
