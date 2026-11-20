@@ -126,7 +126,7 @@ describe("appMode", () => {
 
     button.click();
     const items = opened[0].items ?? [];
-    expect([items[0].label, items.at(-1)?.label]).toEqual(["Default", "2.39:1"]);
+    expect([items[0].label, items.at(-1)?.label]).toEqual(["1:1", "2.39:1"]);
     items.find((item) => item.label === "16:9")?.run?.({ tab: { kind: "empty" }, pane: undefined }, undefined);
     expect(generated.config.aspect_ratio).toBe("16:9");
     expect(deps.persistGraph).toHaveBeenCalledTimes(1);

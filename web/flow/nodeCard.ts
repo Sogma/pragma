@@ -18,6 +18,7 @@ import { placeholderPattern } from "../../src/protocol/datePlaceholders.ts";
 import type { PortValue } from "../../src/protocol/flowExecutors.ts";
 import {
   affixModeOf,
+  blankAsDefault,
   choiceOptions,
   FLOW_NODE_REGISTRY,
   type FlowNodeConfigField,
@@ -837,7 +838,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     label.textContent = port.label;
 
     const currentValue = () =>
-      typeof node.config[port.id] === "string" ? (node.config[port.id] as string) : (widget.defaultValue ?? "");
+      typeof node.config[port.id] === "string"
+        ? blankAsDefault(node.type, port.id, node.config[port.id] as string)
+        : (widget.defaultValue ?? "");
 
     let control: HTMLElement;
     const modelKind = modelKindOf(widget.type);

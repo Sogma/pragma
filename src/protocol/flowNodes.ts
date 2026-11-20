@@ -78,6 +78,15 @@ export interface FlowNodeInputWidget {
   options?: readonly string[];
 }
 
+/** What a widget input reads for `value`, stored or wired: a select whose
+ * options hold no blank reads a blank as its new-node value, so an older
+ * file's blank, or a wire's, still names one of them. */
+export function blankAsDefault(type: string, portId: string, value: string): string {
+  if (value !== "") return value;
+  const widget = FLOW_NODE_REGISTRY[type]?.inputWidgets?.find((each) => each.portId === portId);
+  return widget?.type === "select" && !widget.options?.includes("") ? (widget.defaultValue ?? "") : "";
+}
+
 // The add-node menu's category order: dataflow, not alphabetical — the kinds
 // of value a Flow reads and shapes, then generation, then the open document,
 // and the Applet container last, where node editors put groups. A list rather
@@ -796,7 +805,7 @@ const generateImage: FlowNodeTypeDefinition = {
   regenerate: { key: "seed", next: randomSeed },
   inputWidgets: [
     { portId: "model", type: "imageModel" },
-    { portId: "aspect_ratio", type: "select", options: ["", ...ASPECT_RATIOS] },
+    { portId: "aspect_ratio", type: "select", options: ASPECT_RATIOS, defaultValue: "1:1" },
     { portId: "prefix", type: "text", placeholder: "image" },
   ],
   capabilityFor: (config) => {
@@ -863,9 +872,9 @@ const generateVideo: FlowNodeTypeDefinition = {
   },
   inputWidgets: [
     { portId: "model", type: "videoModel" },
-    { portId: "aspect_ratio", type: "select", options: ["", ...VIDEO_ASPECT_RATIOS] },
-    { portId: "resolution", type: "select", options: ["", ...VIDEO_RESOLUTIONS] },
-    { portId: "duration", type: "select", options: ["", ...VIDEO_DURATIONS] },
+    { portId: "aspect_ratio", type: "select", options: VIDEO_ASPECT_RATIOS, defaultValue: "1:1" },
+    { portId: "resolution", type: "select", options: VIDEO_RESOLUTIONS, defaultValue: "480p" },
+    { portId: "duration", type: "select", options: VIDEO_DURATIONS, defaultValue: "3" },
     { portId: "prefix", type: "text", placeholder: "video" },
   ],
   capabilityFor: (config) => {

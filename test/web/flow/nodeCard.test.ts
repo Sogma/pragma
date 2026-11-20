@@ -1203,17 +1203,17 @@ describe("a select widget on the card", () => {
   const shown = (button: HTMLButtonElement) => button.querySelector(".picker-choice.current")?.textContent;
   const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
 
-  it("is the app's picker over its options, blank as Default, saving a pick to the node", () => {
+  it("is the app's picker over its options, a blank showing its preset, saving a pick to the node", () => {
     const { cards, deps, opened } = setup();
-    const flowNode = node("generateImage");
+    const flowNode = node("generateImage", { aspect_ratio: "" });
     const button = aspectRatio(cards.build(flowNode));
 
     expect(button.classList.contains("nodrag")).toBe(true);
-    expect(shown(button)).toBe("Default");
-    expect(button.getAttribute("aria-label")).toBe("aspect ratio: Default");
+    expect(shown(button)).toBe("1:1");
+    expect(button.getAttribute("aria-label")).toBe("aspect ratio: 1:1");
     button.click();
     const items = opened[0].items ?? [];
-    expect(items.slice(0, 3).map((item) => item.label)).toEqual(["Default", "1:1", "16:9"]);
+    expect(items.slice(0, 3).map((item) => item.label)).toEqual(["1:1", "16:9", "9:16"]);
     items.find((item) => item.label === "9:16")?.run?.(context, undefined);
     expect(flowNode.config.aspect_ratio).toBe("9:16");
     expect(shown(button)).toBe("9:16");

@@ -10,6 +10,7 @@
 import { APPLET_NODE_TYPE } from "../../src/protocol/appletNode.ts";
 import type { PortValue } from "../../src/protocol/flowExecutors.ts";
 import {
+  blankAsDefault,
   choiceOptions,
   FLOW_NODE_REGISTRY,
   type FlowNodeConfigField,
@@ -414,7 +415,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     widget: FlowNodeInputWidget,
   ): HTMLDivElement {
     const currentValue = () =>
-      typeof node.config[port.id] === "string" ? (node.config[port.id] as string) : (widget.defaultValue ?? "");
+      typeof node.config[port.id] === "string"
+        ? blankAsDefault(node.type, port.id, node.config[port.id] as string)
+        : (widget.defaultValue ?? "");
 
     // An input's description, as on the card. An output's stays on the card:
     // it says how the pin is wired, which App Mode hides.

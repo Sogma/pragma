@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   affixModeOf,
+  blankAsDefault,
   closesLoop,
   computeFlowCapabilities,
   FLOW_NODE_REGISTRY,
@@ -121,6 +122,19 @@ describe("FLOW_NODE_REGISTRY structural integrity", () => {
       expect(definition.regenerate !== undefined, definition.type).toBe(definition.reuse === "always");
       if (definition.regenerate) expect(definition.configKeys).toContain(definition.regenerate.key);
     }
+  });
+});
+
+describe("blankAsDefault", () => {
+  it("reads a blank as the preset of a select offering no blank, and leaves every other value alone", () => {
+    expect(blankAsDefault("generateVideo", "duration", "")).toBe("3");
+    expect(blankAsDefault("generateVideo", "resolution", "")).toBe("480p");
+    expect(blankAsDefault("generateImage", "aspect_ratio", "")).toBe("1:1");
+    expect(blankAsDefault("generateVideo", "duration", "7")).toBe("7");
+    // A text widget's blank is a value of its own, though it has a preset.
+    expect(blankAsDefault("joinText", "separator", "")).toBe("");
+    expect(blankAsDefault("generateVideo", "prefix", "")).toBe("");
+    expect(blankAsDefault("noSuchType", "duration", "")).toBe("");
   });
 });
 

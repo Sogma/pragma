@@ -1696,19 +1696,30 @@ describe("the Generate Video node", () => {
     expect(generateVideo).toHaveBeenCalledWith(
       "flow",
       "picture.flow.html",
-      expect.objectContaining({
-        startFrame: undefined,
-        endFrame: undefined,
-        resolution: undefined,
-        duration: undefined,
-        take: undefined,
-      }),
+      expect.objectContaining({ startFrame: undefined, endFrame: undefined, take: undefined }),
       undefined,
     );
     expect(report).toHaveBeenCalledWith("clip-1", [
       "Collected the clip an earlier run started.",
       "Quoted 2.4 credits.",
     ]);
+  });
+
+  // A blank was the model's own default before these selects lost it.
+  it("reads a blank setting, saved or wired, as its preset", async () => {
+    const generateVideo = vi.fn(async () => ({ ...answer, warnings: [] }));
+    const blank = { type: "text" as const, value: "" };
+    await NODE_EXECUTORS.generateVideo(
+      videoNode({ aspect_ratio: "", resolution: "" }),
+      { ...prompt, duration: blank },
+      context({ sandbox: sandbox(generateVideo) }),
+    );
+    expect(generateVideo).toHaveBeenCalledWith(
+      "flow",
+      "picture.flow.html",
+      expect.objectContaining({ aspectRatio: "1:1", resolution: "480p", duration: "3" }),
+      undefined,
+    );
   });
 
   it("says when a clip was found again rather than generated", async () => {

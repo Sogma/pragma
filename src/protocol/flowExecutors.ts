@@ -32,6 +32,7 @@ import { fileStemFor } from "./entryName.ts";
 import {
   type AffixMode,
   affixModeOf,
+  blankAsDefault,
   choiceOptions,
   EFFORT_KEY,
   FLOW_NODE_REGISTRY,
@@ -505,7 +506,8 @@ function configBoolean(node: FlowNodeInstance, key: string): boolean {
 // A widget input (FlowNodeInputWidget in flowNodes.ts): a connected value
 // wins even when it's "", a meaningful result for a text field, not "nothing
 // here." Only an unconnected port, absent from `inputs`, falls back to the
-// widget's stored value.
+// widget's stored value. A select with no blank option reads either blank
+// as its new-node value.
 function resolveTextInput(
   inputs: Record<string, PortValue>,
   node: FlowNodeInstance,
@@ -513,8 +515,8 @@ function resolveTextInput(
   context: NodeExecutionContext,
 ): string {
   const input = inputs[key];
-  if (input?.type === "text") return input.value;
-  const typed = configString(node, key);
+  if (input?.type === "text") return blankAsDefault(node.type, key, input.value);
+  const typed = blankAsDefault(node.type, key, configString(node, key));
   return isTextBox(node, key) ? fillDates(typed, context.clock) : typed;
 }
 
