@@ -5,7 +5,8 @@
 //
 // The argument names the file twice, as a Bookmarks row's does: `file` for
 // the open commands, `bookmark` for the bookmark ones. A command that finds
-// no file in it hides its item.
+// no file in it hides its item. `looks: false` comes from a viewer with no
+// LOOK badge, whose picture shows no look, and leaves Looks out.
 import { vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import {
   FILM_FRAMES,
@@ -91,16 +92,17 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
   };
 }
 
-/** The Looks row under Guides, in their section: a flyout of the LUTs every
- * viewer can show its picture through. Picking the one on turns it off and
- * keeps it, for a LOOK badge to turn back on. A vector image has no pixels
- * to grade, so its menu leaves the row out. */
+/** The Looks row under Guides, in their section: a flyout of the LUTs a
+ * viewer with a LOOK badge shows its picture through. Picking the one on
+ * turns it off and keeps it, for the badge to turn back on. A vector image
+ * has no pixels to grade, so its menu leaves the row out, as does a viewer
+ * with no badge. */
 export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
   const isOn = (name: LutName) => lut.get().on && lut.get().lut === name;
   return {
     label: "Looks",
     group: "guides",
-    when: (_, arg) => !isVectorImage(arg),
+    when: (_, arg) => showsLooks(arg),
     submenu: LOOKS.map(({ lut: name, label }) => ({
       label,
       checked: () => isOn(name),
@@ -109,27 +111,31 @@ export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
   };
 }
 
-// Whether a menu's `{ file }` names a vector image.
-function isVectorImage(arg: unknown): boolean {
-  const file = typeof arg === "object" && arg !== null ? (arg as { file?: unknown }).file : undefined;
-  return typeof file === "string" && vectorImageMediaTypeForPath(file) !== undefined;
+// Whether a menu's argument comes from a viewer that shows looks, over a
+// file with pixels to grade.
+function showsLooks(arg: unknown): boolean {
+  if (typeof arg !== "object" || arg === null) return true;
+  const { file, looks } = arg as { file?: unknown; looks?: unknown };
+  return looks !== false && (typeof file !== "string" || vectorImageMediaTypeForPath(file) === undefined);
 }
 
-/** The menu a media file's ⋮ opens, given `{ file, bookmark }`. */
+/** The menu a media file's ⋮ opens, given `{ file, bookmark, looks? }`. */
 export const MEDIA_MENU = "media.more";
 
-/** Opens `menu` for the file at `path` under its ⋮, or closes it there. */
+/** Opens `menu` for the file at `path` under its ⋮, or closes it there. A
+ * viewer with no LOOK badge passes `looks: false`. */
 export function moreOptionsMenu(
   contextMenu: ContextMenuService,
   path: string,
-  menu = MEDIA_MENU,
+  { menu = MEDIA_MENU, looks = true }: { menu?: string; looks?: boolean } = {},
 ): (anchor: HTMLElement) => void {
+  const arg = looks ? { file: path, bookmark: path } : { file: path, bookmark: path, looks: false };
   return (anchor) => {
     if (contextMenu.isOpen(anchor)) contextMenu.close();
     else {
       contextMenu.open({
         menu,
-        arg: { file: path, bookmark: path },
+        arg,
         anchor,
         align: "end",
         ariaLabel: "More options",

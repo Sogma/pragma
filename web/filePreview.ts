@@ -212,7 +212,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
   // player's own.
   function fileMoreOptions(path: string, menu: string): HTMLButtonElement {
-    previewMore = moreOptionsButton("media-hud-more", moreOptionsMenu(deps.contextMenu, path, menu));
+    previewMore = moreOptionsButton("media-hud-more", moreOptionsMenu(deps.contextMenu, path, { menu }));
     previewMore.element.tabIndex = -1;
     return previewMore.element;
   }

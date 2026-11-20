@@ -41,8 +41,10 @@ export interface VideoPlayerOptions {
   volume: VolumeChoice;
   /** The guides every player draws over its picture, under the controls. */
   guides: GuidesChoice;
-  /** The LUT every player shows its picture through, under the guides. */
-  lut: LutChoice;
+  /** The look the picture shows through, under the guides. Given only where
+   * a LOOK badge says it is on and turns it off: a picture graded with no
+   * badge reads as the file's own colors. */
+  lut?: LutChoice;
   /** Names the clip's In/Out range for the rest of the page's life, so a
    * tab switched away from and back finds it again. Never saved. */
   rangeKey?: string;
@@ -147,9 +149,10 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
 
   const bar = box("video-player-bar");
   const guides = createGuidesOverlay(options.guides);
-  const lut = createLutLayer(video, options.lut);
+  const lut = options.lut === undefined ? undefined : createLutLayer(video, options.lut);
   const element = box(`video-player is-${layout}`, bar);
-  element.prepend(lut.element, guides.element);
+  element.prepend(guides.element);
+  if (lut) element.prepend(lut.element);
   if (review) {
     bar.append(
       box("video-player-counters", current, seek, total),
@@ -472,7 +475,7 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   on(video, "resize", sizeGuides);
   sizeGuides();
   store.add(() => guides.dispose());
-  store.add(() => lut.dispose());
+  store.add(() => lut?.dispose());
   on(document, "fullscreenchange", drawState);
   store.add(() => cancelAnimationFrame(frameRequest));
   store.add(() => window.clearTimeout(volumeTimer));
@@ -508,7 +511,7 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
       else if (key === "o" || key === "O") setOut();
       else if (key === "g" || key === "G") toggleGuides(options.guides);
       // D, not L: L is the shuttle's.
-      else if (key === "d" || key === "D") toggleLook(options.lut);
+      else if ((key === "d" || key === "D") && options.lut) toggleLook(options.lut);
       else return volumeKey(key);
       return true;
     },

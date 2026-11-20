@@ -164,8 +164,9 @@ export const videoGuides: Setting<Guides> = {
   subscribe: (listener) => videoGuidesEmitter.subscribe(listener),
 };
 
-// And one look every player shows its picture through, none until a
-// player's More options picks one. A stored look that doesn't read is none.
+// And one look every viewer with a LOOK badge shows its picture through,
+// none until a viewer's More options picks one. A stored look that doesn't
+// read is none.
 const VIDEO_LUT_KEY = "pragma:video-lut";
 const videoLutEmitter = new Emitter<Look>(readLook(localStorage.getItem(VIDEO_LUT_KEY)));
 export const videoLut: Setting<Look> = {

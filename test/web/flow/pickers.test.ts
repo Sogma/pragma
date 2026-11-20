@@ -972,6 +972,24 @@ describe("a loader's dot values", () => {
     expect(picker.el.querySelector(".flow-node-detail")).toBeNull();
   });
 
+  // With no LOOK badge to say one is on, a look would pass for the file's
+  // own colors; the preview the clip opens shows it.
+  it("plays a Load Video's clip through no look, its ⋮ leaving Looks out", () => {
+    const contextMenu = fakeContextMenu();
+    const { pickers } = setup({ contextMenu });
+    const picker = pickers.createVideoPicker(node("loadVideo", { videoPath: "shots/take.mp4" }));
+    expect(picker.el.querySelector(".video-player")).not.toBeNull();
+    expect(picker.el.querySelector(".video-lut")).toBeNull();
+    expect(picker.el.querySelector(".video-guides")).not.toBeNull();
+
+    picker.el.querySelector<HTMLButtonElement>(".video-player-more")?.click();
+    expect(contextMenu.opened.at(-1)?.arg).toEqual({
+      file: "shots/take.mp4",
+      bookmark: "shots/take.mp4",
+      looks: false,
+    });
+  });
+
   it("leaves a Load Video's dots empty while its path comes on a wire", async () => {
     const { deps, pickers } = setup({ sourceOf: vi.fn(wired) });
     const flowNode = node("loadVideo", { videoPath: "shots/take.mp4" });

@@ -16,7 +16,7 @@ export interface Look {
 
 export const NO_LOOK: Look = { lut: null, on: false };
 
-/** The look every player shows its picture through: changed in one, it changes in all. */
+/** The look every viewer with a LOOK badge shows its picture through: changed in one, it changes in all. */
 export interface LutChoice {
   get(): Look;
   set(look: Look): void;

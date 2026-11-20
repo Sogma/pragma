@@ -499,6 +499,15 @@ describe("editor area", () => {
       "Guides",
       "Bookmark",
     ]);
+    // Nor does a Flow's clip, which shows no look.
+    const flowClip = menus.resolve(MEDIA_MENU, context, { file: "b.mp4", bookmark: "b.mp4", looks: false });
+    expect(flowClip.map((item) => item.label)).toEqual([
+      "Open",
+      "Open in new tab",
+      "Open to the side",
+      "Guides",
+      "Bookmark",
+    ]);
   });
 
   // A group holds one tab per file, so Open and Open in new tab would stay put.

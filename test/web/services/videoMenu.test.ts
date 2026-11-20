@@ -33,6 +33,15 @@ describe("moreOptionsMenu", () => {
     expect(contextMenu.isOpen()).toBe(false);
     expect(contextMenu.opened).toHaveLength(1);
   });
+
+  it("says so in the menu's argument for a viewer that shows no look", () => {
+    const contextMenu = fakeContextMenu();
+    moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false })(document.createElement("button"));
+    expect(contextMenu.opened[0]).toMatchObject({
+      menu: MEDIA_MENU,
+      arg: { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false },
+    });
+  });
 });
 
 describe("lutsMenuItem", () => {
@@ -42,6 +51,12 @@ describe("lutsMenuItem", () => {
     const offered = (file: string) => when?.(context, { file, bookmark: file });
     expect([offered("takes/a.mp4"), offered("stills/a.png"), offered("art/logo.svg")]).toEqual([true, true, false]);
     expect(when?.(context, undefined)).toBe(true);
+  });
+
+  // A Flow's clip shows no look, having no LOOK badge to say one is on.
+  it("leaves Looks out of a viewer that shows no look", () => {
+    const { when } = lutsMenuItem(memorySetting<Look>(NO_LOOK));
+    expect(when?.(context, { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false })).toBe(false);
   });
 
   it("opens Looks onto Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player", () => {

@@ -60,7 +60,8 @@ function setup(
   const loop = options.loop ?? memorySetting(false);
   const volume = options.volume ?? memorySetting({ level: 1, muted: false });
   const guides = options.guides ?? memorySetting(NO_GUIDES);
-  const lut = options.lut ?? memorySetting<Look>(NO_LOOK);
+  // `lut: undefined` given outright is a player with no look.
+  const lut = Object.hasOwn(options, "lut") ? options.lut : memorySetting<Look>(NO_LOOK);
   const frame = document.createElement("div");
   frame.append(video);
   document.body.append(frame);
@@ -588,5 +589,13 @@ describe("the LUT", () => {
     const pill = setup("pill", { lut });
     expect(pill.player.key("d")).toBe(false);
     expect(lut.get()).toEqual({ lut: "orthochromatic", on: true });
+  });
+
+  // A player with no LOOK badge beside it, as on a Flow's card.
+  it("is left out of a player given no look, which leaves D alone", () => {
+    const { player } = setup("review", { lut: undefined });
+    expect(player.element.querySelector(".video-lut")).toBeNull();
+    expect(player.element.firstElementChild?.classList.contains("video-guides")).toBe(true);
+    expect(player.key("d")).toBe(false);
   });
 });
