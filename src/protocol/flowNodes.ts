@@ -1,4 +1,5 @@
 import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_PORT, addRowPorts } from "./addRowNode.ts";
+import type { ModelSettingValue } from "./api.ts";
 import { APPLET_NODE_TYPE, appletNodeConfig } from "./appletNode.ts";
 import { isDeclaredAddress, isHiddenPath, resolveDeclaredPath } from "./relativeReference.ts";
 import { dirnameOf, formatDeclaredPath, parseRootedPath } from "./rootedPath.ts";
@@ -76,6 +77,21 @@ export interface FlowNodeInputWidget {
   // A select widget's values in menu order, "" for the blank one. They
   // guide the pick without limiting it: a wire may bring any other value.
   options?: readonly string[];
+}
+
+/** A node's `modelSettings` as a run sends them: each named value a setting
+ * can hold, a string, number or switch, and nothing else. */
+export function modelSettingValues(raw: unknown): Record<string, ModelSettingValue> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter(
+      ([name, value]) =>
+        /^[A-Za-z0-9_]+$/.test(name) &&
+        (typeof value === "string" ||
+          typeof value === "boolean" ||
+          (typeof value === "number" && Number.isFinite(value))),
+    ),
+  ) as Record<string, ModelSettingValue>;
 }
 
 /** What a widget input reads for `value`, stored or wired: a select whose
@@ -865,6 +881,7 @@ const generateVideo: FlowNodeTypeDefinition = {
     IMAGE_REFERENCE_SLOTS.slotsKey,
     VIDEO_REFERENCE_SLOTS.slotsKey,
     "removedFrames",
+    "modelSettings",
   ],
   regenerate: {
     key: "take",

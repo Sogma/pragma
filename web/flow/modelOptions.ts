@@ -1,6 +1,6 @@
 // A Flow's model fields: a picker per Generate node's model input, over the
 // model lists every picker shares (services/modelLists.ts).
-import { effortFor } from "../../src/protocol/api.ts";
+import { effortFor, type ModelSetting } from "../../src/protocol/api.ts";
 import {
   EFFORT_KEY,
   FLOW_NODE_REGISTRY,
@@ -37,6 +37,8 @@ export interface ModelFields {
   videoReferences(kind: ModelKind, ref: string): number | undefined;
   // Which frames it takes, the same way.
   frames(kind: ModelKind, ref: string): FrameKind[] | undefined;
+  // The settings it offers beyond the node's own inputs, the same way.
+  settings(kind: ModelKind, ref: string): ModelSetting[] | undefined;
 }
 
 export interface ModelFieldsDeps {
@@ -144,6 +146,10 @@ export function createModelFields({ contextMenu, modelLists }: ModelFieldsDeps):
     },
     frames(kind, ref) {
       return listed(kind, ref)?.frames;
+    },
+    settings(kind, ref) {
+      const model = listed(kind, ref);
+      return model && (model.settings ?? []);
     },
   };
 }

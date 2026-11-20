@@ -6,6 +6,7 @@ import {
   computeFlowCapabilities,
   FLOW_NODE_REGISTRY,
   intValue,
+  modelSettingValues,
   moveOnAfterRun,
   moveOnForRegenerate,
   nodesLeftOut,
@@ -122,6 +123,19 @@ describe("FLOW_NODE_REGISTRY structural integrity", () => {
       expect(definition.regenerate !== undefined, definition.type).toBe(definition.reuse === "always");
       if (definition.regenerate) expect(definition.configKeys).toContain(definition.regenerate.key);
     }
+  });
+});
+
+describe("modelSettingValues", () => {
+  it("keeps named strings, numbers and switches, and drops anything else", () => {
+    expect(modelSettingValues({ mode: "edit", cfg_scale: 0.5, generate_audio: true })).toEqual({
+      mode: "edit",
+      cfg_scale: 0.5,
+      generate_audio: true,
+    });
+    expect(modelSettingValues({ deep: { a: 1 }, list: [1], "bad name": "x", nan: Number.NaN, none: null })).toEqual({});
+    expect(modelSettingValues("mode")).toEqual({});
+    expect(modelSettingValues(["edit"])).toEqual({});
   });
 });
 

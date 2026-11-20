@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ResolvedMcpServer } from "../config/loadConfig.ts";
+import type { ModelSetting, ModelSettingValue } from "../protocol/api.ts";
 import type { FrameKind } from "../protocol/flowNodes.ts";
 import type {
   ImageCallResult,
@@ -278,7 +279,12 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
       const options = parameters.find((parameter) => parameter.name === name)?.options;
       return Array.isArray(options) ? options.map(String) : [];
     };
-    return { roles: rolesOf(entry), resolutions: listed("resolution"), modes: listed("mode") };
+    return {
+      roles: rolesOf(entry),
+      resolutions: listed("resolution"),
+      modes: listed("mode"),
+      settings: catalogSettings(entry),
+    };
   }
 
   return {
@@ -493,6 +499,79 @@ function declaredFromRoles(roles: readonly string[]): DeclaredVideoInputs {
   return { references, frames };
 }
 
+// Parameters a node sends by its own inputs, and ones never offered as a
+// model setting: a count or batch makes more than the one clip a node saves.
+// A parameter that takes an id or free text names something only the
+// provider's own tools can pick, so it is left out by its type.
+const NODE_PARAMETERS = new Set([
+  "prompt",
+  "model",
+  "count",
+  "batch_size",
+  "medias",
+  "aspect_ratio",
+  "resolution",
+  "duration",
+  "seed",
+  "use_unlim",
+  "get_cost",
+]);
+
+/** The settings a catalog entry offers beyond a node's own inputs: a choice
+ * among listed options, an on/off switch, or a number with both bounds. */
+export function catalogSettings(entry: Fields): ModelSetting[] {
+  const parameters = Array.isArray(entry.parameters) ? (entry.parameters as Fields[]) : [];
+  return parameters.flatMap((parameter): ModelSetting[] => {
+    const name = typeof parameter.name === "string" ? parameter.name : "";
+    if (!/^[A-Za-z0-9_]+$/.test(name) || NODE_PARAMETERS.has(name)) return [];
+    const said = {
+      name,
+      ...(typeof parameter.description === "string" ? { description: parameter.description } : {}),
+      ...(parameter.required === "required" ? { required: true } : {}),
+    };
+    const fallback = parameter.default;
+    const options = (Array.isArray(parameter.options) ? parameter.options : []).filter(
+      (option): option is string | number => typeof option === "string" || typeof option === "number",
+    );
+    if (options.length) {
+      const known = options.includes(fallback as string | number);
+      return [{ ...said, kind: "choice", options, ...(known ? { default: fallback as string | number } : {}) }];
+    }
+    if (parameter.type === "bool" || parameter.type === "boolean") {
+      return [{ ...said, kind: "switch", ...(typeof fallback === "boolean" ? { default: fallback } : {}) }];
+    }
+    const { min, max } = parameter;
+    if (parameter.type === "number" && typeof min === "number" && typeof max === "number") {
+      return [{ ...said, kind: "number", min, max, ...(typeof fallback === "number" ? { default: fallback } : {}) }];
+    }
+    return [];
+  });
+}
+
+/** The model settings a request names that the model's catalog offers, with
+ * a value of the right kind; any other is left out and said so. */
+export function offeredSettings(
+  asked: unknown,
+  offered: readonly ModelSetting[],
+  modelId: string,
+): { settings: Record<string, ModelSettingValue>; leftOut: string[] } {
+  const settings: Record<string, ModelSettingValue> = {};
+  const leftOut: string[] = [];
+  const named = asked && typeof asked === "object" && !Array.isArray(asked) ? (asked as Fields) : {};
+  for (const [name, value] of Object.entries(named)) {
+    const setting = offered.find((each) => each.name === name);
+    const fits =
+      setting?.kind === "switch"
+        ? typeof value === "boolean"
+        : setting?.kind === "number"
+          ? typeof value === "number"
+          : typeof value === "string" || typeof value === "number";
+    if (setting && fits) settings[name] = value as ModelSettingValue;
+    else leftOut.push(`${name}: ${modelId} takes none, so it was left out`);
+  }
+  return { settings, leftOut };
+}
+
 function rolesOf(entry: Fields): string[] {
   const medias = Array.isArray(entry.medias) ? (entry.medias as Fields[]) : [];
   return medias.flatMap((media) => (Array.isArray(media.roles) ? media.roles.map(String) : []));
@@ -579,6 +658,8 @@ export function higgsfieldVideoModel(
           else unplaced.add(kind);
         }
         for (const kind of unplaced) warnings.push(leftOut(`${kind} references`));
+        const chosen = offeredSettings(options.providerOptions?.pragma, declared.settings, modelId);
+        for (const message of chosen.leftOut) warnings.push({ type: "other", message });
         const mode = taskMode(declared.modes, {
           references: uploads.some((upload) => Object.values(REFERENCE_ROLES).includes(upload.role)),
           frames: uploads.some(
@@ -604,8 +685,9 @@ export function higgsfieldVideoModel(
               ? { aspect_ratio: wholeRatio(options.aspectRatio) }
               : {}),
             ...(resolution ? { resolution } : {}),
-            ...(mode ? { mode } : {}),
+            ...(mode && chosen.settings.mode === undefined ? { mode } : {}),
             ...(options.duration !== undefined ? { duration: Math.round(options.duration) } : {}),
+            ...chosen.settings,
             ...(placed.length ? { medias: placed } : {}),
           }),
           uploads,
@@ -685,8 +767,10 @@ export function wholeRatio(ratio: string): string {
 export interface ModelChoice {
   id: string;
   label: string;
-  // What a video model's catalog entry declares it takes.
+  // What a video model's catalog entry declares it takes, and the settings
+  // it offers beyond a node's own inputs.
   takes?: DeclaredVideoInputs;
+  settings?: ModelSetting[];
 }
 
 /** The models of one kind the server offers, for a node's model picker. The
@@ -723,7 +807,7 @@ export async function higgsfieldModels(server: ResolvedMcpServer, type: "image" 
       .map((entry) => ({
         id: String(entry.id),
         label: typeof entry.name === "string" ? entry.name : String(entry.id),
-        ...(type === "video" ? { takes: declaredFromRoles(rolesOf(entry)) } : {}),
+        ...(type === "video" ? { takes: declaredFromRoles(rolesOf(entry)), settings: catalogSettings(entry) } : {}),
       }));
   } finally {
     await client.close().catch(() => {});

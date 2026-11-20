@@ -7,12 +7,14 @@ import type { ResolvedMcpServer } from "../../src/config/loadConfig.ts";
 import { callImageModel } from "../../src/protocol/imageGeneration.ts";
 import { checkVideoJob, startVideoJob, type VideoCallOptions } from "../../src/protocol/videoGeneration.ts";
 import {
+  catalogSettings,
   higgsfieldImageJobs,
   higgsfieldImageModel,
   higgsfieldModels,
   higgsfieldVideoInputs,
   higgsfieldVideoModel,
   type MediaCache,
+  offeredSettings,
   taskMode,
   wholeRatio,
 } from "../../src/server/higgsfieldMcp.ts";
@@ -336,6 +338,19 @@ describe("higgsfieldVideoModel", () => {
     ]);
   });
 
+  it("sends a node's own mode over the inputs' pick, with its other settings, leaving out one it doesn't take", async () => {
+    standIn.videoRoles = ["start_image", "video_references"];
+    standIn.videoModes = ["text-to-video", "reference-to-video", "video-edit"];
+    const job = await startVideoJob(videoModel("kling_4_0_flash"), {
+      prompt: "pixel art as in Video 1",
+      references: [{ mediaType: "video/mp4", data: START }],
+      modelSettings: { mode: "video-edit", genre: "noir" },
+    });
+    expect(standIn.generateCalls[0]).toMatchObject({ mode: "video-edit" });
+    expect(standIn.generateCalls[0]).not.toHaveProperty("genre");
+    expect(job.warnings).toEqual(["genre: kling_4_0_flash takes none, so it was left out"]);
+  });
+
   // media_upload tells a file's kind by its name, and media_confirm is told
   // it, so a clip that went up as an image would never be a video reference.
   it("uploads a clip named by its own extension, confirms it as video, and places it as a video reference", async () => {
@@ -450,6 +465,46 @@ describe("higgsfieldVideoModel", () => {
   });
 });
 
+describe("catalogSettings", () => {
+  it("offers choices, switches and bounded numbers beyond the node's own inputs, and nothing else", () => {
+    const entry = {
+      parameters: [
+        { name: "duration", type: "number", min: 3, max: 15 },
+        { name: "mode", required: "required", type: "string", options: ["text-to-video", "edit"] },
+        { name: "genre", type: "string", options: ["auto", "noir"], default: "auto", description: "The film's genre." },
+        { name: "generate_audio", type: "bool", default: false },
+        { name: "cfg_scale", type: "number", min: 0, max: 1, default: 0.5 },
+        { name: "width", type: "number" },
+        { name: "preset_id", type: "string" },
+        { name: "batch_size", type: "number", min: 1, max: 4 },
+        { name: "multi_prompt", type: "object_array" },
+      ],
+    };
+    expect(catalogSettings(entry)).toEqual([
+      { name: "mode", required: true, kind: "choice", options: ["text-to-video", "edit"] },
+      { name: "genre", description: "The film's genre.", kind: "choice", options: ["auto", "noir"], default: "auto" },
+      { name: "generate_audio", kind: "switch", default: false },
+      { name: "cfg_scale", kind: "number", min: 0, max: 1, default: 0.5 },
+    ]);
+  });
+});
+
+describe("offeredSettings", () => {
+  const offered = catalogSettings({
+    parameters: [
+      { name: "mode", type: "string", options: ["text-to-video", "edit"] },
+      { name: "generate_audio", type: "bool" },
+    ],
+  });
+  it("keeps what the model offers with a value of its kind, and says what it left out", () => {
+    expect(offeredSettings({ mode: "edit", generate_audio: "yes", genre: "noir" }, offered, "m")).toEqual({
+      settings: { mode: "edit" },
+      leftOut: ["generate_audio: m takes none, so it was left out", "genre: m takes none, so it was left out"],
+    });
+    expect(offeredSettings(undefined, offered, "m")).toEqual({ settings: {}, leftOut: [] });
+  });
+});
+
 describe("taskMode", () => {
   const seedance = ["t2v", "omni_reference", "video_edit", "video_extension"];
   it("picks the task the inputs ask for in each spelling, references over frames", () => {
@@ -508,8 +563,21 @@ describe("higgsfieldModels", () => {
         id: "grok_video_v15_lite",
         label: "Grok Imagine Video 1.5 Lite",
         takes: { references: [], frames: ["start"] },
+        settings: [],
       },
-      { id: "seedance1_5", label: "Seedance 1.5 Pro", takes: { references: [], frames: ["start", "end"] } },
+      {
+        id: "seedance1_5",
+        label: "Seedance 1.5 Pro",
+        takes: { references: [], frames: ["start", "end"] },
+        settings: [
+          {
+            name: "generate_audio",
+            description: "Generate native audio for the video. Set false for a silent video.",
+            kind: "switch",
+            default: true,
+          },
+        ],
+      },
     ]);
   });
 
@@ -526,6 +594,7 @@ describe("higgsfieldModels", () => {
       id: "kling_o3_image_reference",
       label: "Kling 3.0 Omni",
       takes: { references: ["image"], frames: [] },
+      settings: [],
     });
   });
 });

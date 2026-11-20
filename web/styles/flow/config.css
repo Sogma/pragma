@@ -305,3 +305,68 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* A Generate Video's model settings, folded under one header below its
+   inputs (web/flow/modelSettings.ts). The section draws the divider, so its
+   body drops the one .flow-node-config gives. */
+.flow-model-settings {
+  border-top: 1px solid var(--border-muted);
+  margin-top: 4px;
+}
+
+.flow-model-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--small-font-size);
+  text-align: start;
+  cursor: pointer;
+}
+
+.flow-model-settings-header::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-right) center / contain no-repeat;
+}
+
+.flow-model-settings-header[aria-expanded="true"]::before {
+  mask-image: var(--icon-chevron-down);
+}
+
+.flow-model-settings-header:hover {
+  color: var(--text-primary);
+}
+
+.flow-model-settings-count {
+  margin-inline-start: auto;
+}
+
+.flow-model-settings > .flow-model-settings-body {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.flow-model-setting-unused-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--small-font-size);
+  color: var(--text-muted);
+}
+
+.flow-model-setting-unused-row > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

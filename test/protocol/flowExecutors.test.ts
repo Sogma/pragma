@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { GenerateVideoRequestBody } from "../../src/protocol/api.ts";
 import {
   describeContextSent,
   describeCost,
@@ -1703,6 +1704,19 @@ describe("the Generate Video node", () => {
       "Collected the clip an earlier run started.",
       "Quoted 2.4 credits.",
     ]);
+  });
+
+  it("sends the node's model settings, and none when it keeps none", async () => {
+    const generateVideo = vi.fn(async () => ({ ...answer, warnings: [] }));
+    const run = (config: Record<string, unknown>) =>
+      NODE_EXECUTORS.generateVideo(videoNode(config), prompt, context({ sandbox: sandbox(generateVideo) }));
+    await run({ modelSettings: { mode: "edit", generate_audio: false, cfg_scale: 0.5, junk: { deep: 1 } } });
+    await run({});
+    const sent = (generateVideo.mock.calls as unknown as Array<[string, string, GenerateVideoRequestBody]>).map(
+      ([, , request]) => request,
+    );
+    expect(sent[0].modelSettings).toEqual({ mode: "edit", generate_audio: false, cfg_scale: 0.5 });
+    expect(sent[1]).not.toHaveProperty("modelSettings");
   });
 
   // A blank was the model's own default before these selects lost it.

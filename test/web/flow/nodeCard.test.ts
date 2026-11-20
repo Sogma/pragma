@@ -1195,6 +1195,27 @@ describe("an Applet node's card", () => {
   });
 });
 
+describe("a Generate Video card's model settings", () => {
+  it("shows the settings the picked model offers, once its list says, and none for a model offering none", () => {
+    const { cards, modelFields } = setup();
+    const card = cards.build(node("generateVideo", { model: "higgsfield/kling_4_0_flash" }));
+    const section = card.querySelector(".flow-model-settings") as HTMLElement;
+    expect(section.hidden).toBe(true);
+
+    modelFields.settingLists.set("higgsfield/kling_4_0_flash", [
+      { name: "mode", kind: "choice", options: ["text-to-video", "video-edit"], default: "text-to-video" },
+    ]);
+    for (const field of modelFields.fields) field.onRedraw?.();
+    expect(section.hidden).toBe(false);
+    expect(section.querySelector(".flow-config-label")?.textContent).toBe("mode");
+  });
+
+  it("isn't on a Generate Image card", () => {
+    const { cards } = setup();
+    expect(cards.build(node("generateImage")).querySelector(".flow-model-settings")).toBeNull();
+  });
+});
+
 describe("a select widget on the card", () => {
   const aspectRatio = (el: HTMLElement) =>
     [...el.querySelectorAll(".flow-port-row.has-widget")]

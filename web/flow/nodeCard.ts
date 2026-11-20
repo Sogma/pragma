@@ -77,6 +77,7 @@ import {
 } from "./controls.ts";
 import type { FlowMenus } from "./flowMenus.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
+import { createModelSettings, type ModelSettingsView } from "./modelSettings.ts";
 import {
   type AddRowPicker,
   type ClipPicker,
@@ -395,6 +396,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // its hold on the Spellcheck setting.
   const textEditors = new Map<string, Disposable>();
   const generationViews = new Map<string, GenerationView>();
+  const modelSettingsViews = new Map<string, ModelSettingsView>();
   // A dot beside its file, whose label is hidden, with the name it shows
   // while it has no value of its own to show.
   const unnamedDots = new WeakMap<HTMLElement, string>();
@@ -742,10 +744,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     if (portId === "model" || frameRows.get(nodeId)) followModel(nodeId);
   }
 
-  // What on a card follows its model: its frame pins, then its "+".
+  // What on a card follows its model: its frame pins, then its "+", and its
+  // model settings.
   function followModel(nodeId: string): void {
     const sync = frameSyncers.get(nodeId) ?? slotAddRefreshers.get(nodeId);
     sync?.();
+    modelSettingsViews.get(nodeId)?.refresh();
   }
 
   // Output-pin counterpart to the input version above — an output fades
@@ -2081,6 +2085,18 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       pathPicker = pickers.createOpenToSidePicker(flowNode);
       contentEl.appendChild(pathPicker.el);
     } else if (flowNode.type === "generateImage" || flowNode.type === "generateVideo") {
+      if (definition.configKeys.includes("modelSettings")) {
+        const settings = createModelSettings(flowNode, {
+          contextMenu: deps.contextMenu,
+          offered: () => {
+            const picked = pickedModel(flowNode);
+            return picked && deps.modelFields.settings(picked.kind, picked.ref);
+          },
+          persist: deps.persistGraph,
+        });
+        modelSettingsViews.set(flowNode.id, settings);
+        contentEl.appendChild(settings.el);
+      }
       const view = pickers.createGenerationPicker(flowNode, () => deps.regenerate(flowNode.id));
       generationViews.set(flowNode.id, view);
       contentEl.appendChild(view.el);
@@ -2219,6 +2235,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       textEditors.delete(nodeId);
       generationViews.get(nodeId)?.dispose();
       generationViews.delete(nodeId);
+      modelSettingsViews.delete(nodeId);
       clipPickers.get(nodeId)?.dispose();
       clipPickers.delete(nodeId);
       heldViews.delete(nodeId);

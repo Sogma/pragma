@@ -1028,7 +1028,24 @@ export interface GroupedModelOption extends ModelOption {
   effortLevels?: EffortLevel[];
   references?: ReferenceCounts;
   frames?: FrameKind[];
+  settings?: ModelSetting[];
 }
+
+/** A setting a model takes beyond its node's own inputs, as its provider's
+ * catalog describes it: a choice among `options`, an on/off switch, or a
+ * number from `min` to `max`. Left unset, the provider's default applies. */
+export interface ModelSetting {
+  name: string;
+  kind: "choice" | "switch" | "number";
+  options?: Array<string | number>;
+  min?: number;
+  max?: number;
+  default?: ModelSettingValue;
+  required?: boolean;
+  description?: string;
+}
+
+export type ModelSettingValue = string | number | boolean;
 
 export interface ReferenceCounts {
   image?: number;
@@ -1845,6 +1862,9 @@ export interface GenerateImageResponse {
 // generation's do, and `videoReferences` beside them, never beside a frame. `resolution` is a size such as
 // `720p`, `duration` whole seconds; `take` names the result and never reaches
 // the model, and `prefix` starts its file name in place of "video".
+//
+// `modelSettings` are the chosen model's own settings, by the names its
+// catalog gives them (ModelSetting).
 export interface GenerateVideoRequestBody extends JobStartRequestBody {
   folder: string;
   prompt: string;
@@ -1858,6 +1878,7 @@ export interface GenerateVideoRequestBody extends JobStartRequestBody {
   duration?: string;
   take?: string;
   prefix?: string;
+  modelSettings?: Record<string, ModelSettingValue>;
 }
 
 export type SandboxGenerateVideoRequestBody = SandboxRequestBody & GenerateVideoRequestBody;

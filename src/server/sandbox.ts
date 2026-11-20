@@ -35,6 +35,7 @@ import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
 import type { AffixMode, FrameKind } from "../protocol/flowNodes.ts";
 import {
   computeFlowCapabilities,
+  modelSettingValues,
   type WiredAccess,
   type WiredPin,
   wiredCapability,
@@ -1038,6 +1039,9 @@ export async function startSandboxGenerateVideo(
   const shortSide = body.resolution ? resolutionShortSide(body.resolution) : undefined;
   // Take 1 is the first result, written blank, so going back to it finds it.
   const take = body.take && /^\d+$/.test(body.take) && Number(body.take) > 1 ? String(Number(body.take)) : "";
+  const asked = modelSettingValues(body.modelSettings);
+  // In name order, so the digest doesn't follow the order a node saved them in.
+  const modelSettings = Object.fromEntries(Object.entries(asked).sort(([a], [b]) => (a < b ? -1 : 1)));
   const model = `${resolved.providerId}/${resolved.modelId}`;
   // What the model takes is settled before the result is named: an input it
   // would ignore is left out of the name as it is out of the job.
@@ -1079,6 +1083,8 @@ export async function startSandboxGenerateVideo(
         ...(shortSide ? { resolution: resolutionName(shortSide) } : {}),
         duration: duration ?? "",
         take,
+        // Left out when none are set, so a clip made without any keeps its name.
+        ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
       }),
     )
     .digest("hex");
@@ -1125,6 +1131,7 @@ export async function startSandboxGenerateVideo(
             aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
             resolution: shortSide ? resolutionSize(shortSide) : undefined,
             duration,
+            modelSettings,
           });
           return { ...started, warnings: [...warnings, ...started.warnings] };
         },

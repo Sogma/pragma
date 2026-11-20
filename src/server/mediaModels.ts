@@ -273,6 +273,7 @@ async function listMediaModels(kind: MediaKind, config: PragmaGlobalConfig): Pro
             provider: server.id,
             model: model.label,
             ...supportOf(model.id, hostOf(server), model.takes),
+            ...(model.settings?.length ? { settings: model.settings } : {}),
           });
         }
       } catch (error) {

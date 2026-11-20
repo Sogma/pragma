@@ -40,6 +40,7 @@ import {
   IMAGE_REFERENCE_SLOTS,
   IMAGE_REFERENCES_MAX,
   intValue,
+  modelSettingValues,
   numberToTextDigits,
   TEMPLATE_VARIABLES_MAX,
   VIDEO_REFERENCE_SLOTS,
@@ -471,6 +472,8 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
     take: take || undefined,
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
   };
+  const modelSettings = modelSettingValues(node.config.modelSettings);
+  if (Object.keys(modelSettings).length) request.modelSettings = modelSettings;
   context.beginLlmActivity(model ?? "");
   try {
     const result = await context.sandbox.generateVideo("flow", context.flowPath, request, context.signal);

@@ -1,5 +1,5 @@
 import { experimental_getVideoStatus, experimental_startVideo } from "ai";
-import type { GenerationCost, JobSettings } from "./api.ts";
+import type { GenerationCost, JobSettings, ModelSettingValue } from "./api.ts";
 import { isAspectRatio } from "./aspectRatio.ts";
 import type { FrameKind } from "./flowNodes.ts";
 import { describeWarning, notesOf } from "./imageGeneration.ts";
@@ -11,7 +11,8 @@ import { resolutionName, resolutionShortSide } from "./videoResolution.ts";
  * bare-string form, which would route through the SDK's hosted gateway.
  *
  * A clip is a job, started once and then checked until it ends, so a host
- * can keep a job's operation and wait on it again from a later request.
+ * can keep a job's operation and wait on it again from a later request. A
+ * request's model settings reach the start as `providerOptions.pragma`.
  *
  * An adapter's start result's `providerMetadata` record carries the price
  * the provider quoted as `cost: {amount, unit}`, what it decided about
@@ -52,6 +53,8 @@ export interface VideoRequest {
   aspectRatio?: `${number}:${number}`;
   resolution?: `${number}x${number}`;
   duration?: number;
+  // The model's own settings, by the names its catalog gives them.
+  modelSettings?: Record<string, ModelSettingValue>;
   signal?: AbortSignal;
 }
 
@@ -91,6 +94,9 @@ export async function startVideoJob(model: ProviderVideoModel, request: VideoReq
     aspectRatio: request.aspectRatio,
     resolution: request.resolution,
     duration: request.duration,
+    ...(request.modelSettings && Object.keys(request.modelSettings).length
+      ? { providerOptions: { pragma: request.modelSettings } }
+      : {}),
     abortSignal: request.signal,
     // A retry submits a second job, and every job is paid for.
     maxRetries: 0,

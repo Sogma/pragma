@@ -214,6 +214,21 @@ describe("performSandboxGenerateVideo", () => {
     expect(plain.job).not.toHaveProperty("startId");
   });
 
+  it("sends the model's own settings in name order, and names a clip by them only when some are set", async () => {
+    await grantCapability(space, flow.subject, "generateVideo:space:clips");
+    const plain = await run();
+    const set = await run({ modelSettings: { mode: "edit", genre: "noir" } });
+    expect(set.path).not.toBe(plain.path);
+    expect(starts[0].providerOptions?.pragma).toBeUndefined();
+    expect(starts[1].providerOptions).toEqual({ pragma: { genre: "noir", mode: "edit" } });
+    expect(Object.keys(starts[1].providerOptions?.pragma ?? {})).toEqual(["genre", "mode"]);
+    // The same settings in another order are the same clip.
+    expect(await run({ modelSettings: { genre: "noir", mode: "edit" } })).toMatchObject({
+      reused: true,
+      path: set.path,
+    });
+  });
+
   it("records what the provider says the job makes over the settings sent", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     reported = { aspectRatio: "16:9", resolution: "1080p", duration: 8 };
