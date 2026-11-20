@@ -418,7 +418,6 @@ const unprintedLines = StateField.define<DecorationSet>({
 export interface WorldLinks {
   // Asked on every redraw, so it answers for wherever the file is open now.
   resolver: () => ((name: string) => string | undefined) | undefined;
-  showMenu: (path: string, at: { x: number; y: number }) => void;
 }
 
 /** Dispatched when the space's files changed, so names re-resolve. */
@@ -885,22 +884,6 @@ const fountainDecorator = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
-// A right-click, not a modifier-click: a plain click has to place the
-// cursor, and docs/architecture.md's Files and views section allows no modifier-click.
-// Anywhere but a linked name the browser's own menu stays, with its copy,
-// paste and spelling suggestions.
-const worldLinkMenu = EditorView.domEventHandlers({
-  contextmenu(event, view) {
-    const links = view.state.facet(worldLinks);
-    const link = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-space-path]") : null;
-    const path = link?.dataset.spacePath;
-    if (!links || !path) return false;
-    event.preventDefault();
-    links.showMenu(path, { x: event.clientX, y: event.clientY });
-    return true;
-  },
-});
-
 // The page's margins, measured where fountain.css sets the numbers: the left
 // one past the gutter and three cells off the text, the right one three cells
 // past the page's 60th. A measure can't dispatch, so its result goes in the
@@ -1011,7 +994,7 @@ const remeasureOnFontLoad = ViewPlugin.fromClass(
 export function fountain(links?: WorldLinks) {
   return [
     fountainLanguage,
-    links ? [worldLinks.of(links), worldLinkMenu] : [],
+    links ? worldLinks.of(links) : [],
     openedLine,
     openedLineDrawn,
     fountainDecorator,

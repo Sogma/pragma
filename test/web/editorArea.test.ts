@@ -16,6 +16,7 @@ import { COMMAND_PALETTE } from "../../web/services/menus.ts";
 import type { SaveQueue } from "../../web/services/saveQueue.ts";
 import type { Setting } from "../../web/services/settings.ts";
 import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
+import { CHAT_LINK_MENU } from "../../web/view/chat.ts";
 import type { ContextMenu } from "../../web/view/contextMenu.ts";
 import type { DocumentPane } from "../../web/view/panes/documentPane.ts";
 import { polyfillRangeRects } from "./support/codemirrorJsdom.ts";
@@ -435,13 +436,14 @@ describe("editor area", () => {
     await vi.waitFor(() => expect(made).toEqual([{ node: null, kind: "table", name: "Plans" }]));
   });
 
-  it("offers a linked file Open and Open to the side, acting on the linked file", async () => {
+  it("offers a linked file Open, Open in new tab and Open to the side, acting on the linked file", async () => {
     const { tabs, workspace, area, commands, menus } = await setup();
     await tabs.openEntry("a.md");
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
     const target = { file: "b.md" };
     expect(menus.resolve("editor.linkedFile", context, target).map((item) => item.label)).toEqual([
       "Open",
+      "Open in new tab",
       "Open to the side",
       "Show in editor",
     ]);
@@ -584,6 +586,40 @@ describe("editor area", () => {
     ]);
   });
 
+  // A folder link isn't listed in Links, so it has no row to show.
+  it("offers a link to a folder, in the text or a reply, the folder's three ways to open", async () => {
+    const { tabs, workspace, area, commands, menus } = await setup();
+    const { galleryPane } = await import("../../web/view/panes/galleryPane.ts");
+    galleryPane({
+      commands,
+      menus,
+      contextMenu: { open: vi.fn(), close: vi.fn(), isOpen: () => false },
+      tabs: () => tabs,
+      dialog: vi.fn(),
+      formats: testFormats(),
+    });
+    await tabs.openEntry("a.md");
+    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
+    const folderOpens = ["gallery.openFolder", "gallery.openFolderInNewTab", "gallery.openFolderToSide"];
+    for (const menu of ["editor.linkedName", CHAT_LINK_MENU]) {
+      const items = menus.resolve(menu, context, { folder: "notes" });
+      expect(items.map((item) => item.label)).toEqual(["Open", "Open in new tab", "Open to the side"]);
+      expect(items.map((item) => item.command)).toEqual(folderOpens);
+      expect(items.map((item) => item.arg)).toEqual(Array(3).fill({ folder: "notes" }));
+    }
+  });
+
+  it("offers a reply's link to a file Open, Open in new tab and Open to the side, and nothing of the open document's", async () => {
+    const { tabs, workspace, area, menus } = await setup();
+    await tabs.openEntry("a.md");
+    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
+    expect(menus.resolve(CHAT_LINK_MENU, context, { file: "b.md" }).map((item) => item.label)).toEqual([
+      "Open",
+      "Open in new tab",
+      "Open to the side",
+    ]);
+  });
+
   it("offers a linked Applet Edit on the side, and only an Applet, opening its code in the other group", async () => {
     const { tabs, workspace, area, commands, menus } = await setup();
     await tabs.openEntry("a.md");
@@ -591,6 +627,7 @@ describe("editor area", () => {
     const applet = { file: "tools/hello.applet.html" };
     expect(menus.resolve("editor.linkedFile", context, applet).map((item) => item.label)).toEqual([
       "Open",
+      "Open in new tab",
       "Open to the side",
       "Edit on the side",
       "Show in editor",
@@ -753,6 +790,7 @@ describe("editor area", () => {
     const linking = { file: "b.md", target: "a.md" };
     expect(menus.resolve("editor.linkingNote", context, linking).map((item) => item.label)).toEqual([
       "Open",
+      "Open in new tab",
       "Open to the side",
       "Show in editor",
     ]);
@@ -774,6 +812,7 @@ describe("editor area", () => {
     const target = { file: "b.md" };
     expect(menus.resolve("editor.linkedName", context, target).map((item) => item.label)).toEqual([
       "Open",
+      "Open in new tab",
       "Open to the side",
       "Show in links",
     ]);

@@ -141,9 +141,11 @@ export interface MenuSearch {
 }
 
 export interface MenuOpenOptions {
-  // A registered menu, inline items, or both — inline items first.
+  // A registered menu, inline items, or both: inline items first, then the
+  // menu's, then `itemsAfter`.
   menu?: string;
   items?: MenuItem[];
+  itemsAfter?: MenuItem[];
   arg?: unknown;
   // Either a point (a right-click's client coordinates), or "top" —
   // centred near the top of the window, for a menu no click placed…

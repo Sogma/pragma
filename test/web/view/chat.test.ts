@@ -14,9 +14,10 @@ import {
 import type { ChatScreen } from "../../../web/core/chatContext.ts";
 import { refresh as refreshSpaceTree } from "../../../web/core/spaceTree.ts";
 import type { ProposalOutcome } from "../../../web/editProposal.ts";
+import { installTextMenu } from "../../../web/lib/textMenu.ts";
 import { createDialogService } from "../../../web/services/dialog.ts";
 import { createFormats } from "../../../web/services/formats.ts";
-import { type Chat, type ChatDeps, wireChat } from "../../../web/view/chat.ts";
+import { CHAT_LINK_MENU, type Chat, type ChatDeps, wireChat } from "../../../web/view/chat.ts";
 
 vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -486,6 +487,26 @@ describe("links in a reply", () => {
       ["projects", "projects/"],
     ]);
     expect(document.querySelector(".chat-message.assistant .wikilink-unresolved")?.textContent).toBe("elsewhere");
+  });
+
+  it("puts a link's menu above the text menu's on a right-click, a folder link's as the folder's", async () => {
+    const deps = setup();
+    const textMenu = installTextMenu(deps.contextMenu);
+    vi.mocked(postChat).mockResolvedValueOnce({ reply: `See ${link("note.md")} and ${link("projects", true)}.` });
+    await sendTurn();
+    const [file, folder] = replyLinks();
+
+    const rightClick = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 3, clientY: 4 });
+    file.dispatchEvent(rightClick);
+    expect(rightClick.defaultPrevented).toBe(true);
+    expect(deps.contextMenu.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({ menu: CHAT_LINK_MENU, arg: { file: "note.md" }, at: { x: 3, y: 4 } }),
+    );
+    folder.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(deps.contextMenu.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({ menu: CHAT_LINK_MENU, arg: { folder: "projects" } }),
+    );
+    textMenu.dispose();
   });
 
   it("opens a link in a new tab on a click, and shows its file while the pointer rests on it", async () => {

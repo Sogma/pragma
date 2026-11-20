@@ -277,3 +277,47 @@ test("keeps a note's syntax hidden at the caret, as Hide format syntax does by d
   await expect(prose).toHaveText("See this bold! word.");
   await expect.poll(content).toContain("See **this bold!** word.");
 });
+
+test("opens a link's menu above Cut, Copy and Paste, the link kept folded, and opens it in a new tab", async ({
+  page,
+  request,
+}) => {
+  const name = `link-menu-${Date.now()}.md`;
+  const created = await request.post("/api/space/create", {
+    data: { parentPath: "", name, type: "file", content: "# Links\n\nSee [[README]] first.\n" },
+  });
+  expect(created.ok()).toBe(true);
+
+  await page.goto("/");
+  await (await treeRow(page, name)).click();
+  const prose = page.locator(".editor-cm .cm-line", { hasText: /^See / });
+  await expect(prose).toHaveText("See README first.");
+  const pills = page.locator(".editor-group-tabs").first().locator(".editor-tab");
+  const before = await pills.count();
+
+  await prose.locator('[data-space-path="README.md"]').click({ button: "right" });
+  const menu = page.locator(".context-menu");
+  await expect(menu.locator("button")).toHaveText([
+    "Open",
+    "Open in new tab",
+    "Open to the side",
+    "Show in links",
+    "Cut",
+    "Copy",
+    "Paste",
+    "Select All",
+  ]);
+  // A caret put in the link would show its brackets under the menu.
+  await expect(prose).toHaveText("See README first.");
+
+  await menu.locator("button", { hasText: "Open in new tab" }).click();
+  await expect(pills).toHaveCount(before + 1);
+  await expect(page.locator(".editor-tab.active .editor-tab-label")).toHaveText("README");
+
+  // Later tests restore this layout, so the tab opened here goes again, and
+  // the note with it.
+  await page.locator(".editor-tab.active .editor-tab-close").click();
+  await expect(pills).toHaveCount(before);
+  const deleted = await request.post("/api/space/delete", { data: { path: name, trash: false } });
+  expect(deleted.ok()).toBe(true);
+});

@@ -126,7 +126,6 @@ function fillEditorPage(page: HTMLElement, path: string, file: TextFileResponse,
   const format = source.formats.get(file.documentType);
   const context: FormatContext = {
     path: () => path,
-    showLinkMenu: () => undefined,
     openPath: (target) => source.openPath(target),
     searchTag: () => undefined,
   };

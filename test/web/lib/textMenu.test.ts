@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { Misspelling } from "../../../src/protocol/api.ts";
-import { installTextMenu } from "../../../web/lib/textMenu.ts";
+import { installTextMenu, leadTextMenu, type TextMenuLead } from "../../../web/lib/textMenu.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuItem, MenuOpenOptions } from "../../../web/services/menus.ts";
 import { polyfillRangeRects } from "../support/codemirrorJsdom.ts";
@@ -60,10 +60,18 @@ function rightClick(target: Element): MouseEvent {
   return event;
 }
 
+// Its own items, as drawn: the spelling suggestions before a link's menu,
+// Cut, Copy and Paste after it.
 function items(): MenuItem[] {
   const last = opened.at(-1);
-  if (!last?.items) throw new Error("no menu opened");
-  return last.items;
+  if (!last) throw new Error("no menu opened");
+  return [...(last.items ?? []), ...(last.itemsAfter ?? [])];
+}
+
+const lead: TextMenuLead = { menu: "editor.linkedName", arg: { file: "notes/a.md" }, ariaLabel: "Link actions" };
+
+function leading(element: Element): void {
+  element.addEventListener("contextmenu", (event) => leadTextMenu(event, lead));
 }
 
 const labels = () => items().map((item) => item.label);
@@ -141,6 +149,43 @@ describe("text menu", () => {
       expect(rightClick(field).defaultPrevented).toBe(true);
     }
     expect(opened).toHaveLength(3);
+  });
+
+  it("puts a link's menu above Copy and Select All on the link alone", () => {
+    html('<div data-select="text"><p>See <a href="#">the note</a> first.</p></div>');
+    const link = document.querySelector("a") as Element;
+    leading(link);
+    expect(rightClick(link).defaultPrevented).toBe(true);
+    expect(opened[0]).toMatchObject({ ...lead, at: { x: 30, y: 40 } });
+    expect(labels()).toEqual(["Copy", "Select All"]);
+
+    rightClick(document.querySelector("p") as Element);
+    expect(opened[1].menu).toBeUndefined();
+    expect(opened[1].ariaLabel).toBe("Text");
+  });
+
+  it("opens a link's menu where its text doesn't select, and over a browser's checked text", () => {
+    html('<div><a href="#">Rename…</a></div>');
+    const link = document.querySelector("a") as Element;
+    leading(link);
+    expect(rightClick(link).defaultPrevented).toBe(true);
+    expect(opened[0]).toMatchObject(lead);
+    expect(labels()).toEqual([]);
+
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "teh cat",
+        extensions: EditorView.contentAttributes.of({ spellcheck: "true" }),
+      }),
+      parent: document.body,
+    });
+    view.contentDOM.dataset.select = "text";
+    const line = view.contentDOM.querySelector(".cm-line") as Element;
+    leading(line);
+    expect(rightClick(line).defaultPrevented).toBe(true);
+    expect(opened[1]).toMatchObject(lead);
+    expect(labels()).toEqual(["Cut", "Copy", "Paste", "Select All"]);
+    view.destroy();
   });
 
   it("lets a nearer menu take the right-click", () => {
@@ -360,6 +405,18 @@ describe("text menu spelling, in the desktop app", () => {
     }
     expect(opened).toHaveLength(3);
     expect(speller.misspellingAtMenu).not.toHaveBeenCalled();
+  });
+
+  it("puts the suggestions first, then a link's menu, then Cut, Copy and Paste", async () => {
+    const view = editor(true);
+    const line = view.contentDOM.querySelector(".cm-line") as Element;
+    leading(line);
+    expect(rightClick(line).defaultPrevented).toBe(false);
+    await tick();
+    expect(opened[0]).toMatchObject(lead);
+    expect(opened[0].items?.map((item) => item.label)).toEqual(["the", "tea", "Add to Dictionary"]);
+    expect(opened[0].itemsAfter?.map((item) => item.label)).toEqual(["Cut", "Copy", "Paste", "Select All"]);
+    view.destroy();
   });
 
   it("asks in an editor only while it is checked", async () => {

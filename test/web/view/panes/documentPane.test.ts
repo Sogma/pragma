@@ -14,6 +14,7 @@ import {
 import type { DocumentLinks } from "../../../../web/core/spaceTree.ts";
 import { acceptAll } from "../../../../web/editProposal.ts";
 import type { TagSource } from "../../../../web/lib/tagSuggestions.ts";
+import { installTextMenu } from "../../../../web/lib/textMenu.ts";
 import type { CommandContext } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createDocuments } from "../../../../web/services/documents.ts";
@@ -93,7 +94,11 @@ vi.mock("../../../../web/core/apiClient.ts", async (importOriginal) => ({
 }));
 
 const opened: DocumentPane[] = [];
+// The text menu, as the app installs it, where a test puts a link's menu
+// above it.
+const textMenus: { dispose(): void }[] = [];
 afterEach(() => {
+  for (const menu of textMenus.splice(0)) menu.dispose();
   for (const pane of opened.splice(0)) if (pane.element.isConnected) pane.dispose();
   vi.mocked(getBacklinks)
     .mockReset()
@@ -479,6 +484,51 @@ describe("documentPane", () => {
     }
   });
 
+  it("puts a link's menu above the text menu's on right-click, editing or reading, a folder link's as the folder's", async () => {
+    const formats = testFormats({
+      resolveWikilinkTarget: (target) =>
+        target === "gone" ? undefined : target.endsWith("/") ? `notes/${target}` : `resolved/${target}.md`,
+    });
+    const { pane, documents, deps, setReadingView } = setup("document", noteFile(), { formats });
+    textMenus.push(installTextMenu(deps.contextMenu));
+    documents.adopt(noteFile({ content: "# Song\n\nsee [[other]], [[plan/]] and [[gone]]\n" }));
+    await pane.setInput(songTab(), current);
+    const rightClick = (target: Element) => {
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 7, clientY: 8 });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const lastMenu = () => deps.contextMenu.open.mock.calls.at(-1)?.[0];
+
+    const edited = [...pane.view.contentDOM.querySelectorAll<HTMLElement>("[data-space-path]")];
+    expect(edited.map((link) => link.dataset.spacePath)).toEqual(["resolved/other.md", "notes/plan/"]);
+    expect(rightClick(edited[0]).defaultPrevented).toBe(true);
+    expect(lastMenu()).toMatchObject({
+      menu: "editor.linkedName",
+      arg: { file: "resolved/other.md" },
+      at: { x: 7, y: 8 },
+    });
+    rightClick(edited[1]);
+    expect(lastMenu()).toMatchObject({ menu: "editor.linkedName", arg: { folder: "notes/plan" } });
+    rightClick(q(pane.view.contentDOM, ".cm-md-unresolved"));
+    expect(deps.contextMenu.open).toHaveBeenCalledTimes(2);
+    // The right button's press keeps the caret out of a link, which it would unfold.
+    const press = (target: Element) => {
+      const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(press(edited[0])).toBe(true);
+    expect(press(q(pane.view.contentDOM, ".cm-md-unresolved"))).toBe(false);
+
+    setReadingView(true);
+    pane.refresh();
+    rightClick(q(pane.element, ".editor-reading-content a[data-space-path]"));
+    expect(lastMenu()).toMatchObject({ menu: "editor.linkedName", arg: { file: "resolved/other.md" } });
+    rightClick(q(pane.element, ".editor-reading-content .wikilink-unresolved"));
+    expect(deps.contextMenu.open).toHaveBeenCalledTimes(3);
+  });
+
   it("a space link clicked in reading view opens that path", async () => {
     const { pane, documents, deps, setReadingView } = setup();
     documents.adopt(noteFile({ content: "# Song\n\nsee [[other]]\n" }));
@@ -592,11 +642,12 @@ describe("documentPane", () => {
     expect(pane.view.state.facet(EditorView.editable)).toBe(false);
   });
 
-  it("links a screenplay's world names, opens a linked name's menu on right-click, and re-resolves when the space changes", async () => {
+  it("links a screenplay's world names, puts a linked name's menu above the text menu's, and re-resolves when the space changes", async () => {
     let world: Record<string, string> = { lina: "world/Lina.md" };
     const { pane, documents, deps } = setup("document", noteFile(), {
       worldNames: () => (name) => world[name.toLowerCase()],
     });
+    textMenus.push(installTextMenu(deps.contextMenu));
     documents.adopt(
       noteFile({ path: "scene.fountain", documentType: "screenplay", content: "We meet NIKO.\n\nLINA\nHello.\n" }),
     );
@@ -612,10 +663,8 @@ describe("documentPane", () => {
       expect.objectContaining({ menu: "editor.linkedName", arg: { file: "world/Lina.md" }, at: { x: 40, y: 60 } }),
     );
 
-    // Anywhere else in the script the browser keeps its own menu.
-    const elsewhere = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
-    q(pane.element, ".cm-fountain-action").dispatchEvent(elsewhere);
-    expect(elsewhere.defaultPrevented).toBe(false);
+    // Anywhere else in the script, no link's menu.
+    q(pane.element, ".cm-fountain-action").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
     expect(deps.contextMenu.open).toHaveBeenCalledTimes(1);
 
     world = { ...world, niko: "world/Niko.md" };

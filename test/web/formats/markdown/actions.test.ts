@@ -13,7 +13,6 @@ const format = testFormats().get("note");
 const actions = format.actions as FormatActions;
 const context: FormatContext = {
   path: () => "notes/a.md",
-  showLinkMenu: vi.fn(),
   openPath: vi.fn(),
   searchTag: vi.fn(),
 };

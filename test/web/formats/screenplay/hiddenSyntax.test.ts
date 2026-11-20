@@ -14,7 +14,6 @@ const format = testFormats().get("screenplay");
 const actions = format.actions as FormatActions;
 const context: FormatContext = {
   path: () => "scene.fountain",
-  showLinkMenu: vi.fn(),
   openPath: vi.fn(),
   searchTag: vi.fn(),
 };

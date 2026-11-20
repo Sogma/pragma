@@ -44,6 +44,7 @@ import { formatColumn, type Setting } from "./services/settings.ts";
 import { inOneGroupOnly, type Tabs } from "./services/tabs.ts";
 import { guidesMenuItem, lutsMenuItem, MEDIA_MENU } from "./services/videoMenu.ts";
 import type { Inspector } from "./view/assistantPanel.ts";
+import { CHAT_LINK_MENU } from "./view/chat.ts";
 import type { ContextMenu } from "./view/contextMenu.ts";
 import { createEditorChrome, type EditorChrome, registerEditorChromeCommands } from "./view/editorChrome.ts";
 import { createEditorGroupView, type EditorGroupView, pillContent } from "./view/editorGroup.ts";
@@ -166,7 +167,7 @@ function stripContent(group: EditorGroup): string {
  * site's, or a library's. Undefined for a folder or empty area, which hides
  * the item. */
 // A tree row's `{ node, libraryId }`, or `{ file }`, a rooted path named
-// some other way: a linked name in a screenplay, a row in Links.
+// some other way: a link in the text or a reply, a row in Links.
 function fileOf(arg: unknown): string | undefined {
   if (typeof arg !== "object" || arg === null) return undefined;
   if ("file" in arg && typeof arg.file === "string") return arg.file;
@@ -660,24 +661,33 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       focusedDocumentPane()?.revealMention(target);
     },
   });
-  deps.menus.register(LINKED_FILE_MENU, [
+  // A file's or a folder's three ways to open, which every menu on a link or
+  // a graph node lists alike: each command offers itself only for its own
+  // kind of argument, `{ file }` or `{ folder }`.
+  const opens: MenuItem[] = [
     { command: "editor.open", group: "open" },
+    { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },
+    { command: "gallery.openFolder", group: "open" },
+    { command: "gallery.openFolderInNewTab", group: "open" },
+    { command: "gallery.openFolderToSide", group: "open" },
+  ];
+  deps.menus.register(LINKED_FILE_MENU, [
+    ...opens,
     { command: "editor.editToSide", group: "open" },
     { command: "editor.showInEditor", group: "links" },
   ]);
   deps.menus.register(LINKED_FROM_MENU, [
-    { command: "editor.open", group: "open" },
-    { command: "editor.openToSide", group: "open" },
+    ...opens,
     { command: "editor.editToSide", group: "open" },
     { command: "editor.showLinkingMention", group: "links" },
   ]);
   deps.menus.register(LINKED_NAME_MENU, [
-    { command: "editor.open", group: "open" },
-    { command: "editor.openToSide", group: "open" },
+    ...opens,
     { command: "editor.editToSide", group: "open" },
     { command: "editor.showInLinks", group: "links" },
   ]);
+  deps.menus.register(CHAT_LINK_MENU, opens);
   deps.commands.register({
     id: CLEAR_CHIP,
     label: "Clear",
@@ -695,11 +705,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: COPY_PATH, group: "copy" },
     { command: CLEAR_CHIP, group: "clear" },
   ]);
-  deps.menus.register(PREVIEW_OPEN_MENU, [
-    { command: "editor.open", group: "open" },
-    { command: "editor.openInNewTab", group: "open" },
-    { command: "editor.openToSide", group: "open" },
-  ]);
+  deps.menus.register(PREVIEW_OPEN_MENU, opens);
   // In the file's own tab, Open and Open in new tab would leave it where it
   // is, as a group holds one tab per file, so they hide there. Open to the
   // side still shows it in the other group.
@@ -721,14 +727,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
   ]);
-  deps.menus.register(GRAPH_NODE_MENU, [
-    { command: "editor.open", group: "open" },
-    { command: "editor.openInNewTab", group: "open" },
-    { command: "editor.openToSide", group: "open" },
-    { command: "gallery.openFolder", group: "open" },
-    { command: "gallery.openFolderInNewTab", group: "open" },
-    { command: "gallery.openFolderToSide", group: "open" },
-  ]);
+  deps.menus.register(GRAPH_NODE_MENU, opens);
   // A click already opens the folder in place, so the menu holds the other
   // two ways; a library's top folder adds the way to its row.
   deps.menus.register(PATH_FOLDER_MENU, [

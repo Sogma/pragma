@@ -19,13 +19,14 @@ import {
   SaveConflictError,
 } from "../core/apiClient.ts";
 import { type ChatScreen, chatScopeFor, switchScopeFor } from "../core/chatContext.ts";
-import { folderTitle, joinSpacePath } from "../core/paths.ts";
+import { folderTitle, joinSpacePath, linkedEntry } from "../core/paths.ts";
 import { entryIconAt, pathNames, readingResolvers, readingResolversIn } from "../core/spaceTree.ts";
 import type { ProposalOutcome } from "../editProposal.ts";
 import { addCodeBlockCopyButtons, must, setEntryIcon } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import { settingLinks } from "../lib/settingLink.ts";
+import { leadTextMenu } from "../lib/textMenu.ts";
 import { buildUpJuggle } from "../lib/typingJuggle.ts";
 import { diffLines, renderLineDiff } from "../lineDiff.ts";
 import { renderMarkdownInline } from "../markdownRender.ts";
@@ -34,6 +35,10 @@ import type { DialogService } from "../services/dialog.ts";
 import type { FormatRegistry } from "../services/formats.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import type { Tabs } from "../services/tabs.ts";
+
+/** The menu above the text menu's items on a link in a reply: its ways to
+ * open the file, or with `{ folder }`, the folder. */
+export const CHAT_LINK_MENU = "chat.link";
 
 // What a card or note says, each path in it drawn as a path label.
 type Sentence = (string | Node)[];
@@ -272,6 +277,13 @@ export function wireChat(deps: ChatDeps): Chat {
     if (!link) return;
     event.preventDefault();
     openBeside(link.dataset.spacePath ?? "");
+  });
+  // A right-click on a link puts the link's menu above the text menu's
+  // items, so it is left uncancelled for the text menu to open.
+  messages.addEventListener("contextmenu", (event) => {
+    const link = event.target instanceof Element ? event.target.closest<HTMLElement>("a[data-space-path]") : null;
+    const path = link?.dataset.spacePath;
+    if (path) leadTextMenu(event, { menu: CHAT_LINK_MENU, arg: linkedEntry(path), ariaLabel: "Link actions" });
   });
   installLinkPreview(messages, {
     loadFile: deps.loadFile,

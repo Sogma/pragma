@@ -53,6 +53,13 @@ export const OPEN_GALLERY = "Open gallery";
  * focused one, and a gallery preview's open button, which does the same. */
 export const OPEN_IN_NEW_TAB = "Open in new tab";
 
+/** The `{ file }` or `{ folder }` the open commands read, for a path as a
+ * link writes it: a folder's ends in `/`, which the folder commands' path
+ * doesn't. */
+export function linkedEntry(path: string): { file: string } | { folder: string } {
+  return path.endsWith("/") ? { folder: path.slice(0, -1) } : { file: path };
+}
+
 /** What a menu calls removing an entry, which Settings → Files → Move to
  * Trash sends to the Trash or deletes. */
 export function removalLabel(trash: boolean): string {

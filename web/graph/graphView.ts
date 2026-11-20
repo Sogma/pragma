@@ -4,6 +4,7 @@
 // time the tab is shown, and the graph is read again when the space changes.
 import type { SpaceGraphResponse } from "../../src/protocol/api.ts";
 import { fetchSpaceGraph, type Tab } from "../core/apiClient.ts";
+import { linkedEntry } from "../core/paths.ts";
 import { bindFrameStats } from "../lib/frameStats.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import type { InspectorTab } from "../services/inspectorTabs.ts";
@@ -45,8 +46,8 @@ type SceneModule = typeof import("./graphScene.ts");
  * folder's `{ folder }`: the ways to open it. */
 export const GRAPH_NODE_MENU = "graph.node";
 
-// A folder's id ends in `/`, which the folder commands' path doesn't.
-export const graphNodeTarget = (id: string) => (id.endsWith("/") ? { folder: id.slice(0, -1) } : { file: id });
+// A node's id is its path as a link writes it.
+export const graphNodeTarget = linkedEntry;
 
 export interface GraphTabDeps {
   // Opens an entry as a tree click does: in place, in the focused group. A

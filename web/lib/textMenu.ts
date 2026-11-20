@@ -3,12 +3,16 @@
 // The text menu: a right-click on text that selects (base.css's user-select
 // rule) opens Cut, Copy, Paste and Select All where the text can be typed
 // in, and Copy and Select All where it can only be read. It takes only a
-// right-click nothing nearer has taken (a link's menu, the Console's), and
-// never one on an image or media.
+// right-click nothing nearer has taken (the Console's), and never one on an
+// image or media.
+//
+// A link puts its own menu above those items instead of taking the
+// right-click, so a selection holding a link can still be copied from it.
 //
 // In the desktop app, a misspelled word's suggestions and Add to Dictionary
 // come first, as a browser's menu puts them. In a browser, text it checks
-// keeps the browser's own menu, the only one that can offer them.
+// keeps the browser's own menu, the only one that can offer them, except on
+// a link: only this one has the link's menu.
 import { selectAll } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import type { Misspelling } from "../../src/protocol/api.ts";
@@ -34,6 +38,22 @@ const CHECKED_INPUTS = new Set(["text", "search"]);
 
 const MAX_SUGGESTIONS = 6;
 
+/** A menu put above the text menu's items for one right-click: a link's. */
+export interface TextMenuLead {
+  menu: string;
+  arg: unknown;
+  ariaLabel: string;
+}
+
+const leads = new WeakMap<Event, TextMenuLead>();
+
+/** Puts `lead` above the items of the menu this right-click opens, even
+ * where the text doesn't select. The event must stay uncancelled: a
+ * cancelled right-click opens nothing here. */
+export function leadTextMenu(event: Event, lead: TextMenuLead): void {
+  leads.set(event, lead);
+}
+
 // Anywhere else the browser's own menu shows only under `pragma dev`, for
 // Inspect. The desktop app has no browser menu to hide, and its own process
 // offers Inspect there when run from source (electron/main.ts), so the
@@ -46,23 +66,26 @@ const MAX_SUGGESTIONS = 6;
 export function installTextMenu(menu: Pick<ContextMenuService, "open">): Disposable {
   return listen(document, "contextmenu", (event) => {
     if (!(event instanceof MouseEvent) || event.defaultPrevented) return;
+    const lead = leads.get(event);
     const surface = surfaceAt(event.target);
-    const at = { x: event.clientX, y: event.clientY };
     const bridge = window.pragmaElectron;
     const checked = surface ? spellchecked(surface, event.target) : undefined;
-    if (checked && bridge) {
-      void bridge.misspellingAtMenu().then((misspelling) => {
-        menu.open({
-          items: [...spellingItems(checked, misspelling, bridge), ...itemsFor(checked)],
-          at,
-          ariaLabel: "Text",
-        });
+    const show = (spelling: MenuItem[]) =>
+      menu.open({
+        items: spelling,
+        menu: lead?.menu,
+        arg: lead?.arg,
+        itemsAfter: surface ? itemsFor(surface) : undefined,
+        at: { x: event.clientX, y: event.clientY },
+        ariaLabel: lead?.ariaLabel ?? "Text",
       });
-    } else if (checked) {
+    if (checked && bridge) {
+      void bridge.misspellingAtMenu().then((misspelling) => show(spellingItems(checked, misspelling, bridge)));
+    } else if (checked && !lead) {
       return;
-    } else if (surface) {
+    } else if (surface || lead) {
       event.preventDefault();
-      menu.open({ items: itemsFor(surface), at, ariaLabel: "Text" });
+      show([]);
     } else if (!import.meta.env.DEV && !bridge) {
       event.preventDefault();
     }

@@ -184,6 +184,20 @@ describe("contextMenu", () => {
     expect(menu()).toBeNull();
   });
 
+  it("draws inline items, then the menu's, then the items after it", () => {
+    const { contextMenu } = setup();
+    contextMenu.open({
+      items: [{ label: "teh → the", group: "spelling" }],
+      menu: "tree",
+      itemsAfter: [{ label: "Copy", group: "clipboard" }],
+      at: { x: 0, y: 0 },
+    });
+    const rows = [...(menu() as HTMLElement).children].map((row) => row.textContent);
+    expect(rows[0]).toBe("teh → the");
+    expect(rows.slice(1, -1)).toEqual(["new", "NewTable", "rename", "delete", "Reading view", "Just a note"]);
+    expect(rows.at(-1)).toBe("Copy");
+  });
+
   it("inline items run their own action; icon, data, detail, and style decorate a row", async () => {
     const { contextMenu } = setup();
     const run = vi.fn();

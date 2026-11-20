@@ -21,7 +21,6 @@ function edit(doc: string): EditorView {
   const format = testFormats().get("note");
   const context: FormatContext = {
     path: () => "notes/a.md",
-    showLinkMenu: vi.fn(),
     openPath: vi.fn(),
     searchTag: vi.fn(),
   };

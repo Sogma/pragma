@@ -22,7 +22,6 @@ polyfillRangeRects();
 const format = testFormats().get("screenplay");
 const context: FormatContext = {
   path: () => "scene.fountain",
-  showLinkMenu: vi.fn(),
   openPath: vi.fn(),
   searchTag: vi.fn(),
 };

@@ -53,7 +53,6 @@ function edit(
   }).get("note");
   const context: FormatContext = {
     path: () => "notes/a.md",
-    showLinkMenu: vi.fn(),
     openPath: vi.fn(),
     searchTag: vi.fn(),
   };

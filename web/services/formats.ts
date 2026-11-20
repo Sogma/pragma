@@ -16,10 +16,9 @@ import type { MenuItem } from "./menus.ts";
 export interface FormatContext {
   // Read on use: an editor state outlives the tab it was built for.
   path(): string | undefined;
-  // Opens the menu for a file that a name in the text links to.
-  showLinkMenu(file: string, at: { x: number; y: number }): void;
   // Opens a file a link in the text names, as a click in reading view opens
-  // it; `anchor` is the link's element.
+  // it; `anchor` is the link's element, which carries the path as
+  // `data-space-path` for the pane's right-click menu to read.
   openPath(path: string, anchor: HTMLElement): void;
   // Opens Search narrowed to a tag written in the text.
   searchTag(name: string): void;

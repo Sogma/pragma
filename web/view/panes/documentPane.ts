@@ -94,7 +94,7 @@ import {
   isSpaceImageMediaType,
   pastedImageName,
 } from "../../core/imageAttach.ts";
-import { DRAGGED_ENTRY_TYPE, desktopFiles, readDraggedPath, stripExtension } from "../../core/paths.ts";
+import { DRAGGED_ENTRY_TYPE, desktopFiles, linkedEntry, readDraggedPath, stripExtension } from "../../core/paths.ts";
 import { heightAtLine, type LineAnchor, lineAtHeight, risingAnchors } from "../../core/scrollPlace.ts";
 import { type DocumentLinks, imageFolderFor, readingResolvers } from "../../core/spaceTree.ts";
 import {
@@ -117,6 +117,7 @@ import { checkSpelling, unchecked } from "../../lib/spellcheck.ts";
 import { syntaxHighlighters } from "../../lib/syntax.ts";
 import { paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
+import { leadTextMenu } from "../../lib/textMenu.ts";
 import { diffWords } from "../../lineDiff.ts";
 import { renderFrontmatter } from "../../markdownRender.ts";
 import { installLinkPreview } from "../../notePreview.ts";
@@ -152,7 +153,9 @@ export type DocumentPaneKind = "document" | "applet-source";
  * `{ file }`, the linked file's rooted path. */
 export const LINKED_FILE_MENU = "editor.linkedFile";
 
-/** The same, for a linked name in the text, which can also show its row. */
+/** The menu above the text menu's items on a link in the text, edited or
+ * read, which can also show its row. Its argument is the link's `{ file }`,
+ * or a folder link's `{ folder }`. */
 export const LINKED_NAME_MENU = "editor.linkedName";
 
 /** The menu a right-click on a Backlinks row opens. Its argument is
@@ -190,7 +193,7 @@ export interface DocumentPaneDeps {
   openPath: (path: string, from?: OpenSource) => Promise<void> | void;
   // A link preview's open button: the file in a new tab after this one.
   openBeside: (path: string) => void;
-  // Draws LINKED_FILE_MENU and LINKED_NAME_MENU; the pane never builds a
+  // Draws LINKED_FILE_MENU and LINKED_FROM_MENU; the pane never builds a
   // menu itself.
   contextMenu: ContextMenuService;
   // Where a previewed Table's picture that has gone says why.
@@ -611,8 +614,6 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
 
   const formatContext: FormatContext = {
     path: () => current?.tab.path,
-    showLinkMenu: (file, at) =>
-      deps.contextMenu.open({ menu: LINKED_NAME_MENU, arg: { file }, at, ariaLabel: "Link actions" }),
     openPath: (path, anchor) => deps.openPath(path, { anchor }),
     searchTag: (name) => deps.runCommand("search.forTag", { tag: name }),
   };
@@ -1539,6 +1540,26 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
       if (!link) return;
       event.preventDefault();
       deps.openPath(link.dataset.spacePath ?? "", { anchor: link });
+    }),
+  );
+  // A right-click on a link, edited or read and in every format, puts the
+  // link's menu above the text menu's items. Left uncancelled for the text
+  // menu to open.
+  const linkAt = (target: EventTarget | null): string | undefined => {
+    const link = target instanceof Element ? target.closest<HTMLElement>("[data-space-path]") : null;
+    return link && (cm.contains(link) || readingContent.contains(link)) ? link.dataset.spacePath : undefined;
+  };
+  store.add(
+    listen(element, "contextmenu", (event) => {
+      const path = linkAt(event.target);
+      if (path) leadTextMenu(event, { menu: LINKED_NAME_MENU, arg: linkedEntry(path), ariaLabel: "Link actions" });
+    }),
+  );
+  // Its press leaves the caret where it was: a caret put in the link would
+  // unfold the link's syntax under its menu.
+  store.add(
+    listen(cm, "mousedown", (event) => {
+      if ((event as MouseEvent).button === 2 && linkAt(event.target)) event.preventDefault();
     }),
   );
   // A link to a file a page draws, edited or read, shows the file while the

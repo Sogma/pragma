@@ -40,7 +40,6 @@ export function screenplayFormat(deps: ScreenplayFormatDeps): TextFormat {
           const path = context.path();
           return path === undefined ? undefined : deps.worldNames(path);
         },
-        showMenu: (file, at) => context.showLinkMenu(file, at),
       }),
       screenplayTyping(),
       screenplayFontAttribute(font),

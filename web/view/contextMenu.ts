@@ -531,6 +531,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       const items = [
         ...(options.items ? deps.menus.resolveItems(options.items, context, options.arg) : []),
         ...(options.menu ? deps.menus.resolve(options.menu, context, options.arg) : []),
+        ...(options.itemsAfter ? deps.menus.resolveItems(options.itemsAfter, context, options.arg) : []),
       ];
       // Rows sit directly in the menu; a searchable menu wraps them so the
       // search box can swap the whole list for its results.

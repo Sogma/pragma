@@ -16,7 +16,7 @@ polyfillRangeRects();
 
 const format = testFormats().get("note");
 const actions = format.actions as FormatActions;
-const context: FormatContext = { path: () => "a.md", showLinkMenu: vi.fn(), openPath: vi.fn(), searchTag: vi.fn() };
+const context: FormatContext = { path: () => "a.md", openPath: vi.fn(), searchTag: vi.fn() };
 
 let view: EditorView | undefined;
 afterEach(() => {
