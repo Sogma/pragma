@@ -7,6 +7,7 @@ import type { ToolkitInvocation, ToolkitRun } from "../../../web/flow/toolkitAct
 import type { DocumentAccess } from "../../../web/services/documentAccess.ts";
 import type { MenuOpenOptions } from "../../../web/services/menus.ts";
 import { createToolkitPanel } from "../../../web/view/toolkitPanel.ts";
+import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -74,6 +75,7 @@ function setup() {
       start,
       confirm,
       contextMenu: { open: menuOpen, isOpen: menuIsOpen, close: menuClose },
+      modelLists: emptyModelLists(),
     },
   );
   // The focused group showing another document.

@@ -329,6 +329,7 @@ describe("an image a provider makes as a job", () => {
           warnings: ["aspect_ratio: asked for 16:10, used 3:2"],
           notes: ["quality: used 2k (default for model)"],
           quote: { amount: 2, unit: "credits" },
+          settings: { aspectRatio: "3:2" },
         };
       },
       check: async () =>
@@ -358,7 +359,13 @@ describe("an image a provider makes as a job", () => {
     const { records, starts, resolveJobs, runner } = jobProvider();
     const started = await startSandboxGenerateImage(space, flow, body(), undefined, resolveJobs, runner);
     if ("found" in started) throw new Error("expected a job");
-    expect(started.job).toMatchObject({ kind: "image", stage: "running", model: "test/m", folderName: "art" });
+    expect(started.job).toMatchObject({
+      kind: "image",
+      stage: "running",
+      model: "test/m",
+      folderName: "art",
+      settings: { aspectRatio: "3:2" },
+    });
     expect(starts).toEqual([
       { prompt: "A neon city at dusk, rain on the glass", references: [], aspectRatio: "16:10", seed: undefined },
     ]);

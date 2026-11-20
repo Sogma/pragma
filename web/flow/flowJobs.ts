@@ -11,6 +11,7 @@ import { cancelJob } from "../core/apiClient.ts";
 import { versionWhen } from "../lib/dateText.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { FileNotices } from "../services/fileNotices.ts";
+import type { ModelLists } from "../services/modelLists.ts";
 import type { CanvasRunInfo } from "./canvasRun.ts";
 import {
   cancelButton,
@@ -23,6 +24,7 @@ import {
   liveStage,
   madeBy,
   section,
+  settingsLine,
 } from "./jobRows.ts";
 import { type JobsFeed, jobsFeed } from "./jobsFeed.ts";
 
@@ -31,6 +33,8 @@ export interface FlowJobsDeps {
   openPath(path: string): void;
   // Asks before Cancel gives up a job whose credits are spent.
   dialog: Pick<DialogService, "confirm">;
+  // Where a row names a job's model from, redrawn as a list arrives.
+  modelLists: Pick<ModelLists, "get" | "load" | "subscribe">;
   // How many rows Running lists, for the counts beside Run.
   onCount?(count: number): void;
   feed?: JobsFeed;
@@ -88,7 +92,7 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
   }
 
   async function cancelOnItsOwn(path: string, job: JobView): Promise<void> {
-    if (!(await confirmCancel(deps.dialog.confirm, jobParts(job), job))) return;
+    if (!(await confirmCancel(deps.dialog.confirm, jobParts(job, deps.modelLists), job))) return;
     cancelling.set(job.id, Date.now());
     render();
     try {
@@ -123,6 +127,7 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
     return {
       title: `Run ${run.number} · started ${versionWhen(run.startedAt)}`,
       detail: job?.summary,
+      settings: job && settingsLine(job, deps.modelLists),
       stage: live ? liveStage(job) : run.nodes.length > 0 ? run.nodes.join(", ") : "Starting",
       problem: live && job.problem !== undefined,
     };
@@ -135,8 +140,8 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
   }
 
   function row(job: JobView): HTMLElement {
-    if (!isLive(job)) return endedRow(job, deps.openPath);
-    const el = liveRow(jobParts(job));
+    if (!isLive(job)) return endedRow(job, deps.openPath, deps.modelLists);
+    const el = liveRow(jobParts(job, deps.modelLists));
     const path = shown;
     if (path !== undefined) el.append(cancelButton("Cancel this job", () => cancelOnItsOwn(path, job)));
     return el;
@@ -231,6 +236,9 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
     unfollow = undefined;
   }
 
+  // Subscribed last: it draws at once, and a draw reads the state above.
+  const unsubscribe = deps.modelLists.subscribe(() => render());
+
   return {
     element,
     show(path) {
@@ -261,6 +269,7 @@ export function createFlowJobs(deps: FlowJobsDeps): FlowJobs {
     },
     dispose() {
       stop();
+      unsubscribe();
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDown, true);
     },

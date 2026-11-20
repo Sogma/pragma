@@ -352,14 +352,17 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
         throw error;
       }
       const provider = { operation: begun.operation, warnings: begun.warnings, notes: begun.notes, quote: begun.quote };
+      const settings = begun.settings ? { settings: begun.settings } : {};
       // Cancelled while it started, it stays cancelled, with what was quoted.
       const recorded = await deps
         .store()
         .update(job.id, (stored) =>
-          stored.stage === "cancelled" ? { ...stored, provider } : { ...stored, stage: "running", provider },
+          stored.stage === "cancelled"
+            ? { ...stored, provider, ...settings }
+            : { ...stored, stage: "running", provider, ...settings },
         );
       if (recorded) return recorded;
-      const running: JobRecord = { ...job, stage: "running", provider };
+      const running: JobRecord = { ...job, stage: "running", provider, ...settings };
       await deps.store().add(running);
       return running;
     })();

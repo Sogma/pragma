@@ -55,7 +55,16 @@ afterEach(() => {
 describe("/api/jobs", () => {
   it("lists the document's jobs in this space, newest first, as the Tools tab shows them", async () => {
     await store.add(job("a", { startedAt: 1 }));
-    await store.add(job("b", { startedAt: 2, stage: "saved", file: "video-b.mp4", delivered: true, endedAt: 3 }));
+    await store.add(
+      job("b", {
+        startedAt: 2,
+        stage: "saved",
+        file: "video-b.mp4",
+        delivered: true,
+        endedAt: 3,
+        settings: { resolution: "720p", duration: 5 },
+      }),
+    );
     await store.add(job("c", { document: "other.flow.html" }));
     await store.add(job("d", { spaceId: "spc_elsewhere" }));
     const res = await app.request("/api/jobs?path=v.flow.html");
@@ -67,6 +76,7 @@ describe("/api/jobs", () => {
       stage: "saved",
       model: "higgsfield/seedance_2_5",
       summary: "Steam rises from the red cup",
+      settings: { resolution: "720p", duration: 5 },
       folder: "clips",
       startedAt: 2,
       endedAt: 3,

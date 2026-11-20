@@ -50,6 +50,8 @@ let space: string;
 let configDir: string;
 let flow: SandboxDocument;
 let starts: VideoCallOptions[];
+// What the mock provider says a job makes; undefined when it says nothing.
+let reported: { aspectRatio?: string; resolution?: string; duration?: number } | undefined;
 let checked: unknown[];
 let records: Map<string, JobRecord>;
 let runner: JobRunner;
@@ -69,7 +71,13 @@ const resolve = (): ResolvedVideoModel => ({
       return {
         operation: { job: starts.length },
         warnings: [{ type: "other", message: "duration: asked for 7, used 8" }],
-        providerMetadata: { test: { cost: { amount: 2.4, unit: "credits" }, notes: ["mode: used omni_reference"] } },
+        providerMetadata: {
+          test: {
+            cost: { amount: 2.4, unit: "credits" },
+            notes: ["mode: used omni_reference"],
+            ...(reported ? { settings: { ...reported } } : {}),
+          },
+        },
         response,
       };
     },
@@ -130,6 +138,7 @@ beforeEach(async () => {
   mkdirSync(path.join(space, "clips"));
   flow = await readSandboxDocument(space, "flow", "v.flow.html");
   starts = [];
+  reported = undefined;
   checked = [];
   records = new Map();
   status = done;
@@ -188,7 +197,15 @@ describe("performSandboxGenerateVideo", () => {
       document: "v.flow.html",
       folder: "clips",
       summary: "Steam rises from the red cup",
+      settings: { aspectRatio: "16:9", duration: 7 },
     });
+  });
+
+  it("records what the provider says the job makes over the settings sent", async () => {
+    await grantCapability(space, flow.subject, "generateVideo:space:clips");
+    reported = { aspectRatio: "16:9", resolution: "1080p", duration: 8 };
+    await run({ resolution: "4K" });
+    expect(only().settings).toEqual({ aspectRatio: "16:9", resolution: "1080p", duration: 8 });
   });
 
   it("hands back the job it started without waiting on it, and the clip once it is there", async () => {

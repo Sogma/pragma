@@ -10,11 +10,12 @@ import type {
   ProviderImageJobs,
   ProviderImageModel,
 } from "../protocol/imageGeneration.ts";
-import type {
-  DeclaredVideoInputs,
-  ProviderVideoModel,
-  VideoStartResult,
-  VideoStatusResult,
+import {
+  type DeclaredVideoInputs,
+  jobSettings,
+  type ProviderVideoModel,
+  type VideoStartResult,
+  type VideoStatusResult,
 } from "../protocol/videoGeneration.ts";
 import { nearestResolution, resolutionName, resolutionShortSide } from "../protocol/videoResolution.ts";
 import { fetchPublic, type PublicFile } from "./fetchPublic.ts";
@@ -210,6 +211,16 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
     return { changed, decided };
   }
 
+  // The settings a job runs with: each one sent, or filled in by the server,
+  // as the server used it.
+  function used(submitted: Fields, sent: Fields): Fields {
+    const settings: Fields = { ...sent };
+    for (const [key, change] of Object.entries((submitted.adjustments ?? {}) as Record<string, Fields>)) {
+      settings[key.replace(/^params\./, "")] = change.used;
+    }
+    return settings;
+  }
+
   // Waits on a job until it ends, or until `deadline` passes with it still
   // running. Once a job is submitted, stopping only stops the wait: no tool
   // cancels a job, so the error says it still bills.
@@ -273,6 +284,7 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
     submit,
     jobId,
     adjustments,
+    used,
     waitFor,
     details,
   };
@@ -392,6 +404,8 @@ export function higgsfieldImageJobs(
           warnings: changed,
           notes: decided,
           ...(credits !== undefined ? { quote: { amount: credits, unit: "credits" } } : {}),
+          // The ratio alone: an image model's 2K is no video size.
+          settings: jobSettings({ aspectRatio: session.used(submitted, sent).aspect_ratio }),
         };
       } finally {
         await client.close().catch(() => {});
@@ -569,6 +583,7 @@ export function higgsfieldVideoModel(
         const id = session.jobId(submitted);
         const { changed, decided } = session.adjustments(submitted, sent);
         for (const message of changed) warnings.push({ type: "other", message });
+        const settings = session.used(submitted, sent);
         return {
           operation: { jobId: id },
           warnings,
@@ -577,6 +592,13 @@ export function higgsfieldVideoModel(
               jobId: id,
               ...(credits !== undefined ? { cost: { amount: credits, unit: "credits" } } : {}),
               ...(decided.length ? { notes: decided } : {}),
+              settings: {
+                ...jobSettings({
+                  aspectRatio: settings.aspect_ratio,
+                  resolution: settings.resolution,
+                  duration: settings.duration,
+                }),
+              },
             },
           },
           response: response(),

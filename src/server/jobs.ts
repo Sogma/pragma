@@ -6,7 +6,7 @@ import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { withHostStateLock } from "../config/hostStateFile.ts";
 import { globalJobsDir } from "../config/loadConfig.ts";
-import type { GenerationCost } from "../protocol/api.ts";
+import type { GenerationCost, JobSettings } from "../protocol/api.ts";
 import { isHiddenName } from "../protocol/entryName.ts";
 import type { VideoOperation } from "../protocol/videoGeneration.ts";
 import { writeFileAtomic } from "./spaceFiles.ts";
@@ -38,6 +38,9 @@ export interface JobRecord {
   model: string;
   // The prompt, cut short, for the lists that show the job.
   summary: string;
+  // What the job makes: the settings sent, until its start says how the
+  // provider took them.
+  settings?: JobSettings;
   stage: JobStage;
   startedAt: number;
   endedAt?: number;

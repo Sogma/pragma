@@ -1884,6 +1884,15 @@ export type GenerateImageRouteResponse = GenerateImageResponse | GenerationStart
 
 // /api/jobs, /api/jobs/shown
 
+/** What a job makes: each setting as the provider took it, or as it was
+ * sent when the provider says nothing, and left out when neither names it.
+ * `resolution` is a size such as `720p`, `duration` seconds. */
+export interface JobSettings {
+  aspectRatio?: string;
+  resolution?: string;
+  duration?: number;
+}
+
 /** One paid job of the open document, for its Tools tab and the runs that
  * wait on it: still going, or ended and not yet shown. `file` is the saved
  * clip's path as a tab names it and `result` as the node hands it on;
@@ -1897,6 +1906,7 @@ export interface JobView {
   // The provider's name as Settings lists it.
   provider?: string;
   summary: string;
+  settings?: JobSettings;
   folder: string;
   startedAt: number;
   endedAt?: number;

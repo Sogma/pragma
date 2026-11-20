@@ -560,6 +560,7 @@ async function main(): Promise<void> {
       reveal: () => inspector.show("tools"),
       start: (invocation, actionId, jobStarting) => toolkitRunner.start(invocation, actionId, jobStarting),
       contextMenu,
+      modelLists,
     },
   );
 

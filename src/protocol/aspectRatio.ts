@@ -28,6 +28,12 @@ export function formatAspectRatio(width: number, height: number): string {
   return width >= height ? `${a}:${b}` : `${b}:${a}`;
 }
 
+/** Whether `text` is a `W:H` ratio. Terms may be decimal: Load Image writes
+ * 1.85:1 the way film does. */
+export function isAspectRatio(text: string): boolean {
+  return /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(text);
+}
+
 const logRatio = (ratio: string): number => {
   const [width, height] = ratio.split(":").map(Number);
   return Math.log(width / height);

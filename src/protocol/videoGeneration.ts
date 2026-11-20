@@ -1,7 +1,9 @@
 import { experimental_getVideoStatus, experimental_startVideo } from "ai";
-import type { GenerationCost } from "./api.ts";
+import type { GenerationCost, JobSettings } from "./api.ts";
+import { isAspectRatio } from "./aspectRatio.ts";
 import type { FrameKind } from "./flowNodes.ts";
 import { describeWarning, notesOf } from "./imageGeneration.ts";
+import { resolutionName, resolutionShortSide } from "./videoResolution.ts";
 
 /**
  * A video model bound to a configured provider: the SDK's current video
@@ -9,10 +11,12 @@ import { describeWarning, notesOf } from "./imageGeneration.ts";
  * bare-string form, which would route through the SDK's hosted gateway.
  *
  * A clip is a job, started once and then checked until it ends, so a host
- * can keep a job's operation and wait on it again from a later request. An
- * adapter that quotes a price puts `cost: {amount, unit}` on its start
- * result's `providerMetadata` record, and what the provider decided about
- * settings it wasn't sent as `notes`.
+ * can keep a job's operation and wait on it again from a later request.
+ *
+ * An adapter's start result's `providerMetadata` record carries the price
+ * the provider quoted as `cost: {amount, unit}`, what it decided about
+ * settings it wasn't sent as `notes`, and what the job makes, its changes
+ * applied, as `settings` (a `JobSettings`).
  */
 export type ProviderVideoModel = Extract<
   Parameters<typeof experimental_startVideo>[0]["model"],
@@ -59,6 +63,9 @@ export interface VideoJob {
   notes: string[];
   // The price the provider asked before taking the job.
   quote?: GenerationCost;
+  // What the job makes, as the provider took the request; absent when the
+  // adapter doesn't say.
+  settings?: JobSettings;
 }
 
 /** What one check of a started job found: still going, its clip, or the
@@ -88,11 +95,32 @@ export async function startVideoJob(model: ProviderVideoModel, request: VideoReq
     // A retry submits a second job, and every job is paid for.
     maxRetries: 0,
   });
+  const settings = Object.values(result.providerMetadata ?? {}).find(
+    (record) => typeof (record as { settings?: unknown } | null)?.settings === "object",
+  )?.settings;
   return {
     operation: result.operation,
     warnings: result.warnings.map(describeWarning),
     notes: Object.values(result.providerMetadata ?? {}).flatMap(notesOf),
     quote: costOf(result.providerMetadata),
+    ...(settings ? { settings: jobSettings(settings) } : {}),
+  };
+}
+
+/** An adapter's word on what a job makes, keeping only what reads as each
+ * setting: a `W:H` ratio, a video size, said as `720p` or `4K` however the
+ * provider wrote it, and a length in seconds. */
+export function jobSettings(raw: unknown): JobSettings {
+  const { aspectRatio, resolution, duration } = (raw ?? {}) as Record<string, unknown>;
+  const side =
+    typeof resolution === "string" || typeof resolution === "number"
+      ? resolutionShortSide(String(resolution))
+      : undefined;
+  const seconds = typeof duration === "string" && /^\d+$/.test(duration) ? Number(duration) : duration;
+  return {
+    ...(typeof aspectRatio === "string" && isAspectRatio(aspectRatio) ? { aspectRatio } : {}),
+    ...(side ? { resolution: resolutionName(side) } : {}),
+    ...(typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? { duration: seconds } : {}),
   };
 }
 

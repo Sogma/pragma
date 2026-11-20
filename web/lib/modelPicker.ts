@@ -109,6 +109,12 @@ export function modelMenuItems(list: ModelList, menu: ModelMenu, query = ""): Me
   return items;
 }
 
+/** A model's own name, as its picker names it: its list's, else the ref's
+ * part after the provider. */
+export function modelNameOf(ref: string, list: ModelList | undefined): string {
+  return list?.models.find((entry) => entry.id === ref)?.model ?? ref.slice(ref.indexOf("/") + 1);
+}
+
 export interface PickerText {
   // Its accessible name, ahead of the model's: "Chat model".
   role: string;
@@ -136,7 +142,7 @@ export function renderModelPicker(
   const model = list?.models.find((entry) => entry.id === ref);
   const provider = model && list?.providers.find((entry) => entry.id === model.provider);
   const unlisted = list !== undefined && ref !== "" && !model;
-  const name = model?.model ?? (ref ? ref.slice(ref.indexOf("/") + 1) : list ? text.none : "");
+  const name = ref ? modelNameOf(ref, list) : list ? text.none : "";
   setPickerName(button, name);
   const effort = text.effort && effortName(text.effort);
   const effortSlot = button.querySelector<HTMLElement>(".model-picker-effort");

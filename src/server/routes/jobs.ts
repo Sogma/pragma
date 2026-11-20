@@ -30,6 +30,7 @@ function viewOf(job: JobRecord, config: PragmaGlobalConfig): JobView {
     model: job.model,
     ...(provider !== undefined ? { provider } : {}),
     summary: job.summary,
+    ...(job.settings ? { settings: job.settings } : {}),
     folder: job.folderName,
     startedAt: job.startedAt,
     ...(job.endedAt !== undefined ? { endedAt: job.endedAt } : {}),

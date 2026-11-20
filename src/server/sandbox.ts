@@ -73,7 +73,7 @@ import {
   rasterImageMediaTypeForPath,
   videoMediaTypeForPath,
 } from "../protocol/types.ts";
-import { type DeclaredVideoInputs, startVideoJob } from "../protocol/videoGeneration.ts";
+import { type DeclaredVideoInputs, jobSettings, startVideoJob } from "../protocol/videoGeneration.ts";
 import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol/videoResolution.ts";
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
@@ -917,6 +917,7 @@ export async function startSandboxGenerateImage(
           prefix: named,
           model,
           summary: summaryOf(body.prompt),
+          settings: jobSettings({ aspectRatio: body.aspectRatio }),
         },
         async () => {
           const started = await jobs.start({ prompt, references, aspectRatio, seed });
@@ -1111,6 +1112,7 @@ export async function startSandboxGenerateVideo(
           prefix: named,
           model,
           summary: summaryOf(body.prompt),
+          settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),
         },
         async () => {
           const started = await startVideoJob(resolved.model, {

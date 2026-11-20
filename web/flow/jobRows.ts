@@ -5,7 +5,9 @@ import type { JobView } from "../../src/protocol/api.ts";
 import { describeCost } from "../../src/protocol/flowExecutors.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import { versionWhen } from "../lib/dateText.ts";
+import { modelNameOf } from "../lib/modelPicker.ts";
 import type { DialogService } from "../services/dialog.ts";
+import type { ModelLists } from "../services/modelLists.ts";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -22,9 +24,14 @@ export const madeBy = {
 export interface LiveParts {
   title: string;
   detail?: string;
+  // What its job makes: the model, then each setting known.
+  settings?: string;
   stage: string;
   problem: boolean;
 }
+
+/** The model lists a row names a job's model from, as its picker does. */
+export type JobModels = Pick<ModelLists, "get" | "load">;
 
 function elapsed(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -34,9 +41,17 @@ function elapsed(ms: number): string {
   return hours > 0 ? `${hours}:${clock(minutes)}:${clock(seconds % 60)}` : `${minutes}:${clock(seconds % 60)}`;
 }
 
-export const modelName = (ref: string) => ref.slice(ref.indexOf("/") + 1);
+const startedTitle = (job: JobView) => `${madeBy[job.kind].node} · started ${versionWhen(job.startedAt)}`;
 
-const startedTitle = (job: JobView) => `${modelName(job.model)} · started ${versionWhen(job.startedAt)}`;
+/** What a job makes, as one line: its model, named as its picker names it,
+ * then each setting known. */
+export function settingsLine(job: JobView, models: JobModels): string {
+  const list = models.get(job.kind);
+  if (!list) models.load(job.kind);
+  const { resolution, duration, aspectRatio } = job.settings ?? {};
+  const seconds = duration === undefined ? undefined : `${duration} s`;
+  return [modelNameOf(job.model, list), resolution, seconds, aspectRatio].filter(Boolean).join(" · ");
+}
 
 function spinner(): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
@@ -59,9 +74,22 @@ export function liveStage(job: JobView): string {
   return `Rendering · ${elapsed(Date.now() - job.startedAt)}${quote}`;
 }
 
-/** A live job's row, under `title`, by default its model and start. */
-export function jobParts(job: JobView, title = startedTitle(job)): LiveParts {
-  return { title, detail: job.summary, stage: liveStage(job), problem: job.problem !== undefined };
+/** A live job's row, under `title`, by default its kind and start. */
+export function jobParts(job: JobView, models: JobModels, title = startedTitle(job)): LiveParts {
+  return {
+    title,
+    detail: job.summary,
+    settings: settingsLine(job, models),
+    stage: liveStage(job),
+    problem: job.problem !== undefined,
+  };
+}
+
+function line(className: string, text: string): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = className;
+  el.textContent = text;
+  return el;
 }
 
 /** A row of something going; inside a dialog's message, of spans. */
@@ -73,20 +101,10 @@ export function liveRow(parts: LiveParts, tag: "div" | "span" = "div"): HTMLElem
   thumb.appendChild(spinner());
   const text = document.createElement("span");
   text.className = "flow-jobs-text";
-  const title = document.createElement("span");
-  title.className = "flow-jobs-title";
-  title.textContent = parts.title;
-  text.append(title);
-  if (parts.detail) {
-    const detail = document.createElement("span");
-    detail.className = "flow-jobs-detail";
-    detail.textContent = parts.detail;
-    text.append(detail);
-  }
-  const stage = document.createElement("span");
-  stage.className = `flow-jobs-stage ${parts.problem ? "is-problem" : "is-live"}`;
-  stage.textContent = parts.stage;
-  text.append(stage);
+  text.append(line("flow-jobs-title", parts.title));
+  if (parts.detail) text.append(line("flow-jobs-detail", parts.detail));
+  if (parts.settings) text.append(line("flow-jobs-settings", parts.settings));
+  text.append(line(`flow-jobs-stage ${parts.problem ? "is-problem" : "is-live"}`, parts.stage));
   el.append(thumb, text);
   return el;
 }
@@ -130,7 +148,7 @@ export function confirmCancel(
 
 /** How a job ended: what it saved, as a button that opens it; a cancel, with
  * what it spent; or why it failed. */
-export function endedRow(job: JobView, openPath: (path: string) => void): HTMLElement {
+export function endedRow(job: JobView, openPath: (path: string) => void, models: JobModels): HTMLElement {
   const saved = job.stage === "saved" && job.file !== undefined;
   const el = document.createElement(saved ? "button" : "div");
   el.className = "flow-jobs-row";
@@ -161,7 +179,7 @@ export function endedRow(job: JobView, openPath: (path: string) => void): HTMLEl
     stage.textContent = job.error ?? madeBy[job.kind].without;
     stage.classList.add(job.interrupted ? "is-problem" : "is-failed");
   }
-  text.append(title, stage);
+  text.append(title, line("flow-jobs-settings", settingsLine(job, models)), stage);
   el.append(thumb, text);
   return el;
 }

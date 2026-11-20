@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { JobView } from "../../../src/protocol/api.ts";
+import type { JobView, VideoModelsResponse } from "../../../src/protocol/api.ts";
 import type { CanvasRunInfo } from "../../../web/flow/canvasRun.ts";
 import { createFlowJobs, type FlowJobs } from "../../../web/flow/flowJobs.ts";
 import { createJobsFeed } from "../../../web/flow/jobsFeed.ts";
 import type { ConfirmOptions } from "../../../web/services/dialog.ts";
+import type { ModelLists } from "../../../web/services/modelLists.ts";
+import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // The open Flow's paid jobs in the Tools tab: Running and Finished, a notice
 // for a clip saved with nobody waiting, and the ended jobs said shown.
@@ -18,8 +20,33 @@ const live = (id: string, fields: Partial<JobView> = {}): JobView => ({
   folder: "clips",
   startedAt: Date.now() - 48_000,
   quote: { amount: 70, unit: "credits" },
+  settings: { resolution: "720p", duration: 5, aspectRatio: "16:9" },
   ...fields,
 });
+
+// Model lists whose video list comes when a test hands it over, as a
+// picker's fetch would land.
+function arrivingLists() {
+  let video: VideoModelsResponse | undefined;
+  const listeners = new Set<() => void>();
+  const lists = {
+    ...emptyModelLists(),
+    get: ((kind: string) => (kind === "video" ? video : undefined)) as ModelLists["get"],
+    load: vi.fn(),
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      listener();
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  const arrive = (list: VideoModelsResponse) => {
+    video = list;
+    for (const listener of listeners) listener();
+  };
+  return { lists, arrive };
+}
 
 let jobs: FlowJobs | undefined;
 
@@ -28,7 +55,7 @@ afterEach(() => {
   jobs = undefined;
 });
 
-function setUp(answer: JobView[]) {
+function setUp(answer: JobView[], modelLists: ModelLists = emptyModelLists()) {
   const add = vi.fn();
   const openPath = vi.fn();
   const onCount = vi.fn();
@@ -37,7 +64,7 @@ function setUp(answer: JobView[]) {
   const feed = createJobsFeed({ fetchJobs, markJobsShown });
   const confirm = vi.fn(async (_options: ConfirmOptions) => true);
   const cancelJob = vi.fn(async () => undefined);
-  jobs = createFlowJobs({ notices: { add }, openPath, onCount, feed, dialog: { confirm }, cancelJob });
+  jobs = createFlowJobs({ notices: { add }, openPath, onCount, feed, dialog: { confirm }, cancelJob, modelLists });
   return { add, openPath, onCount, feed, confirm, cancelJob, fetchJobs, markJobsShown, element: jobs.element };
 }
 
@@ -75,7 +102,7 @@ describe("createFlowJobs", () => {
     jobs?.show("v.flow.html");
     await vi.waitFor(() => expect(element.hasAttribute("data-empty")).toBe(false));
     expect(texts(element, ".flow-jobs-heading")).toEqual(["Running", "Finished"]);
-    expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^seedance_2_5 · started /);
+    expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Generate Video · started /);
     expect(texts(element, ".flow-jobs-stage")[0]).toBe("Rendering · 0:48 · quoted 70 credits");
     expect(texts(element, ".flow-jobs-title").slice(1, 3)).toEqual(["video-b.mp4", "video-c.mp4"]);
 
@@ -118,8 +145,12 @@ describe("createFlowJobs", () => {
     expect(titles).toHaveLength(3);
     expect(titles[0]).toMatch(/^Run 2 · started /);
     expect(titles[1]).toMatch(/^Run 1 · started /);
-    expect(titles[2]).toMatch(/^seedance_2_5 · started /);
+    expect(titles[2]).toMatch(/^Generate Video · started /);
     expect(texts(element, ".flow-jobs-detail")).toEqual(["A kite at dusk", "Steam rises from the red cup"]);
+    expect(texts(element, ".flow-jobs-settings")).toEqual([
+      "seedance_2_5 · 720p · 5 s · 16:9",
+      "seedance_2_5 · 720p · 5 s · 16:9",
+    ]);
     expect(texts(element, ".flow-jobs-stage")).toEqual([
       "Generate Text (AI)",
       "Rendering · 0:48 · quoted 70 credits",
@@ -132,7 +163,7 @@ describe("createFlowJobs", () => {
     poke.mockClear();
     jobs?.setRuns([]);
     expect(poke).not.toHaveBeenCalled();
-    expect(texts(element, ".flow-jobs-title").every((title) => title?.startsWith("seedance_2_5"))).toBe(true);
+    expect(texts(element, ".flow-jobs-title").every((title) => title?.startsWith("Generate Video"))).toBe(true);
     expect(element.getAttribute("data-running")).toBe("2");
     expect(onCount).toHaveBeenLastCalledWith(2);
   });
@@ -230,7 +261,7 @@ describe("createFlowJobs", () => {
     });
     const [summary, line] = asked.message as [HTMLElement, string];
     expect(summary.textContent).toMatch(
-      /^Run 2 · started .*Steam rises from the red cupRendering · 0:48 · quoted 70 credits$/,
+      /^Run 2 · started .*Steam rises from the red cupseedance_2_5 · 720p · 5 s · 16:9Rendering · 0:48 · quoted 70 credits$/,
     );
     expect(line).toBe(
       "Higgsfield is already making this clip. Its 70 credits are spent, and Pragma can't call the job back.",
@@ -263,13 +294,15 @@ describe("createFlowJobs", () => {
 
   it("says image where the job made an image, in its rows, its dialog and its notices", async () => {
     const answer = [
-      live("a", { kind: "image", provider: "Higgsfield" }),
+      live("a", { kind: "image", provider: "Higgsfield", settings: { aspectRatio: "3:2" } }),
       live("b", { kind: "image", stage: "failed", endedAt: Date.now() }),
       live("c", { kind: "image", stage: "saved", file: "art/image-c.png", endedAt: Date.now() }),
     ];
     const { element, add, confirm } = setUp(answer);
     jobs?.show("v.flow.html");
     await vi.waitFor(() => expect(element.querySelectorAll(".flow-jobs-cancel")).toHaveLength(1));
+    expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Generate Image · started /);
+    expect(texts(element, ".flow-jobs-settings")[0]).toBe("seedance_2_5 · 3:2");
     expect(texts(element, ".flow-jobs-stage")).toContain("The job ended without an image.");
     expect(element.querySelector("button.flow-jobs-row")?.getAttribute("data-tooltip")).toBe("Open the image");
     expect(add.mock.calls.map(([, , notice]) => [notice.kind, notice.label])).toEqual([
@@ -281,5 +314,52 @@ describe("createFlowJobs", () => {
     expect((confirm.mock.calls[0][0].message as unknown[])[1]).toBe(
       "Higgsfield is already making this image. Its 70 credits are spent, and Pragma can't call the job back.",
     );
+  });
+
+  it("says what each job makes under its prompt, naming the model as its picker does once the list comes", async () => {
+    const { lists, arrive } = arrivingLists();
+    const { element } = setUp(
+      [
+        live("a"),
+        live("b", { stage: "saved", file: "clips/video-b.mp4", endedAt: Date.now(), delivered: true }),
+        live("c", { stage: "cancelled", endedAt: Date.now(), settings: undefined }),
+      ],
+      lists,
+    );
+    jobs?.show("v.flow.html");
+    await vi.waitFor(() => expect(texts(element, ".flow-jobs-settings")).toHaveLength(3));
+    expect(lists.load).toHaveBeenCalledWith("video");
+    const lines = [...element.querySelectorAll(".flow-jobs-text")].map((text) =>
+      [...text.children].map((line) => line.className.split(" ")[0]),
+    );
+    expect(lines).toEqual([
+      ["flow-jobs-title", "flow-jobs-detail", "flow-jobs-settings", "flow-jobs-stage"],
+      ["flow-jobs-title", "flow-jobs-settings", "flow-jobs-stage"],
+      ["flow-jobs-title", "flow-jobs-settings", "flow-jobs-stage"],
+    ]);
+    expect(texts(element, ".flow-jobs-settings")).toEqual([
+      "seedance_2_5 · 720p · 5 s · 16:9",
+      "seedance_2_5 · 720p · 5 s · 16:9",
+      "seedance_2_5",
+    ]);
+
+    arrive({
+      models: [
+        {
+          id: "higgsfield/seedance_2_5",
+          label: "Seedance 2.5 (Higgsfield)",
+          provider: "higgsfield",
+          model: "Seedance 2.5",
+        },
+      ],
+      providers: [{ id: "higgsfield", label: "Higgsfield" }],
+      defaultModel: null,
+      failures: [],
+    });
+    expect(texts(element, ".flow-jobs-settings")).toEqual([
+      "Seedance 2.5 · 720p · 5 s · 16:9",
+      "Seedance 2.5 · 720p · 5 s · 16:9",
+      "Seedance 2.5",
+    ]);
   });
 });

@@ -18,6 +18,7 @@ import { createOutcomeLine } from "../lib/outcomeLine.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { DocumentAccess } from "../services/documentAccess.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
+import type { ModelLists } from "../services/modelLists.ts";
 import type { Tabs } from "../services/tabs.ts";
 import type { StartedToolkitRun } from "./toolkitRunner.ts";
 
@@ -43,6 +44,7 @@ export interface ToolkitPanelDeps {
   // Asks before Cancel gives up a run's job whose credits are spent.
   confirm: DialogService["confirm"];
   contextMenu: Pick<ContextMenuService, "open" | "isOpen" | "close">;
+  modelLists: Pick<ModelLists, "get" | "load" | "subscribe">;
 }
 
 export interface ToolkitPanel {
@@ -63,6 +65,7 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
   const runs = createToolkitRuns({
     confirm: (options) => deps.confirm(options),
     openPath: (path) => void deps.tabs().openSpacePath(path),
+    modelLists: deps.modelLists,
     onCount: (count) => {
       if (count > 0) elements.buttons.setAttribute("data-running", String(count));
       else elements.buttons.removeAttribute("data-running");

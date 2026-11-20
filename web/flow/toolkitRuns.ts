@@ -10,6 +10,7 @@ import type { JobView } from "../../src/protocol/api.ts";
 import { cancelJob } from "../core/apiClient.ts";
 import { versionWhen } from "../lib/dateText.ts";
 import type { DialogService } from "../services/dialog.ts";
+import type { ModelLists } from "../services/modelLists.ts";
 import type { JobStarting } from "./browserEnvironment.ts";
 import {
   cancelButton,
@@ -33,6 +34,8 @@ export interface ToolkitRunsDeps {
   openPath(path: string): void;
   // How many rows Running lists for the shown document.
   onCount(count: number): void;
+  // Where a row names a job's model from, redrawn as a list arrives.
+  modelLists: Pick<ModelLists, "get" | "load" | "subscribe">;
   feed?: JobsFeed;
   cancelJob?: typeof cancelJob;
 }
@@ -95,7 +98,7 @@ export function createToolkitRuns(deps: ToolkitRunsDeps): ToolkitRuns {
   function parts(entry: Entry): LiveParts {
     const job = liveJob(entry);
     const title = `${entry.label} · started ${versionWhen(entry.startedAt)}`;
-    return job ? jobParts(job, title) : { title, stage: "Running", problem: false };
+    return job ? jobParts(job, deps.modelLists, title) : { title, stage: "Running", problem: false };
   }
 
   // A run with a job started or starting has spent its credits.
@@ -125,7 +128,7 @@ export function createToolkitRuns(deps: ToolkitRunsDeps): ToolkitRuns {
       sections.push(
         section(
           "Finished",
-          done.map((job) => endedRow(job, deps.openPath)),
+          done.map((job) => endedRow(job, deps.openPath, deps.modelLists)),
         ),
       );
     element.replaceChildren(...sections);
@@ -178,6 +181,9 @@ export function createToolkitRuns(deps: ToolkitRunsDeps): ToolkitRuns {
     }
   }
 
+  // Subscribed last: it draws at once, and a draw reads the state above.
+  const unsubscribe = deps.modelLists.subscribe(() => render());
+
   return {
     element,
     add(run) {
@@ -210,6 +216,7 @@ export function createToolkitRuns(deps: ToolkitRunsDeps): ToolkitRuns {
       render();
     },
     dispose() {
+      unsubscribe();
       for (const unfollow of follows.values()) unfollow();
       follows.clear();
     },

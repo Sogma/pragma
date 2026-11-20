@@ -167,6 +167,7 @@ button.flow-jobs-row:hover {
 
 .flow-jobs-title,
 .flow-jobs-detail,
+.flow-jobs-settings,
 .flow-jobs-stage {
   overflow: hidden;
   font-size: var(--small-font-size);
@@ -178,7 +179,7 @@ button.flow-jobs-row:hover {
    whole line, the part its ellipsis cuts too, as the Info tab's cut values
    do (flowJobs.ts holds the list's redraws meanwhile). A saved row is a
    button, where a press opens its file. */
-.flow-jobs-row:not(button) :is(.flow-jobs-title, .flow-jobs-detail, .flow-jobs-stage) {
+.flow-jobs-row:not(button) :is(.flow-jobs-title, .flow-jobs-detail, .flow-jobs-settings, .flow-jobs-stage) {
   user-select: all;
 }
 
@@ -187,6 +188,7 @@ button.flow-jobs-row:hover {
 }
 
 .flow-jobs-detail,
+.flow-jobs-settings,
 .flow-jobs-stage {
   color: var(--text-muted);
 }

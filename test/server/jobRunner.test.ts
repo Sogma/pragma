@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { MockVideoModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
+import type { VideoJob, VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
 import { checkPause, createJobRunner, type JobRunner } from "../../src/server/jobRunner.ts";
 import type { JobRecord, JobStore } from "../../src/server/jobs.ts";
 import type { ResolvedVideoModel } from "../../src/server/mediaModels.ts";
@@ -248,6 +248,34 @@ describe("createJobRunner", () => {
     });
     expect(records.get("elsewhere")).toMatchObject({ stage: "failed" });
     expect(readdirSync(path.join(space, "clips"))).toEqual([]);
+  });
+});
+
+describe("createJobRunner starting", () => {
+  it("records the settings sent as a job starts, then what the provider says it makes, when it says", async () => {
+    let answer: (begun: VideoJob) => void = () => {};
+    const sent = { aspectRatio: "16:9", resolution: "4K", duration: 7 };
+    const { id: _id, stage: _stage, startedAt: _startedAt, ...fields } = job("unused", { settings: sent });
+    const started = runner.begin(fields, () => new Promise((resolve) => (answer = resolve)));
+    await vi.waitFor(() => expect(records.size).toBe(1));
+    const [id] = records.keys();
+    expect(records.get(id)?.settings).toEqual(sent);
+    const took = { aspectRatio: "16:9", resolution: "1080p", duration: 8 };
+    answer({ operation: { job: "x" }, warnings: [], notes: [], settings: took });
+    expect((await started).job.settings).toEqual(took);
+    expect(records.get(id)?.settings).toEqual(took);
+
+    const {
+      id: _id2,
+      stage: _stage2,
+      startedAt: _startedAt2,
+      ...other
+    } = job("unused", {
+      digest: "c".repeat(64),
+      settings: { duration: 5 },
+    });
+    const quiet = await runner.begin(other, async () => ({ operation: { job: "y" }, warnings: [], notes: [] }));
+    expect(quiet.job.settings).toEqual({ duration: 5 });
   });
 });
 

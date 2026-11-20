@@ -245,6 +245,7 @@ describe("higgsfieldVideoModel", () => {
       warnings: ["duration: asked for 7, used 8 (nearest allowed value in [4, 8, 12])"],
       notes: [],
       quote: { amount: 2.4, unit: "credits" },
+      settings: { aspectRatio: "1:1", resolution: "1080p", duration: 8 },
     });
     expect(standIn.uploads).toEqual([
       { contentType: "image/png", bytes: START.length },
@@ -364,6 +365,7 @@ describe("higgsfieldVideoModel", () => {
       resolution: "1280x720",
     });
     expect(snapped.warnings).toEqual(["resolution: asked for 720p, used 768 (closest supported resolution)"]);
+    expect(snapped.settings).toEqual({ resolution: "768p" });
     const same = await startVideoJob(videoModel("minimax_hailuo"), {
       prompt: "the cup turns",
       resolution: "1920x1080",
@@ -378,6 +380,17 @@ describe("higgsfieldVideoModel", () => {
     const job = await startVideoJob(videoModel("kling3_0"), { prompt: "the cup turns", resolution: "1920x1080" });
     expect(job.warnings).toEqual(["resolution: kling3_0 takes none, so it was left out"]);
     expect(standIn.generateCalls[0]).not.toHaveProperty("resolution");
+    expect(job.settings).toEqual({});
+  });
+
+  it("says a job makes the settings the server filled in, as it used them", async () => {
+    standIn.adjustments = {
+      "params.resolution": { requested: "(unset)", used: "720p", reason: "default for model" },
+      "params.duration": { requested: "(unset)", used: 5, reason: "default for model" },
+      "params.mode": { requested: "t2v", used: "omni_reference", reason: "reference media was provided" },
+    };
+    const job = await startVideoJob(videoModel("seedance_2_5"), { prompt: "the cup turns", aspectRatio: "16:9" });
+    expect(job.settings).toEqual({ aspectRatio: "16:9", resolution: "720p", duration: 5 });
   });
 
   // A model may refuse a whole job over a seed, after its quote passed.
@@ -432,6 +445,7 @@ describe("higgsfieldImageJobs", () => {
       warnings: ["aspect_ratio: asked for 16:10, used 3:2 (closest match by log-ratio distance)"],
       notes: ["quality: used 2k (default for model)"],
       quote: { amount: 0.12, unit: "credits" },
+      settings: { aspectRatio: "3:2" },
     });
     expect(standIn.costCalls).toEqual([{ ...standIn.generateCalls[0], get_cost: true }]);
     expect(standIn.generateCalls[0]).toMatchObject({ model: "soul_2", prompt: "a red cup", aspect_ratio: "16:10" });

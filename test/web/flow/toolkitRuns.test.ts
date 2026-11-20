@@ -4,6 +4,7 @@ import type { JobView } from "../../../src/protocol/api.ts";
 import { createJobsFeed } from "../../../web/flow/jobsFeed.ts";
 import { createToolkitRuns, type ToolkitRuns } from "../../../web/flow/toolkitRuns.ts";
 import type { ConfirmOptions } from "../../../web/services/dialog.ts";
+import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // A note's toolkit runs under its buttons: each with the paid job it waits
 // on, Cancel, the job under Finished once it ends, and a stopped run's job
@@ -19,6 +20,7 @@ const job = (id: string, fields: Partial<JobView> = {}): JobView => ({
   folder: "renders",
   startedAt: Date.now() - 20_000,
   quote: { amount: 70, unit: "credits" },
+  settings: { resolution: "1080p", duration: 8 },
   ...fields,
 });
 
@@ -46,6 +48,7 @@ function setUp(answer: JobView[]) {
     onCount,
     feed: createJobsFeed({ fetchJobs, markJobsShown }),
     cancelJob,
+    modelLists: emptyModelLists(),
   });
   const stop = vi.fn();
   const add = (label: string, document = "shots.md") =>
@@ -66,6 +69,7 @@ describe("createToolkitRuns", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Another take · started /);
     expect(texts(element, ".flow-jobs-detail")).toEqual(["Shot 4, take 2"]);
+    expect(texts(element, ".flow-jobs-settings")).toEqual(["seedance_2_5 · 1080p · 8 s"]);
     expect(texts(element, ".flow-jobs-stage")).toEqual(["Rendering · 0:20 · quoted 70 credits"]);
     // A job of the same Flow no run here started is another list's to show.
     expect(markJobsShown.mock.calls.flatMap(([ids]) => ids)).not.toContain("canvas");

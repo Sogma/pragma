@@ -26,7 +26,7 @@ import type {
   VideoReferencePayload,
 } from "./api.ts";
 import { appletNodeConfig } from "./appletNode.ts";
-import { formatAspectRatio } from "./aspectRatio.ts";
+import { formatAspectRatio, isAspectRatio } from "./aspectRatio.ts";
 import { type ClockReading, dateFill, fillDates, fillPlaceholders } from "./datePlaceholders.ts";
 import { fileStemFor } from "./entryName.ts";
 import {
@@ -325,9 +325,6 @@ function writeCapability(path: string, wired: boolean): FlowCapabilityDeclaratio
   return { type: "writeDocument", path, ...(wired ? { wired: true as const } : {}) };
 }
 
-// Whole or decimal terms: Load Image writes 1.85:1 the way film does.
-const ASPECT_RATIO = /^\d+(\.\d+)?:\d+(\.\d+)?$/;
-
 // The images wired into a Generate node's reference pins, in pin order, each
 // with its pin. The host spells the prompt's mentions of them for the model.
 function wiredReferences(inputs: Record<string, PortValue>): ReferenceImagePayload[] {
@@ -366,7 +363,7 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
   const prompt = inputs.prompt?.type === "text" ? inputs.prompt.value : "";
   if (!prompt.trim()) throw new Error("Generate Image has no prompt connected");
   const aspectRatio = resolveTextInput(inputs, node, "aspect_ratio", context).trim();
-  if (aspectRatio && !ASPECT_RATIO.test(aspectRatio)) {
+  if (aspectRatio && !isAspectRatio(aspectRatio)) {
     throw new Error(`Aspect ratio "${aspectRatio}" isn't width:height, such as 16:9`);
   }
   const references = wiredReferences(inputs);
@@ -422,7 +419,7 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
   const prompt = inputs.prompt?.type === "text" ? inputs.prompt.value : "";
   if (!prompt.trim()) throw new Error("Generate Video has no prompt connected");
   const aspectRatio = resolveTextInput(inputs, node, "aspect_ratio", context).trim();
-  if (aspectRatio && !ASPECT_RATIO.test(aspectRatio)) {
+  if (aspectRatio && !isAspectRatio(aspectRatio)) {
     throw new Error(`Aspect ratio "${aspectRatio}" isn't width:height, such as 16:9`);
   }
   const resolution = resolveTextInput(inputs, node, "resolution", context).trim();

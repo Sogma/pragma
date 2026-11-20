@@ -5,6 +5,7 @@ import {
   type ModelList,
   type ModelMenu,
   modelMenuItems,
+  modelNameOf,
   renderModelPicker,
   toggleModelMenu,
 } from "../../../web/lib/modelPicker.ts";
@@ -113,6 +114,25 @@ describe("modelMenuItems", () => {
       "LM Studio",
       "qwen/q",
     ]);
+  });
+});
+
+describe("modelNameOf", () => {
+  it("names a model by its list's name, else by its ref past the provider, before the list comes too", () => {
+    const listed: ModelList = {
+      ...list,
+      models: [
+        {
+          id: "higgsfield/seedance_2_5",
+          label: "Seedance 2.5 (Higgsfield)",
+          provider: "higgsfield",
+          model: "Seedance 2.5",
+        },
+      ],
+    };
+    expect(modelNameOf("higgsfield/seedance_2_5", listed)).toBe("Seedance 2.5");
+    expect(modelNameOf("higgsfield/kling3_0", listed)).toBe("kling3_0");
+    expect(modelNameOf("lmstudio/qwen/q", undefined)).toBe("qwen/q");
   });
 });
 

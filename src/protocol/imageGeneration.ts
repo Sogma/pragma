@@ -142,8 +142,9 @@ export type ImageCheck =
 /**
  * An image model whose provider makes each image as a job, started once and
  * then checked, as a clip is, so a host can record the job and wait on it
- * from a later request. A model of a provider that answers at once has
- * none. A start's warnings, notes and quote are as a video job's.
+ * from a later request. A model of a provider that answers at once has none.
+ *
+ * A start's warnings, notes, quote and settings are as a video job's.
  */
 export interface ProviderImageJobs {
   start(request: Omit<ImageRequest, "signal">): Promise<ImageJob>;

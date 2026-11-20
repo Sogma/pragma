@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatAspectRatio, nearestAspectRatio, sameAspectRatio } from "../../src/protocol/aspectRatio.ts";
+import {
+  formatAspectRatio,
+  isAspectRatio,
+  nearestAspectRatio,
+  sameAspectRatio,
+} from "../../src/protocol/aspectRatio.ts";
 
 describe("formatAspectRatio", () => {
   it("names a familiar ratio, either way up", () => {
@@ -45,6 +50,17 @@ describe("nearestAspectRatio", () => {
   it("keeps a listed ratio, however it's written", () => {
     expect(nearestAspectRatio("3:2", gptImage)).toBe("3:2");
     expect(nearestAspectRatio("1.5:1", gptImage)).toBe("3:2");
+  });
+});
+
+describe("isAspectRatio", () => {
+  it("takes whole or decimal terms, and nothing else", () => {
+    expect(isAspectRatio("16:9")).toBe(true);
+    expect(isAspectRatio("1.85:1")).toBe(true);
+    expect(isAspectRatio("16/9")).toBe(false);
+    expect(isAspectRatio("omitted")).toBe(false);
+    expect(isAspectRatio(" 16:9")).toBe(false);
+    expect(isAspectRatio("")).toBe(false);
   });
 });
 

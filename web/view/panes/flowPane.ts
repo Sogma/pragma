@@ -187,6 +187,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     notices,
     openPath,
     dialog: deps.dialog,
+    modelLists: deps.modelLists,
     onCount: (count) => {
       onRunCount(count);
       flowView.setRunCount(count);
