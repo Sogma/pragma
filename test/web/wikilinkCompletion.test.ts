@@ -5,6 +5,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileResponse } from "../../web/core/apiClient.ts";
+import { setPresets } from "../../web/core/presets.ts";
 import { wikilinkCompletion, wikilinkSource } from "../../web/wikilinkCompletion.ts";
 import { wikilinkSyntax } from "../../web/wikilinkSyntax.ts";
 import { polyfillRangeRects } from "./support/codemirrorJsdom.ts";
@@ -134,11 +135,16 @@ describe("what it offers", () => {
     expect((await setup("[[draft^").result())?.options).toEqual([]);
   });
 
-  // The space's content never links into a template.
-  it("leaves the templates out, unless the document is one of them", async () => {
-    expect((await setup("[[meeting^").result())?.options).toEqual([]);
-    const amongThem = (await setup("[[meeting^", {}, "_templates/Agenda.md").result())?.options;
-    expect(amongThem?.map((o) => o.label)).toEqual(["Meeting"]);
+  // The space's content never links into a preset.
+  it("leaves a listed preset folder's files out, unless the document is among them", async () => {
+    setPresets({ folders: [{ kind: "templates", written: "_templates/", path: "_templates" }] });
+    try {
+      expect((await setup("[[meeting^").result())?.options).toEqual([]);
+      const amongThem = (await setup("[[meeting^", {}, "_templates/Agenda.md").result())?.options;
+      expect(amongThem?.map((o) => o.label)).toEqual(["Meeting"]);
+    } finally {
+      setPresets({ folders: [] });
+    }
   });
 
   it("matches by name past a typed `./`, `../` or `/`", async () => {

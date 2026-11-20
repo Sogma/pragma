@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RootPathsResponse, SpaceTreeNode } from "../../../web/core/apiClient.ts";
+import type { RootPathsResponse, SpacePresetsResponse, SpaceTreeNode } from "../../../web/core/apiClient.ts";
 
 // spaceTree is a module-level singleton (matches main.ts's single tree per
 // space) — each test gets a fresh module instance via vi.resetModules() so
@@ -55,8 +55,10 @@ function serve(
   tree: SpaceTreeNode[],
   paths: RootPathsResponse = listingOf(tree),
   libraries: Record<string, SpaceTreeNode[]> = {},
+  presets: SpacePresetsResponse = { folders: [] },
 ) {
   return vi.fn(async (url: string) => {
+    if (String(url) === "/api/space/presets") return Response.json(presets);
     if (String(url) === "/api/space/libraries") {
       return Response.json({
         libraries: Object.keys(libraries).map((id) => ({
@@ -95,17 +97,21 @@ describe("getTree / refresh", () => {
     const result = await spaceTree.refresh();
     expect(result).toEqual(SAMPLE_TREE);
     expect(spaceTree.getTree()).toEqual(SAMPLE_TREE);
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/space/tree", "/api/space/paths"]);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/space/tree",
+      "/api/space/paths",
+      "/api/space/presets",
+    ]);
   });
 });
 
-// A picker offers the space's content, which never holds a template.
+// A picker offers the space's content, which never holds a preset.
 describe("offeredFiles", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("leaves the templates out of what a picker offers", async () => {
+  it("leaves a listed preset folder's files out of what a picker offers", async () => {
     const spaceTree = await freshSpaceTree();
     const tree: SpaceTreeNode[] = [
       {
@@ -117,7 +123,10 @@ describe("offeredFiles", () => {
       { name: "Run.flow.html", path: "Run.flow.html", type: "file" },
       { name: "root.md", path: "root.md", type: "file" },
     ];
-    vi.stubGlobal("fetch", serve(tree));
+    const presets: SpacePresetsResponse = {
+      folders: [{ kind: "templates", written: "_templates/", path: "_templates" }],
+    };
+    vi.stubGlobal("fetch", serve(tree, listingOf(tree), {}, presets));
     await spaceTree.refresh();
     expect(spaceTree.offeredFiles()).toEqual(["Run.flow.html", "root.md"]);
   });

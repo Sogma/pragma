@@ -23,7 +23,7 @@ export interface ShowOptions {
   // EDGE_GROUPS keys.
   edges: readonly string[];
   missing: boolean;
-  templates: boolean;
+  presets: boolean;
   libraries: boolean;
 }
 
@@ -57,7 +57,7 @@ export function localGraph(graph: SpaceGraphResponse, options: ShowOptions, focu
     (node, at) =>
       at === centre ||
       ((options.missing || node.kind !== "missing") &&
-        (options.templates || !node.template) &&
+        (options.presets || !node.preset) &&
         (options.libraries || !node.library)),
   );
   const folder = graph.nodes[centre].kind === "folder";

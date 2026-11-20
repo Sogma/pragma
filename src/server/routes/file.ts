@@ -55,6 +55,7 @@ import { grantedCapabilities, grantPath, unattendedStanding } from "../grants.ts
 import { noteKnown } from "../history.ts";
 import { readFlowAppModes, readTableLayouts } from "../layout.ts";
 import { readPixelFormat, UnreadablePixelFormat, withHeaderReader } from "../pixelFormat.ts";
+import { presetPaths } from "../presets.ts";
 import { parseByteRange } from "../rangeRequest.ts";
 import { resolveToolkits } from "../resolveToolkits.ts";
 import { formatWithinRoot, isSpaceTarget, PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
@@ -403,7 +404,11 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       const resolved = resolveRootedPath(spaceRoot, relativePath, "read");
       const space: IndexRoot = { dir: spaceRoot, root: "space" };
       const roots = isSpaceTarget(resolved) ? [space] : [{ dir: resolved.rootDir, root: resolved.rooted.root }, space];
-      const backlinks = await documentIndex().backlinks(formatRootedPath(resolved.rooted), roots);
+      const backlinks = await documentIndex().backlinks(
+        formatRootedPath(resolved.rooted),
+        roots,
+        presetPaths(spaceRoot),
+      );
       return c.json<BacklinksResponse>({ backlinks });
     } catch (error) {
       if (error instanceof PathAccessError) return c.text(error.message, error.status);

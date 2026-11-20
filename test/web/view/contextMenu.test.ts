@@ -902,3 +902,89 @@ describe("contextMenu", () => {
     });
   });
 });
+
+// A flyout led by a search box, as Looks and New ▸ Template draw it.
+describe("a flyout's search box", () => {
+  function searchSetup() {
+    const commands = createCommands();
+    const keybindings = createKeybindings(commands, { mac: false });
+    keybindings.attach(document, () => context);
+    const menus = createMenus(commands);
+    const picked: string[] = [];
+    const shown: (string | null)[] = [];
+    const row = (label: string) => ({
+      label,
+      run: () => void picked.push(label),
+      preview: { show: () => void shown.push(label), end: () => void shown.push(null) },
+    });
+    const contextMenu = createContextMenu({ commands, menus, keybindings, context: () => context });
+    contextMenu.open({
+      at: { x: 0, y: 0 },
+      items: [
+        { label: "Open", run: () => undefined },
+        {
+          label: "Looks",
+          submenu: [row("Warm"), row("Cool")],
+          search: {
+            placeholder: "Search looks",
+            filter: (query) => ["Warm", "Cool", "Warmer"].filter((name) => name.toLowerCase().includes(query)).map(row),
+          },
+        },
+      ],
+    });
+    const flyout = document.querySelector<HTMLElement>(".context-submenu.has-search");
+    const input = flyout?.querySelector<HTMLInputElement>(":scope > .context-menu-search");
+    if (!flyout || !input) throw new Error("no search flyout");
+    const matches = () =>
+      [...flyout.querySelectorAll<HTMLElement>(".context-menu-results > button")].map((button) => button.textContent);
+    return { flyout, input, matches, picked, shown, contextMenu };
+  }
+
+  it("swaps the rows for the matches as typed, previews the first, and Enter picks it", () => {
+    const { input, matches, picked, shown } = searchSetup();
+    expect(input.placeholder).toBe("Search looks");
+    input.value = "warm";
+    input.dispatchEvent(new Event("input"));
+    expect(matches()).toEqual(["Warm", "Warmer"]);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(shown.at(-1)).toBe("Warmer");
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(picked).toEqual(["Warmer"]);
+    expect(menu()).toBeNull();
+    expect(shown.at(-1)).toBeNull();
+  });
+
+  it("clears a query at Escape before it closes the menu", () => {
+    const { input, matches } = searchSetup();
+    input.value = "cool";
+    input.dispatchEvent(new Event("input"));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(input.value).toBe("");
+    expect(matches()).toEqual([]);
+    expect(menu()).not.toBeNull();
+  });
+
+  it("takes a key typed while the flyout shows, wherever focus was", () => {
+    const { flyout, input, matches } = searchSetup();
+    flyout.style.display = "flex";
+    const editor = document.createElement("div");
+    editor.contentEditable = "true";
+    document.body.append(editor);
+    editor.focus();
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true, cancelable: true }));
+    expect(input.value).toBe("c");
+    expect(matches()).toEqual(["Cool"]);
+  });
+
+  it("previews a row while it is pointed at, and ends it as the pointer moves on or leaves", () => {
+    const { flyout, shown } = searchSetup();
+    const [warm] = flyout.querySelectorAll<HTMLElement>(".context-menu-items > button");
+    warm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(shown).toEqual(["Warm"]);
+    menu()
+      ?.querySelector<HTMLElement>("button")
+      ?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(shown).toEqual(["Warm", null]);
+  });
+});

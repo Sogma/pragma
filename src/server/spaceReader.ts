@@ -24,6 +24,7 @@ import {
   sectionText,
 } from "./markdownSections.ts";
 import { cut, filesNamedBy, fromRoot } from "./pathContext.ts";
+import { presetPaths } from "./presets.ts";
 import { namedEntryPath, PathAccessError } from "./rootedFiles.ts";
 import { readInScope, scopeTree, searchScope } from "./scopedReads.ts";
 import { isPrivateFile, isSpaceListedFile, listRootPaths, spaceListing } from "./tree.ts";
@@ -397,7 +398,8 @@ export function createSpaceReader(options: SpaceReaderOptions): SpaceReader {
     const { listing, paths } = await indexed();
     const linksTo = source ? await visible(filesNamedBy(listing, paths, found, source)) : [];
     const space = { dir: spaceRoot, root: "space" as const };
-    const backlinks = await documentIndex().backlinks(formatRootedPath({ root: "space", path: found }), [space]);
+    const target = formatRootedPath({ root: "space", path: found });
+    const backlinks = await documentIndex().backlinks(target, [space], presetPaths(spaceRoot));
     const linkedFrom = await visible(backlinks.map((link) => parseRootedPath(link.path).path));
     return { path: found, linksTo, linkedFrom };
   }

@@ -10,7 +10,7 @@ Copyright © 2026 SGM DevNet LLC and contributors. This document and the Flow no
 |---|---|
 | [Scope and foundations](#scope-and-foundations) | Document identity, portable tools, host state, and model independence |
 | [Shared document rules](#shared-document-rules) | Safe writes, names, frontmatter, titles, descriptions, tags, and folder order |
-| [Addressing and context](#addressing-and-context) | Spaces and libraries, links, scopes, project context, and templates |
+| [Addressing and context](#addressing-and-context) | Spaces and libraries, links, scopes, project context, presets, and templates |
 | [Document formats](#document-formats) | HTML storage, Text, Tables, Classes, Applets, and Flows |
 | [Execution and authority](#execution-and-authority) | Grants, capability digests, wired access, execution, toolkits, and document writes |
 | [Reference implementation](#reference-implementation) | Configuration choices and the source map for Pragma's own host |
@@ -50,7 +50,7 @@ A tool can be written by anyone, including a model, so its file's presence grant
 Open tabs, folder folds, grants, and library locations are host state and stay outside the space. Sync carries only space files. Content conventions are:
 
 - In each directory: `_structure.json` for manual order and `_properties.json` for [folder order](#folder-order).
-- At the space root: `_tags.json` for [declared tags](#declared-tags), `_libraries.json` for [libraries](#addresses-and-libraries), and `_templates/` for [templates](#templates).
+- At the space root: `_tags.json` for [declared tags](#declared-tags), `_libraries.json` for [libraries](#addresses-and-libraries), and `_presets.json` for [presets](#presets).
 - In each site folder: `_site.json` and `_queue.json` (see [Publishing](publishing.md)).
 
 A leading underscore marks a name Pragma gives meaning, visible where a dot would hide it. This is a convention, not a reserved namespace.
@@ -99,7 +99,7 @@ A name a host writes must be portable between filesystems. The same rules govern
 
 - **Legal characters.** Reject `<`, `>`, `:`, `"`, `|`, `?`, `*`, control characters, and a leading dot. A host must not create an entry its own tree would then hide.
 - **Collisions.** Names that differ only by case or canonically equivalent Unicode are the same for collision checking on every platform. `é` as one code point and as `e` plus a combining accent therefore collide. An entry is not its own collision: a case-only or normalization-only rename is permitted.
-- **Protocol names.** For names such as `README.md`, `index.md`, `_structure.json`, and `_templates/`, use the exactly spelled entry if present; otherwise use the entry whose name folds to it. Write back under the spelling found.
+- **Protocol names.** For names such as `README.md`, `index.md`, `_structure.json`, and `_presets.json`, use the exactly spelled entry if present; otherwise use the entry whose name folds to it. Write back under the spelling found.
 - **Invalid input.** Reject an invalid name typed by a person so they can correct it. A name arriving without someone to ask, such as an OS drag or clipboard paste, may be repaired instead.
 - **Titles and names.** A host may keep a typed title verbatim as the display title and derive a legal filename; the two are independent afterward. [Template copying](#copying-a-template) defines when an unrepresentable title must be refused.
 
@@ -217,7 +217,7 @@ Property order:
 
 ## Addressing and context
 
-All document kinds share [addresses and libraries](#addresses-and-libraries) and [link resolution](#links). [Scopes](#scopes) govern link writing and settings; [project context](#project-context) and [context of a path](#context-of-a-path) determine surrounding material. [Templates](#templates) and [date placeholders](#date-placeholders) govern creation and text substitution.
+All document kinds share [addresses and libraries](#addresses-and-libraries) and [link resolution](#links). [Scopes](#scopes) govern link writing and settings; [project context](#project-context) and [context of a path](#context-of-a-path) determine surrounding material. [Presets](#presets) say where templates and LUTs come from; [templates](#templates) and [date placeholders](#date-placeholders) govern creation and text substitution.
 
 ### Addresses and libraries
 
@@ -279,7 +279,7 @@ A host writes a path relative from the document when the two have the same close
 
 #### References when entries move
 
-A reference survives the move of either entry it joins. A host that moves an entry rewrites, in the same operation, every path the move would break, written as a new link would be from the document's place: a Markdown document's links and embeds, a Table's `media` and `path` values and drop folders, a Class's links and drop folders, the folders its Folder rules name, written from its scope as Folder writes one, and the folders an `AGENTS.md`'s settings name; a path between two entries with the same closest parent scope is relative, so moving that scope rewrites none of them. A path in a Flow or an Applet is left as written. With no path read as a name, a move has no collision to report.
+A reference survives the move of either entry it joins. A host that moves an entry rewrites, in the same operation, every path the move would break, written as a new link would be from the document's place: a Markdown document's links and embeds, a Table's `media` and `path` values and drop folders, a Class's links and drop folders, the folders its Folder rules name, written from its scope as Folder writes one, the folders an `AGENTS.md`'s settings name, and the folders `_presets.json` lists; a path between two entries with the same closest parent scope is relative, so moving that scope rewrites none of them. A path in a Flow or an Applet is left as written. With no path read as a name, a move has no collision to report.
 
 #### World names
 
@@ -313,20 +313,31 @@ The model may then look further before it answers: list, search and read the fil
 
 Only files inside the scope's folder go, never the path's own file and none twice, read as saved; a library's file has no context. A private file stays out, never listed, found or read, and so does all a private note names, since what it names tells what it holds. A host may hold each file, the whole and the looking to limits, cutting or leaving out what is over them, and tells whoever started the run what went, what the model searched for, what was cut or left out, and why it stopped looking.
 
+### Presets
+
+A preset is a file a person picks where they use it: a [template](#templates) to start a new file from, a [LUT](#luts) to see media through. A space lists the folders its presets come from in `_presets.json` at its root, one list per kind: `templates` and `luts`. Each entry is a folder written from the space's root, or a library's address, `lib:<id>/` naming its top, with the `/` that marks a folder: `{ "luts": ["presets/luts/", "lib:film/"] }`.
+
+- **The file's order is the order a host offers them in.** An entry naming no folder, such as the space itself or an entry under a dot, lists nothing and stays in the file; a writer keeps what it doesn't read.
+- **A folder is listed once.** One inside a folder its kind already lists is that one's, and a folder belongs to one kind.
+- **Nothing in a listed folder is the space's content.** A search, a link's offers, the tags in use, a Class's rows, backlinks and the graph leave it out, except where they work among presets already: a search narrowed to the folder, a Class whose Folder rule names one. Preset folders stay in path resolution, rewrites and agent listings.
+- **A listed folder follows a move**, its entry rewritten in the same operation, and a deleted one leaves the list. One a host can't find, or in a library it hasn't located, lists nothing there, and the host says so where it offers presets.
+- **A host may offer presets of its own** beside the space's; neither hides the other.
+
 ### Templates
 
-A space keeps its templates in `_templates/` at its root: each is a file or a folder a host copies to start a new one, under the name its writer types. No other folder holds templates, wherever it sits, and a library's `_templates/` is an ordinary folder.
+A space's templates are what the folders its [presets](#presets) list for `templates` hold: each is a file or a folder a host copies to start a new one, under the name its writer types.
 
-- **A file is a file template**, directly in `_templates/` or in a group: a file a host's tree would list, but never one of the space's own files, such as `_structure.json`.
+- **A file is a file template**, directly in a listed folder or in a group: a file a host's tree would list, but never one of the space's own files, such as `_structure.json`.
 - **A folder with a `README.md` is a folder template**, the whole folder. The first `README.md` on the way down ends the walk: every subfolder below it is part of it.
-- **A folder without one is a group**, read by the same rule; a group holding no template is left out. The root's own `README.md` describes `_templates/` and is no template.
-- **A host may offer templates of its own** beside the space's, read by the same rule; neither hides the other.
+- **A folder without one is a group**, read by the same rule; a group holding no template is left out. A listed folder's own `README.md` describes it and is no template.
+- **Pragma's own templates** are read by the same rule.
 
 #### Copying a template
 
 - **A copy's name** is the one typed for it, plus a file template's whole extension, not added twice when typed. A taken name is refused, and a folder template's entries keep their own names.
 - **`{{$title}}` takes the typed title verbatim, and the [date placeholders](#date-placeholders) the moment the copy is made.** `{{$title}}` is matched as they are, in any case and with nothing else inside the braces, and all are filled in one pass: in a Markdown file's body, inside its frontmatter's values, each one it changes written back as YAML needs, and anywhere in a Fountain file. Any other kind, and any other `{{…}}`, is copied as written.
 - **A title no file name can carry** follows the typed-title rule of [Entry names](#entry-names): where the template writes `{{$title}}`, the title goes there and the copy takes a name derived from it. With nowhere to keep it, the name is refused.
+- **A copy lands in the space**, never in a library or a preset folder, where it would stop being the space's content.
 - **A folder copy leaves out** dot entries, symbolic links, `_site.json` and `_queue.json`, so it never binds a second folder to a site. A Markdown copy landing in a site drops `id` and `pushed`, as a duplicate does (`publishing.md`).
 - **Nothing in a copy is rewritten.** A path inside a template arrives as written, and grants, kept by path, never carry over.
 
@@ -552,7 +563,7 @@ A **Class** defines a group of files, the fields they share, and the views and t
 - **A Class's rows come from its root**, the space or its library, as a host's tree lists it: no dot entry, and nothing reached through a symbolic link. Its filter keeps the rows it holds, so a Class with no filter holds every one.
 - **Its Folder rule says which folders they come from**: the first rule of its own filter on `file.folder` that tests `is` or `within`. A host may read only the folders it names, and below a pattern's first `*`, since every row it holds is among them.
 - **A row is** a Markdown note other than a folder's own `index.md`, `README.md` or `AGENTS.md`; a Fountain screenplay; an image, video or PDF; or a folder holding an `index.md`, read through that file and held by the folder above it. A Table, Class, Flow or Applet is never a row, and a file reached twice is one row.
-- **The space's [templates](#templates) are no rows** unless the Folder rule names a folder among them.
+- **[Presets](#presets) are no rows** unless the Folder rule names a folder among them.
 - **The Class's filter keeps a row when every rule holds**; a view's narrows only what that view shows. Each rule tests one of the row's values against its own: `has`, that one of the rule's values is the row's value or one of its items; `is`, that the row's value, not a list, is one of them; `within`, on `file.folder` alone, that the row's folder is one of them or below one; `contains`, that one of them is inside the value's text or an item's, ignoring case; `empty` and `not-empty`, where absent, blank and an empty list are empty. A test a reader doesn't know holds, so a newer one hides nothing.
 
 #### Class values
@@ -624,10 +635,10 @@ A host that makes a note from a Class puts it in the first folder its Folder rul
 
 #### What a Class links
 
-Only the space's own Classes link anything, never one in a library or in `_templates/`. What a link gives each of its rows follows from what it names, and a link naming nothing gives nothing:
+Only the space's own Classes link anything, never one in a library or a preset folder. What a link gives each of its rows follows from what it names, and a link naming nothing gives nothing:
 
 - **A Flow in the space**: its buttons in the row's toolkit (see [Toolkit resolution](#toolkit-resolution)).
-- **A Markdown file template** in `_templates/`: what a [new note](#new-notes) made from the Class starts from.
+- **A Markdown file template** in a folder the space lists for templates: what a [new note](#new-notes) made from the Class starts from.
 - **Any other file**, in the space or a library: a place among the row's links, under the Class.
 
 ### Applets
@@ -841,6 +852,8 @@ A LUT is a 3D color lookup table in the Cube format. Keyword lines come first: `
 
 A host shows a color through a LUT by blending the eight points around it, and a color outside the input range takes the nearest edge's. A file with a 1D table, alone or before its cube, is still a LUT; a host that can't apply one says so. A LUT is never read or edited as text.
 
+The LUTs a host offers as looks are those the folders its [presets](#presets) list for `luts` hold. A look keeps its LUT by the file's rooted path; while the file is not in a listed folder the look shows nothing, and where a listed folder should hold it, the host says it is missing.
+
 ## Execution and authority
 
 Flows combine host-provided node behavior with human-granted authority. The contract defines what a run may do, how its grants are stored and invalidated, how nodes execute, and how a toolkit action binds a run to a document. The graph format is specified under [Flows](#flows), and individual node behavior under [Flow nodes](flow-nodes.md).
@@ -990,6 +1003,7 @@ The source map below is the only part of this document that names implementation
 | Sandbox broker, server half (a kind's identity, declarations, reads and writes) | `src/server/sandbox.ts` |
 | Declared tags, and how two tags compare | `src/protocol/tags.ts`, `src/server/spaceTags.ts` |
 | Declared libraries | `src/protocol/libraries.ts`, `src/server/libraries.ts` |
+| Presets: the folders listed, what they hold, and moves | `src/protocol/presets.ts`, `src/server/presets.ts` |
 | Tags written in a note, and the tags a host keeps | `src/protocol/inlineTags.ts`, `src/server/documentIndex.ts` |
 | Toolkit resolution | `src/server/resolveToolkits.ts` |
 | Project context, space reads, private-document refusal | `src/server/spaceFiles.ts`, `src/server/tree.ts` |

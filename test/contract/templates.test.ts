@@ -38,43 +38,43 @@ describe("API contract — templates", () => {
   }
 
   it("makes a file from a file template, named as typed, its {{$title}} filled", async () => {
-    await place("_templates/Screenplay/Scene.fountain", "Title: {{$title}}\n\nINT. ROOM - DAY\n");
+    await place("presets/templates/Screenplay/Scene.fountain", "Title: {{$title}}\n\nINT. ROOM - DAY\n");
     await mkdir(path.join(testServer.spaceRoot, "scenes-a"), { recursive: true });
 
-    const res = await create("_templates/Screenplay/Scene.fountain", "scenes-a", "Opening");
+    const res = await create("presets/templates/Screenplay/Scene.fountain", "scenes-a", "Opening");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ path: "scenes-a/Opening.fountain", type: "file" });
     expect(await read("scenes-a/Opening.fountain")).toBe("Title: Opening\n\nINT. ROOM - DAY\n");
-    expect(await read("_templates/Screenplay/Scene.fountain")).toContain("{{$title}}");
+    expect(await read("presets/templates/Screenplay/Scene.fountain")).toContain("{{$title}}");
   });
 
   it("leaves a Markdown template's byte order mark out of the copy, and its spacing as written", async () => {
-    await place("_templates/Marked.md", "\uFEFF---\nstatus: draft\n---\n# {{$title}}\n");
+    await place("presets/templates/Marked.md", "\uFEFF---\nstatus: draft\n---\n# {{$title}}\n");
     await mkdir(path.join(testServer.spaceRoot, "notes-bom"), { recursive: true });
 
-    const res = await create("_templates/Marked.md", "notes-bom", "Opening");
+    const res = await create("presets/templates/Marked.md", "notes-bom", "Opening");
     expect(res.status).toBe(200);
     expect(await read("notes-bom/Opening.md")).toBe("---\nstatus: draft\n---\n# Opening\n");
   });
 
   it("keeps a title no file can carry where {{$title}} is, and names the file from it", async () => {
-    await place("_templates/Note.md", "# {{$title}}\n");
+    await place("presets/templates/Note.md", "# {{$title}}\n");
     await mkdir(path.join(testServer.spaceRoot, "notes-a"), { recursive: true });
 
-    const res = await create("_templates/Note.md", "notes-a", "Part 1: Intro");
+    const res = await create("presets/templates/Note.md", "notes-a", "Part 1: Intro");
     expect(await res.json()).toEqual({ path: "notes-a/Part 1 - Intro.md", type: "file" });
     expect(await read("notes-a/Part 1 - Intro.md")).toBe("# Part 1: Intro\n");
   });
 
   it("refuses that name when the template has nowhere to keep it, and a taken name", async () => {
-    await place("_templates/Shots.table.html", "<table></table>\n");
+    await place("presets/templates/Shots.table.html", "<table></table>\n");
     await place("notes-b/Taken.table.html", "<table></table>\n");
 
-    const illegal = await create("_templates/Shots.table.html", "notes-b", "Part 1: Intro");
+    const illegal = await create("presets/templates/Shots.table.html", "notes-b", "Part 1: Intro");
     expect(illegal.status).toBe(400);
     expect(await illegal.text()).toMatch(/can't contain/);
 
-    const taken = await create("_templates/Shots.table.html", "notes-b", "taken");
+    const taken = await create("presets/templates/Shots.table.html", "notes-b", "taken");
     expect(taken.status).toBe(409);
     expect(await taken.text()).toBe("Already exists");
   });
@@ -84,38 +84,38 @@ describe("API contract — templates", () => {
   it("copies a Class reading this.file.folder, which then lists the copy's own notes", async () => {
     const own = { property: "file.folder", test: "is", values: ["this.file.folder"] };
     await place(
-      "_templates/Shoot/shots.class.html",
+      "presets/templates/Shoot/shots.class.html",
       serializeClassFile({ version: "1.0", filter: [own], fields: [], views: [], links: [] }),
     );
-    await place("_templates/Shoot/README.md", "# {{$title}}\n");
-    await place("_templates/Shoot/Wide.md", "# Wide\n");
+    await place("presets/templates/Shoot/README.md", "# {{$title}}\n");
+    await place("presets/templates/Shoot/Wide.md", "# Wide\n");
     await mkdir(path.join(testServer.spaceRoot, "shoots"), { recursive: true });
     const rows = async (target: string) => {
       const res = await fetch(`${testServer.baseUrl}/api/space/class?path=${encodeURIComponent(target)}`);
       return ((await res.json()) as { rows: { path: string }[] }).rows.map((row) => row.path);
     };
 
-    expect((await create("_templates/Shoot", "shoots", "Day 1")).status).toBe(200);
+    expect((await create("presets/templates/Shoot", "shoots", "Day 1")).status).toBe(200);
     expect(await rows("shoots/Day 1/shots.class.html")).toEqual(["shoots/Day 1/Wide.md"]);
-    expect(await rows("_templates/Shoot/shots.class.html")).toEqual(["_templates/Shoot/Wide.md"]);
+    expect(await rows("presets/templates/Shoot/shots.class.html")).toEqual(["presets/templates/Shoot/Wide.md"]);
   });
 
   it("copies a folder template whole, without its site binding, dot entries or links", async () => {
-    await place("_templates/Project/README.md", "---\ntitle: {{$title}}\nstatus: active\n---\n\n# {{$title}}\n");
-    await place("_templates/Project/scenes/_structure.json", '{"order":["_scene.fountain"]}\n');
-    await place("_templates/Project/scenes/_properties.json", '{"sort":{"by":"name","order":"desc"}}\n');
-    await place("_templates/Project/scenes/_scene.fountain", "INT. {{$title}} - DAY\n");
-    await place("_templates/Project/_site.json", '{"id":"ste_x","slug":"x","name":"X"}\n');
-    await place("_templates/Project/_queue.json", "[]\n");
-    await place("_templates/Project/.notes", "private\n");
-    await place("_templates/Project/logo.png", "not really a png");
-    await mkdir(path.join(testServer.spaceRoot, "_templates/Project/research"), { recursive: true });
+    await place("presets/templates/Project/README.md", "---\ntitle: {{$title}}\nstatus: active\n---\n\n# {{$title}}\n");
+    await place("presets/templates/Project/scenes/_structure.json", '{"order":["_scene.fountain"]}\n');
+    await place("presets/templates/Project/scenes/_properties.json", '{"sort":{"by":"name","order":"desc"}}\n');
+    await place("presets/templates/Project/scenes/_scene.fountain", "INT. {{$title}} - DAY\n");
+    await place("presets/templates/Project/_site.json", '{"id":"ste_x","slug":"x","name":"X"}\n');
+    await place("presets/templates/Project/_queue.json", "[]\n");
+    await place("presets/templates/Project/.notes", "private\n");
+    await place("presets/templates/Project/logo.png", "not really a png");
+    await mkdir(path.join(testServer.spaceRoot, "presets/templates/Project/research"), { recursive: true });
     await symlink(
       path.join(testServer.spaceRoot, "README.md"),
-      path.join(testServer.spaceRoot, "_templates/Project/linked.md"),
+      path.join(testServer.spaceRoot, "presets/templates/Project/linked.md"),
     );
 
-    const res = await create("_templates/Project", "", "Forbidden");
+    const res = await create("presets/templates/Project", "", "Forbidden");
     expect(await res.json()).toEqual({ path: "Forbidden", type: "directory" });
 
     const readme = await read("Forbidden/README.md");
@@ -135,36 +135,47 @@ describe("API contract — templates", () => {
 
   // Keeping `id` would make the copy's first publish update the original's page.
   it("drops id and pushed from a copy landing in a site, and keeps them outside one", async () => {
-    await place("_templates/Post.md", "---\nid: doc_original\npushed: 2026-09-03T00:00:00.000Z\n---\n\n# {{$title}}\n");
+    await place(
+      "presets/templates/Post.md",
+      "---\nid: doc_original\npushed: 2026-09-03T00:00:00.000Z\n---\n\n# {{$title}}\n",
+    );
     await place("site-a/_site.json", JSON.stringify({ id: "ste_a", slug: "a", name: "A" }));
     await mkdir(path.join(testServer.spaceRoot, "plain-a"), { recursive: true });
 
-    await create("_templates/Post.md", "site-a", "Launch");
+    await create("presets/templates/Post.md", "site-a", "Launch");
     expect(parseFrontmatter(await read("site-a/Launch.md")).data).toEqual({});
-    await create("_templates/Post.md", "plain-a", "Launch");
+    await create("presets/templates/Post.md", "plain-a", "Launch");
     expect(parseFrontmatter(await read("plain-a/Launch.md")).data).toMatchObject({ id: "doc_original" });
   });
 
   it("refuses what isn't a template, a group, and a destination among the templates", async () => {
-    await place("_templates/Group/Daily.md", "# {{$title}}\n");
-    await place("_templates/README.md", "These are the space's templates.\n");
+    await place("presets/templates/Group/Daily.md", "# {{$title}}\n");
+    await place("presets/templates/README.md", "These are the space's templates.\n");
     await place("loose/Daily.md", "# {{$title}}\n");
 
     expect((await create("loose/Daily.md", "", "Monday")).status).toBe(400);
-    const group = await create("_templates/Group", "", "Monday");
+    const group = await create("presets/templates/Group", "", "Monday");
     expect(group.status).toBe(404);
-    expect(await group.text()).toBe("No template at _templates/Group");
-    expect((await create("_templates/README.md", "", "Monday")).status).toBe(404);
-    expect((await create("_templates/Group/Daily.md", "_templates", "Monday")).status).toBe(400);
-    expect((await create("_templates/Group/Daily.md", "nowhere", "Monday")).status).toBe(404);
-    expect((await create("_templates/Group/Daily.md", "../outside", "Monday")).status).toBe(400);
+    expect(await group.text()).toBe("No template at presets/templates/Group");
+    expect((await create("presets/templates/README.md", "", "Monday")).status).toBe(404);
+    expect((await create("presets/templates/Group/Daily.md", "presets/templates", "Monday")).status).toBe(400);
+    expect((await create("presets/templates/Group/Daily.md", "nowhere", "Monday")).status).toBe(404);
+    expect((await create("presets/templates/Group/Daily.md", "../outside", "Monday")).status).toBe(400);
+  });
+
+  // The folders `_presets.json` lists hold the templates; nothing else does.
+  it("takes a template only from a listed folder, so an old _templates/ is an ordinary folder", async () => {
+    await place("_templates/Old.md", "# {{$title}}\n");
+    const res = await create("_templates/Old.md", "", "Old");
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Not a template");
   });
 
   it("names a template in any case, as every path does", async () => {
-    await place("_templates/Weekly.md", "# {{$title}}\n");
+    await place("presets/templates/Weekly.md", "# {{$title}}\n");
     await mkdir(path.join(testServer.spaceRoot, "weeks"), { recursive: true });
 
-    const res = await create("_Templates/WEEKLY.md", "weeks", "Week 1");
+    const res = await create("Presets/Templates/WEEKLY.md", "weeks", "Week 1");
     expect(await res.json()).toEqual({ path: "weeks/Week 1.md", type: "file" });
     expect(await read("weeks/Week 1.md")).toBe("# Week 1\n");
   });
@@ -279,16 +290,16 @@ describe("API contract — dated templates", () => {
   // A dated template has no title to ask for, so its copy starts at the day.
   it("starts a dated template's name at the writer's day, and a titled one's at nothing", async () => {
     const now = "2026-10-21T23:30:00-07:00";
-    expect(await (await startingName("_templates/Daily Note.md", now)).json()).toEqual({ name: "2026-10-21" });
-    expect(await (await startingName("_templates/Project", now)).json()).toEqual({ name: "" });
-    expect((await startingName("_templates/Daily Note.md", "2026-02-30T10:00:00+01:00")).status).toBe(400);
-    expect((await startingName("_templates/Daily Note.md", "2026-10-21")).status).toBe(400);
-    expect((await startingName("_templates/Nothing.md")).status).toBe(404);
+    expect(await (await startingName("presets/templates/Daily Note.md", now)).json()).toEqual({ name: "2026-10-21" });
+    expect(await (await startingName("presets/templates/Project", now)).json()).toEqual({ name: "" });
+    expect((await startingName("presets/templates/Daily Note.md", "2026-02-30T10:00:00+01:00")).status).toBe(400);
+    expect((await startingName("presets/templates/Daily Note.md", "2026-10-21")).status).toBe(400);
+    expect((await startingName("presets/templates/Nothing.md")).status).toBe(404);
   });
 
   it("fills the dates with the writer's moment, in the frontmatter as a day", async () => {
     const res = await create({
-      template: "_templates/Daily Note.md",
+      template: "presets/templates/Daily Note.md",
       parentPath: "",
       name: "2026-10-21",
       now: "2026-10-21T23:30:00-07:00",
@@ -300,12 +311,12 @@ describe("API contract — dated templates", () => {
   });
 
   it("takes the host's own day when the request names none", async () => {
-    await create({ template: "_templates/Daily Note.md", parentPath: "", name: "Undated" });
+    await create({ template: "presets/templates/Daily Note.md", parentPath: "", name: "Undated" });
     expect(parseFrontmatter(await read("Undated.md")).data).toEqual({ date: localDay(new Date()) });
   });
 
   it("makes a project from the template space's own folder template", async () => {
-    await create({ template: "_templates/Project", parentPath: "projects", name: "Atlas" });
+    await create({ template: "presets/templates/Project", parentPath: "projects", name: "Atlas" });
     expect(await read("projects/Atlas/README.md")).toContain("\n# Atlas\n");
     const agents = await read("projects/Atlas/AGENTS.md");
     expect(parseFrontmatter(agents).data).toMatchObject({ pragma: null });
@@ -333,7 +344,7 @@ describe("API contract — templates left out", () => {
   }
 
   it("leaves templates out of a search, unless it is narrowed to them", async () => {
-    await place("_templates/Meeting.md", "Quokka agenda\n");
+    await place("presets/templates/Meeting.md", "Quokka agenda\n");
     await place("found/notes.md", "Quokka minutes\n");
     const search = async (query: string) =>
       (
@@ -341,14 +352,14 @@ describe("API contract — templates left out", () => {
       ).files.map((file) => file.path);
 
     expect(await search("q=quokka")).toEqual(["found/notes.md"]);
-    expect(await search("q=quokka&dir=_templates")).toEqual(["_templates/Meeting.md"]);
+    expect(await search("q=quokka&dir=presets/templates")).toEqual(["presets/templates/Meeting.md"]);
   });
 
   it("leaves templates out of a Class's rows, unless its Folder rule names a folder among them", async () => {
-    await place("_templates/Shot.md", "---\ntags: [shot]\n---\n\n# {{$title}}\n");
+    await place("presets/templates/Shot.md", "---\ntags: [shot]\n---\n\n# {{$title}}\n");
     await place(
-      "_templates/shots.class.html",
-      classFile([{ property: "file.folder", test: "within", values: ["_templates"] }]),
+      "presets/templates/shots.class.html",
+      classFile([{ property: "file.folder", test: "within", values: ["presets/templates"] }]),
     );
     await place("all.class.html", classFile([]));
     const rows = async (target: string) =>
@@ -358,8 +369,8 @@ describe("API contract — templates left out", () => {
         }
       ).rows.map((row) => row.path);
 
-    expect(await rows("all.class.html")).not.toContain("_templates/Shot.md");
-    expect(await rows("_templates/shots.class.html")).toEqual(["_templates/Shot.md"]);
+    expect(await rows("all.class.html")).not.toContain("presets/templates/Shot.md");
+    expect(await rows("presets/templates/shots.class.html")).toEqual(["presets/templates/Shot.md"]);
   });
 
   function classFile(folders: { property: string; test: string; values: string[] }[]): string {

@@ -137,3 +137,16 @@
   --entry-glyph: var(--icon-library);
   background-color: var(--row-ink, var(--view-library));
 }
+
+/* A source a list names beside libraries, the space itself, in its view's
+   colour as a library is in its. */
+[data-entry-icon="space"] {
+  --entry-glyph: var(--icon-space);
+  background-color: var(--row-ink, var(--view-space));
+}
+
+/* What Pragma itself brings, beside the space's and its libraries'. */
+[data-entry-icon="pragma"] {
+  background: var(--icon-mark-pragma) center / contain no-repeat;
+  mask: none;
+}

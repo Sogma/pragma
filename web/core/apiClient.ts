@@ -140,6 +140,8 @@ import type {
   SpaceLabelRequestBody,
   SpaceLibrariesResponse,
   SpaceListResponse,
+  SpacePresetChangeRequestBody,
+  SpacePresetsResponse,
   SpaceSearchResponse,
   SpaceSiteEntry,
   SpaceTagChangeRequestBody,
@@ -282,6 +284,7 @@ export type {
   SiteSettingsResponse,
   SpaceLibrariesResponse,
   SpaceListResponse,
+  SpacePresetsResponse,
   SpaceRef,
   SpaceSearchFile,
   SpaceSearchHit,
@@ -843,8 +846,9 @@ export function postUploadFile(
   });
 }
 
-/** A copy of the template at `template`, the space's or with `source`
- * "pragma" one of Pragma's own, in `parentPath` under the name typed for it;
+/** A copy of the template at `template`, in a folder the space lists for
+ * templates or with `source` "pragma" one of Pragma's own, in `parentPath`
+ * under the name typed for it;
  * the reply says what it ended up called. The moment its dates take is this
  * browser's, since the host may keep another time zone. */
 export async function postCreateFromTemplate(
@@ -1075,6 +1079,18 @@ export async function postSpaceBookmarkChange(change: SpaceBookmarkChangeRequest
     method: "POST",
     body: change satisfies SpaceBookmarkChangeRequestBody,
     fallback: "Changing the bookmarks failed",
+  });
+}
+
+export async function fetchSpacePresets(): Promise<SpacePresetsResponse> {
+  return request<SpacePresetsResponse>("/api/space/presets", { fallback: "Failed to load the presets" });
+}
+
+export async function postSpacePresetChange(change: SpacePresetChangeRequestBody): Promise<SpacePresetsResponse> {
+  return request<SpacePresetsResponse>("/api/space/presets", {
+    method: "POST",
+    body: change satisfies SpacePresetChangeRequestBody,
+    fallback: "Changing the presets failed",
   });
 }
 

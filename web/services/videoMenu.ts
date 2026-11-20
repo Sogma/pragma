@@ -18,9 +18,11 @@ import {
   SOCIAL_FRAMES,
   toggleFrame,
 } from "../lib/videoGuides.ts";
-import { LOOKS, type LutChoice, type LutName } from "../lib/videoLut.ts";
+import { LOOKS, type LutChoice, lookLabel } from "../lib/videoLut.ts";
+import { looks } from "./looks.ts";
 import type { ContextMenuService, MenuItem, MenuTile } from "./menus.ts";
-import { videoGuides, videoLut } from "./settings.ts";
+import { type PresetRow, presetMenuItems, presetSearch, presetSources } from "./presetMenu.ts";
+import { videoGuides } from "./settings.ts";
 
 // Each frame's glyph: its shape cut from a wider box. 1.77 is 16:9.
 const FRAME_GLYPHS: Record<GuideFrame, string> = {
@@ -94,22 +96,43 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
   };
 }
 
-/** The Looks row under Guides, in their section: a flyout of the LUTs a
- * viewer with a LOOK badge shows its picture through. Picking the one on
- * turns it off and keeps it, for the badge to turn back on. A vector image
- * has no pixels to grade, so its menu leaves the row out, as does a viewer
- * with no badge. */
-export function lutsMenuItem(lut: LutChoice = videoLut): MenuItem {
-  const isOn = (name: LutName) => lut.get().on && lut.get().lut === name;
+// Pragma's own looks, after the space's and its libraries'.
+const PRAGMA_LOOKS: PresetRow[] = LOOKS.map(({ lut, label }) => ({
+  path: lut,
+  label,
+  icon: { glyph: "lut" },
+  pragma: true,
+}));
+
+/** The Looks row under Guides: a flyout of the LUTs a viewer with a LOOK
+ * badge shows its picture through, searched by name. Pointing at one tries
+ * it on the picture; picking the one on turns it off and keeps it, for the
+ * badge to turn back on. A vector image has no pixels to grade, so its menu
+ * leaves the row out, as does a viewer with no badge. */
+export function lutsMenuItem(lut: LutChoice & { tryLook(lut: string | null): void } = looks): MenuItem {
+  const kept = () => lut.kept?.() ?? lut.get();
+  const isOn = (name: string) => kept().on && kept().lut === name;
+  const leaf = (row: PresetRow): MenuItem => ({
+    label: row.label,
+    checked: () => isOn(row.path),
+    run: () => lut.set({ lut: row.path, on: !isOn(row.path) }),
+    preview: { show: () => lut.tryLook(row.path), end: () => lut.tryLook(null) },
+    ...(row.pragma ? {} : { tooltip: row.path }),
+  });
+  const sources = () => presetSources("luts", PRAGMA_LOOKS);
+  // A kept look whose file is gone heads the list, saying so.
+  const missing = (): MenuItem[] => {
+    const name = kept().lut;
+    if (!lut.missing?.() || name === null) return [];
+    const row = { label: lookLabel(name), icon: true, entryIcon: { glyph: "lut" as const }, detail: "Missing" };
+    return [{ ...row, group: "missing", className: "is-missing" }];
+  };
   return {
     label: "Looks",
     group: "guides",
     when: (_, arg) => showsLooks(arg),
-    submenu: LOOKS.map(({ lut: name, label }) => ({
-      label,
-      checked: () => isOn(name),
-      run: () => lut.set({ lut: name, on: !isOn(name) }),
-    })),
+    search: () => presetSearch(sources(), "Search looks", leaf),
+    submenu: () => [...missing(), ...presetMenuItems(sources(), leaf)],
   };
 }
 

@@ -34,16 +34,10 @@ import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice
 import { createPage, fitPage, loadPage, PAGE_PREVIEW_SCALE, releasePage } from "./notePreview.ts";
 import type { DialogService } from "./services/dialog.ts";
 import type { FormatRegistry } from "./services/formats.ts";
+import { looks } from "./services/looks.ts";
 import { focusMediaField, mediaFieldPath, mediaStrip } from "./services/mediaField.ts";
 import type { ContextMenuService } from "./services/menus.ts";
-import {
-  readableLineLength,
-  type Setting,
-  videoGuides,
-  videoLoop,
-  videoLut,
-  videoVolume,
-} from "./services/settings.ts";
+import { readableLineLength, type Setting, videoGuides, videoLoop, videoVolume } from "./services/settings.ts";
 import { MEDIA_MENU, moreOptionsMenu } from "./services/videoMenu.ts";
 
 export type PreviewKind = "image" | "svg" | "video" | PageKind;
@@ -101,7 +95,7 @@ export function servedPreviewSources(): PreviewSources {
     videoLoop,
     videoVolume,
     videoGuides,
-    videoLut,
+    videoLut: looks,
   };
 }
 

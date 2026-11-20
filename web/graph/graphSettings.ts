@@ -9,13 +9,13 @@ import type { Forces } from "./graphSim.worker.ts";
 export const SHOW_DEFAULTS: ShowOptions = {
   edges: EDGE_GROUPS.filter((group) => group.key !== "contains").map((group) => group.key),
   missing: true,
-  templates: false,
+  presets: false,
   libraries: true,
 };
 
-export const SHOW_SWITCHES: { label: string; key: "missing" | "templates" | "libraries" }[] = [
+export const SHOW_SWITCHES: { label: string; key: "missing" | "presets" | "libraries" }[] = [
   { label: "Missing files", key: "missing" },
-  { label: "Templates", key: "templates" },
+  { label: "Presets", key: "presets" },
   { label: "Library files", key: "libraries" },
 ];
 
@@ -45,9 +45,9 @@ export function readShowOptions(): ShowOptions {
   const edges = Array.isArray(parsed.edges)
     ? parsed.edges.filter((item): item is string => typeof item === "string")
     : [...SHOW_DEFAULTS.edges];
-  const flag = (key: "missing" | "templates" | "libraries") =>
+  const flag = (key: "missing" | "presets" | "libraries") =>
     typeof parsed[key] === "boolean" ? (parsed[key] as boolean) : SHOW_DEFAULTS[key];
-  return { edges, missing: flag("missing"), templates: flag("templates"), libraries: flag("libraries") };
+  return { edges, missing: flag("missing"), presets: flag("presets"), libraries: flag("libraries") };
 }
 
 export function writeShowOptions(options: ShowOptions): void {

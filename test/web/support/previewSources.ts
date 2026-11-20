@@ -1,8 +1,7 @@
 import { vi } from "vitest";
 import type { PreviewSources } from "../../../web/filePreview.ts";
 import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
-import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
-import { memorySetting } from "./editorLayout.ts";
+import { memoryLook, memorySetting } from "./editorLayout.ts";
 
 // What a pane's file preview reads, with no server behind it: a file's raw
 // URL by its path, readable line length on, Loop off, the volume full, no
@@ -29,6 +28,6 @@ export function testPreviewSources(): PreviewSources {
     videoLoop: memorySetting(false),
     videoVolume: memorySetting({ level: 1, muted: false }),
     videoGuides: memorySetting(NO_GUIDES),
-    videoLut: memorySetting<Look>(NO_LOOK),
+    videoLut: memoryLook(),
   };
 }

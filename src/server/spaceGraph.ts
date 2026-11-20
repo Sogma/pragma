@@ -36,7 +36,6 @@ import {
 import { isAgentsFile, sameScope, scopeOf } from "../protocol/scopes.ts";
 import { parseTableFile } from "../protocol/tableFile.ts";
 import { type TagDefinition, tagDefinition, tagKey } from "../protocol/tags.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import {
   holdsPath,
   isAppletFile,
@@ -51,6 +50,7 @@ import {
 import { classRows } from "./classRows.ts";
 import { documentIndex } from "./documentIndex.ts";
 import { readLibraries } from "./libraries.ts";
+import { presetPaths } from "./presets.ts";
 import { readSpaceTags } from "./spaceTags.ts";
 import { isTreeVisibleFile, listRootPaths } from "./tree.ts";
 
@@ -92,6 +92,7 @@ export async function buildSpaceGraph(spaceRoot: string): Promise<SpaceGraphResp
   const scopes = { has: (folder: string) => scopeFolders.has(folder) };
   const spaceRootIndex = { dir: spaceRoot, root: "space" as const };
   await index.check(spaceRootIndex);
+  const isPreset = presetPaths(spaceRoot);
 
   const libraryListings = new Map<string, { entry: LibraryEntry; listing: Listing; paths: PathIndex }>();
   const spacePaths = createPathIndex(space);
@@ -126,8 +127,8 @@ export async function buildSpaceGraph(spaceRoot: string): Promise<SpaceGraphResp
       label: folder ? `${name}/` : splitDocumentName(name).stem,
       scope: scopeKey(rooted),
     };
+    if (isPreset(formatRootedPath(rooted))) node.preset = true;
     if (library) node.library = true;
-    else if (isTemplatePath(rooted.path)) node.template = true;
     if (!library && !folder && isAgentsFile(rooted.path) && scopeFolders.has(dirnameOf(rooted.path)))
       node.opensScope = true;
     nodes.set(id, node);

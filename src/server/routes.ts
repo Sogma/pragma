@@ -24,6 +24,7 @@ import { mountGraphRoutes } from "./routes/graph.ts";
 import { mountHistoryRoutes } from "./routes/history.ts";
 import { mountJobRoutes } from "./routes/jobs.ts";
 import { mountMcpServerRoutes } from "./routes/mcpServers.ts";
+import { mountPresetRoutes } from "./routes/presets.ts";
 import { mountProviderRoutes } from "./routes/providers.ts";
 import { mountPublishingRoutes } from "./routes/publishing.ts";
 import { mountSandboxRoutes } from "./routes/sandbox.ts";
@@ -46,6 +47,7 @@ const MOUNTS: ((app: Hono, context: RouteContext) => void)[] = [
   mountTagRoutes,
   mountGraphRoutes,
   mountBookmarkRoutes,
+  mountPresetRoutes,
   mountTemplateRoutes,
   mountTrashRoutes,
   mountFileRoutes,

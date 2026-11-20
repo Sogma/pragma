@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ClassRow } from "../../../../src/protocol/class.ts";
 import { parseClassFile } from "../../../../src/protocol/classFile.ts";
 import { metadataText } from "../../../../src/protocol/metadata.ts";
 import type { TagDefinition } from "../../../../src/protocol/tags.ts";
 import { ApiError, type ClassFileResponse, type FileResponse } from "../../../../web/core/apiClient.ts";
+import { setPresets } from "../../../../web/core/presets.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
@@ -16,6 +17,12 @@ import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
 import { testFormats } from "../../support/formats.ts";
 import { testMetadataProperties } from "../../support/metadataProperties.ts";
 import { testPreviewSources } from "../../support/previewSources.ts";
+
+// The space lists `_templates/` for templates, for this test alone.
+function listTemplates(): void {
+  setPresets({ folders: [{ kind: "templates", written: "_templates/", path: "_templates" }] });
+  onTestFinished(() => setPresets({ folders: [] }));
+}
 
 // Find measures its matches, which jsdom's Range can't.
 polyfillRangeRects();
@@ -1051,6 +1058,7 @@ describe("classPane: its links", () => {
   });
 
   it("starts New note from its template, then gives the note what keeps it in view", async () => {
+    listTemplates();
     const view = {
       name: "Approved",
       layout: "list" as const,
@@ -1073,6 +1081,7 @@ describe("classPane: its links", () => {
   });
 
   it("asks which template a new note starts from when the Class links several", async () => {
+    listTemplates();
     const { pane, deps } = await setup(classFile({ links: ["../_templates/shot.md", "../_templates/still.md"] }));
     pane.element.querySelector<HTMLButtonElement>(".data-table-add-row")?.click();
     const choice = pane.element.querySelector(".class-new-note-template") as HTMLSelectElement;

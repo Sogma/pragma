@@ -12,6 +12,7 @@ import type { KeybindingRegistry } from "../services/keybindings.ts";
 import type {
   ContextMenuService,
   MenuOpenOptions,
+  MenuPreview,
   MenuRegistry,
   MenuSlider,
   MenuTile,
@@ -58,9 +59,20 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   let rowIds = 0;
   // A row's label alone, without its trailing detail, for typing to jump.
   const rowLabels = new WeakMap<HTMLElement, string>();
+  // What a row shows while it is pointed at or reached by the keys, and the
+  // one showing now, ended before the next starts.
+  const previews = new WeakMap<HTMLElement, MenuPreview>();
+  let previewing: MenuPreview | undefined;
+  function preview(next: MenuPreview | undefined): void {
+    if (next === previewing) return;
+    previewing?.end();
+    previewing = next;
+    next?.show();
+  }
 
   function close(): void {
     if (!open) return;
+    preview(undefined);
     const { element, anchor, opener, session } = open;
     open = undefined;
     session.dispose();
@@ -161,6 +173,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         fill(row, item);
         const flyout = el("div", "context-submenu");
         if (item.tiles) renderTiles(item.tiles, flyout);
+        else if (item.search) renderSearchFlyout(item, flyout, context, picker);
         else if (item.submenu) renderItems(item.submenu, flyout, context, picker);
         row.append(flyout);
       } else if (item.command === undefined && item.run === undefined) {
@@ -190,10 +203,64 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         row = button;
       }
       if (checkable && !item.submenu && !item.tiles) row.append(el("span", "menu-item-check"));
+      if (item.preview) previews.set(row, item.preview);
       decorate(row, item);
       if (separated) row.classList.add("menu-item-separated");
       into.append(row);
     });
+  }
+
+  // A flyout led by a search box: a query swaps its rows for the matches, a
+  // flat list the keys walk, each previewed as it is reached. Escape clears
+  // a query before it closes the menu.
+  function renderSearchFlyout(
+    item: ResolvedMenuItem,
+    flyout: HTMLElement,
+    context: CommandContext,
+    picker: boolean,
+  ): void {
+    const search = item.search;
+    if (!search) return;
+    flyout.classList.add("has-search");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "context-menu-search";
+    input.placeholder = search.placeholder;
+    input.setAttribute("aria-label", search.placeholder);
+    const body = el("div", "context-menu-items");
+    const results = el("div", "context-menu-results");
+    results.hidden = true;
+    renderItems(item.submenu ?? [], body, context, picker);
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || event.isComposing || input.value === "") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.value = "";
+      input.dispatchEvent(new Event("input"));
+    });
+    const rows = () => [...(results.hidden ? body : results).querySelectorAll<HTMLElement>(":scope > button:enabled")];
+    const track = navigate(
+      input,
+      rows,
+      () => !results.hidden,
+      undefined,
+      (row) => preview(row && previews.get(row)),
+    );
+    input.addEventListener("input", () => {
+      const query = input.value.trim();
+      results.replaceChildren();
+      body.hidden = query !== "";
+      results.hidden = query === "";
+      if (query) {
+        const matches = deps.menus.resolveItems(search.filter(query), context, item.arg);
+        renderList(matches, results, context, "No matches", picker);
+        track();
+        return;
+      }
+      for (const row of body.querySelectorAll(".highlighted")) row.classList.remove("highlighted");
+      preview(undefined);
+    });
+    flyout.append(input, body, results);
   }
 
   // A tile applies at once and leaves the menu open; every tile then redraws
@@ -315,6 +382,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
     rows: () => HTMLElement[],
     filtered: () => boolean,
     slider: RenderedSlider | undefined,
+    onHighlight?: (row: HTMLElement | undefined) => void,
   ): () => void {
     // The search box types a space; a focused list picks with it, and lets
     // Tab go on past it, as a select does.
@@ -329,6 +397,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         row.id ||= `context-menu-row-${++rowIds}`;
         keys.setAttribute("aria-activedescendant", row.id);
       });
+      onHighlight?.(rows()[highlighted]);
     };
     // Typing jumps to the next row whose label starts with what was typed
     // within a second, as a select's list does; one key pressed again steps
@@ -513,7 +582,15 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       const { offsetWidth: width, offsetTop: lifted } = flyout;
       const box = flyout.getBoundingClientRect();
       flyout.style.removeProperty("display");
-      flyout.parentElement?.classList.toggle("opens-left", right + width + VIEWPORT_MARGIN > window.innerWidth);
+      const opensLeft = right + width + VIEWPORT_MARGIN > window.innerWidth;
+      flyout.parentElement?.classList.toggle("opens-left", opensLeft);
+      // A search's matches may run wider than its rows: it keeps the width
+      // it opens at, and widens only into the room on its side.
+      if (flyout.classList.contains("has-search")) {
+        const room = opensLeft ? left - VIEWPORT_MARGIN : window.innerWidth - right - VIEWPORT_MARGIN;
+        flyout.style.minWidth = `${width}px`;
+        flyout.style.maxWidth = `${Math.max(width, room)}px`;
+      }
       const overflow = Math.min(box.bottom - (window.innerHeight - VIEWPORT_MARGIN), box.top - VIEWPORT_MARGIN);
       if (overflow > 0) flyout.style.top = `${lifted - overflow}px`;
     }
@@ -576,6 +653,46 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       }, 0);
       session.add(() => window.clearTimeout(arm));
       session.add(listen(window, "resize", close));
+      // Pointing at a row previews it, and any other row, or leaving the
+      // menu, ends that. A flyout's search box gives up its focus to a row
+      // outside its flyout, which then closes as any flyout does.
+      session.add(
+        listen(element, "mouseover", (event) => {
+          const row = (event.target as Element).closest<HTMLElement>("button, .context-menu-item");
+          preview(row ? previews.get(row) : undefined);
+          const focused = document.activeElement;
+          if (!(focused instanceof HTMLElement) || !focused.matches(".context-submenu > .context-menu-search")) return;
+          const owner = focused.closest(".has-submenu");
+          if (owner && row && !owner.contains(row)) focused.blur();
+        }),
+      );
+      session.add(listen(element, "mouseleave", () => preview(undefined)));
+      // A key typed while a flyout's search box shows goes into it, ahead of
+      // whatever else listens for keys: a player's shortcuts, a note's editor.
+      // A field in the menu types its own.
+      session.add(
+        listen(
+          window,
+          "keydown",
+          (sent) => {
+            const event = sent as KeyboardEvent;
+            if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+            if (event.key.length !== 1 || event.key === " ") return;
+            if (event.target instanceof Node && element.contains(event.target)) return;
+            const shown = [...element.querySelectorAll<HTMLElement>(".context-submenu.has-search")].find(
+              (flyout) => getComputedStyle(flyout).display !== "none",
+            );
+            const input = shown?.querySelector<HTMLInputElement>(":scope > .context-menu-search");
+            if (!input) return;
+            event.preventDefault();
+            event.stopPropagation();
+            input.focus({ preventScroll: true });
+            input.value += event.key;
+            input.dispatchEvent(new Event("input"));
+          },
+          true,
+        ),
+      );
       options.anchor?.setAttribute("aria-expanded", "true");
       open = { element, anchor: options.anchor, opener, session };
     },

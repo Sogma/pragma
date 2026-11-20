@@ -15,7 +15,6 @@ import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
 import { PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
 import type { NamingSurface } from "../../../../web/lib/inlineEdit.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
-import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
 import { PAGE_PREVIEW_SCALE, pageZoom } from "../../../../web/notePreview.ts";
 import { type CommandContext, createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
@@ -38,6 +37,7 @@ import {
   visibleRange,
 } from "../../../../web/view/panes/galleryPane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
+import { memoryLook } from "../../support/editorLayout.ts";
 import { testFormats } from "../../support/formats.ts";
 
 polyfillRangeRects();
@@ -154,7 +154,7 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
     videoLoop: setting(false),
     videoVolume: setting({ level: 1, muted: false }),
     videoGuides: setting(NO_GUIDES),
-    videoLut: setting<Look>(NO_LOOK),
+    videoLut: memoryLook(),
     tileSize: setting("medium"),
     setLayout: vi.fn(async () => undefined),
     onRendered: vi.fn(),
@@ -1152,18 +1152,20 @@ describe("the gallery pane", () => {
       expect(setLocalSort).toHaveBeenLastCalledWith("lib:footage", { by: "manual" }, ["c.png", "a.png", "b.png"]);
     });
 
-    // The space's templates folder is the Templates section's, never a tile,
-    // yet a folder's order must still name it.
-    it("draws no tile for the space's templates folder, and arranges around it", async () => {
+    // A folder the space lists for presets is a folder like any other.
+    it("draws a tile for a folder holding templates, as for any folder", async () => {
       const root = [
         { ...folder("_templates"), path: "_templates" },
         { ...file("a.png"), path: "a.png" },
         { ...file("b.png"), path: "b.png" },
       ];
-      const { pane, deps } = setup(root, { listFolder: vi.fn(async () => ({ entries: root, order: MANUAL })) });
+      const { pane } = setup(root, { listFolder: vi.fn(async () => ({ entries: root, order: MANUAL })) });
       await open(pane, "");
-      expect(tiles(pane).map((tile) => tile.querySelector(".gallery-tile-name")?.textContent)).toEqual(["a", "b"]);
-      expect(deps.reportReadout).toHaveBeenLastCalledWith("2 files");
+      expect(tiles(pane).map((tile) => tile.querySelector(".gallery-tile-name")?.textContent)).toEqual([
+        "_templates",
+        "a",
+        "b",
+      ]);
       noteDragInFlight("a.png");
       tileNamed(pane, "b").dispatchEvent(new MouseEvent("dragover", { bubbles: true, cancelable: true, clientX: 1 }));
       tileNamed(pane, "b").dispatchEvent(new MouseEvent("drop", { bubbles: true, cancelable: true, clientX: 1 }));

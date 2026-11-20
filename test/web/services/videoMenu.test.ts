@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
-import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuTileSection } from "../../../web/services/menus.ts";
 import { guidesMenuItem, lutsMenuItem, MEDIA_MENU, moreOptionsMenu } from "../../../web/services/videoMenu.ts";
-import { memorySetting } from "../support/editorLayout.ts";
+import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
 const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
@@ -53,7 +52,7 @@ describe("moreOptionsMenu", () => {
 describe("lutsMenuItem", () => {
   // A look grades pixels, which a vector image has none of.
   it("offers Looks for a clip or a raster still, never for a vector image", () => {
-    const { when } = lutsMenuItem(memorySetting<Look>(NO_LOOK));
+    const { when } = lutsMenuItem(Object.assign(memoryLook(), { tryLook: vi.fn() }));
     const offered = (file: string) => when?.(context, { file, bookmark: file });
     expect([offered("takes/a.mp4"), offered("stills/a.png"), offered("art/logo.svg")]).toEqual([true, true, false]);
     expect(when?.(context, undefined)).toBe(true);
@@ -61,17 +60,17 @@ describe("lutsMenuItem", () => {
 
   // A Flow's clip shows no look, having no LOOK badge to say one is on.
   it("leaves Looks out of a viewer that shows no look", () => {
-    const { when } = lutsMenuItem(memorySetting<Look>(NO_LOOK));
+    const { when } = lutsMenuItem(Object.assign(memoryLook(), { tryLook: vi.fn() }));
     expect(when?.(context, { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false })).toBe(false);
   });
 
-  it("opens Looks onto Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player", () => {
-    const lut = memorySetting<Look>(NO_LOOK);
+  it("opens Looks onto Pragma's own Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player", () => {
+    const lut = Object.assign(memoryLook(), { tryLook: vi.fn() });
     const { label, submenu } = lutsMenuItem(lut);
     const rows = typeof submenu === "function" ? submenu(context, undefined) : (submenu ?? []);
     expect(label).toBe("Looks");
-    expect(rows.map((row) => row.label)).toEqual(["Panchromatic", "Orthochromatic"]);
-    const [panchromatic, orthochromatic] = rows;
+    expect(rows.map((row) => row.label)).toEqual(["Pragma", "Panchromatic", "Orthochromatic"]);
+    const [, panchromatic, orthochromatic] = rows;
     expect(panchromatic.checked?.(context, undefined)).toBe(false);
 
     panchromatic.run?.(context, undefined);
@@ -90,6 +89,18 @@ describe("lutsMenuItem", () => {
 
     panchromatic.run?.(context, undefined);
     expect(lut.get()).toEqual({ lut: "panchromatic", on: true });
+  });
+});
+
+describe("lutsMenuItem's preview", () => {
+  it("tries a look on the picture while it is pointed at, and ends the try after", () => {
+    const lut = Object.assign(memoryLook(), { tryLook: vi.fn() });
+    const { submenu } = lutsMenuItem(lut);
+    const rows = typeof submenu === "function" ? submenu(context, undefined) : (submenu ?? []);
+    rows[1].preview?.show();
+    expect(lut.tryLook).toHaveBeenLastCalledWith("panchromatic");
+    rows[1].preview?.end();
+    expect(lut.tryLook).toHaveBeenLastCalledWith(null);
   });
 });
 

@@ -121,16 +121,21 @@ describe("the space graph", () => {
     expect(node(graph, "log.table.html")?.kind).toBe("table");
   });
 
-  it("files every entry under its folder, and marks a template", async () => {
-    const root = await space({ "a/b/c.md": "", "_templates/scene.md": "" });
+  it("files every entry under its folder, and marks a preset", async () => {
+    const root = await space({
+      "a/b/c.md": "",
+      "kit/scene.md": "",
+      "_presets.json": JSON.stringify({ templates: ["kit/"] }),
+    });
     const graph = await buildSpaceGraph(root);
     expect(edges(graph, ["contains"])).toEqual([
-      "_templates/ -> _templates/scene.md (contains)",
       "a/ -> a/b/ (contains)",
       "a/b/ -> a/b/c.md (contains)",
+      "kit/ -> kit/scene.md (contains)",
     ]);
     expect(node(graph, "a/b/")).toMatchObject({ kind: "folder", label: "b/" });
-    expect(node(graph, "_templates/scene.md")?.template).toBe(true);
+    expect(node(graph, "kit/scene.md")?.preset).toBe(true);
+    expect(node(graph, "a/b/c.md")?.preset).toBeUndefined();
   });
 
   it("reads a library's files only once the space names the library, each in the library's one scope", async () => {

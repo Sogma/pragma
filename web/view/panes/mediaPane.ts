@@ -43,8 +43,9 @@ import { type GuidesChoice, toggleGuides } from "../../lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "../../lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "../../lib/videoPlayer.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
+import { looks } from "../../services/looks.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
-import { videoGuides, videoLoop, videoLut, videoVolume } from "../../services/settings.ts";
+import { videoGuides, videoLoop, videoVolume } from "../../services/settings.ts";
 import { moreOptionsMenu } from "../../services/videoMenu.ts";
 
 export interface MediaPaneDeps {
@@ -119,7 +120,7 @@ export function imagePane(contextMenu: ContextMenuService): EditorPaneDescriptor
     pixelFormat: getPixelFormat,
     fetchFile: fetchFileRaw,
     guides: videoGuides,
-    lut: videoLut,
+    lut: looks,
     contextMenu,
   };
   return { kind: "image", chrome: CHROME, create: () => createImagePane(deps) };
@@ -138,7 +139,7 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
     loop: videoLoop,
     volume: videoVolume,
     guides: videoGuides,
-    lut: videoLut,
+    lut: looks,
     contextMenu,
   };
   return { kind: "video", chrome: CHROME, create: () => createVideoPane(deps) };

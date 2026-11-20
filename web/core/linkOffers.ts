@@ -4,7 +4,7 @@
 // and a `path` field's chooser both offer this, so they offer the same.
 import { dirnameOf, parseRootedPath } from "../../src/protocol/rootedPath.ts";
 import { sameScope } from "../../src/protocol/scopes.ts";
-import { isTemplatePath } from "../../src/protocol/templates.ts";
+import { isPresetPath } from "./presets.ts";
 import { rankPaths } from "./quickOpenMatch.ts";
 import type { LinkScope } from "./spaceTree.ts";
 
@@ -31,8 +31,8 @@ export function linkOffers(
   // written from the root.
   const nearness = (path: string) =>
     dirnameOf(path) === docDir ? 2 : sameScope(scope.scopes, doc, parseRootedPath(path)) ? 1 : 0;
-  const amongTemplates = isTemplatePath(scope.docPath);
-  const offered = (path: string) => path !== scope.docPath && (amongTemplates || !isTemplatePath(path)) && accept(path);
+  const amongPresets = isPresetPath(scope.docPath);
+  const offered = (path: string) => path !== scope.docPath && (amongPresets || !isPresetPath(path)) && accept(path);
   const offers = new Map<string, LinkOffer>();
   for (const path of [...scope.files, ...libraryFiles]) if (offered(path)) offers.set(path, { path, folder: false });
   for (const path of scope.folders) if (offered(path)) offers.set(path, { path, folder: true });

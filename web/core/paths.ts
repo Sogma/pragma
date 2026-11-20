@@ -255,9 +255,10 @@ export function hasScope(node: SpaceTreeNode): boolean {
 
 /** The glyph an entry's icon draws (web/styles/entry-icons.css): a file
  * kind, a folder, a site root's globe, the folder a scope's World setting
- * names, a library's root, or a plain file's page, which only a surface that
- * must show something for one asks for. */
-export type EntryGlyph = FileType | "folder" | "site" | "world" | "library" | "file";
+ * names, a library's root, the space or Pragma named as a source beside
+ * libraries, or a plain file's page, which only a surface that must show
+ * something for one asks for. */
+export type EntryGlyph = FileType | "folder" | "site" | "world" | "library" | "space" | "pragma" | "file";
 
 export interface EntryIcon {
   // Absent for a plain file, which most surfaces leave bare.
@@ -295,6 +296,7 @@ const PRAGMA_FILE_LABELS: Record<PragmaFileRole, string> = {
   properties: "Pragma folder properties",
   tags: "Pragma tags",
   libraries: "Pragma libraries",
+  presets: "Pragma presets",
   site: "Pragma site",
   queue: "Pragma publishing queue",
 };

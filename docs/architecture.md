@@ -167,7 +167,7 @@ A move repaths tabs and scans documents after renaming to rewrite references: re
 
 Rewrites are host-only, unavailable to Applets and Flows. Grant-bound Flow configuration and Applet manifests stay unchanged. Frontmatter rewrites cover only folder references in `AGENTS.md` `pragma:` blocks.
 
-Templates remain in path resolution, rewrites and agent listings; discovery surfaces omit them unless working among them.
+Preset files are not space content: they stay in path resolution, rewrites and agent listings; discovery surfaces omit them unless working among them.
 
 Manual folder order is portable; gallery sorting is host layout until set as the folder default. Order switches retain the manual arrangement.
 
@@ -175,7 +175,7 @@ Manual folder order is portable; gallery sorting is host layout until set as the
 
 The header spans rail, sidebar, editor and assistant. Dialogs overlay the frame; login is separate. Registries supply views, panes and inspector tabs. The shell owns placement; contributions own content.
 
-A section in the Space tree's section stack shows what the space keeps for itself and the tree hides; a sidebar view is a way across the space or the install, so a list spanning roots is a view.
+A list that belongs with the space's files, such as its trash, tags or presets, is a section in the Space tree's section stack; a sidebar view is a separate way across the space or the install.
 
 One or two editor groups each own their tabs, pane instances, chrome and viewing modes. Focus determines command targets, inspector content, toolkits and copilot context. A command reaches the palette only by contribution and runs there with no argument, acting on the focused group's active tab. An inspector tab hears each change of the focused tab and is told when it shows and hides, so one that draws continuously stops while hidden.
 

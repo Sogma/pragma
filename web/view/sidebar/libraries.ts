@@ -47,6 +47,7 @@ import type { DialogService } from "../../services/dialog.ts";
 import { onFolderSortChanged } from "../../services/folderSorts.ts";
 import { type DroppedImportResult, describeImportProblems, importDroppedFiles } from "../../services/mediaImport.ts";
 import type { ContextMenuService, MenuRegistry } from "../../services/menus.ts";
+import { presetFolderItems } from "../../services/presetMenu.ts";
 import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import { spaceChanges } from "../../services/spaceChanges.ts";
@@ -973,6 +974,11 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     { command: "library.rename" },
     { command: "library.locate" },
     { command: "library.properties" },
+    ...presetFolderItems(
+      (arg) =>
+        isLibraryRow(arg) && !arg.missing ? formatRootedPath({ root: { library: arg.id }, path: "" }) : undefined,
+      (message) => window.alert(message),
+    ),
     { command: "library.remove", group: "destructive", danger: true },
   ]);
 
@@ -1065,6 +1071,13 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     { command: "gallery.openFolderToSide", group: "open" },
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
+    ...presetFolderItems(
+      (arg) =>
+        isLibraryTreeTarget(arg) && arg.node?.type === "directory"
+          ? formatRootedPath({ root: { library: arg.libraryId }, path: arg.node.path })
+          : undefined,
+      (message) => window.alert(message),
+    ),
     { command: "libraryTree.newNote", group: "create" },
     { command: "libraryTree.newFolder", group: "create" },
     { command: "libraryTree.rename", group: "rename" },
@@ -1158,6 +1171,10 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
 // The library whose top folder a menu's `{ folder }` names, as the status
 // bar's path names a library file's. Only the top: a reveal opens the
 // library's row, never a folder inside it.
+function isLibraryRow(arg: unknown): arg is Extract<ListItemTarget, { kind: "library" }> {
+  return typeof arg === "object" && arg !== null && (arg as { kind?: unknown }).kind === "library";
+}
+
 function libraryTopOf(arg: unknown): string | undefined {
   if (typeof arg !== "object" || arg === null || !("folder" in arg) || typeof arg.folder !== "string") return undefined;
   try {

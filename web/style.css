@@ -34,6 +34,7 @@
 @import "./styles/section-stack.css" layer(components);
 @import "./styles/history.css" layer(components);
 @import "./styles/tags-section.css" layer(components);
+@import "./styles/presets-section.css" layer(components);
 @import "./styles/bookmarks.css" layer(components);
 @import "./styles/editor-tabs.css" layer(components);
 @import "./styles/editor.css" layer(components);

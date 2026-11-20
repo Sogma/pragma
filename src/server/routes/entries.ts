@@ -31,6 +31,7 @@ import { bookmarksAfterDelete, bookmarksAfterMove } from "../../protocol/bookmar
 import { illegalEntryNameReason, isHiddenName, sanitizeEntryName } from "../../protocol/entryName.ts";
 import { parseSortChoice, toSortValue } from "../../protocol/folderSort.ts";
 import { isPrivate, parseFrontmatter, withoutPublishState } from "../../protocol/frontmatter.ts";
+import { presetsAfterDelete, presetsAfterMove } from "../../protocol/presets.ts";
 import { deleteSogmaDocument } from "../../protocol/publisher.ts";
 import { sameRoot } from "../../protocol/rootedPath.ts";
 import { isMarkdownFile, rawFileTypeForPath } from "../../protocol/types.ts";
@@ -45,6 +46,7 @@ import {
   movedByPath,
   movedLocalSorts,
 } from "../localSorts.ts";
+import { keepSpacePresets } from "../presets.ts";
 import { requirePublisher } from "../publishers.ts";
 import {
   formatWithinRoot,
@@ -352,6 +354,10 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
       await keepSpaceBookmarks(spaceRoot, (file) =>
         bookmarksAfterMove(file, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
       );
+      // So does a listed preset folder, the one or the folder holding it.
+      await keepSpacePresets(spaceRoot, (file) =>
+        presetsAfterMove(file, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
+      );
 
       // Everything below is the space's own bookkeeping, and a library has
       // none of it: no binder manifest to keep in order, no site to
@@ -475,6 +481,7 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
       await keepTableLayouts((layouts) => forgottenByPath(layouts, formatWithinRoot(target, targetPath)));
       await keepFlowAppModes((modes) => forgottenByPath(modes, formatWithinRoot(target, targetPath)));
       await keepSpaceBookmarks(spaceRoot, (file) => bookmarksAfterDelete(file, formatWithinRoot(target, targetPath)));
+      await keepSpacePresets(spaceRoot, (file) => presetsAfterDelete(file, formatWithinRoot(target, targetPath)));
 
       // A page never published is queued by its path, which now names
       // nothing. Best-effort, like the capture above.

@@ -18,9 +18,9 @@ import { FLOW_NODE_REGISTRY } from "../protocol/flowNodes.ts";
 import { readSearchQuery } from "../protocol/searchQuery.ts";
 import { readTableFile } from "../protocol/tableFile.ts";
 import { isTagOrNested } from "../protocol/tags.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import { isClassFile, isFlowFile, isTableFile, type MetadataEntry } from "../protocol/types.ts";
 import { documentIndex, type IndexedTag } from "./documentIndex.ts";
+import { presetPaths } from "./presets.ts";
 import { searchableFiles } from "./tree.ts";
 
 // A value shown on one row: a multi-line prompt reads as one line.
@@ -145,15 +145,16 @@ export async function searchSpaceContent(
   const tagged = wanted.length > 0 ? await carrying(spaceRoot, wanted) : undefined;
 
   const prefix = options.dir ? `${options.dir}/` : "";
-  // A template is found only by a search narrowed to the templates: the
-  // rest of the space is its content, which never holds one.
-  const amongTemplates = options.dir !== undefined && isTemplatePath(options.dir);
+  // A preset is found only by a search narrowed to its folder: the rest of
+  // the space is its content, which never holds one.
+  const isPreset = presetPaths(spaceRoot);
+  const amongPresets = options.dir !== undefined && isPreset(options.dir);
   const files: SpaceSearchFile[] = [];
   let count = 0;
 
   for (const relativePath of await searchableFiles(spaceRoot)) {
     if (!relativePath.startsWith(prefix)) continue;
-    if (!amongTemplates && isTemplatePath(relativePath)) continue;
+    if (!amongPresets && isPreset(relativePath)) continue;
     const tags = tagged?.get(relativePath);
     if (tagged && !tags) continue;
     const hits = tags && !needle ? tagHits(tags, wanted) : await textHits(path.join(spaceRoot, relativePath), needle);

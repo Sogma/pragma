@@ -14,6 +14,7 @@ import type { AffixMode, FrameKind } from "./flowNodes.ts";
 import type { SortChoice, SortValue } from "./folderSort.ts";
 import type { FolderLayout } from "./localSort.ts";
 import type { PragmaFileRole } from "./pragmaFiles.ts";
+import type { LutEntry, PresetChange, PresetKind } from "./presets.ts";
 import type { SetupNeed } from "./setupNeed.ts";
 import type { TagChange, TagDefinition } from "./tags.ts";
 import type { TemplateEntry } from "./templates.ts";
@@ -523,6 +524,32 @@ export interface SpaceBookmarksResponse {
   problem?: string;
 }
 
+// ---- /api/space/presets: the folders the space's `_presets.json` lists
+
+// One listed folder, as this host finds it. `path` is the folder rooted and
+// spelled as found, `library` the library holding one outside the space.
+// `missing` says why it holds nothing here: its folder is gone, or its
+// library isn't located on this computer. A templates folder answers its
+// templates, a LUTs folder its LUTs, each path rooted.
+export interface PresetFolderView {
+  kind: PresetKind;
+  written: string;
+  path: string;
+  library?: { id: string; label: string };
+  missing?: "folder" | "library";
+  templates?: TemplateEntry[];
+  luts?: LutEntry[];
+}
+
+// Every listed folder, kind by kind, each kind's in file order. GET answers
+// it; POST takes one PresetChange and answers it as it then stands.
+// `problem` says why a file that exists can't be read: it then lists none,
+// and a change is refused until the file is fixed.
+export interface SpacePresetsResponse {
+  folders: PresetFolderView[];
+  problem?: string;
+}
+
 // ---- /api/space/tags: the declared tags
 
 // The tags `_tags.json` declares, in its order. `problem` says why a file
@@ -583,14 +610,15 @@ export interface GraphScope {
 // `id` is the entry's rooted path, a folder's ending in `/`; a tag's is `#`
 // and its folded name, a missing target's `?` and the path as read. `scope`
 // is a GraphScope's id, null for a tag. `opensScope` marks the AGENTS.md
-// opening its scope; `color` is a tag's, from `_tags.json`.
+// opening its scope, `preset` an entry in a listed preset folder; `color` is
+// a tag's, from `_tags.json`.
 export interface GraphNode {
   id: string;
   kind: GraphNodeKind;
   label: string;
   scope: string | null;
   opensScope?: true;
-  template?: true;
+  preset?: true;
   library?: true;
   color?: string;
 }
@@ -1541,8 +1569,9 @@ export interface CreateEntryRequestBody {
 
 // POST /api/space/create-from-template: a copy of the template at
 // `template`, made in `parentPath` under the name typed for it. The path is
-// under the space's `_templates/`, or with `source` "pragma" one GET
-// /api/templates lists. The reply is CreateEntryResponse.
+// rooted, in a folder the space's `_presets.json` lists for templates, or
+// with `source` "pragma" one GET /api/templates lists. The reply is
+// CreateEntryResponse.
 //
 // `now`, the writer's local time with its offset, as
 // `2026-11-09T14:30:05+01:00`, is the moment its dates take; without it,
@@ -1714,6 +1743,9 @@ export type SpaceTagChangeRequestBody = TagChange;
 
 // POST /api/space/bookmarks: one bookmark's change.
 export type SpaceBookmarkChangeRequestBody = BookmarkChange;
+
+// POST /api/space/presets: one listed folder's change, its folder rooted.
+export type SpacePresetChangeRequestBody = PresetChange;
 
 // /api/file (PUT), /api/prompt/save
 

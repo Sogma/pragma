@@ -44,12 +44,16 @@ const row = (name: string, properties: Record<string, unknown>, kind: ClassRow["
 });
 
 describe("classLinkUse", () => {
+  // Whatever folders the space lists for templates; here two.
+  const isTemplate = (path: string) => path.startsWith("presets/templates/") || path.startsWith("lib:refs/songs/");
+
   it("gives a Flow's buttons, starts New note from a Markdown template, and lists anything else", () => {
-    expect(classLinkUse("tools/lyrics.flow.html")).toBe("toolkit");
-    expect(classLinkUse("_templates/song.md")).toBe("template");
-    expect(classLinkUse("_templates/Screenplay.fountain")).toBe("reference");
-    expect(classLinkUse("songs/voice.md")).toBe("reference");
-    expect(classLinkUse("lib:refs/_templates/song.md")).toBe("reference");
+    expect(classLinkUse("tools/lyrics.flow.html", isTemplate)).toBe("toolkit");
+    expect(classLinkUse("presets/templates/song.md", isTemplate)).toBe("template");
+    expect(classLinkUse("lib:refs/songs/chorus.md", isTemplate)).toBe("template");
+    expect(classLinkUse("presets/templates/Screenplay.fountain", isTemplate)).toBe("reference");
+    expect(classLinkUse("songs/voice.md", isTemplate)).toBe("reference");
+    expect(classLinkUse("_templates/song.md", isTemplate)).toBe("reference");
   });
 });
 

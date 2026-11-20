@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { formatFileSize } from "../../../web/lib/dom.ts";
 import { fitHud, hudRoot, lookBadge, thumbnailHud } from "../../../web/lib/mediaHud.ts";
-import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
-import { memorySetting } from "../support/editorLayout.ts";
+import { NO_LOOK } from "../../../web/lib/videoLut.ts";
+import { memoryLook } from "../support/editorLayout.ts";
 
 const bars = (box: HTMLElement) =>
   [...box.querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
@@ -95,7 +95,7 @@ describe("fitHud", () => {
 
 describe("a clip's LOOK badge", () => {
   it("stays empty until a look is picked, then reads LOOK, pressed while on, naming the look", () => {
-    const look = memorySetting<Look>(NO_LOOK);
+    const look = memoryLook(NO_LOOK);
     const { element } = lookBadge(look);
     expect([element.type, element.className, element.tabIndex]).toEqual(["button", "media-hud-badge", -1]);
     expect(element.textContent).toBe("");
@@ -112,7 +112,7 @@ describe("a clip's LOOK badge", () => {
   });
 
   it("turns the look off and back on at each click, a press leaving focus where it was, until disposed", () => {
-    const look = memorySetting<Look>({ lut: "panchromatic", on: true });
+    const look = memoryLook({ lut: "panchromatic", on: true });
     const badge = lookBadge(look);
     const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     badge.element.dispatchEvent(press);

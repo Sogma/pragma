@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Lut } from "../../../src/protocol/lutFile.ts";
 import {
+  builtInCube,
   createLutLayer,
   type GrayMix,
   grayLut,
+  isBuiltInLook,
   LOOKS,
   type Look,
-  type LutName,
+  type LutChoice,
   lookLabel,
   NO_LOOK,
   ORTHOCHROMATIC_MIX,
@@ -16,8 +19,15 @@ import {
 } from "../../../web/lib/videoLut.ts";
 import { memorySetting } from "../support/editorLayout.ts";
 
-const on = (lut: LutName): Look => ({ lut, on: true });
-const off = (lut: LutName): Look => ({ lut, on: false });
+const on = (lut: string): Look => ({ lut, on: true });
+const off = (lut: string): Look => ({ lut, on: false });
+
+// A choice holding Pragma's LUTs, and any LUT file `files` holds by its path.
+function lookChoice(initial: Look, files: Record<string, Lut> = {}): LutChoice {
+  return Object.assign(memorySetting<Look>(initial), {
+    cube: (lut: string) => (isBuiltInLook(lut) ? builtInCube(lut) : files[lut]),
+  });
+}
 
 describe("readLook", () => {
   it("reads each look back, on or off, and anything else as none", () => {
@@ -28,11 +38,19 @@ describe("readLook", () => {
       expect(readLook(stored)).toEqual(NO_LOOK);
     }
   });
+
+  it("reads a LUT file's look by its rooted path, and nothing that names no LUT file", () => {
+    expect(readLook(JSON.stringify(on("presets/luts/warm.cube")))).toEqual(on("presets/luts/warm.cube"));
+    expect(readLook(JSON.stringify(off("lib:film/Print/2383.CUBE")))).toEqual(off("lib:film/Print/2383.CUBE"));
+    for (const lut of ["presets/luts/warm.png", "../warm.cube", "foo:warm.cube", "lib:film"]) {
+      expect(readLook(JSON.stringify(on(lut))), lut).toEqual(NO_LOOK);
+    }
+  });
 });
 
 describe("toggleLook", () => {
   it("turns a picked look off and back on, keeping its LUT, and does nothing before the first pick", () => {
-    const choice = memorySetting<Look>(NO_LOOK);
+    const choice = lookChoice(NO_LOOK);
     toggleLook(choice);
     expect(choice.get()).toEqual(NO_LOOK);
 
@@ -50,6 +68,10 @@ describe("LOOKS", () => {
       ["panchromatic", "Panchromatic"],
       ["orthochromatic", "Orthochromatic"],
     ]);
+  });
+
+  it("names a LUT file's look by its file name, without the extension", () => {
+    expect(lookLabel("lib:film/Print/Print_2383.cube")).toBe("Print_2383");
   });
 });
 
@@ -152,13 +174,16 @@ function clip(options: { frame?: boolean; perFrame?: boolean } = {}) {
   };
 }
 
-function setup(lut: LutName | null, options: { frame?: boolean; perFrame?: boolean; gpu?: boolean } = {}) {
+function setup(
+  lut: string | null,
+  options: { frame?: boolean; perFrame?: boolean; gpu?: boolean; files?: Record<string, Lut> } = {},
+) {
   const fake = fakeGl();
   const getContext = vi
     .spyOn(HTMLCanvasElement.prototype, "getContext")
     .mockImplementation((() => (options.gpu === false ? null : fake.gl)) as never);
   const { video, present } = clip(options);
-  const choice = memorySetting<Look>(lut === null ? NO_LOOK : on(lut));
+  const choice = lookChoice(lut === null ? NO_LOOK : on(lut), options.files);
   const layer = createLutLayer(video, choice);
   layers.push(layer);
   const drawn = () => fake.named("drawArrays").length;
@@ -225,6 +250,24 @@ describe("createLutLayer", () => {
     expect(drawn()).toBe(2);
     expect(layer.element.hidden).toBe(false);
     expect(getContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws a LUT file's cube with its input range, each channel its own", () => {
+    const file: Lut = { size: 2, table: new Float32Array(24), domainMin: [0, 0.1, 0], domainMax: [1, 0.9, 2] };
+    const { named, drawn } = setup("presets/luts/warm.cube", { files: { "presets/luts/warm.cube": file } });
+    expect(drawn()).toBe(1);
+    expect(named("texImage3D")[0].args.slice(3, 6)).toEqual([2, 2, 2]);
+    expect(named("uniform3f").map((call) => call.args.slice(1))).toEqual([
+      [0, 0.1, 0],
+      [1, 0.9, 2],
+    ]);
+  });
+
+  // The cube arrives later: the choice says so, and the layer draws then.
+  it("shows the clip's own picture while a LUT file's cube is still on its way", () => {
+    const { drawn, layer } = setup("presets/luts/late.cube");
+    expect(drawn()).toBe(0);
+    expect(layer.element.hidden).toBe(true);
   });
 
   it("loads another LUT's cube into the same context when the choice moves to it", () => {
@@ -307,11 +350,14 @@ function picture(loaded: boolean, file: boolean) {
   };
 }
 
-function setupStill(lut: LutName | null, options: { loaded?: boolean; file?: boolean; type?: string } = {}) {
+function setupStill(
+  lut: string | null,
+  options: { loaded?: boolean; file?: boolean; type?: string; files?: Record<string, Lut> } = {},
+) {
   const fake = fakeGl();
   const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() => fake.gl) as never);
   const { img, load } = picture(options.loaded ?? true, options.file ?? true);
-  const choice = memorySetting<Look>(lut === null ? NO_LOOK : on(lut));
+  const choice = lookChoice(lut === null ? NO_LOOK : on(lut), options.files);
   const layer = createLutLayer(img, choice, options.type);
   layers.push(layer);
   const drawn = () => fake.named("drawArrays").length;

@@ -7,10 +7,10 @@ import { classLinkUse } from "../protocol/class.ts";
 import { compareSortValues } from "../protocol/folderSort.ts";
 import { resolveDeclaredPath } from "../protocol/relativeReference.ts";
 import { basenameOf, dirnameOf, formatRootedPath } from "../protocol/rootedPath.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import { splitDocumentName } from "../protocol/types.ts";
 import { classRowOf } from "./classRows.ts";
 import { documentIndex } from "./documentIndex.ts";
+import { presetPaths, templatePaths } from "./presets.ts";
 import type { ClassLinking } from "./resolveToolkits.ts";
 import { resolveHeldPath } from "./rootedFiles.ts";
 
@@ -26,8 +26,9 @@ export async function classesLinking(
   spaceRoot: string,
   doc: { path: string; filePath: string },
 ): Promise<HoldingClass[]> {
+  const isPreset = presetPaths(spaceRoot);
   const classes = (await documentIndex().classes({ dir: spaceRoot, root: "space" }))
-    .filter(({ path }) => !isTemplatePath(path))
+    .filter(({ path }) => !isPreset(path))
     .sort((a, b) => compareSortValues(a.path, b.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const holding: HoldingClass[] = [];
   for (const { path: classPath, definition } of classes) {
@@ -58,7 +59,7 @@ export function classLinkedFiles(spaceRoot: string, classes: readonly HoldingCla
 function linkedFile(spaceRoot: string, classDir: string, written: string): string | undefined {
   try {
     const rooted = formatRootedPath(resolveDeclaredPath(classDir, written));
-    if (classLinkUse(rooted) !== "reference") return undefined;
+    if (classLinkUse(rooted, templatePaths(spaceRoot)) !== "reference") return undefined;
     const resolved = resolveHeldPath(spaceRoot, rooted, "read");
     return lstatSync(resolved.filePath, { throwIfNoEntry: false })?.isFile()
       ? formatRootedPath(resolved.rooted)

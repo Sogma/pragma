@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClipHeaderResponse, PixelFormatResponse } from "../../../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../../../web/core/paths.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
-import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
+import { NO_LOOK } from "../../../../web/lib/videoLut.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
 import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import { createImagePane, createVideoPane, imagePane, videoPane } from "../../../../web/view/panes/mediaPane.ts";
 import { fireDrag } from "../../support/drag.ts";
-import { memorySetting } from "../../support/editorLayout.ts";
+import { memoryLook, memorySetting } from "../../support/editorLayout.ts";
 import { fakeContextMenu } from "../../support/fakeContextMenu.ts";
 import { fakePaneGroup } from "../../support/paneGroup.ts";
 
@@ -45,7 +45,7 @@ function setup(
   const pixelFormat = vi.fn(format);
   const fetchFile = vi.fn(file);
   const guides = memorySetting(NO_GUIDES);
-  const lut = memorySetting<Look>(NO_LOOK);
+  const lut = memoryLook();
   const contextMenu = fakeContextMenu();
   const pane = createImagePane({
     rawFileUrl: (path) => `/raw?path=${path}`,
@@ -622,7 +622,7 @@ function videoSetup(ok = true, format: (path: string) => Promise<ClipHeaderRespo
   const loop = memorySetting(false);
   const volume = memorySetting({ level: 1, muted: false });
   const guides = memorySetting(NO_GUIDES);
-  const lut = memorySetting<Look>(NO_LOOK);
+  const lut = memoryLook();
   const contextMenu = fakeContextMenu();
   const pane = createVideoPane({
     rawFileUrl: (path) => `/raw?path=${path}`,
@@ -983,7 +983,7 @@ describe("videoPane", () => {
       loop: memorySetting(false),
       volume: memorySetting({ level: 1, muted: false }),
       guides: memorySetting(NO_GUIDES),
-      lut: memorySetting<Look>(NO_LOOK),
+      lut: memoryLook(NO_LOOK),
       contextMenu: fakeContextMenu(),
     });
     await pane.setInput(videoTab, current);

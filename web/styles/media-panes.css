@@ -254,8 +254,15 @@
 /* A look that is on stays in view without the hover, where its bar puts it,
    so a graded picture never passes for the file's own colors. Off, the
    badge is a control like the rest, shown with them. */
-.media-hud-bar > .media-hud-badge[aria-pressed="true"] {
+.media-hud-bar > .media-hud-badge:is([aria-pressed="true"], .is-missing) {
   opacity: 1;
+}
+
+/* A kept look whose LUT file is gone shows nothing and says so, in the
+   warning's colour, so a plain picture never passes for the graded one. */
+.media-hud-badge.is-missing {
+  background: var(--color-warning);
+  color: var(--media-hud-badge-fg);
 }
 
 /* A bar showing three facts centres the middle one on the picture.

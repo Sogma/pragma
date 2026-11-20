@@ -239,14 +239,17 @@ describe("backlinks", () => {
     expect(only.mentions.map((mention) => mention.at)).toEqual([15]);
   });
 
-  it("leaves out a note's links to itself, and a template's links to a note outside the templates", async () => {
+  it("leaves out a note's links to itself, and a preset's links to a note outside the presets", async () => {
     const index = createDocumentIndex();
     const space = await folder();
+    const isPreset = (path: string) => path.startsWith("presets/");
     await write(space, "plan.md", "# Plan\n\nSee [[plan]].\n");
-    await write(space, "_templates/brief.md", "[[/plan]] and [[outline]]\n");
-    await write(space, "_templates/outline.md", "# Outline\n");
-    expect(await index.backlinks("plan.md", [spaceAt(space)])).toEqual([]);
-    expect(linking(await index.backlinks("_templates/outline.md", [spaceAt(space)]))).toEqual(["_templates/brief.md"]);
+    await write(space, "presets/brief.md", "[[/plan]] and [[outline]]\n");
+    await write(space, "presets/outline.md", "# Outline\n");
+    expect(await index.backlinks("plan.md", [spaceAt(space)], isPreset)).toEqual([]);
+    expect(linking(await index.backlinks("presets/outline.md", [spaceAt(space)], isPreset))).toEqual([
+      "presets/brief.md",
+    ]);
   });
 
   it("reads a library note's from its library and from the space", async () => {

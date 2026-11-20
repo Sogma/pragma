@@ -1,6 +1,6 @@
-// The space's templates: what the root's `_templates/` holds, and how a copy
-// of one is named and filled in. The host makes the copy and the browser
-// lists the templates for New, so both read them by these rules.
+// Templates: what a folder the space lists for them holds, and how a copy of
+// one is named and filled in. The host makes the copy and the browser lists
+// the templates for New, so both read them by these rules.
 import {
   type ClockReading,
   dateFill,
@@ -8,7 +8,7 @@ import {
   PLACEHOLDER_SOURCE,
   type PlaceholderFill,
 } from "./datePlaceholders.ts";
-import { entryNameForTitle, illegalEntryNameReason, isNamed, spellingIn } from "./entryName.ts";
+import { entryNameForTitle, illegalEntryNameReason, spellingIn } from "./entryName.ts";
 import {
   composeFrontmatter,
   editFrontmatterYaml,
@@ -17,24 +17,10 @@ import {
   splitFrontmatter,
 } from "./frontmatter.ts";
 import type { PragmaFileRole } from "./pragmaFiles.ts";
-import { parseRootedPath } from "./rootedPath.ts";
 import { isReadme } from "./scopes.ts";
 import { isFountainFile, isMarkdownFile, splitDocumentName } from "./types.ts";
 
-export const TEMPLATES_FOLDER = "_templates";
-
-/** Whether `path` is the space's templates folder or anything in it, its
- * name in any case. A library's own `_templates/` is an ordinary folder. */
-export function isTemplatePath(path: string): boolean {
-  try {
-    const rooted = parseRootedPath(path);
-    return rooted.root === "space" && isNamed(rooted.path.split("/")[0], TEMPLATES_FOLDER);
-  } catch {
-    return false;
-  }
-}
-
-/** A listed entry under `_templates/`, as the space's tree lists it. */
+/** A listed entry under a templates folder, as a tree lists it. */
 export interface TemplateSource {
   name: string;
   path: string;
@@ -47,14 +33,14 @@ export type TemplateEntry =
   | { kind: "file" | "folder"; name: string; path: string }
   | { kind: "group"; name: string; path: string; entries: TemplateEntry[] };
 
-/** What the entries of `_templates/` hold: a file is a file template, a
+/** What a templates folder's entries hold: a file is a file template, a
  * folder with a README a folder template, and a folder without one a group
  * of either, read the same way. A group holding no template is left out.
  *
  * The first README on the way down ends the walk, so a folder template's
  * README-less subfolders are part of it, never groups of their own. The
- * root's own README describes the folder and is no template, nor is a file
- * Pragma reads where it sits, such as a folder's manual order. */
+ * folder's own README describes it and is no template, nor is a file Pragma
+ * reads where it sits, such as a folder's manual order. */
 export function readTemplates(listing: readonly TemplateSource[]): TemplateEntry[] {
   return readLevel(listing, true);
 }

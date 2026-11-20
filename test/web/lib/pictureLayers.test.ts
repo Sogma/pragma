@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPictureLayers } from "../../../web/lib/pictureLayers.ts";
 import { type Guides, NO_GUIDES } from "../../../web/lib/videoGuides.ts";
-import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
-import { memorySetting } from "../support/editorLayout.ts";
+import { NO_LOOK } from "../../../web/lib/videoLut.ts";
+import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -13,7 +13,7 @@ describe("createPictureLayers", () => {
   it("lays the look under the guides, out of the accessibility tree, and the guides alone without a look", () => {
     const guides = memorySetting<Guides>(NO_GUIDES);
     const img = document.createElement("img");
-    const raster = createPictureLayers(img, { guides, lut: memorySetting<Look>(NO_LOOK), type: "image/png" });
+    const raster = createPictureLayers(img, { guides, lut: memoryLook(NO_LOOK), type: "image/png" });
     expect(raster.element.className).toBe("picture-layers");
     expect(raster.element.getAttribute("aria-hidden")).toBe("true");
     expect([...raster.element.children].map((layer) => layer.getAttribute("class"))).toEqual([

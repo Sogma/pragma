@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type GuidesChoice, NO_GUIDES } from "../../../web/lib/videoGuides.ts";
-import { type Look, type LutChoice, NO_LOOK } from "../../../web/lib/videoLut.ts";
+import type { LutChoice } from "../../../web/lib/videoLut.ts";
 import {
   createVideoPlayer,
   type LoopChoice,
@@ -9,7 +9,7 @@ import {
   timecode,
   type VolumeChoice,
 } from "../../../web/lib/videoPlayer.ts";
-import { memorySetting } from "../support/editorLayout.ts";
+import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 
 // jsdom ships no media pipeline, so the clip is stood in for: its length,
 // where it stands, and whether it plays, each as the element reports them.
@@ -61,7 +61,7 @@ function setup(
   const volume = options.volume ?? memorySetting({ level: 1, muted: false });
   // `guides` or `lut` given outright as undefined is a player with none.
   const guides = Object.hasOwn(options, "guides") ? options.guides : memorySetting(NO_GUIDES);
-  const lut = Object.hasOwn(options, "lut") ? options.lut : memorySetting<Look>(NO_LOOK);
+  const lut = Object.hasOwn(options, "lut") ? options.lut : memoryLook();
   const frame = document.createElement("div");
   frame.append(video);
   document.body.append(frame);
@@ -574,7 +574,7 @@ describe("the LUT", () => {
   // holds one and lets it go.
   it("follows the shared choice until the player is disposed", () => {
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() => null) as never);
-    const lut = memorySetting<Look>(NO_LOOK);
+    const lut = memoryLook();
     const { video, player } = setup("pill", { lut });
     video.requestVideoFrameCallback = vi.fn(() => 1);
     lut.set({ lut: "panchromatic", on: true });
@@ -588,7 +588,7 @@ describe("the LUT", () => {
   });
 
   it("turns off and back on with D in the video tab, keeping the look, and leaves D to the preview in the pill", () => {
-    const lut = memorySetting<Look>({ lut: "orthochromatic", on: true });
+    const lut = memoryLook({ lut: "orthochromatic", on: true });
     const { player } = setup("review", { lut });
     expect(player.key("d")).toBe(true);
     expect(lut.get()).toEqual({ lut: "orthochromatic", on: false });

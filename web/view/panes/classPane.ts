@@ -63,6 +63,7 @@ import {
 } from "../../core/apiClient.ts";
 import { isWritableRoot } from "../../core/libraries.ts";
 import { DRAGGED_ENTRY_TYPE, pathHint, readDraggedPath, stripExtension } from "../../core/paths.ts";
+import { inTemplateFolders } from "../../core/presets.ts";
 import {
   classLinkFiles,
   entryIconAt,
@@ -442,7 +443,12 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     },
     describeLink: (link) => {
       const path = resolveFileReference(classDir(), link) ?? link;
-      return { use: classLinkUse(path), icon: entryIconAt(path, "file"), name: stripExtension(basenameOf(path)), path };
+      return {
+        use: classLinkUse(path, inTemplateFolders),
+        icon: entryIconAt(path, "file"),
+        name: stripExtension(basenameOf(path)),
+        path,
+      };
     },
   });
   const resizing =
@@ -626,7 +632,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     const dir = classDir();
     return open.file.links.flatMap((link) => {
       const path = resolveFileReference(dir, link);
-      return path !== undefined && classLinkUse(path) === "template" ? [path] : [];
+      return path !== undefined && classLinkUse(path, inTemplateFolders) === "template" ? [path] : [];
     });
   }
 

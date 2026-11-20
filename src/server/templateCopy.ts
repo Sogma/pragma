@@ -1,35 +1,36 @@
-// A new file or folder made from one of the space's templates: the host's
+// A new file or folder made from one of the space's templates, in a folder
+// its `_presets.json` lists for them, or from one of Pragma's own: the host's
 // half of the rules src/protocol/templates.ts states.
 
-import { readdirSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PACKAGE_ROOT } from "../config/packageRoot.ts";
 import type { CreateEntryResponse, CreateFromTemplateRequestBody } from "../protocol/api.ts";
 import { type ClockReading, clockDay, parseClock, readClock } from "../protocol/datePlaceholders.ts";
-import { isHiddenName, isNamed, spellingIn } from "../protocol/entryName.ts";
+import { isHiddenName, isNamed } from "../protocol/entryName.ts";
 import { withoutBom, withoutPublishState } from "../protocol/frontmatter.ts";
 import { QUEUE_FILENAME, SITE_FILENAME } from "../protocol/pragmaFiles.ts";
-import { parseRootedPath } from "../protocol/rootedPath.ts";
+import { presetFolderAt } from "../protocol/presets.ts";
+import { formatRootedPath, parseRootedPath } from "../protocol/rootedPath.ts";
 import {
   fillsTitle,
   fillTemplate,
   findTemplate,
-  isTemplatePath,
   readTemplates,
   startingName,
-  TEMPLATES_FOLDER,
   type TemplateEntry,
   templateEntryName,
   writesDate,
   writesTitle,
 } from "../protocol/templates.ts";
 import { isMarkdownFile } from "../protocol/types.ts";
+import { listedPresetFolders, presetFolderView, presetPaths } from "./presets.ts";
 import { formatWithinRoot, isSpaceTarget, resolveRootedPath } from "./rootedFiles.ts";
 import type { Incoming } from "./routes/shared.ts";
 import { resolveSiteForPath } from "./sites.ts";
 import { findNameCollision } from "./spaceFiles.ts";
-import { buildTree, spaceListing } from "./tree.ts";
+import { buildTree } from "./tree.ts";
 
 export type TemplateCopyResult = { created: CreateEntryResponse } | Refusal;
 
@@ -52,17 +53,6 @@ const TAKEN: TemplateCopyResult = { status: 409, message: "Already exists" };
 // electron-builder.yml and scripts/pack-npm.mjs.
 const PRAGMA_TEMPLATES = path.join(PACKAGE_ROOT, "templates/builtin");
 
-/** The space's templates, read from `_templates/` as the tree lists it: a
- * folder listed under that name in any case, never a link. */
-export async function listSpaceTemplates(spaceRoot: string): Promise<TemplateEntry[]> {
-  const folders = readdirSync(spaceRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  const listed = spellingIn(
-    folders.map((entry) => entry.name),
-    TEMPLATES_FOLDER,
-  );
-  return listed ? readTemplates(await buildTree(path.join(spaceRoot, listed), spaceRoot, "space", spaceListing())) : [];
-}
-
 /** Pragma's own templates, read by the same rule, each path relative to
  * where Pragma keeps them. */
 export async function listPragmaTemplates(): Promise<TemplateEntry[]> {
@@ -80,10 +70,10 @@ interface OpenedTemplate {
   now: ClockReading;
 }
 
-// The template a request names, the space's or with `source` "pragma" one of
-// Pragma's own, read whole, and the moment its date placeholders take: the
-// writer's, sent with the request because the host may keep another time
-// zone, else the host's own.
+// The template a request names, in a folder the space lists for templates or
+// with `source` "pragma" one of Pragma's own, read whole, and the moment its
+// date placeholders take: the writer's, sent with the request because the
+// host may keep another time zone, else the host's own.
 async function openTemplate(
   spaceRoot: string,
   request: { template?: unknown; source?: unknown; now?: unknown },
@@ -96,15 +86,22 @@ async function openTemplate(
     return { status: 400, message: "now must be a local time with its offset, as 2026-11-09T14:30:05+01:00" };
   }
   const pragma = request.source === "pragma";
-  const templatePath = typeof request.template === "string" ? spacePathOf(request.template) : undefined;
-  if (templatePath === undefined || (!pragma && !isTemplatePath(templatePath))) {
-    return { status: 400, message: "Not a template" };
+  const templatePath = typeof request.template === "string" ? rootedPathOf(request.template) : undefined;
+  if (templatePath === undefined) return { status: 400, message: "Not a template" };
+  let listing: TemplateEntry[];
+  if (pragma) {
+    listing = parseRootedPath(templatePath).root === "space" ? await listPragmaTemplates() : [];
+  } else {
+    const preset = presetFolderAt(listedPresetFolders(spaceRoot), templatePath, "templates");
+    if (preset === undefined) return { status: 400, message: "Not a template" };
+    listing = (await presetFolderView(spaceRoot, preset)).templates ?? [];
   }
-  const listing = pragma ? await listPragmaTemplates() : await listSpaceTemplates(spaceRoot);
   const template = findTemplate(listing, templatePath);
   if (!template) return { status: 404, message: `No template at ${templatePath}` };
 
-  const source = path.join(pragma ? PRAGMA_TEMPLATES : spaceRoot, ...template.path.split("/"));
+  const source = pragma
+    ? path.join(PRAGMA_TEMPLATES, ...template.path.split("/"))
+    : resolveRootedPath(spaceRoot, template.path, "read").filePath;
   const copied: CopiedTree =
     template.kind === "file"
       ? { folders: [], files: [{ relative: "", bytes: await readFile(source) }] }
@@ -148,8 +145,10 @@ export async function copyTemplate(
   const parent = resolveRootedPath(spaceRoot, typeof body.parentPath === "string" ? body.parentPath : "", "write");
   if (!isSpaceTarget(parent)) return { status: 400, message: "A template can't be used in a library" };
   const parentPath = formatWithinRoot(parent, parent.filePath);
-  // A copy made here would fill in its own placeholders and stop being one.
-  if (isTemplatePath(parentPath)) return { status: 400, message: "A template can't be used inside _templates" };
+  // A copy made here would count as a preset, never as the space's content.
+  if (presetPaths(spaceRoot)(parentPath)) {
+    return { status: 400, message: "A template can't be used inside a preset folder" };
+  }
   if (!statSync(parent.filePath, { throwIfNoEntry: false })?.isDirectory()) {
     return { status: 404, message: `No folder at ${parentPath || "the space root"}` };
   }
@@ -184,10 +183,10 @@ export async function copyTemplate(
   return { created: { path: targetPath, type: "directory" } };
 }
 
-function spacePathOf(input: string): string | undefined {
+// One spelling per path: `space:` dropped, as the listings spell theirs.
+function rootedPathOf(input: string): string | undefined {
   try {
-    const rooted = parseRootedPath(input);
-    return rooted.root === "space" ? rooted.path : undefined;
+    return formatRootedPath(parseRootedPath(input));
   } catch {
     return undefined;
   }

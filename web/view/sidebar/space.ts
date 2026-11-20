@@ -1,7 +1,7 @@
 // The Space view: the space tree and everything done to it in place —
 // create, from scratch or from a template, duplicate, rename, drag to move or
 // reorder, drop files in from the desktop, sort by, delete, folder
-// properties, Find in context — and the Trash, Tags and Templates sections
+// properties, Find in context — and the Trash, Tags and Presets sections
 // pinned under it.
 //
 // The tree knows files and folders; it does not know tabs. Opening a row,
@@ -14,7 +14,14 @@ import { serializeClassFile } from "../../../src/protocol/classHtml.ts";
 import { entryNameForTitle, illegalEntryNameReason, isNamed } from "../../../src/protocol/entryName.ts";
 import { toSortValue } from "../../../src/protocol/folderSort.ts";
 import { editFrontmatter, isPrivate, readFrontmatter } from "../../../src/protocol/frontmatter.ts";
-import { basenameOf, dirnameOf, isLibraryPath } from "../../../src/protocol/rootedPath.ts";
+import { PRESET_KINDS, type PresetKind, presetFolderOf } from "../../../src/protocol/presets.ts";
+import {
+  basenameOf,
+  dirnameOf,
+  isLibraryPath,
+  type PathRoot,
+  parseRootedPath,
+} from "../../../src/protocol/rootedPath.ts";
 import {
   isSettingsBlock,
   SCOPE_SETTINGS,
@@ -26,13 +33,7 @@ import {
 import { isAgentsFile, opensScope } from "../../../src/protocol/scopes.ts";
 import { setupNeedOf } from "../../../src/protocol/setupNeed.ts";
 import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
-import {
-  countTemplates,
-  isTemplatePath,
-  readTemplates,
-  TEMPLATES_FOLDER,
-  type TemplateEntry,
-} from "../../../src/protocol/templates.ts";
+import type { TemplateEntry } from "../../../src/protocol/templates.ts";
 import {
   CLASS_EXTENSION,
   type ClassFile,
@@ -40,6 +41,7 @@ import {
   FLOW_EXTENSION,
   isClassFile,
   isFlowFile,
+  isLutFile,
   isMarkdownFile,
   isTableFile,
   TABLE_EXTENSION,
@@ -66,6 +68,7 @@ import {
 } from "../../core/apiClient.ts";
 import { splitDocumentProperties } from "../../core/documentContent.ts";
 import { ownSortOf } from "../../core/folderOrder.ts";
+import { libraryIds, libraryName } from "../../core/libraries.ts";
 import {
   carriesDesktopFiles,
   desktopFiles,
@@ -82,6 +85,7 @@ import {
   treeTakesDrag,
   treeTotalsLabel,
 } from "../../core/paths.ts";
+import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
 import { must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
@@ -91,11 +95,13 @@ import { createPathLabel } from "../../lib/pathLabel.ts";
 import { createSectionAction, createSectionStack } from "../../lib/sectionStack.ts";
 import { SPACE_ICON } from "../../lib/spaceIcon.ts";
 import { toggleSettingRow } from "../../lib/toggleRow.ts";
+import { LOOKS } from "../../lib/videoLut.ts";
 import type { CollapsedFolders } from "../../services/collapsedFolders.ts";
 import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
 import { contextSettingsGroups, inheritedSetting, type SettingRow } from "../../services/contextSettings.ts";
 import type { DialogService } from "../../services/dialog.ts";
 import type { EntryMove } from "../../services/entryMove.ts";
+import { openFolderChooser } from "../../services/folderChooser.ts";
 import { onFolderSortChanged, setOwnArrangement } from "../../services/folderSorts.ts";
 import type { ScopeSettingWords } from "../../services/formats.ts";
 import type { KeybindingRegistry } from "../../services/keybindings.ts";
@@ -103,6 +109,17 @@ import { describeImportProblems, importDroppedFiles as importDropped } from "../
 import { COMMAND_PALETTE, type MenuItem, type MenuRegistry } from "../../services/menus.ts";
 import type { ModelConsole } from "../../services/modelConsole.ts";
 import { createPathField } from "../../services/pathField.ts";
+import {
+  countPresets,
+  PRAGMA_SOURCE,
+  type PresetRow,
+  type PresetSource,
+  pragmaTemplateRows,
+  presetFolderItems,
+  presetMenuItems,
+  presetSearch,
+  presetSources,
+} from "../../services/presetMenu.ts";
 import type { Setting } from "../../services/settings.ts";
 import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
@@ -299,11 +316,9 @@ function contextEffect(icon: HTMLElement, title: HTMLElement, text: readonly (st
 export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps): SpaceView {
   const { collapsed } = deps;
 
-  // One per tree, so a drag lands only on the tree it started in: a row moved
-  // between the space tree and the Templates tree would have every link to it
-  // rewritten across the two. The Trash's is read by the space tree's drops
-  // alone. Cleared once the drag ends, so one that landed elsewhere is never
-  // replayed onto the next drop.
+  // One per source of drags, so a drop takes only what its own tree started:
+  // the Trash's is read by the space tree's drops alone. Cleared once the drag
+  // ends, so one that landed elsewhere is never replayed onto the next drop.
   function createDrag<T>() {
     let dragged: T | undefined;
     document.addEventListener("dragend", () => {
@@ -322,7 +337,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   }
   type Drag = ReturnType<typeof createDrag<SpaceTreeNode[]>>;
   const drag = createDrag<SpaceTreeNode[]>();
-  const templatesDrag = createDrag<SpaceTreeNode[]>();
   const trashDrag = createDrag<TrashEntry>();
   // Inline-edit state — at most one of these is active at a time, driving
   // the input row the renderer draws in place of a normal label.
@@ -333,7 +347,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   const tree = deps.createTree("");
   elements.nodes.appendChild(tree.element);
 
-  // The Trash, then Tags, then Templates, pinned under the tree. The Trash
+  // The Trash, then Tags, then Presets, pinned under the tree. The Trash
   // shows while Delete moves things there or it still holds any: with
   // neither, it has nothing to list and nothing will arrive.
   const trashList = document.createElement("ul");
@@ -347,23 +361,25 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   trashBody.append(trashEmpty, trashList);
   const emptyTrash = createSectionAction("Empty Trash", "trash", () => void confirmEmptyTrash());
 
-  // The Templates section draws `_templates/` as a tree of its own, so its
-  // rows open, rename and nest as the tree's do. It shows with no templates
-  // yet, since it is where the first one is made.
-  const templatesTree = deps.createTree(spaceTree.templatesFolder);
-  const templatesEmpty = document.createElement("p");
-  templatesEmpty.className = "stack-section-message";
-  templatesEmpty.textContent = "No templates yet.";
-  const templatesBody = document.createElement("div");
-  templatesBody.append(templatesEmpty, templatesTree.element);
-  const templateActions = [
-    createSectionAction("New Note", "file-plus", () =>
-      beginCreate({ parentPath: spaceTree.templatesFolder(), type: "file", kind: "note" }),
-    ),
-    createSectionAction("New Folder", "folder-plus", () =>
-      beginCreate({ parentPath: spaceTree.templatesFolder(), type: "directory" }),
-    ),
-  ];
+  // The Presets section: each kind of preset, each source under its mark, and
+  // a folder's presets drawn as the tree draws them. Its rows only open: a
+  // preset is renamed, moved or made in the tree, where its folder is a
+  // folder like any other.
+  const presetsBody = document.createElement("div");
+  presetsBody.className = "presets-section";
+  const presetTrees = new Map<string, TreeView>();
+  const shutKinds = settings.createSetting<string>("pragma:presets-shut", (value) => value ?? "");
+  // Pragma's own templates, asked for once: they ship with the app, so they
+  // never change while it runs. Until they arrive, or if they can't, the
+  // space's are offered alone.
+  let pragmaTemplates: readonly TemplateEntry[] = [];
+  void fetchPragmaTemplates().then(
+    (entries) => {
+      pragmaTemplates = entries;
+      renderPresets();
+    },
+    () => undefined,
+  );
   // Earlier versions of the space's files, a deleted one's too while they last.
   const history = deps.createHistorySection({
     exists: (path) => spaceTree.findEntry(path) !== undefined,
@@ -389,13 +405,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       onOpen: deps.tagsSection.refresh,
     },
     {
-      title: "Templates",
+      title: "Presets",
       glyph: "template",
-      body: templatesBody,
-      actions: templateActions,
-      open: settings.templatesSectionOpen,
-      height: settings.templatesSectionHeight,
-      onOpen: () => renderTemplates(),
+      body: presetsBody,
+      open: settings.presetsSectionOpen,
+      height: settings.presetsSectionHeight,
+      onOpen: () => renderPresets(),
     },
     {
       title: "History",
@@ -406,7 +421,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       onOpen: history.refresh,
     },
   ]);
-  const [trashSection, tagsSection, templatesSection, historySection] = stack.sections;
+  const [trashSection, tagsSection, presetsSection, historySection] = stack.sections;
   deps.tagsSection.showCountIn(tagsSection.setCount);
   history.showCountIn(historySection.setCount);
   trashSection.header.addEventListener("contextmenu", (event) => {
@@ -417,9 +432,10 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   // A change made outside this window (another program, another device, an
   // agent) re-reads the tree the way the refresh button does.
   spaceChanges.followSpace(() => void refresh());
+  onPresetsChanged(() => renderPresets());
 
   function hasRow(path: string): boolean {
-    return isTemplatePath(path) ? templatesTree.hasRow(path) : tree.hasRow(path);
+    return tree.hasRow(path);
   }
 
   function renderContext(): TreeRenderContext {
@@ -444,41 +460,262 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     };
   }
 
-  function templatesContext(): TreeRenderContext {
+  // A preset's rows open and nothing more, in either root.
+  function presetsContext(root: PathRoot): TreeRenderContext {
+    const nothing = () => undefined;
     return {
-      ...renderContext(),
-      onDragStart: templatesDrag.start,
-      onDrop: (event, node, zone) => handleDrop(event, node, zone, templatesDrag),
-      confinedDrags: true,
+      root,
+      readOnly: true,
+      onOpen: (filePath, label) => void deps.open(filePath, { from: { anchor: label, marked: true } }),
+      onOpenDirectory: (path) => deps.openDirectory(path),
+      onContextMenu: nothing,
+      onDragStart: nothing,
+      onDrop: nothing,
+      isCollapsed: collapsed.isCollapsed,
+      onToggleCollapse: collapsed.setCollapsed,
+      showExtensions: settings.showExtensions.get(),
+      editingPath: undefined,
+      onRenameSubmit: nothing,
+      onRenameCancel: nothing,
+      pendingCreate: undefined,
+      onCreateSubmit: nothing,
+      onCreateCancel: nothing,
     };
   }
 
-  // The templates folder is the Templates section's, never a row of the tree.
-  // The listing keeps it: a template's own links resolve against it, and a
-  // move rewrites them, as anything that works by path does.
-  const isTemplatesFolder = (node: SpaceTreeNode) =>
-    node.type === "directory" && node.path === spaceTree.templatesFolder();
-
   function render(): void {
-    tree.render(
-      spaceTree.getTree().filter((node) => !isTemplatesFolder(node)),
-      {
-        ...renderContext(),
-        pinsFolders: true,
-      },
-    );
-    renderTemplates();
+    tree.render(spaceTree.getTree(), { ...renderContext(), pinsFolders: true });
+    renderPresets();
     renderTrash();
     deps.onRendered();
   }
 
-  function renderTemplates(): void {
-    const folder = spaceTree.templatesFolder();
-    const listing = spaceTree.findDirectoryChildren(folder) ?? [];
-    templatesTree.render(listing, templatesContext());
-    const count = countTemplates(readTemplates(listing));
-    templatesSection.setCount(count > 0 ? count.toLocaleString() : "");
-    templatesEmpty.hidden = listing.length > 0 || pendingCreate?.parentPath === folder;
+  // ---- presets -----------------------------------------------------------
+
+  const KIND_NAMES: Record<PresetKind, string> = { templates: "Templates", luts: "LUTs" };
+  const pragmaLooks: PresetRow[] = LOOKS.map(({ lut, label }) => ({
+    path: lut,
+    label,
+    icon: { glyph: "lut" },
+    pragma: true,
+  }));
+  const pragmaRows = (kind: PresetKind): PresetRow[] =>
+    kind === "templates" ? pragmaTemplateRows(pragmaTemplates) : pragmaLooks;
+  const isShut = (kind: PresetKind) => shutKinds.get().split(",").includes(kind);
+  function setShut(kind: PresetKind, shut: boolean): void {
+    const others = shutKinds
+      .get()
+      .split(",")
+      .filter((held) => held && held !== kind);
+    shutKinds.set([...others, ...(shut ? [kind] : [])].join(","));
+  }
+
+  // A LUTs folder shows its LUTs, and the folders holding any.
+  function lutNodes(nodes: readonly SpaceTreeNode[]): SpaceTreeNode[] {
+    return nodes.flatMap((node): SpaceTreeNode[] => {
+      if (node.type === "file") return isLutFile(node.name) ? [node] : [];
+      const children = lutNodes(node.children ?? []);
+      return children.length > 0 ? [{ ...node, children }] : [];
+    });
+  }
+
+  // A library folder's presets as tree nodes, each path within the library.
+  // A folder template lists nothing under it here: it is copied whole.
+  function rowNode(row: PresetRow): SpaceTreeNode {
+    const path = parseRootedPath(row.path).path;
+    const name = basenameOf(path);
+    if (row.rows) return { name, path, type: "directory", children: row.rows.map(rowNode) };
+    return row.icon.glyph === "folder" ? { name, path, type: "directory", children: [] } : { name, path, type: "file" };
+  }
+
+  // What a source's tree lists: one folder's own entries, or each of its
+  // folders as a row, the space's as the space tree lists them.
+  function sourceNodes(kind: PresetKind, source: PresetSource): SpaceTreeNode[] {
+    const found = source.folders.filter((folder) => folder.missing === undefined);
+    const nodesOf = (folder: PresetSource["folders"][number]): SpaceTreeNode[] => {
+      if (source.key !== "space") return folder.rows.map(rowNode);
+      const children = spaceTree.findDirectoryChildren(folder.path) ?? [];
+      return kind === "luts" ? lutNodes(children) : children;
+    };
+    if (found.length === 1) return nodesOf(found[0]);
+    return found.map((folder) => {
+      const path = parseRootedPath(folder.path).path;
+      return { name: basenameOf(path) || folder.label, path, type: "directory", children: nodesOf(folder) };
+    });
+  }
+
+  function plainRow(icon: EntryIcon, label: string, detail?: string): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "presets-row";
+    const name = document.createElement("span");
+    name.className = "presets-row-name";
+    name.textContent = label;
+    row.append(renderTreeIcon(icon, undefined), name);
+    if (detail) {
+      const note = document.createElement("span");
+      note.className = "caption presets-row-detail";
+      note.textContent = detail;
+      row.append(note);
+    }
+    return row;
+  }
+
+  // A source's heading, and what it lists: its trees, drawn once attached,
+  // and a row for each folder this computer can't find.
+  function renderPresetSource(
+    kind: PresetKind,
+    source: PresetSource,
+    keep: Set<string>,
+    draws: (() => void)[],
+  ): HTMLElement[] {
+    const heading = plainRow(source.mark, source.label);
+    heading.classList.add("presets-source");
+    if (source.key === PRAGMA_SOURCE) {
+      const flat = (rows: readonly PresetRow[]): PresetRow[] =>
+        rows.flatMap((row) => (row.rows ? flat(row.rows) : [row]));
+      return [heading, ...flat(source.folders[0].rows).map((row) => plainRow(row.icon, row.label))];
+    }
+    const shown: HTMLElement[] = [heading];
+    if (source.folders.length === 1)
+      heading.addEventListener("contextmenu", (event) => removeMenu(event, kind, source.folders[0].path));
+    for (const folder of source.folders) {
+      if (folder.missing === undefined) continue;
+      const row = plainRow({ glyph: "folder" }, folder.label, folder.missing);
+      row.classList.add("is-missing");
+      row.addEventListener("contextmenu", (event) => removeMenu(event, kind, folder.path));
+      shown.push(row);
+    }
+    if (!source.folders.some((folder) => folder.missing === undefined)) return shown;
+    const root: PathRoot = source.key === "space" ? "space" : { library: source.key.slice("lib:".length) };
+    const found = source.folders.filter((folder) => folder.missing === undefined);
+    const listPath = found.length === 1 ? found[0].path : source.key === "space" ? "" : source.key;
+    const key = `${kind}|${source.key}|${listPath}`;
+    keep.add(key);
+    let view = presetTrees.get(key);
+    if (!view) {
+      view = deps.createTree(listPath);
+      presetTrees.set(key, view);
+    }
+    const drawn = view;
+    shown.push(drawn.element);
+    draws.push(() => drawn.render(sourceNodes(kind, source), presetsContext(root)));
+    return shown;
+  }
+
+  function renderPresetKind(kind: PresetKind, keep: Set<string>, draws: (() => void)[]): HTMLElement {
+    const block = document.createElement("div");
+    block.className = "presets-kind";
+    const shut = isShut(kind);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "presets-kind-toggle";
+    toggle.setAttribute("aria-expanded", String(!shut));
+    const chevron = document.createElement("span");
+    chevron.className = "disclosure";
+    toggle.append(chevron, KIND_NAMES[kind]);
+    toggle.addEventListener("click", () => {
+      setShut(kind, !shut);
+      renderPresets();
+    });
+    const add = createSectionAction(`Add to ${KIND_NAMES[kind]}`, "plus", () => openAddMenu(kind, add));
+    const header = document.createElement("div");
+    header.className = "presets-kind-header";
+    header.append(toggle, add);
+    block.append(header);
+    if (shut) return block;
+    const sources = presetSources(kind, pragmaRows(kind));
+    if (!sources.some((source) => source.key !== PRAGMA_SOURCE)) {
+      const empty = document.createElement("p");
+      empty.className = "stack-section-message";
+      empty.textContent = "No folders yet. Add one with +.";
+      block.append(empty);
+    }
+    for (const source of sources) block.append(...renderPresetSource(kind, source, keep, draws));
+    return block;
+  }
+
+  function renderPresets(): void {
+    const keep = new Set<string>();
+    const draws: (() => void)[] = [];
+    presetsBody.replaceChildren(...PRESET_KINDS.map((kind) => renderPresetKind(kind, keep, draws)));
+    for (const draw of draws) draw();
+    for (const [key, view] of presetTrees) {
+      if (keep.has(key)) continue;
+      view.dispose();
+      presetTrees.delete(key);
+    }
+    const count = PRESET_KINDS.reduce((total, kind) => total + countPresets(presetSources(kind)), 0);
+    presetsSection.setCount(count > 0 ? count.toLocaleString() : "");
+  }
+
+  async function addPreset(kind: PresetKind, folder: string): Promise<void> {
+    try {
+      await changePresets({ add: kind }, folder);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Couldn't add that folder.");
+    }
+  }
+
+  async function removePreset(kind: PresetKind, folder: string): Promise<void> {
+    try {
+      await changePresets({ remove: kind }, folder);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Couldn't remove that folder.");
+    }
+  }
+
+  function removeMenu(event: MouseEvent, kind: PresetKind, folder: string): void {
+    event.preventDefault();
+    deps.contextMenu.open({
+      at: { x: event.clientX, y: event.clientY },
+      items: [{ label: "Remove from Presets", run: () => void removePreset(kind, folder) }],
+    });
+  }
+
+  // + beside a kind: a new template in the first folder the space lists for
+  // them, a folder of the space chosen from its tree, or a whole library.
+  function openAddMenu(kind: PresetKind, anchor: HTMLElement): void {
+    const templateFolder = presetFoldersOf("templates").find((view) => !view.library && !view.missing)?.path;
+    const listedLibraries = new Set(
+      presetFoldersOf(kind).flatMap((view) =>
+        view.library && presetFolderOf(view.written)?.path === "" ? [view.library.id] : [],
+      ),
+    );
+    const libraries = libraryIds().filter((id) => !listedLibraries.has(id));
+    const items: MenuItem[] = [];
+    if (kind === "templates" && templateFolder !== undefined) {
+      items.push({ label: "New Template", group: "new", run: () => newTemplate(templateFolder) });
+    }
+    items.push({ label: "Add Folder…", group: "add", run: () => chooseFolder(kind, anchor) });
+    for (const id of libraries) {
+      items.push({
+        label: libraryName(id) ?? id,
+        icon: true,
+        entryIcon: { glyph: "library" },
+        group: "libraries",
+        tooltip: `Add the library's top folder to ${KIND_NAMES[kind]}`,
+        run: () => void addPreset(kind, `lib:${id}`),
+      });
+    }
+    deps.contextMenu.open({ anchor, align: "end", items, ariaLabel: `Add to ${KIND_NAMES[kind]}` });
+  }
+
+  function newTemplate(folder: string): void {
+    deps.show();
+    collapsed.reveal(folder);
+    beginCreate({ parentPath: folder, type: "file", kind: "note" });
+  }
+
+  function chooseFolder(kind: PresetKind, anchor: HTMLElement): void {
+    openFolderChooser({
+      anchor,
+      alignTo: anchor,
+      within: "",
+      label: `Add a folder to ${KIND_NAMES[kind]}`,
+      isOpen: (folder) => !collapsed.isCollapsed(folder),
+      openFolder: (folder) => deps.openDirectory(folder),
+      onPick: (folder) => void addPreset(kind, folder),
+    });
   }
 
   async function refresh(): Promise<void> {
@@ -526,11 +763,8 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     if (path === undefined || !listed || elements.nodes.clientHeight === 0) return;
     unrevealed = undefined;
     if (spaceTree.findEntry(path) === undefined) return;
-    // A template's row is revealed in the Templates section, while it is open.
-    const amongTemplates = isTemplatePath(path);
-    if (amongTemplates && !templatesSection.isOpen()) return;
     if (collapsed.reveal(path)) render();
-    (amongTemplates ? templatesTree : tree).reveal(path);
+    tree.reveal(path);
   }
   // A folder bookmark's folder, open, its row centred and flashed, since it
   // turns up away from the click.
@@ -540,14 +774,11 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   function revealFolder(path: string): void {
     unrevealed = undefined;
     deps.show();
-    const amongTemplates = isTemplatePath(path);
-    if (amongTemplates) templatesSection.setOpen(true);
     collapsed.expand(path);
     collapsed.reveal(path);
     render();
-    const host = amongTemplates ? templatesTree : tree;
-    if (!host.reveal(path)) return;
-    const label = host.element.querySelector<HTMLElement>(`.node-label[data-path="${CSS.escape(path)}"]`);
+    if (!tree.reveal(path)) return;
+    const label = tree.element.querySelector<HTMLElement>(`.node-label[data-path="${CSS.escape(path)}"]`);
     if (label) flash(label);
   }
 
@@ -592,7 +823,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     // The input row is drawn as a child of `parentPath`'s list, so a
     // collapsed target needs expanding first or the row is created invisibly.
     collapsed.expand(pending.parentPath);
-    if (isTemplatePath(pending.parentPath)) templatesSection.setOpen(true);
     pendingCreate = pending;
     render();
   }
@@ -629,21 +859,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       const seeded = type === "file" ? seedForKind(kind, name) : { fileName: name, content: undefined };
       const { fileName } = seeded;
       const content = type === "file" && kind === "class" ? await classSeed(parentPath) : seeded.content;
-      if (type === "file" && parentPath === spaceTree.templatesFolder()) await makeTemplatesFolder();
       const created = await postCreateEntry(parentPath, fileName, type, content);
       await revealCreated(created, shown);
     } catch (error) {
       const kindLabel = template ? template.label : (kind ?? (type === "file" ? "note" : "folder"));
       window.alert(error instanceof Error ? error.message : `Failed to create ${kindLabel}.`);
     }
-  }
-
-  // The Templates section offers New before `_templates/` exists, and a file
-  // can't be written into a folder that isn't there. One made meanwhile is
-  // left as it is: the write that follows says whether it can take a file.
-  async function makeTemplatesFolder(): Promise<void> {
-    if (spaceTree.findDirectoryNode(spaceTree.templatesFolder())) return;
-    await postCreateEntry("", TEMPLATES_FOLDER, "directory").catch(() => undefined);
   }
 
   // A Class made in a folder reads its own folder, its fields the keys the
@@ -808,7 +1029,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   // rest of the drop.
   async function importDroppedFiles(files: readonly File[], parentPath: string): Promise<void> {
     collapsed.expand(parentPath);
-    if (parentPath === spaceTree.templatesFolder()) await makeTemplatesFolder();
     const result = await importDropped(files, parentPath, {
       dialog: deps.dialog(),
       createEntry: postCreateEntry,
@@ -886,9 +1106,8 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     const dragged = state.take();
     if (dragged) void moveEntries(dragged, folder);
   }
-  // A Trash row lands in the space tree and nowhere else. The window takes
-  // every drag, so a drop reaches the Templates section even after its
-  // dragover refused one, and only this check keeps a row out of it.
+  // A Trash row lands in the space tree and nowhere else: only this check
+  // keeps a row out of a drop another tree's drag state answers.
   //
   // The drop's own type is asked too: a Trash list redrawn mid-drag takes the
   // dragged row off the page, its dragend never reaches the document, and the
@@ -900,15 +1119,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   elements.nodes.addEventListener("dragover", (event) => acceptDrag(event, false));
   elements.nodes.addEventListener("drop", (event) => dropInto(event, drag, ""));
   elements.nodes.addEventListener("contextmenu", (event) => openMenu(event, null));
-  templatesBody.addEventListener("dragover", (event) => acceptDrag(event, true));
-  templatesBody.addEventListener("drop", (event) => dropInto(event, templatesDrag, spaceTree.templatesFolder()));
-  // The folder's own menu, for its New actions. A folder not made yet has
-  // none: the header's New makes it.
-  templatesBody.addEventListener("contextmenu", (event) => {
-    const folder = spaceTree.findDirectoryNode(spaceTree.templatesFolder());
-    if (folder) openMenu(event, folder);
-    else event.preventDefault();
-  });
   elements.newFile.addEventListener("click", () => startCreate("", "file", "note"));
   elements.newFolder.addEventListener("click", () => startCreate("", "directory"));
   elements.refresh.addEventListener("click", () => void refresh());
@@ -1048,12 +1258,10 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   type TreeTarget = { node: SpaceTreeNode | null; naming?: NamingSurface; selection?: SpaceTreeNode[] };
   const notFile = (_: CommandContext, arg?: TreeTarget) => arg?.node?.type !== "file";
   const isDirectory = (_: CommandContext, arg: TreeTarget) => arg.node?.type === "directory";
-  // The templates folder itself is the Templates section, not a row: no menu
-  // renames or deletes it.
-  const isRow = (_: CommandContext, arg: TreeTarget) => arg.node !== null && !isTemplatesFolder(arg.node);
-  // A copy made among the templates would fill in its own `{{$title}}` and
-  // stop being one, and a site there would publish them.
-  const amongTemplates = (arg?: TreeTarget) => isTemplatePath(parentPathOf(arg?.node ?? null));
+  const isRow = (_: CommandContext, arg: TreeTarget) => arg.node !== null;
+  // A copy made in a preset folder would count as a preset, never as the
+  // space's content.
+  const amongPresets = (arg?: TreeTarget) => isPresetPath(parentPathOf(arg?.node ?? null));
   // A key, the palette or the menu bar hands no row, so the entry open in the
   // focused group stands in: a create lands in its folder (the space root for
   // a tab outside the tree), and Rename and Delete take it when it is a file.
@@ -1063,7 +1271,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   const bringIntoView = (path: string) => {
     deps.show();
     collapsed.reveal(path);
-    if (isTemplatePath(path)) templatesSection.setOpen(true);
   };
   const isListed = (path: string) => spaceTree.findEntry(path) !== undefined;
   const creates = (type: "file" | "directory", kind?: CreateKind) => (context: CommandContext, arg?: TreeTarget) => {
@@ -1079,36 +1286,19 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   const onRow = (act: (node: SpaceTreeNode) => void) => (_: CommandContext, arg: TreeTarget) => {
     if (arg.node) act(arg.node);
   };
-  // Pragma's own templates, asked for once: they ship with the app, so they
-  // never change while it runs. Until they arrive, or if they can't, New ▸
-  // Template offers the space's alone.
-  let pragmaTemplates: readonly TemplateEntry[] = [];
-  void fetchPragmaTemplates().then(
-    (entries) => {
-      pragmaTemplates = entries;
-    },
-    () => undefined,
-  );
   // New ▸ Template's items, as the templates hold them: a group is a
   // submenu, and each template is made where New was chosen.
-  function templateItems(entries: readonly TemplateEntry[], target: TreeTarget, source?: "pragma"): MenuItem[] {
-    return entries.map((entry): MenuItem => {
-      const type = entry.kind === "file" ? "file" : "directory";
-      const item = { icon: true, entryIcon: templateIcon(entry.path, type, source) };
-      if (entry.kind === "group") {
-        return { ...item, label: entry.name, submenu: templateItems(entry.entries, target, source) };
-      }
-      const label = entry.kind === "file" ? stripExtension(entry.name) : entry.name;
-      return { ...item, label, run: () => void createFromTemplate({ path: entry.path, label, source }, type, target) };
-    });
+  // A template's row in New ▸ Template: a copy of it made where New was
+  // chosen, a folder template copied whole.
+  function templateLeaf(row: PresetRow, target: TreeTarget): MenuItem {
+    const type = row.icon.glyph === "folder" ? "directory" : "file";
+    const source = row.pragma ? "pragma" : undefined;
+    return {
+      label: row.label,
+      run: () => void createFromTemplate({ path: row.path, label: row.label, source }, type, target),
+    };
   }
-  // A row must show something, so a plain file names its page. Pragma's own
-  // aren't in the space's tree, so their kind is read from the name alone.
-  function templateIcon(path: string, type: "file" | "directory", source?: "pragma"): EntryIcon {
-    const glyph = type === "directory" ? "folder" : fileTypeClass(path);
-    const icon: EntryIcon = source ? { glyph } : spaceTree.entryIconAt(path, type);
-    return icon.glyph ? icon : { glyph: "file" };
-  }
+  const templateSources = () => presetSources("templates", pragmaRows("templates"));
   // The name a copy starts with is asked for before the field is drawn, so
   // nothing typed is ever replaced by its arrival.
   async function createFromTemplate(
@@ -1136,7 +1326,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   commands.register({
     id: "tree.newSite",
     label: "New Site…",
-    when: (context, arg: TreeTarget) => notFile(context, arg) && deps.hasPublishers() && !amongTemplates(arg),
+    when: (context, arg: TreeTarget) => notFile(context, arg) && deps.hasPublishers() && !amongPresets(arg),
     run: (_, arg: TreeTarget) => deps.newSite(parentPathOf(arg.node)),
   });
   commands.register({
@@ -1229,18 +1419,10 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
         {
           label: "Template",
           group: "template",
-          when: (context, arg) => notFile(context, arg as TreeTarget) && !amongTemplates(arg as TreeTarget),
-          submenu: (_, arg) => [
-            ...templateItems(
-              readTemplates(spaceTree.findDirectoryChildren(spaceTree.templatesFolder()) ?? []),
-              arg as TreeTarget,
-            ),
-            // Pragma's own follow the space's, a line between.
-            ...templateItems(pragmaTemplates, arg as TreeTarget, "pragma").map((item) => ({
-              ...item,
-              group: "pragma",
-            })),
-          ],
+          when: (context, arg) => notFile(context, arg as TreeTarget) && !amongPresets(arg as TreeTarget),
+          search: (_, arg) =>
+            presetSearch(templateSources(), "Search templates", (row) => templateLeaf(row, arg as TreeTarget)),
+          submenu: (_, arg) => presetMenuItems(templateSources(), (row) => templateLeaf(row, arg as TreeTarget)),
         },
       ],
     },
@@ -1250,6 +1432,14 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     { command: "gallery.openFolderToSide", group: "view" },
     { command: "bookmarks.add", group: "folder-bookmark", when: isFolderRow },
     { command: "bookmarks.remove", group: "folder-bookmark", when: isFolderRow },
+    ...presetFolderItems(
+      (arg) => {
+        const node = (arg as TreeTarget | undefined)?.node;
+        return node?.type === "directory" ? node.path : undefined;
+      },
+      (message) => window.alert(message),
+      "folder-bookmark",
+    ),
     { command: "tree.context", group: "folder" },
     { command: "search.inFolder", group: "folder" },
     { command: "tree.findContext", group: "folder" },

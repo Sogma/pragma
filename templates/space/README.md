@@ -6,7 +6,8 @@ This is a Pragma space — a folder of plain files that Pragma edits and any oth
 
 - `projects/`: deliverables go here, one folder per project. A project folder's own `README.md` describes the project: anything nested under it can pull that README into AI context automatically.
 - `_tags.json`: the space's tags, each with an optional color, edited under Tags, below the file tree. A Class can hold every document carrying a tag and give each one a Flow's buttons in its Tools tab.
-- `_templates/`: the space's templates, edited under Templates, below the file tree. New ▸ Template makes a file or folder from one, such as today's Daily Note or a new Project.
+- `presets/templates/`: the space's templates, listed under Presets below the file tree. New ▸ Template makes a file or folder from one, such as today's Daily Note or a new Project.
+- `_presets.json`: the folders the space keeps its presets in, templates and LUTs. Presets lists them; + there adds a folder.
 
 ## Where to go from here
 

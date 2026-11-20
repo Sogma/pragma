@@ -318,8 +318,8 @@ describe("API contract", () => {
     await writeFile(path.join(dir, "a.md"), "---\ntags: [Moth]\n---\n\nThe #moth/luna lamp\n`#moth` in code\n");
     await writeFile(path.join(dir, "b.md"), "A moth lamp, untagged\n");
     await writeFile(path.join(dir, "c.md"), "#mothball lamp\n");
-    await mkdir(path.join(testServer.spaceRoot, "_templates"), { recursive: true });
-    await writeFile(path.join(testServer.spaceRoot, "_templates", "moth.md"), "#moth\n");
+    await mkdir(path.join(testServer.spaceRoot, "presets", "templates"), { recursive: true });
+    await writeFile(path.join(testServer.spaceRoot, "presets", "templates", "moth.md"), "#moth\n");
     const search = async (q: string) =>
       (await (await fetch(`${testServer.baseUrl}/api/space/search?q=${encodeURIComponent(q)}`)).json()) as {
         files: { path: string; matches: unknown[] }[];
@@ -341,7 +341,7 @@ describe("API contract", () => {
       expect((await search("tag:moth lantern")).files).toEqual([]);
     } finally {
       await rm(dir, { recursive: true });
-      await rm(path.join(testServer.spaceRoot, "_templates", "moth.md"));
+      await rm(path.join(testServer.spaceRoot, "presets", "templates", "moth.md"));
     }
   });
 
@@ -4237,7 +4237,7 @@ describe("API contract — toolkits", () => {
         views: [],
         links: [
           "../../tools/polish.flow.html",
-          "/_templates/song.md",
+          "/presets/templates/song.md",
           "../voice.md",
           "../../tools/rewrite.flow.html",
           "../gone.md",
@@ -4248,10 +4248,10 @@ describe("API contract — toolkits", () => {
     await writeFile(path.join(root, "songs", "chico", "lyrics", "sun.md"), "---\ntags: [redo]\n---\n\nVerse.\n");
     await writeFile(path.join(root, "songs", "chico", "lyrics", "moon", "index.md"), "# Moon\n");
     await writeFile(path.join(root, "songs", "chico", "notes", "idea.md"), "An idea.\n");
-    await mkdir(path.join(root, "_templates"), { recursive: true });
-    await writeFile(path.join(root, "_templates", "song.md"), "# {{$title}}\n");
+    await mkdir(path.join(root, "presets", "templates"), { recursive: true });
+    await writeFile(path.join(root, "presets", "templates", "song.md"), "# {{$title}}\n");
     await writeFile(
-      path.join(root, "_templates", "everything.class.html"),
+      path.join(root, "presets", "templates", "everything.class.html"),
       serializeClassFile({
         version: "1.0",
         filter: [],
@@ -4486,15 +4486,15 @@ describe("API contract — tags", () => {
     await writeFile(path.join(dir, "a.md"), "---\ntags: [Night, DRAFT]\n---\n\n#rain and #Night\n");
     await writeFile(path.join(dir, "b.md"), "#night falls, #Rain/heavy\n");
     await writeFile(path.join(dir, "c.md"), "#night\n");
-    await mkdir(path.join(testServer.spaceRoot, "_templates"), { recursive: true });
-    await writeFile(path.join(testServer.spaceRoot, "_templates", "t.md"), "#template-only\n");
+    await mkdir(path.join(testServer.spaceRoot, "presets", "templates"), { recursive: true });
+    await writeFile(path.join(testServer.spaceRoot, "presets", "templates", "t.md"), "#template-only\n");
     try {
       const answer = (await (await fetch(`${testServer.baseUrl}/api/space/tags`)).json()) as { used: string[] };
       // DRAFT is the declared draft; Night is written as most documents write it.
       expect(answer.used.sort()).toEqual(["Rain/heavy", "night", "rain"]);
     } finally {
       await rm(dir, { recursive: true });
-      await rm(path.join(testServer.spaceRoot, "_templates", "t.md"));
+      await rm(path.join(testServer.spaceRoot, "presets", "templates", "t.md"));
     }
   });
 

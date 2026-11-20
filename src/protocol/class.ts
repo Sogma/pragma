@@ -6,7 +6,6 @@ import { compareSortValues, orderByProperty, toSortValue } from "./folderSort.ts
 import { basenameOf, formatRootedPath, parseRootedPath, sameRoot } from "./rootedPath.ts";
 import { isAgentsFile, isReadme } from "./scopes.ts";
 import { isTagOrNested, sameTag, tagNameOf, tagsOf } from "./tags.ts";
-import { isTemplatePath } from "./templates.ts";
 import {
   type ClassFile,
   type ClassRule,
@@ -157,13 +156,14 @@ function sameFolder(a: string, b: string): boolean {
 }
 
 /** What a Class's link gives its rows, by the path it names from the root:
- * a Flow its buttons in each row's toolkit, a Markdown file template the
- * start New note copies, and anything else a place in each row's Links tab. */
+ * a Flow its buttons in each row's toolkit, a Markdown file in a folder the
+ * space lists for templates the start New note copies, and anything else a
+ * place in each row's Links tab. */
 export type ClassLinkUse = "toolkit" | "template" | "reference";
 
-export function classLinkUse(path: string): ClassLinkUse {
+export function classLinkUse(path: string, isTemplate: (path: string) => boolean): ClassLinkUse {
   if (isFlowFile(path)) return "toolkit";
-  return isTemplatePath(path) && isMarkdownFile(path) ? "template" : "reference";
+  return isMarkdownFile(path) && isTemplate(path) ? "template" : "reference";
 }
 
 /** Whether a Class reading `source` lists `folder`'s entries: that very

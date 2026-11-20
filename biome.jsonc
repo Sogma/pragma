@@ -11,8 +11,8 @@
     // own right — web a11y rules (lang attribute, etc.) don't apply to them the
     // way they do to web/index.html, the one real page in this repo.
     //
-    // _tags.json keeps the layout pragma writes it in, one tag a line, which
-    // the formatter would fold onto one line once it fits.
+    // _tags.json and _presets.json keep the layout pragma writes them in, one
+    // entry a line, which the formatter would fold onto one line once it fits.
     //
     // Markdown (docs, and the notes in templates/) stays as written: the
     // formatter rewrites emphasis and tables, and without frontmatter parsing
@@ -25,6 +25,7 @@
       "!**/*.applet.html",
       "!**/*.flow.html",
       "!**/_tags.json",
+      "!**/_presets.json",
       "!**/*.md"
     ]
   },

@@ -46,8 +46,9 @@ export interface LookBadge {
 
 /** A clip's LOOK badge (web/styles/media-panes.css): empty until a look has
  * been picked, then pressed while it is on, and a click turns it off and back
- * on. Out of the tab order, and a press leaves focus on the surface whose
- * keys turn it with D. */
+ * on. It names a look being tried, and says when the kept look's file is
+ * missing. Out of the tab order, and a press leaves focus on the surface
+ * whose keys turn it with D. */
 export function lookBadge(choice: LutChoice): LookBadge {
   const element = document.createElement("button");
   element.type = "button";
@@ -56,12 +57,21 @@ export function lookBadge(choice: LutChoice): LookBadge {
   element.addEventListener("mousedown", (event) => event.preventDefault());
   element.addEventListener("click", () => toggleLook(choice));
   const dispose = choice.subscribe(({ lut, on }) => {
-    element.textContent = lut === null ? "" : "LOOK";
-    if (lut === null) return;
-    const name = lookLabel(lut);
-    element.setAttribute("aria-label", `${name} look`);
+    const trying = choice.trying?.() ?? false;
+    const missing = choice.missing?.() ?? false;
+    const kept = choice.kept?.() ?? { lut, on };
+    const named = trying ? lut : kept.lut;
+    element.classList.toggle("is-missing", missing);
+    element.textContent = named === null ? "" : "LOOK";
+    if (named === null) return;
+    const name = lookLabel(named);
+    element.setAttribute("aria-label", missing ? `${name} look, missing` : `${name} look`);
     element.setAttribute("aria-pressed", String(on));
-    element.dataset.tooltip = `${name} ${on ? "on, click to turn off" : "off, click to turn on"} (D)`;
+    element.dataset.tooltip = trying
+      ? `Trying ${name}`
+      : missing
+        ? `${name}'s file is missing, so the picture shows no look`
+        : `${name} ${kept.on ? "on, click to turn off" : "off, click to turn on"} (D)`;
   });
   return { element, dispose };
 }

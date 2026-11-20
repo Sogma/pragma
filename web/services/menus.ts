@@ -62,6 +62,19 @@ export interface MenuItem {
   // row's name: what sets the row apart, a font picker's default, said
   // without a word in the row.
   mark?: string;
+  // A search box atop this item's flyout. Typing swaps its rows for the
+  // matches, which the arrow keys walk and Enter picks; the flyout stays
+  // open while the box has focus, and a key typed while it shows goes there.
+  search?: MenuSearch | ((context: CommandContext, arg: unknown) => MenuSearch);
+  // Shown while the row is pointed at or reached by the arrow keys, and
+  // ended as they move on or the menu closes: a look tried on the picture
+  // before it is picked.
+  preview?: MenuPreview;
+}
+
+export interface MenuPreview {
+  show(): void;
+  end(): void;
 }
 
 export type MenuContribution = MenuItem[] | ((context: CommandContext, arg: unknown) => MenuItem[]);
@@ -90,6 +103,8 @@ export interface ResolvedMenuItem {
   mark?: string;
   submenu?: ResolvedMenuItem[];
   tiles?: MenuTileSection[];
+  search?: MenuSearch;
+  preview?: MenuPreview;
 }
 
 // Choices made at once, as a viewer's guides are picked: a tile applies on
@@ -250,6 +265,8 @@ export function createMenus(commands: CommandRegistry): MenuRegistry {
         mark: item.mark,
         submenu,
         tiles,
+        search: typeof item.search === "function" ? item.search(context, arg) : item.search,
+        preview: item.preview,
       });
     }
     return resolved;

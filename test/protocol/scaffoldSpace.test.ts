@@ -21,8 +21,19 @@ describe("scaffoldSpace", () => {
   it("copies the template space's worked examples", async () => {
     await scaffoldSpace(target);
 
-    expect((await readdir(target)).sort()).toEqual(["AGENTS.md", "README.md", "_tags.json", "_templates", "projects"]);
-    expect((await readdir(path.join(target, "_templates"))).sort()).toEqual(["Daily Note.md", "Project", "README.md"]);
+    expect((await readdir(target)).sort()).toEqual([
+      "AGENTS.md",
+      "README.md",
+      "_presets.json",
+      "_tags.json",
+      "presets",
+      "projects",
+    ]);
+    expect((await readdir(path.join(target, "presets/templates"))).sort()).toEqual([
+      "Daily Note.md",
+      "Project",
+      "README.md",
+    ]);
     expect((await readdir(path.join(target, "projects/getting-started"))).sort()).toEqual([
       "AGENTS.md",
       "README.md",
@@ -53,9 +64,20 @@ describe("scaffoldSpace", () => {
   it("leaves the worked examples out, and what pointed at them, when asked", async () => {
     await scaffoldSpace(target, { examples: false });
 
-    expect((await readdir(target)).sort()).toEqual(["AGENTS.md", "README.md", "_tags.json", "_templates", "projects"]);
+    expect((await readdir(target)).sort()).toEqual([
+      "AGENTS.md",
+      "README.md",
+      "_presets.json",
+      "_tags.json",
+      "presets",
+      "projects",
+    ]);
     expect(await readdir(path.join(target, "projects"))).toEqual([]);
-    expect((await readdir(path.join(target, "_templates"))).sort()).toEqual(["Daily Note.md", "Project", "README.md"]);
+    expect((await readdir(path.join(target, "presets/templates"))).sort()).toEqual([
+      "Daily Note.md",
+      "Project",
+      "README.md",
+    ]);
     expect(await readFile(path.join(target, "_tags.json"), "utf8")).toBe('{\n  "tags": []\n}\n');
     expect(await readFile(path.join(target, "AGENTS.md"), "utf8")).toBe(
       await readFile(path.join(TEMPLATE, "AGENTS.md"), "utf8"),

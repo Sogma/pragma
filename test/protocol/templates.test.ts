@@ -5,7 +5,6 @@ import {
   countTemplates,
   fillTemplate,
   findTemplate,
-  isTemplatePath,
   readTemplates,
   startingName,
   type TemplateSource,
@@ -28,26 +27,7 @@ const folder = (path: string, children: TemplateSource[]): TemplateSource => ({
   children,
 });
 
-describe("which paths are templates", () => {
-  it("names the space's templates folder and what is in it", () => {
-    expect(isTemplatePath("_templates")).toBe(true);
-    expect(isTemplatePath("_templates/Scene.fountain")).toBe(true);
-    expect(isTemplatePath("space:_templates/Scene.fountain")).toBe(true);
-  });
-
-  it("leaves out a folder that only starts the same, and a library's", () => {
-    expect(isTemplatePath("_templates-old/Scene.fountain")).toBe(false);
-    expect(isTemplatePath("projects/_templates/Scene.fountain")).toBe(false);
-    expect(isTemplatePath("lib:shared/_templates/Scene.fountain")).toBe(false);
-  });
-
-  it("takes the folder in any case, as every name the protocol defines", () => {
-    expect(isTemplatePath("_Templates/Scene.fountain")).toBe(true);
-    expect(isTemplatePath("_TEMPLATES")).toBe(true);
-  });
-});
-
-describe("reading _templates/", () => {
+describe("reading a templates folder", () => {
   it("lists files, folders with a README, and groups of either", () => {
     const entries = readTemplates([
       file("_templates/Meeting.md"),

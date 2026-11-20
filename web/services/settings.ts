@@ -208,11 +208,8 @@ export const tagsSectionOpen = createBooleanSetting("pragma:tags-section-open", 
 export const tagsSectionHeight = createSizeSetting("pragma:tags-section-height");
 export const trashSectionOpen = createBooleanSetting("pragma:trash-section-open", (stored) => stored === "true");
 export const trashSectionHeight = createSizeSetting("pragma:trash-section-height");
-export const templatesSectionOpen = createBooleanSetting(
-  "pragma:templates-section-open",
-  (stored) => stored === "true",
-);
-export const templatesSectionHeight = createSizeSetting("pragma:templates-section-height");
+export const presetsSectionOpen = createBooleanSetting("pragma:presets-section-open", (stored) => stored === "true");
+export const presetsSectionHeight = createSizeSetting("pragma:presets-section-height");
 export const historySectionOpen = createBooleanSetting("pragma:history-section-open", (stored) => stored === "true");
 export const historySectionHeight = createSizeSetting("pragma:history-section-height");
 

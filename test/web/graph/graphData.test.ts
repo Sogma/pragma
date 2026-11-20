@@ -12,7 +12,7 @@ const GRAPH: SpaceGraphResponse = {
     { id: "film/scene.md", kind: "note", label: "scene", scope: "film" },
     { id: "?film/gone", kind: "missing", label: "gone", scope: "film" },
     { id: "lonely.md", kind: "note", label: "lonely", scope: "" },
-    { id: "_templates/t.md", kind: "note", label: "t", scope: "", template: true },
+    { id: "_templates/t.md", kind: "note", label: "t", scope: "", preset: true },
     { id: "film/", kind: "folder", label: "film/", scope: "film" },
     { id: "#draft", kind: "tag", label: "#draft", scope: null },
     { id: "film/other.md", kind: "note", label: "other", scope: "film" },
@@ -31,7 +31,7 @@ const GRAPH: SpaceGraphResponse = {
 const SHOW: ShowOptions = {
   edges: EDGE_GROUPS.filter((group) => group.key !== "contains").map((group) => group.key),
   missing: true,
-  templates: false,
+  presets: false,
   libraries: true,
 };
 

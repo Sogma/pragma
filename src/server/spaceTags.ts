@@ -13,8 +13,8 @@ import {
   tagKey,
   withTagChange,
 } from "../protocol/tags.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import { documentIndex } from "./documentIndex.ts";
+import { presetPaths } from "./presets.ts";
 import { linkBelow, namedEntryPath, refuseLink } from "./rootedFiles.ts";
 import { writeFileAtomic } from "./spaceFiles.ts";
 
@@ -67,13 +67,14 @@ export async function changeSpaceTag(spaceRoot: string, change: TagChange): Prom
 
 /** The tags the space's documents carry that no entry in `declared` names,
  * each once, spelled as most documents carrying it write it, in name order:
- * the walk finds documents in no fixed order. A template's are left out:
- * what `_templates/` holds is offered only from among them. */
+ * the walk finds documents in no fixed order. A preset's are left out, as
+ * the space's content never holds one. */
 export async function undeclaredTags(spaceRoot: string, declared: readonly TagDefinition[]): Promise<string[]> {
   const named = new Set(declared.map((tag) => tagKey(tag.name)));
+  const isPreset = presetPaths(spaceRoot);
   const spellings = new Map<string, Map<string, number>>();
   for (const document of await documentIndex().tagged({ dir: spaceRoot, root: "space" })) {
-    if (isTemplatePath(document.path)) continue;
+    if (isPreset(document.path)) continue;
     for (const name of new Set(document.tags.map((tag) => tag.name))) {
       const key = tagKey(name);
       if (named.has(key)) continue;

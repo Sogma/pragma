@@ -22,9 +22,9 @@ import { fountainTitlePage } from "../protocol/fountainLines.ts";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
 import { basenameOf, dirnameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../protocol/rootedPath.ts";
 import { scopeOf } from "../protocol/scopes.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import { type ClassFile, formatTimestamp, splitDocumentName } from "../protocol/types.ts";
 import { documentIndex } from "./documentIndex.ts";
+import { presetPaths } from "./presets.ts";
 import { formatWithinRoot, isSpaceTarget, namedEntryPath, resolveHeldPath, resolveRootedPath } from "./rootedFiles.ts";
 import { buildTree, scopesOnDisk, spaceListing } from "./tree.ts";
 
@@ -72,6 +72,7 @@ export async function folderRows(
   scope: string,
 ): Promise<ClassRow[]> {
   const rows = new Map<string, ClassRow>();
+  const isPreset = presetPaths(spaceRoot);
   for (const { folder, subfolders } of folders) {
     let nodes: SpaceTreeNode[];
     let target: ReturnType<typeof resolveHeldPath>;
@@ -84,8 +85,8 @@ export async function folderRows(
     } catch {
       continue;
     }
-    // A Class lists the space's templates only from among them.
-    collect(target, target.filePath, nodes, rows, { skipsTemplates: !isTemplatePath(folder), scope });
+    // A Class lists presets only from among them.
+    collect(target, target.filePath, nodes, rows, { skipsPresets: isPreset(folder) ? undefined : isPreset, scope });
   }
   const listed = [...rows.values()];
   return folders.length > 1 ? listed.sort(compareRowNames) : listed;
@@ -107,8 +108,9 @@ export function classRowOf(
   if (entry === "" || isHiddenPath(entry) || !isRowEntry(node.name, node.type, indexed)) return undefined;
   const folder = dirnameOf(entry);
   const place = classPlaceOf(spaceRoot, classPath);
+  const isPreset = presetPaths(spaceRoot);
   const reached = classFolders(place, file.filter).some(
-    (read) => readsFolder(read, folder) && (isTemplatePath(read.folder) || !isTemplatePath(entry)),
+    (read) => readsFolder(read, folder) && (isPreset(read.folder) || !isPreset(entry)),
   );
   if (!reached) return undefined;
   const row = readRow(doc.filePath, doc.path, node, folderInScope(place.scope, folder));
@@ -124,12 +126,12 @@ function collect(
   dir: string,
   nodes: readonly SpaceTreeNode[],
   rows: Map<string, ClassRow>,
-  walk: { skipsTemplates: boolean; scope: string },
+  walk: { skipsPresets?: (path: string) => boolean; scope: string },
 ): void {
   const folder = folderInScope(walk.scope, formatWithinRoot(target, dir));
   for (const node of nodes) {
     const absolute = path.join(dir, node.name);
-    if (walk.skipsTemplates && isTemplatePath(formatWithinRoot(target, absolute))) continue;
+    if (walk.skipsPresets?.(formatWithinRoot(target, absolute))) continue;
     const file = node.type === "directory" ? namedEntryPath(absolute, "index.md") : absolute;
     const rowPath = formatWithinRoot(target, file);
     if (!rows.has(rowPath) && isRowEntry(node.name, node.type, node.type === "directory" && isFile(file))) {

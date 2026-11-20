@@ -52,7 +52,7 @@
    deliberate pick of the brighter blue over --color-primary-hover, which
    passes. */
 .context-menu button:not(:disabled, .danger, .context-menu-tile):is(.highlighted, :hover:not(:has(> .highlighted) > *)),
-.context-menu-item.has-submenu:hover {
+.context-menu-item.has-submenu:is(:hover, :has(> .context-submenu > .context-menu-search:focus)) {
   --row-ink: var(--text-on-primary);
   --row-ink-faint: color-mix(in srgb, var(--text-on-primary) 40%, transparent);
   background: var(--color-primary);
@@ -116,8 +116,33 @@
    selecting the value gives (view/contextMenu.ts): hidden, a selection
    copies nothing, so a pointer drifting off before Ctrl+C would lose it. */
 .context-menu-item.has-submenu:hover > .context-submenu,
-.context-menu-item.has-submenu:has(> .context-submenu .context-menu-detail:focus) > .context-submenu {
+.context-menu-item.has-submenu:has(> .context-submenu .context-menu-detail:focus) > .context-submenu,
+.context-menu-item.has-submenu:has(> .context-submenu > .context-menu-search:focus) > .context-submenu {
   display: flex;
+}
+
+/* A flyout led by a search box hugs its rows, and its matches widen it as far
+   as the menu lets it (view/contextMenu.ts), a long folder cut short before
+   a name. */
+.context-submenu.has-search {
+  width: max-content;
+}
+
+/* A row under a heading row sits a tree's step (10px) in from it, as a
+   folder's entries do. */
+.context-menu .context-menu-indented {
+  padding-inline-start: calc(8px + 10px);
+}
+
+/* A row standing for something gone, a look whose file is missing. */
+.context-menu .is-missing > .context-menu-detail {
+  color: var(--color-warning);
+}
+
+.context-submenu.has-search .context-menu-results .context-menu-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Set by the menu when it opens, whenever the viewport has no room to the

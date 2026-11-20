@@ -35,7 +35,6 @@ import {
 } from "../protocol/rootedPath.ts";
 import { readMetadataBlock } from "../protocol/tableFile.ts";
 import { tagsOf } from "../protocol/tags.ts";
-import { isTemplatePath } from "../protocol/templates.ts";
 import { type ClassFile, isClassFile, isMarkdownFile } from "../protocol/types.ts";
 
 /** A note's frontmatter and its display title, the plain text of a leading
@@ -97,10 +96,10 @@ export interface DocumentIndex {
    * `describe`, since its kind comes from its name. */
   description(file: string, describe: (text: string) => string | undefined): string | undefined;
   /** The notes of `roots` whose own text links to the file at the rooted path
-   * `target`, each with its mentions, the file's own links and a template's
-   * links to a file outside the templates left out. A library file's come
+   * `target`, each with its mentions, the file's own links and a preset's
+   * links to a file outside the presets left out. A library file's come
    * from its library and the space, which may name it as `lib:<id>/…`. */
-  backlinks(target: string, roots: readonly IndexRoot[]): Promise<Backlink[]>;
+  backlinks(target: string, roots: readonly IndexRoot[], isPreset?: (path: string) => boolean): Promise<Backlink[]>;
   /** Every Class under `root` whose file reads as one, after checking the
    * root, in no set order. */
   classes(root: IndexRoot): Promise<IndexedClass[]>;
@@ -502,7 +501,7 @@ export function createDocumentIndex(): MemoryDocumentIndex {
     // A wikilink may leave off `.md`, so a note's links file under its path
     // with the extension and without, and the resolver, on the listings just
     // read, keeps only the links that land on it.
-    async backlinks(target, inRoots) {
+    async backlinks(target, inRoots, isPreset = () => false) {
       const states = await Promise.all(inRoots.map((root) => checked(root).state));
       const indexOf = (root: PathRoot) => states.find((state) => sameRoot(state.root, root))?.paths;
       const wanted = parseRootedPath(target);
@@ -520,7 +519,7 @@ export function createDocumentIndex(): MemoryDocumentIndex {
         for (const note of notes) {
           const relative = path.relative(state.dir, note).split(path.sep).join("/");
           const linking = formatRootedPath({ root: state.root, path: relative });
-          if (linking === spelled || (isTemplatePath(linking) && !isTemplatePath(spelled))) continue;
+          if (linking === spelled || (isPreset(linking) && !isPreset(spelled))) continue;
           const docDir = dirnameOf(linking);
           const mentions = (entries.get(note)?.links ?? [])
             .filter((link) => {

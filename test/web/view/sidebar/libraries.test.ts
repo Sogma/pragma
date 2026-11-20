@@ -847,6 +847,7 @@ describe("createLibraryManager", () => {
     expect(menus.resolve("listItem", context, target()).map((item) => item.label)).toEqual([
       "Rename…",
       "Properties…",
+      "Add to Presets",
       "Remove from list",
     ]);
     expect(menus.resolve("listItem", context, target({ missing: true })).map((item) => item.label)).toEqual([
@@ -899,6 +900,7 @@ describe("createLibraryManager", () => {
       "New Folder",
       "Rename…",
       "Properties…",
+      "Add to Presets",
       "Remove from list",
     ]);
 

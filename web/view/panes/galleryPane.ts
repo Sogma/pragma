@@ -49,7 +49,7 @@ import {
   stripExtension,
   wireEntryDrag,
 } from "../../core/paths.ts";
-import { entryIconAt, fileTypeAt, findEntry, readingResolvers, templatesFolder } from "../../core/spaceTree.ts";
+import { entryIconAt, fileTypeAt, findEntry, readingResolvers } from "../../core/spaceTree.ts";
 import { createFilePreview, type PreviewKind, previewKind } from "../../filePreview.ts";
 import { dateTimeLabel } from "../../lib/dateText.ts";
 import {
@@ -79,6 +79,7 @@ import type { DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import { type SortByTarget, setFolderLayout, setLocalSort, sortByItems } from "../../services/folderSorts.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
+import { looks } from "../../services/looks.ts";
 import type { ContextMenuService, MenuItem, MenuRegistry } from "../../services/menus.ts";
 import type { Setting } from "../../services/settings.ts";
 import * as settings from "../../services/settings.ts";
@@ -651,17 +652,11 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     return [...listing.slice(0, at), asked.slot, ...listing.slice(at)];
   }
 
-  // The space root's templates folder is the Templates section's, never a
-  // tile. It stays in the listing, so an order set from here still names
-  // every entry the folder holds, as a folder's own order must.
-  const drawn = (listing: readonly FolderEntry[]) =>
-    listing.filter((entry) => entry.type !== "directory" || entry.path !== templatesFolder());
-
   /** Redraws every tile, with the selection on `keep`'s entry. */
   function rebuild(keep = selectedPath()): void {
     const previewIndex = preview.shownIndex();
     const previewed = previewIndex === undefined ? undefined : entries[previewIndex]?.path;
-    entries = withSlot(drawn(listed));
+    entries = withSlot(listed);
     const index = keep === undefined ? -1 : entries.findIndex((entry) => entry.path === keep);
     selected = index === -1 ? undefined : index;
     // The preview follows its entry to wherever the listing put it, and goes
@@ -670,7 +665,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     if (shown !== -1) preview.moved(shown);
     else if (previewed !== undefined) preview.close(false);
     clearTiles();
-    deps.reportReadout(folderContentsLabel(drawn(listed)));
+    deps.reportReadout(folderContentsLabel(listed));
     renderDetails();
     showStatus(entries.length === 0 ? "Nothing in this folder to show." : undefined);
     relayout();
@@ -1239,7 +1234,7 @@ export function galleryPane(wiring: GalleryWiring): EditorPaneDescriptor {
     videoLoop: settings.videoLoop,
     videoVolume: settings.videoVolume,
     videoGuides: settings.videoGuides,
-    videoLut: settings.videoLut,
+    videoLut: looks,
     tileSize: settings.galleryTileSize,
     setLayout: setFolderLayout,
   };

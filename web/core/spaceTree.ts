@@ -1,4 +1,3 @@
-import { spellingIn } from "../../src/protocol/entryName.ts";
 import { isPathDestination, noteLinks } from "../../src/protocol/markdownLinks.ts";
 import type { NameIndex } from "../../src/protocol/nameIndex.ts";
 import {
@@ -25,7 +24,6 @@ import {
   type RootedPath,
 } from "../../src/protocol/rootedPath.ts";
 import { isAgentsFile, type ScopeFolders } from "../../src/protocol/scopes.ts";
-import { isTemplatePath, TEMPLATES_FOLDER } from "../../src/protocol/templates.ts";
 import { type DocumentType, documentTypeFor, imageMediaTypeForPath, isMarkdownFile } from "../../src/protocol/types.ts";
 import { createWorldIndex, resolveWorldName, worldFolder } from "../../src/protocol/worldNames.ts";
 import type { PathNames } from "../lib/pathLabel.ts";
@@ -34,6 +32,7 @@ import {
   fetchLibraryPaths,
   fetchLibraryTree,
   fetchSpacePaths,
+  fetchSpacePresets,
   fetchTree,
   type RootPathsResponse,
   type SpaceTreeNode,
@@ -50,6 +49,7 @@ import {
   nodeFileType,
   pathHint,
 } from "./paths.ts";
+import { inTemplateFolders, isPresetPath, setPresets } from "./presets.ts";
 
 // Owns the last tree fetched from the server — every consumer (the tree
 // view, drag/reorder, link resolution) reads from here rather than each
@@ -72,18 +72,20 @@ export function getTree(): SpaceTreeNode[] {
   return currentTree;
 }
 
-/** Every file a picker offers, in tree order: the templates left out, since
- * the space's content never holds one. New ▸ Template and the Templates
- * section are where they are offered. */
+/** Every file a picker offers, in tree order: what a listed preset folder
+ * holds left out, since the space's content never holds one. New ▸
+ * Template, Looks and the Presets section are where presets are offered. */
 export function offeredFiles(): string[] {
-  return flattenTreeFilePaths(currentTree).filter((path) => !isTemplatePath(path));
+  return flattenTreeFilePaths(currentTree).filter((path) => !isPresetPath(path));
 }
 
 /** Every file a Class can link, by path, in tree order: what a picker
- * offers, and the space's Markdown templates, which its New note starts
- * from. */
+ * offers, and the Markdown templates of the space's template folders, which
+ * its New note starts from. */
 export function classLinkFiles(): string[] {
-  return flattenTreeFilePaths(currentTree).filter((path) => !isTemplatePath(path) || isMarkdownFile(path));
+  return flattenTreeFilePaths(currentTree).filter(
+    (path) => !isPresetPath(path) || (isMarkdownFile(path) && inTemplateFolders(path)),
+  );
 }
 
 /** The change version the current tree was read at: equal to the space's
@@ -177,11 +179,18 @@ export function onLibraryTreeLoaded(listener: () => void): () => void {
 // landing after a newer read.
 export async function refresh(): Promise<SpaceTreeNode[]> {
   const through = unlistedWrites;
-  const [read, paths] = await Promise.all([fetchTree(), fetchSpacePaths()]);
+  // The presets come with the tree, so what they hold and what offers the
+  // space's content always agree. One that won't load keeps the last read.
+  const [read, paths, listed] = await Promise.all([
+    fetchTree(),
+    fetchSpacePaths(),
+    fetchSpacePresets().catch(() => undefined),
+  ]);
   currentTree = read.tree;
   readAt = read.changes;
   currentPaths = paths;
   listedThrough = through;
+  if (listed) setPresets(listed);
   return currentTree;
 }
 
@@ -244,13 +253,6 @@ export function manualArrangement(dirPath: string): string[] | undefined {
   const node = dirPath === "" ? undefined : findDirectoryNode(dirPath);
   if (!node || ownSortOf(node).by !== "manual") return undefined;
   return (findDirectoryChildren(dirPath) ?? []).map((child) => child.name);
-}
-
-/** The space's templates folder as the root lists it, its name in any case,
- * or its own name before one is made. */
-export function templatesFolder(): string {
-  const folders = currentTree.filter((node) => node.type === "directory").map((node) => node.name);
-  return spellingIn(folders, TEMPLATES_FOLDER) ?? TEMPLATES_FOLDER;
 }
 
 /** A file or folder the tree draws, by its space path. */

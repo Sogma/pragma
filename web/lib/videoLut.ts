@@ -3,24 +3,49 @@
 // cube, and a canvas over the picture shows the result. The file is never
 // touched; its own element still decodes it, and a clip's plays its sound
 // underneath.
+import { type Lut, UNIT_DOMAIN } from "../../src/protocol/lutFile.ts";
+import { basenameOf, parseRootedPath } from "../../src/protocol/rootedPath.ts";
+import { isLutFile } from "../../src/protocol/types.ts";
 
 /** The LUTs Pragma ships, by the name a stored choice keeps. */
 export type LutName = "panchromatic" | "orthochromatic";
 
-/** The look a player shows its picture through: the LUT last picked, none
- * before the first pick, kept while the look is off so it can come back. */
+/** The look a player shows its picture through: one of Pragma's LUTs by
+ * name or a LUT file in a preset folder by its rooted path, none before the
+ * first pick, kept while the look is off so it can come back. */
 export interface Look {
-  lut: LutName | null;
+  lut: string | null;
   on: boolean;
 }
 
 export const NO_LOOK: Look = { lut: null, on: false };
 
-/** The look every viewer with a LOOK badge shows its picture through: changed in one, it changes in all. */
+/** The look every viewer with a LOOK badge shows its picture through: changed
+ * in one, it changes in all. `cube` answers a look's table, a LUT file's once
+ * read; `kept`, `trying` and `missing` tell a badge what it stands for. */
 export interface LutChoice {
   get(): Look;
   set(look: Look): void;
   subscribe(listener: (look: Look) => void): () => void;
+  cube(lut: string): Lut | undefined;
+  kept?(): Look;
+  trying?(): boolean;
+  missing?(): boolean;
+}
+
+/** Whether `lut` names one of Pragma's own LUTs. */
+export function isBuiltInLook(lut: string): lut is LutName {
+  return Object.hasOwn(LUTS, lut);
+}
+
+/** Whether `lut` names a LUT file, by a rooted path. */
+export function isFileLook(lut: string): boolean {
+  if (!isLutFile(lut)) return false;
+  try {
+    return parseRootedPath(lut).path !== "";
+  } catch {
+    return false;
+  }
 }
 
 /** A look read back from storage, where anything unknown reads as none. */
@@ -33,14 +58,14 @@ export function readLook(stored: string | null): Look {
   }
   if (typeof value !== "object" || value === null) return NO_LOOK;
   const { lut, on } = value as Record<string, unknown>;
-  if (typeof lut !== "string" || !Object.hasOwn(LUTS, lut)) return NO_LOOK;
-  return { lut: lut as LutName, on: on === true };
+  if (typeof lut !== "string" || !(isBuiltInLook(lut) || isFileLook(lut))) return NO_LOOK;
+  return { lut, on: on === true };
 }
 
 /** Turns the look off, or back on, keeping its LUT. Before the first pick
  * there is nothing to turn on. */
 export function toggleLook(choice: LutChoice): void {
-  const look = choice.get();
+  const look = choice.kept?.() ?? choice.get();
   if (look.lut !== null) choice.set({ ...look, on: !look.on });
 }
 
@@ -50,16 +75,12 @@ export const LOOKS: readonly { lut: LutName; label: string }[] = [
   { lut: "orthochromatic", label: "Orthochromatic" },
 ];
 
-/** A look's name, as the Looks menu lists it. */
-export function lookLabel(lut: LutName): string {
-  return LOOKS.find((look) => look.lut === lut)?.label ?? lut;
-}
-
-/** A 3D LUT: `size` points along each axis and an RGB triple for each, red
- * changing fastest, then green, then blue, as a `.cube` file lists them. */
-export interface Lut {
-  size: number;
-  table: Float32Array;
+/** A look's name, as the Looks menu lists it: a LUT file's, its file name
+ * without the extension. */
+export function lookLabel(lut: string): string {
+  const own = LOOKS.find((look) => look.lut === lut)?.label;
+  if (own !== undefined) return own;
+  return basenameOf(lut).replace(/\.cube$/i, "");
 }
 
 /** The share of a color's red, green and blue its gray takes. */
@@ -85,13 +106,25 @@ export function grayLut(mix: GrayMix, size = 33): Lut {
       }
     }
   }
-  return { size, table };
+  return { size, table, domainMin: UNIT_DOMAIN.min, domainMax: UNIT_DOMAIN.max };
 }
 
 const LUTS: Record<LutName, () => Lut> = {
   panchromatic: () => grayLut(PANCHROMATIC_MIX),
   orthochromatic: () => grayLut(ORTHOCHROMATIC_MIX),
 };
+
+const builtIn = new Map<LutName, Lut>();
+
+/** One of Pragma's LUTs, made once. */
+export function builtInCube(name: LutName): Lut {
+  let made = builtIn.get(name);
+  if (!made) {
+    made = LUTS[name]();
+    builtIn.set(name, made);
+  }
+  return made;
+}
 
 // One triangle over the whole canvas. A frame's top row is its texture's
 // first, so the texture's rows run down the canvas.
@@ -105,7 +138,9 @@ void main() {
 
 // The GPU's filtering reads between the cube's points. Its outermost points
 // are texel centers, half a texel in from the edges, so `scale` and `offset`
-// land 0 and 1 on them rather than on the edges.
+// land 0 and 1 on them rather than on the edges. A color is first placed in
+// the file's input range, each channel its own, one outside it taking the
+// nearest edge's.
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 precision highp sampler2D;
@@ -114,11 +149,14 @@ uniform sampler2D frame;
 uniform sampler3D cube;
 uniform float scale;
 uniform float offset;
+uniform vec3 domainMin;
+uniform vec3 domainMax;
 in vec2 at;
 out vec4 color;
 void main() {
   vec4 source = texture(frame, at);
-  color = vec4(texture(cube, source.rgb * scale + offset).rgb * source.a, source.a);
+  vec3 placed = clamp((source.rgb - domainMin) / (domainMax - domainMin), 0.0, 1.0);
+  color = vec4(texture(cube, placed * scale + offset).rgb * source.a, source.a);
 }`;
 
 interface Pipeline {
@@ -126,8 +164,10 @@ interface Pipeline {
   cubeTexture: WebGLTexture;
   scale: WebGLUniformLocation | null;
   offset: WebGLUniformLocation | null;
+  domainMin: WebGLUniformLocation | null;
+  domainMax: WebGLUniformLocation | null;
   // The LUT the cube texture holds.
-  loaded: LutName | null;
+  loaded: Lut | null;
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader | null {
@@ -169,18 +209,22 @@ function buildPipeline(gl: WebGL2RenderingContext): Pipeline | null {
     cubeTexture: texture(gl, gl.TEXTURE_3D, gl.TEXTURE1),
     scale: gl.getUniformLocation(program, "scale"),
     offset: gl.getUniformLocation(program, "offset"),
+    domainMin: gl.getUniformLocation(program, "domainMin"),
+    domainMax: gl.getUniformLocation(program, "domainMax"),
     loaded: null,
   };
 }
 
-function loadCube(gl: WebGL2RenderingContext, pipeline: Pipeline, name: LutName): void {
-  const { size, table } = LUTS[name]();
+function loadCube(gl: WebGL2RenderingContext, pipeline: Pipeline, lut: Lut): void {
+  const { size, table, domainMin, domainMax } = lut;
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_3D, pipeline.cubeTexture);
   gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGB16F, size, size, size, 0, gl.RGB, gl.FLOAT, table);
   gl.uniform1f(pipeline.scale, (size - 1) / size);
   gl.uniform1f(pipeline.offset, 0.5 / size);
-  pipeline.loaded = name;
+  gl.uniform3f(pipeline.domainMin, domainMin[0], domainMin[1], domainMin[2]);
+  gl.uniform3f(pipeline.domainMax, domainMax[0], domainMax[1], domainMax[2]);
+  pipeline.loaded = lut;
 }
 
 export interface LutLayer {
@@ -222,13 +266,16 @@ export function createLutLayer(media: HTMLVideoElement | HTMLImageElement, choic
   let active = false;
   let stillShown = false;
 
-  function prepare(name: LutName): boolean {
+  // A LUT file's cube may still be on its way: the choice says when it lands.
+  function prepare(name: string): boolean {
+    const lut = choice.cube(name);
+    if (!lut) return false;
     // A still keeps its clear parts clear, over its checkerboard.
     gl ??= element.getContext("webgl2", { alpha: !video, antialias: false, depth: false, stencil: false });
     if (!gl || gl.isContextLost()) return false;
     pipeline ??= buildPipeline(gl);
     if (!pipeline) return false;
-    if (pipeline.loaded !== name) loadCube(gl, pipeline, name);
+    if (pipeline.loaded !== lut) loadCube(gl, pipeline, lut);
     return true;
   }
 

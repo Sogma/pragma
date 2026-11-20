@@ -13,10 +13,11 @@ const entryLine = (entry: unknown): string =>
         .join(", ")} }`
     : JSON.stringify(entry);
 
-/** `file` as Pragma writes it, its `listKey` array one entry a line. */
-export function serializeEntryListFile(file: Record<string, unknown>, listKey: string): string {
+/** `file` as Pragma writes it, each array `listKeys` names one entry a line. */
+export function serializeEntryListFile(file: Record<string, unknown>, listKeys: string | readonly string[]): string {
+  const lists = typeof listKeys === "string" ? [listKeys] : listKeys;
   const members = Object.entries(file).map(([key, value]) => {
-    if (key === listKey && Array.isArray(value)) {
+    if (lists.includes(key) && Array.isArray(value)) {
       const lines = value.map((entry) => `    ${entryLine(entry)}`).join(",\n");
       return `  ${JSON.stringify(key)}: [${value.length > 0 ? `\n${lines}\n  ` : ""}]`;
     }
