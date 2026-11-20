@@ -9,7 +9,8 @@ import type { ModelKind } from "../../../web/lib/modelPicker.ts";
 //
 // `references` holds how many reference images a ref's model takes,
 // `videoCounts` how many clips, `frameLists` which frames, and
-// `settingLists` the settings it offers, as its list would say.
+// `settingLists` the settings it offers, and `resolutionLists` the sizes,
+// as its list would say.
 export interface FakeField {
   kind: ModelKind;
   value(): string;
@@ -25,18 +26,21 @@ export function fakeModelFields(): ModelFields & {
   videoCounts: Map<string, number>;
   frameLists: Map<string, FrameKind[]>;
   settingLists: Map<string, ModelSetting[]>;
+  resolutionLists: Map<string, string[]>;
 } {
   const fields: FakeField[] = [];
   const references = new Map<string, number>();
   const videoCounts = new Map<string, number>();
   const frameLists = new Map<string, FrameKind[]>();
   const settingLists = new Map<string, ModelSetting[]>();
+  const resolutionLists = new Map<string, string[]>();
   return {
     fields,
     references,
     videoCounts,
     frameLists,
     settingLists,
+    resolutionLists,
     create(kind, value, onPick, options = {}) {
       const button = document.createElement("button");
       button.className = "model-picker";
@@ -47,5 +51,7 @@ export function fakeModelFields(): ModelFields & {
     videoReferences: (_kind, ref) => videoCounts.get(ref),
     frames: (_kind, ref) => frameLists.get(ref),
     settings: (_kind, ref) => settingLists.get(ref),
+    resolutions: (_kind, ref) => resolutionLists.get(ref),
+    name: (_kind, ref) => ref.slice(ref.indexOf("/") + 1),
   };
 }

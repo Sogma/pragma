@@ -9,7 +9,13 @@ import {
 } from "../../src/protocol/flowNodes.ts";
 import type { FlowNodeInstance } from "../../src/protocol/types.ts";
 import { effortSlider } from "../lib/effort.ts";
-import { createModelPickerButton, type ModelKind, renderModelPicker, toggleModelMenu } from "../lib/modelPicker.ts";
+import {
+  createModelPickerButton,
+  type ModelKind,
+  modelNameOf,
+  renderModelPicker,
+  toggleModelMenu,
+} from "../lib/modelPicker.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import type { ModelLists } from "../services/modelLists.ts";
 
@@ -39,6 +45,10 @@ export interface ModelFields {
   frames(kind: ModelKind, ref: string): FrameKind[] | undefined;
   // The settings it offers beyond the node's own inputs, the same way.
   settings(kind: ModelKind, ref: string): ModelSetting[] | undefined;
+  // Its own name, as its picker names it; "" for the default names that.
+  name(kind: ModelKind, ref: string): string;
+  // The sizes a video model lists, the same way: empty for one taking none.
+  resolutions(kind: ModelKind, ref: string): string[] | undefined;
 }
 
 export interface ModelFieldsDeps {
@@ -150,6 +160,13 @@ export function createModelFields({ contextMenu, modelLists }: ModelFieldsDeps):
     settings(kind, ref) {
       const model = listed(kind, ref);
       return model && (model.settings ?? []);
+    },
+    resolutions(kind, ref) {
+      return listed(kind, ref)?.resolutions;
+    },
+    name(kind, ref) {
+      const chosen = ref || modelLists.defaultOf(kind);
+      return chosen ? modelNameOf(chosen, modelLists.get(kind)) : "";
     },
   };
 }

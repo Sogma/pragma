@@ -1710,13 +1710,27 @@ describe("the Generate Video node", () => {
     const generateVideo = vi.fn(async () => ({ ...answer, warnings: [] }));
     const run = (config: Record<string, unknown>) =>
       NODE_EXECUTORS.generateVideo(videoNode(config), prompt, context({ sandbox: sandbox(generateVideo) }));
-    await run({ modelSettings: { mode: "edit", generate_audio: false, cfg_scale: 0.5, junk: { deep: 1 } } });
+    await run({ modelSettings: { mode: "pro", generate_audio: false, cfg_scale: 0.5, junk: { deep: 1 } } });
     await run({});
     const sent = (generateVideo.mock.calls as unknown as Array<[string, string, GenerateVideoRequestBody]>).map(
       ([, , request]) => request,
     );
-    expect(sent[0].modelSettings).toEqual({ mode: "edit", generate_audio: false, cfg_scale: 0.5 });
+    expect(sent[0].modelSettings).toEqual({ mode: "pro", generate_audio: false, cfg_scale: 0.5 });
     expect(sent[1]).not.toHaveProperty("modelSettings");
+  });
+
+  it("refuses a picked mode its inputs can't take, before asking for anything", async () => {
+    const generateVideo = vi.fn(async () => ({ ...answer, warnings: [] }));
+    const ensureCapability = vi.fn(async () => true);
+    await expect(
+      NODE_EXECUTORS.generateVideo(
+        videoNode({ modelSettings: { mode: "video_edit" } }),
+        prompt,
+        context({ sandbox: sandbox(generateVideo), ensureCapability }),
+      ),
+    ).rejects.toThrow('Mode "video_edit" needs a clip on a video reference');
+    expect(ensureCapability).not.toHaveBeenCalled();
+    expect(generateVideo).not.toHaveBeenCalled();
   });
 
   // A blank was the model's own default before these selects lost it.

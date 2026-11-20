@@ -785,6 +785,7 @@ FlowNodeInstance {
   comment?: string              // one line of plain text for the node's users; absent = none
   color?: string                // "#rrggbb" node color; absent = default
   collapsed?: boolean
+  settingsFolded?: boolean      // the card's set-once settings folded to a summary
   mode?: "disabled"             // a run leaves the node out (see Execution); absent = it runs
   exposed?: string[]            // port ids / config keys shown in App Mode
   appModeOrder?: number
@@ -874,7 +875,7 @@ Grants are lazy and first-use, prompted the moment a node needs one, user-grante
 
 A grant's `contentHash` is its **capability digest** (see [Grant storage](#grant-storage)): a hash over only the part of the graph that decides what a run can do — which nodes exist, how they are wired, and every config value a node reads. A Flow cannot pin its raw file: dragging a node or resizing a card rewrites the file, and a grant has to survive that. Hashing behaviour instead of bytes means a match says the graph still does what a human approved, whoever wrote the file last.
 
-What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color and collapsed state, App Mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
+What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color, collapsed and folded state, App Mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
 
 Which changes may carry an entry to a new digest is set in [Grant storage](#grant-storage) and [Applet nodes](#applet-nodes).
 

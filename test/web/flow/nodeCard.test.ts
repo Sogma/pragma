@@ -1196,18 +1196,104 @@ describe("an Applet node's card", () => {
 });
 
 describe("a Generate Video card's model settings", () => {
-  it("shows the settings the picked model offers, once its list says, and none for a model offering none", () => {
+  it("groups the model rows under the toggle, then the settings the picked model offers once its list says", () => {
     const { cards, modelFields } = setup();
     const card = cards.build(node("generateVideo", { model: "higgsfield/kling_4_0_flash" }));
     const section = card.querySelector(".flow-model-settings") as HTMLElement;
-    expect(section.hidden).toBe(true);
+    const groupLabels = () =>
+      [...section.querySelectorAll(".flow-model-settings-body > .flow-port-row > .flow-port-label")].map(
+        (label) => label.textContent,
+      );
+    expect(groupLabels()).toEqual(["model", "aspect_ratio", "resolution", "duration"]);
 
     modelFields.settingLists.set("higgsfield/kling_4_0_flash", [
       { name: "mode", kind: "choice", options: ["text-to-video", "video-edit"], default: "text-to-video" },
     ]);
     for (const field of modelFields.fields) field.onRedraw?.();
-    expect(section.hidden).toBe(false);
-    expect(section.querySelector(".flow-config-label")?.textContent).toBe("mode");
+    expect(groupLabels()).toEqual(["model", "aspect_ratio", "resolution", "duration", "mode"]);
+    const row = section.querySelector(".flow-model-setting") as HTMLElement;
+    expect(row.classList.contains("flow-port-row")).toBe(true);
+    expect(row.querySelector(".handle")).toBeNull();
+    expect(row.querySelector(".flow-port-label")?.textContent).toBe("mode");
+  });
+
+  it("draws the prefix after the model settings, above the folder, and leaves a Generate Image's in its inputs", () => {
+    const { cards } = setup();
+    const prefixOf = (card: HTMLElement) =>
+      [...card.querySelectorAll(".flow-port-row")].find(
+        (row) => row.querySelector(".flow-port-label")?.textContent === "prefix",
+      ) as HTMLElement;
+    const video = cards.build(node("generateVideo"));
+    const settings = video.querySelector(".flow-model-settings") as HTMLElement;
+    const prefix = prefixOf(video);
+    expect(prefix.closest(".flow-node-content")).not.toBeNull();
+    expect(settings.compareDocumentPosition(prefix) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(prefix.querySelector(".handle.target")).not.toBeNull();
+    expect(prefixOf(cards.build(node("generateImage"))).closest(".flow-node-inputs")?.parentElement?.className).toBe(
+      "flow-node-body",
+    );
+  });
+
+  it("folds to a summary of the model and its settings, naming a wired one", () => {
+    const { cards } = setup([
+      { id: "e1", source: "t-1", sourcePort: "text", target: "generateVideo-1", targetPort: "aspect_ratio" },
+    ]);
+    const card = cards.build(
+      node(
+        "generateVideo",
+        { model: "higgsfield/seedance_2_5", resolution: "720p", duration: "5" },
+        { settingsFolded: true },
+      ),
+    );
+    const section = card.querySelector(".flow-model-settings") as HTMLElement;
+    expect(section.classList.contains("folded")).toBe(true);
+    expect(section.querySelector(".flow-model-settings-label")?.textContent).toBe(
+      "seedance_2_5 · 720p · 5 s · aspect ratio wired",
+    );
+    expect((section.querySelector(".flow-model-settings-body") as HTMLElement).hidden).toBe(true);
+    expect((section.querySelector(".flow-model-settings-toggle") as HTMLElement).dataset.tooltip?.split("\n")).toEqual([
+      "model: seedance_2_5",
+      "aspect ratio: wired",
+      "resolution: 720p",
+      "duration: 5 s",
+    ]);
+  });
+
+  it("stacks the folded rows' wires on the heading, and a collapsed card's on its title", () => {
+    const { cards } = setup([
+      { id: "e1", source: "t-1", sourcePort: "text", target: "generateVideo-1", targetPort: "aspect_ratio" },
+      { id: "e2", source: "t-2", sourcePort: "text", target: "generateVideo-1", targetPort: "prompt" },
+      { id: "e3", source: "generateVideo-1", sourcePort: "path", target: "s-1", targetPort: "text" },
+    ]);
+    const folded = cards.build(node("generateVideo", {}, { settingsFolded: true }));
+    expect(folded.querySelector(".flow-node-title .flow-joined-pin")).toBeNull();
+    const collapsed = cards.build(node("generateVideo", {}, { settingsFolded: true, collapsed: true }));
+    const ids = (root: Element, selector: string) =>
+      [...root.querySelectorAll<HTMLElement>(selector)].map((pin) => pin.dataset.handleid);
+    expect(ids(folded, ".flow-model-settings-line .flow-joined-pin")).toEqual(["aspect_ratio"]);
+    const title = collapsed.querySelector(".flow-node-title") as HTMLElement;
+    expect(ids(title, ".flow-joined-pin.target")).toEqual(["prompt", "aspect_ratio"]);
+    expect(ids(title, ".flow-joined-pin.source")).toEqual(["path"]);
+  });
+
+  it("offers the node's sizes and the model's own, naming what the model sends for one it doesn't list", () => {
+    const { cards, modelFields, opened } = setup();
+    const card = cards.build(node("generateVideo", { model: "higgsfield/gemini_omni_flash_1_2", resolution: "480p" }));
+    const picker = () =>
+      [...card.querySelectorAll<HTMLElement>(".flow-port-row")]
+        .find((row) => row.querySelector(".flow-port-label")?.textContent === "resolution")
+        ?.querySelector("button.flow-picker") as HTMLButtonElement;
+    modelFields.resolutionLists.set("higgsfield/gemini_omni_flash_1_2", ["360p", "720p", "1080p", "4k"]);
+    for (const field of modelFields.fields) field.onRedraw?.();
+    picker().click();
+    expect((opened.at(-1)?.items ?? []).map((item) => [item.label, item.detail])).toEqual([
+      ["360p", undefined],
+      ["480p", "sends 360p"],
+      ["720p", undefined],
+      ["1080p", undefined],
+      ["4K", undefined],
+    ]);
+    expect(picker().getAttribute("aria-label")).toBe("resolution: 480p");
   });
 
   it("isn't on a Generate Image card", () => {

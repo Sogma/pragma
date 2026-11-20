@@ -15,7 +15,6 @@ import {
   higgsfieldVideoModel,
   type MediaCache,
   offeredSettings,
-  taskMode,
   wholeRatio,
 } from "../../src/server/higgsfieldMcp.ts";
 import {
@@ -505,24 +504,6 @@ describe("offeredSettings", () => {
   });
 });
 
-describe("taskMode", () => {
-  const seedance = ["t2v", "omni_reference", "video_edit", "video_extension"];
-  it("picks the task the inputs ask for in each spelling, references over frames", () => {
-    expect(taskMode(seedance, { references: true, frames: true })).toBe("omni_reference");
-    expect(taskMode(seedance, { references: false, frames: false })).toBe("t2v");
-    expect(taskMode(["text-to-video", "reference-to-video", "edit"], { references: true, frames: false })).toBe(
-      "reference-to-video",
-    );
-  });
-
-  it("leaves the mode to the server where no option names the task", () => {
-    // A model taking a frame in omni_reference is moved there by the server.
-    expect(taskMode(seedance, { references: false, frames: true })).toBeUndefined();
-    expect(taskMode(["std", "pro", "4k"], { references: true, frames: false })).toBeUndefined();
-    expect(taskMode([], { references: false, frames: false })).toBeUndefined();
-  });
-});
-
 describe("higgsfieldImageJobs", () => {
   it("starts an image job priced first, names the job as its operation, and checks it from a fresh connection", async () => {
     standIn.adjustments = {
@@ -563,12 +544,14 @@ describe("higgsfieldModels", () => {
         id: "grok_video_v15_lite",
         label: "Grok Imagine Video 1.5 Lite",
         takes: { references: [], frames: ["start"] },
+        resolutions: ["480p", "720p", "1080p"],
         settings: [],
       },
       {
         id: "seedance1_5",
         label: "Seedance 1.5 Pro",
         takes: { references: [], frames: ["start", "end"] },
+        resolutions: ["480p", "720p", "1080p"],
         settings: [
           {
             name: "generate_audio",
@@ -594,6 +577,7 @@ describe("higgsfieldModels", () => {
       id: "kling_o3_image_reference",
       label: "Kling 3.0 Omni",
       takes: { references: ["image"], frames: [] },
+      resolutions: [],
       settings: [],
     });
   });

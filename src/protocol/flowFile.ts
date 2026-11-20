@@ -80,6 +80,7 @@ function readNodes(value: unknown): FlowNodeInstance[] {
       comment: typeof candidate.comment === "string" && candidate.comment.trim() ? candidate.comment : undefined,
       color: readColor(candidate.color),
       collapsed: typeof candidate.collapsed === "boolean" ? candidate.collapsed : undefined,
+      settingsFolded: candidate.settingsFolded === true ? true : undefined,
       mode: candidate.mode === "disabled" ? "disabled" : undefined,
       exposed: readExposed(candidate.exposed),
       appModeOrder: readAppModeOrder(candidate.appModeOrder),
@@ -201,7 +202,10 @@ function byId(left: { id: string }, right: { id: string }): number {
  * extra consent prompt, never a capability-relevant change left unhashed. */
 export function capabilityDigest(graph: FlowGraph): string {
   const nodes = graph.nodes
-    .map(({ position, size, label, comment, color, collapsed, appModeOrder, appModeSize, ...rest }) => rest)
+    .map(
+      ({ position, size, label, comment, color, collapsed, settingsFolded, appModeOrder, appModeSize, ...rest }) =>
+        rest,
+    )
     .sort(byId);
   const { viewport, runAppModeOrder, runAppModeSize, appModeActive, ...rest } = graph;
   return createHash("sha256")

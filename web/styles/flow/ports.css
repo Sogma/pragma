@@ -340,3 +340,29 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* A pin per wire where wires meet with their own pins hidden, a collapsed
+   card's title or a folded settings line (joinedPins.ts): stacked along the
+   edge, each overlapping the last. Only drawn, never grabbed. */
+.flow-joined-pin {
+  position: absolute;
+  top: calc(50% - 6px + var(--join-offset, 0px));
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  background: var(--type-color);
+  pointer-events: none;
+}
+
+.flow-joined-pin.target {
+  left: -6px;
+}
+
+.flow-joined-pin.source {
+  right: -6px;
+}
+
+.flow-node.collapsed > .flow-node-title {
+  position: relative;
+}

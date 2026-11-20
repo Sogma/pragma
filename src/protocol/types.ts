@@ -726,6 +726,9 @@ export interface FlowNodeInstance {
   // touching a collapsed node still render, converging on one point per
   // side instead of each port's own position.
   collapsed?: boolean;
+  // The card's set-once settings, a Generate node's model and its settings,
+  // folded to one summary line, where the wires into them meet.
+  settingsFolded?: boolean;
   // "disabled": a run leaves the node out, and every node it feeds
   // (docs/protocol.md, Execution). Absent, it runs. It changes what a run
   // does, so the capability digest covers it.

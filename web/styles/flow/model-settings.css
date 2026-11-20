@@ -1,0 +1,77 @@
+/* A Generate card's set-once settings, under a heading that leads the
+   card's separator line (web/flow/modelSettings.ts): the line runs on from
+   the heading to the card's edge, and keeps a stub when the heading is long.
+   Folded, the heading is the summary, and its wired pins stack on the row. */
+.flow-model-settings-line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 4px 10px;
+}
+
+.flow-model-settings-line::after {
+  content: "";
+  flex: 1 0 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.flow-model-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--small-font-size);
+  cursor: pointer;
+}
+
+.flow-model-settings-toggle:hover {
+  color: var(--text-primary);
+}
+
+.flow-model-settings-toggle > .disclosure {
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+}
+
+.flow-model-settings-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The open group ends on a line, as the heading's line starts it. The
+   model's own settings in it draw as the inputs above them do, minus a pin,
+   so a label reads muted as an unwired input's does. */
+.flow-model-settings-body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.flow-model-setting > .flow-port-label {
+  color: var(--text-muted);
+}
+
+.flow-model-setting-unused-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--small-font-size);
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A picked mode the wired inputs can't take, said before the run fails on it. */
+.flow-model-settings-problem {
+  margin: 0 10px 6px;
+}

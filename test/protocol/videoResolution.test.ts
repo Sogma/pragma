@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   nearestResolution,
+  offeredResolutions,
   resolutionName,
   resolutionShortSide,
   resolutionSize,
+  sentResolution,
 } from "../../src/protocol/videoResolution.ts";
 
 describe("resolutionShortSide", () => {
@@ -48,5 +50,25 @@ describe("nearestResolution", () => {
     expect(nearestResolution(720, ["standard", "1080p"])).toBe("1080p");
     expect(nearestResolution(720, ["standard"])).toBeUndefined();
     expect(nearestResolution(720, [])).toBeUndefined();
+  });
+});
+
+describe("offeredResolutions", () => {
+  it("joins the node's sizes and a model's own, said one way, smallest first", () => {
+    const fixed = ["480p", "720p", "1080p", "4K"];
+    expect(offeredResolutions(fixed, ["360p", "720p", "1080p", "4k"])).toEqual(["360p", "480p", "720p", "1080p", "4K"]);
+    expect(offeredResolutions(fixed, ["512", "768", "1080"])).toEqual(["480p", "512p", "720p", "768p", "1080p", "4K"]);
+    expect(offeredResolutions(fixed, ["2K", "auto"])).toEqual(["480p", "720p", "1080p", "2K", "4K"]);
+    expect(offeredResolutions(fixed)).toEqual(fixed);
+  });
+});
+
+describe("sentResolution", () => {
+  it("names what a model sends for a size it doesn't list, and nothing for one it does", () => {
+    expect(sentResolution("480p", ["720p"])).toBe("720p");
+    expect(sentResolution("480p", ["360p", "720p", "1080p", "4k"])).toBe("360p");
+    expect(sentResolution("4K", ["720p", "1080p", "2160p"])).toBeUndefined();
+    expect(sentResolution("720p", [])).toBe("");
+    expect(sentResolution("wide", ["720p"])).toBeUndefined();
   });
 });

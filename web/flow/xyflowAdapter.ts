@@ -2,14 +2,11 @@ import {
   type Connection,
   ConnectionMode,
   type ConnectionState,
-  getHandleBounds,
   type Handle,
   type InternalNodeBase,
   infiniteExtent,
   initialConnection,
   type NodeBase,
-  type NodeHandleBounds,
-  Position,
   type Viewport,
   XYDrag,
   type XYDragInstance,
@@ -53,6 +50,7 @@ import { createFlowMenus } from "./flowMenus.ts";
 import { flowTreePath } from "./flowPaths.ts";
 import { brokerCapability, flowBrokerCapabilities, flowUnattendedGrant } from "./flowPermissions.ts";
 import { createFlowSaves, type FlowSaves, type FlowSavesDeps } from "./flowSaves.ts";
+import { measureHandles, meetingPoint } from "./joinedPins.ts";
 import { createModelFields } from "./modelOptions.ts";
 import { createNodeCards, markLeftOut, NODE_WIDTH, type NodeCardDeps } from "./nodeCard.ts";
 import { createNodeSelection } from "./nodeSelection.ts";
@@ -268,26 +266,22 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     const rect = el.getBoundingClientRect();
     const scale = canvasView.transform()[2];
     internal.measured = { width: rect.width / scale, height: rect.height / scale };
+    const measured = (type: XYHandleType) => measureHandles(el, rect, scale, id, type);
     if (flowNodeById.get(id)?.collapsed) {
-      // Collapsed: every real port is display:none and would measure as an
-      // all-zero rect, so every edge touching this node converges on one
-      // synthetic point per side, centered on the title bar. The handle
+      // Collapsed: every real port is display:none, so a wire ends on its
+      // joined pin in the title (joinedPins.ts), or, with none for its port,
+      // on one synthetic point per side centered on the title bar: the handle
       // lookup's fallback (exact port id, else an id-less entry) resolves any
-      // port id to this single entry.
+      // port id to it.
       const titleHeight = el.querySelector(".flow-node-title")?.getBoundingClientRect().height ?? rect.height;
       const y = titleHeight / 2 / scale;
-      const width = rect.width / scale;
       internal.internals.handleBounds = {
-        target: [{ id: null, nodeId: id, type: "target", position: Position.Left, x: 0, y, width: 0, height: 0 }],
-        source: [{ id: null, nodeId: id, type: "source", position: Position.Right, x: width, y, width: 0, height: 0 }],
+        target: [...measured("target"), meetingPoint(id, "target", 0, y)],
+        source: [...measured("source"), meetingPoint(id, "source", rect.width / scale, y)],
       };
       return;
     }
-    const handleBounds: NodeHandleBounds = {
-      source: getHandleBounds("source", el, rect, scale, id),
-      target: getHandleBounds("target", el, rect, scale, id),
-    };
-    internal.internals.handleBounds = handleBounds;
+    internal.internals.handleBounds = { source: measured("source"), target: measured("target") };
   }
 
   // `from` needs manual conversion into screen space here: XYHandle's

@@ -94,6 +94,8 @@ export function setPickerName(button: HTMLElement, name: string): void {
 export interface PickerChoice {
   value: string;
   label: string;
+  // A muted hint after the label in the menu: why a choice won't do now.
+  detail?: string;
 }
 
 export interface ChoicePicker {
@@ -146,6 +148,7 @@ export function wireChoicePicker(
     choices.map(
       (choice): MenuItem => ({
         label: choice.label,
+        ...(choice.detail ? { detail: choice.detail } : {}),
         checked: () => choice.value === value,
         run: () => {
           show(choice.value);

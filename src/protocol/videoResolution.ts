@@ -43,3 +43,27 @@ export function nearestResolution(shortSide: number, listed: readonly string[]):
   }
   return best?.name;
 }
+
+/** The sizes a resolution picker offers: `fixed`, then a model's `listed`
+ * ones, each said as Pragma says sizes, once, smallest first. A listed name
+ * that is no size is passed over. */
+export function offeredResolutions(fixed: readonly string[], listed: readonly string[] = []): string[] {
+  const sides = new Set<number>();
+  for (const name of [...fixed, ...listed]) {
+    const side = resolutionShortSide(name);
+    if (side !== undefined) sides.add(side);
+  }
+  return [...sides].sort((a, b) => a - b).map(resolutionName);
+}
+
+/** What a model that lists `listed` sends for the size `name`: its nearest
+ * listed size, said as Pragma says sizes, or "" when it takes none.
+ * Undefined when it lists that size, or `name` is no size. */
+export function sentResolution(name: string, listed: readonly string[]): string | undefined {
+  const side = resolutionShortSide(name);
+  if (side === undefined) return undefined;
+  const nearest = nearestResolution(side, listed);
+  if (nearest === undefined) return "";
+  const sent = resolutionShortSide(nearest);
+  return sent === side || sent === undefined ? undefined : resolutionName(sent);
+}

@@ -47,6 +47,8 @@ import {
   noFileAt,
   type TableColumn,
 } from "../../src/protocol/types.ts";
+import type { WiredInputs } from "../../src/protocol/videoModes.ts";
+import { offeredResolutions, sentResolution } from "../../src/protocol/videoResolution.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
 import { openColorPicker } from "../colorPicker.ts";
 import type {
@@ -73,9 +75,12 @@ import {
   createIntStepper,
   createSelectControl,
   createSelectPicker,
+  formLabel,
   skippedText,
 } from "./controls.ts";
 import type { FlowMenus } from "./flowMenus.ts";
+import { describeSettings } from "./jobRows.ts";
+import { type JoinedPin, joinedPins } from "./joinedPins.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
 import { createModelSettings, type ModelSettingsView } from "./modelSettings.ts";
 import {
@@ -97,6 +102,10 @@ import {
 export const NODE_WIDTH = 240;
 // An Applet brings its own interface, which needs the room.
 const APPLET_NODE_WIDTH = 720;
+
+// A Generate Video's model inputs, set once per Flow, which its settings
+// group folds together with the model's own settings.
+const SET_ONCE_PORTS = ["model", "aspect_ratio", "resolution", "duration"];
 
 function defaultWidth(flowNode: FlowNodeInstance): number {
   return flowNode.type === APPLET_NODE_TYPE ? APPLET_NODE_WIDTH : NODE_WIDTH;
@@ -397,6 +406,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   const textEditors = new Map<string, Disposable>();
   const generationViews = new Map<string, GenerationView>();
   const modelSettingsViews = new Map<string, ModelSettingsView>();
+  const titleEls = new Map<string, { title: HTMLElement; node: FlowNodeInstance }>();
+  const resolutionRefreshers = new Map<string, () => void>();
   // A dot beside its file, whose label is hidden, with the name it shows
   // while it has no value of its own to show.
   const unnamedDots = new WeakMap<HTMLElement, string>();
@@ -742,6 +753,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     // A wired model is unknown until the run, so the "+" stops at the ceiling,
     // and a frame wired or unwired shows or hides with it.
     if (portId === "model" || frameRows.get(nodeId)) followModel(nodeId);
+    else if (SET_ONCE_PORTS.includes(portId)) modelSettingsViews.get(nodeId)?.refresh();
+    syncJoinedPins(nodeId);
   }
 
   // What on a card follows its model: its frame pins, then its "+", and its
@@ -749,6 +762,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   function followModel(nodeId: string): void {
     const sync = frameSyncers.get(nodeId) ?? slotAddRefreshers.get(nodeId);
     sync?.();
+    resolutionRefreshers.get(nodeId)?.();
     modelSettingsViews.get(nodeId)?.refresh();
   }
 
@@ -760,6 +774,37 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const key = `${nodeId}:${portId}`;
     const connected = deps.graph().edges.some((e) => e.source === nodeId && e.sourcePort === portId);
     outputHandleEls.get(key)?.classList.toggle("unconnected", !connected);
+    syncJoinedPins(nodeId);
+  }
+
+  // The ports wired on one side of a card, each once, in its port order: the
+  // pins its wires end on while its own are hidden (joinedPins.ts).
+  function joinsOf(node: FlowNodeInstance, side: "target" | "source", only?: readonly string[]): JoinedPin[] {
+    const ports = side === "target" ? nodePorts(node).inputs : nodePorts(node).outputs;
+    const wired = (portId: string) =>
+      deps
+        .graph()
+        .edges.some((e) =>
+          side === "target"
+            ? e.target === node.id && e.targetPort === portId
+            : e.source === node.id && e.sourcePort === portId,
+        );
+    return ports
+      .filter((port) => (!only || only.includes(port.id)) && wired(port.id))
+      .map((port) => ({ id: port.id, type: port.type }));
+  }
+
+  // A collapsed card's title stacks a pin for each wire on each side. An open
+  // card has none: a hidden one would still measure, as a box at the corner,
+  // and be taken for its port's pin.
+  function syncJoinedPins(nodeId: string, measure = true): void {
+    const card = titleEls.get(nodeId);
+    if (!card) return;
+    const { title, node } = card;
+    for (const pin of title.querySelectorAll(".flow-joined-pin")) pin.remove();
+    if (!node.collapsed) return;
+    title.append(...joinedPins(joinsOf(node, "target"), "target"), ...joinedPins(joinsOf(node, "source"), "source"));
+    if (measure) deps.onLayoutChange(nodeId);
   }
 
   // Whether a wire goes into the node's `context` pin, which turns reuse off.
@@ -858,6 +903,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         },
         { onRedraw: () => followModel(node.id), effort: effortFieldOf(node, deps.persistGraph) },
       );
+    } else if (
+      widget.type === "select" &&
+      port.id === "resolution" &&
+      FLOW_NODE_REGISTRY[node.type]?.inputWidgets?.some((each) => each.type === "videoModel")
+    ) {
+      control = createResolutionControl(node, widget, currentValue);
     } else if (widget.type === "select") {
       control = createSelectPicker(deps.contextMenu, widget, currentValue(), (value) => {
         node.config[port.id] = value;
@@ -1313,6 +1364,101 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     row.hidden = options.length === 0;
     slotAddRefreshers.set(node.id, refresh);
     return row;
+  }
+
+  // A Generate Video's resolution: the node's sizes and the picked model's
+  // own, each one the model doesn't list named with the size it sends
+  // instead. Drawn again as the model or its list changes.
+  function createResolutionControl(
+    node: FlowNodeInstance,
+    widget: FlowNodeInputWidget,
+    current: () => string,
+  ): HTMLButtonElement {
+    const build = () => {
+      const picked = pickedModel(node);
+      const listed = picked && deps.modelFields.resolutions(picked.kind, picked.ref);
+      const options = offeredResolutions(widget.options ?? [], listed);
+      const sends = (value: string) => {
+        const sent = listed && sentResolution(value, listed);
+        return sent === undefined ? undefined : sent ? `sends ${sent}` : "takes no size";
+      };
+      return createSelectPicker(
+        deps.contextMenu,
+        { ...widget, options },
+        current(),
+        (value) => {
+          node.config.resolution = value;
+          deps.persistGraph();
+        },
+        sends,
+      );
+    };
+    let button = build();
+    resolutionRefreshers.set(node.id, () => {
+      const next = build();
+      next.className = button.className;
+      next.hidden = button.hidden;
+      if (button.dataset.tooltip) next.dataset.tooltip = button.dataset.tooltip;
+      button.replaceWith(next);
+      inputWidgetEls.set(`${node.id}:resolution`, next);
+      button = next;
+    });
+    return button;
+  }
+
+  // A folded Generate card's line: its model and settings as a job row names
+  // them, then each one a wire brings, by name, as its value is the run's.
+  function settingsSummary(node: FlowNodeInstance): string {
+    const wired = SET_ONCE_PORTS.filter((portId) =>
+      deps.graph().edges.some((e) => e.target === node.id && e.targetPort === portId),
+    );
+    const typed = (portId: string) => {
+      if (wired.includes(portId)) return undefined;
+      const stored = typeof node.config[portId] === "string" ? (node.config[portId] as string) : "";
+      return blankAsDefault(node.type, portId, stored) || undefined;
+    };
+    const picked = pickedModel(node);
+    const duration = typed("duration");
+    const set = describeSettings(picked && deps.modelFields.name(picked.kind, picked.ref), {
+      resolution: typed("resolution"),
+      duration: duration && /^\d+$/.test(duration) ? Number(duration) : undefined,
+      aspectRatio: typed("aspect_ratio"),
+    });
+    return [set, ...wired.map((portId) => `${formLabel(portId)} wired`)].filter(Boolean).join(" · ");
+  }
+
+  // What a Generate node has wired, which its task mode follows on Auto.
+  function wiredInputs(node: FlowNodeInstance): WiredInputs {
+    const definition = FLOW_NODE_REGISTRY[node.type];
+    const slots = (spec: SlotSpec | undefined) =>
+      spec ? Array.from({ length: spec.max }, (_, i) => spec.portId(i + 1)) : [];
+    const wired = (portIds: readonly (string | undefined)[]) =>
+      deps.graph().edges.some((e) => e.target === node.id && portIds.includes(e.targetPort));
+    const clips = wired(slots(definition?.videoReferenceSlots));
+    return {
+      references: clips || wired(slots(definition?.referenceSlots)),
+      clips,
+      frames: wired([definition?.framePorts?.start, definition?.framePorts?.end]),
+    };
+  }
+
+  // A line per set-once input for the folded heading's tooltip: its value, or
+  // "wired" while a wire brings it.
+  function settingsDetails(node: FlowNodeInstance): string[] {
+    const picked = pickedModel(node);
+    return SET_ONCE_PORTS.map((portId) => {
+      const wired = deps.graph().edges.some((e) => e.target === node.id && e.targetPort === portId);
+      const stored = typeof node.config[portId] === "string" ? (node.config[portId] as string) : "";
+      const typed = blankAsDefault(node.type, portId, stored);
+      const value = wired
+        ? "wired"
+        : portId === "model"
+          ? (picked && deps.modelFields.name(picked.kind, picked.ref)) || "none"
+          : portId === "duration" && /^\d+$/.test(typed)
+            ? `${typed} s`
+            : typed;
+      return `${formLabel(portId)}: ${value}`;
+    });
   }
 
   // The model a card's "+" and frames follow: the one picked on the node, or
@@ -1834,6 +1980,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       event.stopPropagation();
       flowNode.collapsed = !flowNode.collapsed;
       applyCollapsedState(flowNode, el, collapseEl);
+      syncJoinedPins(flowNode.id, false);
       deps.onLayoutChange(flowNode.id);
       deps.persistGraph();
     });
@@ -1846,6 +1993,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     disabledTag.className = "flow-node-disabled-tag";
     disabledTag.textContent = "Disabled";
     titleEl.append(collapseEl, nameEl, disabledTag);
+    titleEls.set(flowNode.id, { title: titleEl, node: flowNode });
     applyNodeColor(el, titleEl, flowNode.color ?? definition.defaultColor);
 
     // The title's tooltip says what the node gives: its type's description,
@@ -1974,6 +2122,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       spec ? Array.from({ length: spec.max }, (_, i) => spec.portId(i + 1)) : [];
     const referencePorts = new Set([...slotPorts(referenceSlots), ...slotPorts(definition.videoReferenceSlots)]);
     let pathPin: PlacedPin | undefined;
+    let prefixRow: HTMLDivElement | undefined;
+    const setOnceRows: HTMLDivElement[] = [];
     for (const port of ports.inputs) {
       const column = columns.find((candidate) => candidate.id === port.id);
       if (column) {
@@ -2004,6 +2154,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       const widget = definition.inputWidgets?.find((w) => w.portId === port.id);
       const row = widget ? createWidgetPortRow(flowNode, port, widget) : createPortRow(flowNode, port, "target");
       if (port.id === definition.pathInput?.portId) pathPin = { port, row };
+      if (port.id === "prefix") prefixRow = row;
+      if (SET_ONCE_PORTS.includes(port.id)) setOnceRows.push(row);
       inputsEl.appendChild(row);
     }
     if (flowNode.type === "templateVariables") {
@@ -2088,14 +2240,31 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       if (definition.configKeys.includes("modelSettings")) {
         const settings = createModelSettings(flowNode, {
           contextMenu: deps.contextMenu,
+          rows: setOnceRows,
           offered: () => {
             const picked = pickedModel(flowNode);
             return picked && deps.modelFields.settings(picked.kind, picked.ref);
           },
+          summary: () => settingsSummary(flowNode),
+          details: () => settingsDetails(flowNode),
+          inputs: () => wiredInputs(flowNode),
+          joined: () => joinsOf(flowNode, "target", SET_ONCE_PORTS),
           persist: deps.persistGraph,
+          layoutChanged: () => deps.onLayoutChange(flowNode.id),
         });
         modelSettingsViews.set(flowNode.id, settings);
         contentEl.appendChild(settings.el);
+        // The prefix names the result's file, nothing the model takes, so it
+        // sits after the model's settings, above the folder the file goes in.
+        if (prefixRow) {
+          const trailing = document.createElement("div");
+          trailing.className = "flow-node-body";
+          const column = document.createElement("div");
+          column.className = "flow-node-inputs";
+          column.appendChild(prefixRow);
+          trailing.appendChild(column);
+          contentEl.appendChild(trailing);
+        }
       }
       const view = pickers.createGenerationPicker(flowNode, () => deps.regenerate(flowNode.id));
       generationViews.set(flowNode.id, view);
@@ -2156,6 +2325,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
 
     el.append(titleEl, bodyEl, contentEl, createResizeHandle(flowNode, el), commentEl);
     applyCollapsedState(flowNode, el, collapseEl);
+    syncJoinedPins(flowNode.id, false);
     return el;
   }
 
@@ -2236,6 +2406,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       generationViews.get(nodeId)?.dispose();
       generationViews.delete(nodeId);
       modelSettingsViews.delete(nodeId);
+      resolutionRefreshers.delete(nodeId);
+      titleEls.delete(nodeId);
       clipPickers.get(nodeId)?.dispose();
       clipPickers.delete(nodeId);
       heldViews.delete(nodeId);

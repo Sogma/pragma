@@ -18,6 +18,7 @@ import {
   type VideoStartResult,
   type VideoStatusResult,
 } from "../protocol/videoGeneration.ts";
+import { taskMode } from "../protocol/videoModes.ts";
 import { nearestResolution, resolutionName, resolutionShortSide } from "../protocol/videoResolution.ts";
 import { fetchPublic, type PublicFile } from "./fetchPublic.ts";
 import { withMcpBearer } from "./mcpTools.ts";
@@ -275,14 +276,11 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   async function details(client: Client, modelId: string, signal?: AbortSignal) {
     const entry = await call(client, "models_explore", { action: "get", model_id: modelId }, signal);
     const parameters = Array.isArray(entry.parameters) ? (entry.parameters as Fields[]) : [];
-    const listed = (name: string) => {
-      const options = parameters.find((parameter) => parameter.name === name)?.options;
-      return Array.isArray(options) ? options.map(String) : [];
-    };
+    const modes = parameters.find((parameter) => parameter.name === "mode")?.options;
     return {
       roles: rolesOf(entry),
-      resolutions: listed("resolution"),
-      modes: listed("mode"),
+      resolutions: resolutionsOf(entry),
+      modes: Array.isArray(modes) ? modes.map(String) : [],
       settings: catalogSettings(entry),
     };
   }
@@ -463,26 +461,6 @@ const REFERENCE_ROLES: Record<string, string> = {
   audio: "audio_references",
 };
 
-// The task a job's inputs ask for, in each spelling a model's `mode` lists
-// it. Without one the server keeps its default, which on some models is a
-// text-only mode that refuses references. A `mode` naming none of these is a
-// quality tier and is left alone; edit and extend are never picked.
-const TASK_MODES = {
-  references: ["reference-to-video", "omni_reference"],
-  frames: ["image-to-video"],
-  text: ["text-to-video", "t2v"],
-} as const;
-
-/** The `mode` a job's placed inputs ask for among `modes`, a model's own
- * options, or undefined when it lists no such task. */
-export function taskMode(
-  modes: readonly string[],
-  placed: { references: boolean; frames: boolean },
-): string | undefined {
-  const task = placed.references ? "references" : placed.frames ? "frames" : "text";
-  return TASK_MODES[task].find((spelling) => modes.includes(spelling));
-}
-
 // What each video model's catalog entry declares, kept a while: a run asks
 // before it names its result, and an unchanged Run otherwise asks nothing.
 const DECLARED_TTL_MS = 10 * 60_000;
@@ -570,6 +548,13 @@ export function offeredSettings(
     else leftOut.push(`${name}: ${modelId} takes none, so it was left out`);
   }
   return { settings, leftOut };
+}
+
+// The sizes a catalog entry's `resolution` lists, in its own names.
+function resolutionsOf(entry: Fields): string[] {
+  const parameters = Array.isArray(entry.parameters) ? (entry.parameters as Fields[]) : [];
+  const options = parameters.find((parameter) => parameter.name === "resolution")?.options;
+  return Array.isArray(options) ? options.map(String) : [];
 }
 
 function rolesOf(entry: Fields): string[] {
@@ -767,9 +752,10 @@ export function wholeRatio(ratio: string): string {
 export interface ModelChoice {
   id: string;
   label: string;
-  // What a video model's catalog entry declares it takes, and the settings
-  // it offers beyond a node's own inputs.
+  // What a video model's catalog entry declares it takes, the sizes it
+  // lists, and the settings it offers beyond a node's own inputs.
   takes?: DeclaredVideoInputs;
+  resolutions?: string[];
   settings?: ModelSetting[];
 }
 
@@ -807,7 +793,13 @@ export async function higgsfieldModels(server: ResolvedMcpServer, type: "image" 
       .map((entry) => ({
         id: String(entry.id),
         label: typeof entry.name === "string" ? entry.name : String(entry.id),
-        ...(type === "video" ? { takes: declaredFromRoles(rolesOf(entry)), settings: catalogSettings(entry) } : {}),
+        ...(type === "video"
+          ? {
+              takes: declaredFromRoles(rolesOf(entry)),
+              resolutions: resolutionsOf(entry),
+              settings: catalogSettings(entry),
+            }
+          : {}),
       }));
   } finally {
     await client.close().catch(() => {});

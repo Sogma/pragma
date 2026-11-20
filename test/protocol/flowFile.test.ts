@@ -45,6 +45,7 @@ describe(".flow.html round-tripping", () => {
             comment: "One line for the node's users.",
             color: "#0b6e99",
             collapsed: true,
+            settingsFolded: true,
             mode: "disabled",
             appModeSize: { columns: 3, rows: 2 },
           },
@@ -415,6 +416,7 @@ describe("capabilityDigest", () => {
     expect(capabilityDigest(withNode({ comment: "Reads the journal." }))).toBe(digest);
     expect(capabilityDigest(withNode({ color: "#ff0000" }))).toBe(digest);
     expect(capabilityDigest(withNode({ collapsed: true }))).toBe(digest);
+    expect(capabilityDigest(withNode({ settingsFolded: true }))).toBe(digest);
     expect(capabilityDigest(withNode({ appModeOrder: 3 }))).toBe(digest);
     expect(capabilityDigest(withNode({ appModeSize: { columns: 4, rows: 3 } }))).toBe(digest);
     expect(capabilityDigest({ ...base, viewport: { x: 500, y: 500, zoom: 2 } })).toBe(digest);

@@ -75,6 +75,7 @@ import {
   splitDocumentName,
   videoMediaTypeForPath,
 } from "./types.ts";
+import { modeConflict } from "./videoModes.ts";
 import { resolutionShortSide } from "./videoResolution.ts";
 
 /** The capability calls an executor makes, as a port rather than an import.
@@ -453,6 +454,13 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
   }
   checkMentions(prompt, "image", references);
   checkMentions(prompt, "video", videoReferences);
+  const modelSettings = modelSettingValues(node.config.modelSettings);
+  const conflict = modeConflict(typeof modelSettings.mode === "string" ? modelSettings.mode : undefined, {
+    references: references.length > 0 || videoReferences.length > 0,
+    clips: videoReferences.length > 0,
+    frames: startFrame !== undefined || endFrame !== undefined,
+  });
+  if (conflict) throw new Error(conflict.message);
 
   const granted = await context.ensureCapability({ type: "generateVideo", path: folder });
   if (!granted) throw new Error(`Permission denied to generate videos into "${folder}"`);
@@ -472,7 +480,6 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
     take: take || undefined,
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
   };
-  const modelSettings = modelSettingValues(node.config.modelSettings);
   if (Object.keys(modelSettings).length) request.modelSettings = modelSettings;
   context.beginLlmActivity(model ?? "");
   try {

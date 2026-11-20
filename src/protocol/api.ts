@@ -1028,6 +1028,9 @@ export interface GroupedModelOption extends ModelOption {
   effortLevels?: EffortLevel[];
   references?: ReferenceCounts;
   frames?: FrameKind[];
+  // A video model's sizes in its catalog's own names; empty for one that
+  // takes no size.
+  resolutions?: string[];
   settings?: ModelSetting[];
 }
 

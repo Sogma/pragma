@@ -100,12 +100,14 @@ export function regenerateHint(type: string): string {
 // reads it, so the swap would change what runs unpicked.
 //
 // A widget's blank is an option of its own, "Default". A field's blank is
-// its first option, as its node reads it.
+// its first option, as its node reads it. `detail` names a muted reason
+// beside an option in the menu.
 export function createSelectPicker(
   contextMenu: ContextMenuService,
   select: FlowNodeInputWidget | FlowNodeConfigField,
   stored: string,
   onPick: (value: string) => void,
+  detail?: (value: string) => string | undefined,
 ): HTMLButtonElement {
   const options = select.options ?? [];
   const widget = "portId" in select;
@@ -113,7 +115,7 @@ export function createSelectPicker(
   const values = options.includes(shown) ? options : [...options, shown];
   const button = document.createElement("button");
   button.className = "form-input flow-picker";
-  const choices = values.map((value) => ({ value, label: value || "Default" }));
+  const choices = values.map((value) => ({ value, label: value || "Default", detail: detail?.(value) }));
   const role = widget ? formLabel(select.portId) : select.label;
   wireChoicePicker(button, choices, { role, contextMenu, pick: onPick }).show(shown);
   return button;

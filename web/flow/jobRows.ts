@@ -1,7 +1,7 @@
 // The rows the Tools tab lists paid work in, a Flow's runs and jobs and a
 // note's toolkit runs alike: what is going, with Cancel and the dialog that
 // asks before credits already spent are given up, and how each job ended.
-import type { JobView } from "../../src/protocol/api.ts";
+import type { JobSettings, JobView } from "../../src/protocol/api.ts";
 import { describeCost } from "../../src/protocol/flowExecutors.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import { versionWhen } from "../lib/dateText.ts";
@@ -48,9 +48,15 @@ const startedTitle = (job: JobView) => `${madeBy[job.kind].node} · started ${ve
 export function settingsLine(job: JobView, models: JobModels): string {
   const list = models.get(job.kind);
   if (!list) models.load(job.kind);
-  const { resolution, duration, aspectRatio } = job.settings ?? {};
+  return describeSettings(modelNameOf(job.model, list), job.settings);
+}
+
+/** A model and its settings as one line, as a job's row and a folded
+ * Generate card both name what a run makes. */
+export function describeSettings(model: string | undefined, settings: JobSettings | undefined): string {
+  const { resolution, duration, aspectRatio } = settings ?? {};
   const seconds = duration === undefined ? undefined : `${duration} s`;
-  return [modelNameOf(job.model, list), resolution, seconds, aspectRatio].filter(Boolean).join(" · ");
+  return [model, resolution, seconds, aspectRatio].filter(Boolean).join(" · ");
 }
 
 function spinner(): SVGSVGElement {
