@@ -290,6 +290,22 @@ describe("text menu", () => {
     view.destroy();
   });
 
+  it("copies what the editor's clipboard filters make of the selection, as Mod+C does", async () => {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "one two three",
+        selection: { anchor: 4, head: 7 },
+        extensions: EditorView.clipboardOutputFilter.of((text) => `<${text}>`),
+      }),
+      parent: document.body,
+    });
+    view.contentDOM.dataset.select = "text";
+    rightClick(view.contentDOM.querySelector(".cm-line") as Element);
+    await pick("Copy");
+    expect(clipboard.writeText).toHaveBeenCalledWith("<two>");
+    view.destroy();
+  });
+
   it("offers a read-only editor Copy and Select All", () => {
     const view = new EditorView({
       state: EditorState.create({

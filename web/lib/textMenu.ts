@@ -150,10 +150,12 @@ function surfaceAt(target: EventTarget | null): Surface | undefined {
 function selectedText(surface: Surface): string {
   if (surface.kind === "editor") {
     const { state } = surface.view;
-    return state.selection.ranges
+    const text = state.selection.ranges
       .filter((range) => !range.empty)
       .map((range) => state.sliceDoc(range.from, range.to))
       .join(state.lineBreak);
+    // What Mod+C copies: the editor's clipboard filters may reshape the text.
+    return state.facet(EditorView.clipboardOutputFilter).reduce((out, filter) => filter(out, state), text);
   }
   if (surface.kind === "field") {
     const { field } = surface;

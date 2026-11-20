@@ -678,26 +678,31 @@ const rules = EditorState.transactionFilter.of((tr) => {
   return byHand(tr) ? keepRuns(tr) : tr;
 });
 
-// Copied text keeps each run whole: one the selection starts or ends in
-// gets the marks it lacks, so pasting it formats the same text.
+// Copied text formats only the runs the selection takes all the text of,
+// each with the marks it lacks; a run it cuts into copies without its marks.
+// A plain copy would carry whichever hidden marks the selection's ends
+// take, which depends on where a run sits on its line, not on what shows.
 function balanced(text: string, state: EditorState): string {
   const { ranges } = state.selection;
   if (!syntaxHidden(state) || ranges.some((range) => range.empty)) return text;
-  const slices = ranges.map(({ from, to }) => state.sliceDoc(from, to));
-  if (slices.join(state.lineBreak) !== text) return text;
+  if (ranges.map(({ from, to }) => state.sliceDoc(from, to)).join(state.lineBreak) !== text) return text;
+  const written = (spans: readonly Span[]) => spans.map((span) => state.sliceDoc(span.from, span.to)).join("");
   return ranges
-    .map(({ from, to }, index) => {
-      let slice = slices[index];
+    .map(({ from, to }) => {
       const near = syntaxNear(state, from, to);
-      const has = (span: Span) => span.from >= from && span.to <= to;
-      const runs = near.runs
-        .filter((run) => Math.max(from, run.open.to) < Math.min(to, run.close.from))
-        .sort((a, b) => a.from - b.from || b.to - a.to);
-      const open = runs.filter((run) => !has(run.open)).map((run) => state.sliceDoc(run.open.from, run.open.to));
-      const close = runs.filter((run) => !has(run.close)).map((run) => state.sliceDoc(run.close.from, run.close.to));
-      if (near.escapes.some((escaped) => escaped.from + 1 === to)) slice = slice.slice(0, -1);
-      if (near.escapes.some((escaped) => escaped.from + 1 === from)) slice = `\\${slice}`;
-      return open.join("") + slice + close.reverse().join("");
+      const inside = (span: Span) => span.from >= from && span.to <= to;
+      const holes: Span[] = [];
+      const open: Span[] = [];
+      const close: Span[] = [];
+      for (const run of [...near.runs].sort((a, b) => a.from - b.from || b.to - a.to)) {
+        const whole = from <= run.open.to && run.close.from <= to;
+        for (const mark of [run.open, run.close]) if (!(whole && inside(mark))) holes.push(mark);
+        if (whole && !inside(run.open)) open.push(run.open);
+        if (whole && !inside(run.close)) close.push(run.close);
+      }
+      if (near.escapes.some((escaped) => escaped.from + 1 === to)) holes.push({ from: to - 1, to });
+      const backslash = near.escapes.some((escaped) => escaped.from + 1 === from) ? "\\" : "";
+      return written(open) + backslash + written(without([{ from, to }], holes)) + written(close.reverse());
     })
     .join(state.lineBreak);
 }

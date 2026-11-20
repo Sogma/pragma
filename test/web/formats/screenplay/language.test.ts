@@ -368,6 +368,20 @@ describe("the formatted view", () => {
     expect(formatted("Snow falls. [[>shot_2_final]]").links).toEqual(["shot_2_final"]);
     expect(formatted("Snow falls. [[>]]")).toEqual({ lines: ["Snow falls. >"], faint: [], links: [] });
   });
+
+  it("copies a note the selection cuts into without its brackets, and a whole one with them, with Hide format syntax on", () => {
+    hideFormatSyntax.set(true);
+    const doc = "Snow falls. [[colder now?]] She goes.";
+    const copied = (from: number, to: number) => {
+      const extensions = [fountain(), fountainFormatting()];
+      const state = EditorState.create({ doc, selection: { anchor: from, head: to }, extensions });
+      ensureSyntaxTree(state, doc.length);
+      const filters = state.facet(EditorView.clipboardOutputFilter);
+      return filters.reduce((out, filter) => filter(out, state), state.sliceDoc(from, to));
+    };
+    expect(copied(doc.indexOf("now?"), doc.indexOf(" goes"))).toBe("now? She");
+    expect(copied(doc.indexOf("colder"), doc.indexOf("]]"))).toBe("[[colder now?]]");
+  });
 });
 
 // The lines a view draws, each one's margin number ("" for none), the

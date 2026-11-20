@@ -310,11 +310,31 @@ describe("Mod+B at a bare caret", () => {
 });
 
 describe("copying", () => {
-  it("gives a run the selection cuts into the marks it lacks", () => {
-    const editor = edit("a **bo«ld** c»");
+  // What copying the selection puts on the clipboard.
+  function copied(editor: EditorView): string {
+    const { from, to } = editor.state.selection.main;
     const filters = editor.state.facet(EditorView.clipboardOutputFilter);
-    const text = editor.state.sliceDoc(editor.state.selection.main.from, editor.state.selection.main.to);
-    expect(filters.reduce((out, filter) => filter(out, editor.state), text)).toBe("**ld** c");
+    return filters.reduce((out, filter) => filter(out, editor.state), editor.state.sliceDoc(from, to));
+  }
+
+  it("gives a run the selection takes all the text of both its marks, wherever its ends sit", () => {
+    // The ranges Shift+arrows give mid-line and at a line's start, and a double-click's.
+    expect(copied(edit("a «**bold»** c"))).toBe("**bold**");
+    expect(copied(edit("**«bold»** c"))).toBe("**bold**");
+    expect(copied(edit("a **«bold»** c"))).toBe("**bold**");
+    expect(copied(edit("«a **bold** c»"))).toBe("a **bold** c");
+  });
+
+  it("copies a run the selection cuts into without its marks, even one inside the selection", () => {
+    expect(copied(edit("**foo b«ar» baz**"))).toBe("ar");
+    expect(copied(edit("a **bo«ld** c»"))).toBe("ld c");
+    expect(copied(edit("a **bold«** c»"))).toBe(" c");
+    expect(copied(edit("**foo *«bar»* baz**"))).toBe("*bar*");
+  });
+
+  it("copies an escaped character with its backslash, and none left at the end", () => {
+    expect(copied(edit("a \\«*b»"))).toBe("\\*b");
+    expect(copied(edit("«a \\»*b"))).toBe("a ");
   });
 });
 
