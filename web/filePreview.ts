@@ -44,6 +44,7 @@ import {
   videoLut,
   videoVolume,
 } from "./services/settings.ts";
+import { MEDIA_MENU, moreOptionsMenu } from "./services/videoMenu.ts";
 
 export type PreviewKind = "image" | "svg" | "video" | PageKind;
 
@@ -103,10 +104,6 @@ export function servedPreviewSources(): PreviewSources {
     videoLut,
   };
 }
-
-/** A previewed still's or clip's More options, given `{ file, bookmark }`:
- * the ways to open it, its guides and looks, then its bookmark. */
-export const PREVIEW_MEDIA_MENU = "preview.media";
 
 /** A previewed page's More options, given `{ file, bookmark }`: the ways to
  * open the file, then its bookmark. */
@@ -212,24 +209,10 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   let previewMore: MoreOptionsButton | undefined;
   let previewLayers: PictureLayers | undefined;
 
-  // The shown file's menu under its ⋮, or closed there.
-  function openMoreOptions(anchor: HTMLElement, path: string, menu: string): void {
-    if (deps.contextMenu.isOpen(anchor)) deps.contextMenu.close();
-    else {
-      deps.contextMenu.open({
-        menu,
-        arg: { file: path, bookmark: path },
-        anchor,
-        align: "end",
-        ariaLabel: "More options",
-      });
-    }
-  }
-
   // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
   // player's own.
   function fileMoreOptions(path: string, menu: string): HTMLButtonElement {
-    previewMore = moreOptionsButton("media-hud-more", (anchor) => openMoreOptions(anchor, path, menu));
+    previewMore = moreOptionsButton("media-hud-more", moreOptionsMenu(deps.contextMenu, path, menu));
     previewMore.element.tabIndex = -1;
     return previewMore.element;
   }
@@ -306,7 +289,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     name.textContent = file.name;
     previewLook = isVideo || rasterType ? lookBadge(deps.videoLut) : undefined;
     const top = previewLook ? [dimensions, previewLook.element, format] : [dimensions, format];
-    const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, PREVIEW_MEDIA_MENU)]);
+    const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
       dimensions.textContent = formatDimensions(width, height, "");
@@ -376,7 +359,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         volume: deps.videoVolume,
         guides: deps.videoGuides,
         lut: deps.videoLut,
-        moreOptions: (anchor) => openMoreOptions(anchor, file.path, PREVIEW_MEDIA_MENU),
+        moreOptions: moreOptionsMenu(deps.contextMenu, file.path),
       });
       frame.append(previewPlayer.element);
     }

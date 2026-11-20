@@ -6,7 +6,7 @@ import { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { NAME_ORDER, type SortChoice } from "../../src/protocol/folderSort.ts";
 import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClient.ts";
-import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
+import { PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
 import { installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
@@ -15,6 +15,7 @@ import type { DialogService } from "../../web/services/dialog.ts";
 import { COMMAND_PALETTE } from "../../web/services/menus.ts";
 import type { SaveQueue } from "../../web/services/saveQueue.ts";
 import type { Setting } from "../../web/services/settings.ts";
+import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
 import type { ContextMenu } from "../../web/view/contextMenu.ts";
 import type { DocumentPane } from "../../web/view/panes/documentPane.ts";
 import { polyfillRangeRects } from "./support/codemirrorJsdom.ts";
@@ -470,7 +471,7 @@ describe("editor area", () => {
   });
 
   // The Bookmarks view registers the bookmark commands; a stand-in here.
-  it("offers a previewed clip's or still's Open, Open in new tab and Open to the side, its Guides and Looks, then its Bookmark", async () => {
+  it("offers a clip's or still's Open, Open in new tab and Open to the side, its Guides and Looks, then its Bookmark", async () => {
     const { tabs, workspace, area, commands, menus } = await setup();
     await tabs.openEntry("a.md");
     commands.register({
@@ -480,7 +481,7 @@ describe("editor area", () => {
       run: vi.fn(),
     });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
-    const items = menus.resolve(PREVIEW_MEDIA_MENU, context, { file: "b.mp4", bookmark: "b.mp4" });
+    const items = menus.resolve(MEDIA_MENU, context, { file: "b.mp4", bookmark: "b.mp4" });
     expect(items.map((item) => [item.label, item.group])).toEqual([
       ["Open", "open"],
       ["Open in new tab", "open"],
@@ -490,7 +491,7 @@ describe("editor area", () => {
       ["Bookmark", "bookmark"],
     ]);
     // A vector image has no pixels to grade.
-    const vector = menus.resolve(PREVIEW_MEDIA_MENU, context, { file: "logo.svg", bookmark: "logo.svg" });
+    const vector = menus.resolve(MEDIA_MENU, context, { file: "logo.svg", bookmark: "logo.svg" });
     expect(vector.map((item) => item.label)).toEqual([
       "Open",
       "Open in new tab",
@@ -498,6 +499,26 @@ describe("editor area", () => {
       "Guides",
       "Bookmark",
     ]);
+  });
+
+  // A group holds one tab per file, so Open and Open in new tab would stay put.
+  it("leaves out Open and Open in new tab in the clip's or still's own tab", async () => {
+    const { menus } = await setup();
+    const resolved = (tab: Tab, file: string) =>
+      menus.resolve(MEDIA_MENU, { tab, pane: undefined }, { file, bookmark: file }).map((item) => item.label);
+    expect(resolved({ kind: "video", path: "b.mp4" }, "b.mp4")).toEqual(["Open to the side", "Guides", "Looks"]);
+    expect(resolved({ kind: "image", path: "art/a.png" }, "art/a.png")).toEqual([
+      "Open to the side",
+      "Guides",
+      "Looks",
+    ]);
+    // Another file's tab, or none, opens it as anywhere else.
+    expect(resolved({ kind: "video", path: "a.mp4" }, "b.mp4").slice(0, 3)).toEqual([
+      "Open",
+      "Open in new tab",
+      "Open to the side",
+    ]);
+    expect(resolved({ kind: "empty" }, "b.mp4").slice(0, 2)).toEqual(["Open", "Open in new tab"]);
   });
 
   it("offers a previewed page's Open, Open in new tab and Open to the side, then its Bookmark", async () => {

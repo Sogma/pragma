@@ -12,7 +12,7 @@ import type {
 import { setLibraryPermissions } from "../../../../web/core/libraries.ts";
 import { noteDragInFlight } from "../../../../web/core/paths.ts";
 import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
-import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
+import { PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
 import type { NamingSurface } from "../../../../web/lib/inlineEdit.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
 import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
@@ -23,6 +23,7 @@ import { setLocalSort } from "../../../../web/services/folderSorts.ts";
 import { createFormats } from "../../../../web/services/formats.ts";
 import { createMenus } from "../../../../web/services/menus.ts";
 import type { ThumbnailRenderer } from "../../../../web/services/thumbnails.ts";
+import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import {
   createGalleryPane,
   type GalleryPane,
@@ -901,7 +902,7 @@ describe("the gallery pane", () => {
       const button = preview.querySelector(".media-hud-more") as HTMLButtonElement;
       press(button, "mousedown", 1);
       press(button, "click", 1);
-      expect(deps.contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: PREVIEW_MEDIA_MENU }));
+      expect(deps.contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: MEDIA_MENU }));
       expect(deps.openEntry).not.toHaveBeenCalled();
       expect(frame.classList.contains("is-zoomed")).toBe(false);
       expect(preview.hidden).toBe(false);
@@ -1421,7 +1422,7 @@ describe("the gallery pane", () => {
 
     button.click();
     expect(deps.contextMenu.open).toHaveBeenCalledWith({
-      menu: PREVIEW_MEDIA_MENU,
+      menu: MEDIA_MENU,
       arg: { file: "lib:footage/frame.png", bookmark: "lib:footage/frame.png" },
       anchor: button,
       align: "end",

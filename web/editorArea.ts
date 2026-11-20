@@ -21,7 +21,7 @@ import type { Direction } from "./core/tabHistory.ts";
 import type { EditorGroup } from "./core/workspace.ts";
 import * as workspace from "./core/workspace.ts";
 import type { ProposalOutcome } from "./editProposal.ts";
-import { PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "./filePreview.ts";
+import { PREVIEW_PAGE_MENU } from "./filePreview.ts";
 import { registerFlowKeys } from "./flow/flowKeys.ts";
 import { CHIP_MENU, CLEAR_CHIP, chipClearOf } from "./flow/flowMenus.ts";
 import type { FlowView } from "./flow/xyflowAdapter.ts";
@@ -42,7 +42,7 @@ import type { KeybindingRegistry } from "./services/keybindings.ts";
 import { COMMAND_PALETTE, type MenuItem, type MenuRegistry } from "./services/menus.ts";
 import { formatColumn, type Setting } from "./services/settings.ts";
 import { inOneGroupOnly, type Tabs } from "./services/tabs.ts";
-import { guidesMenuItem, lutsMenuItem } from "./services/videoMenu.ts";
+import { guidesMenuItem, lutsMenuItem, MEDIA_MENU } from "./services/videoMenu.ts";
 import type { Inspector } from "./view/assistantPanel.ts";
 import type { ContextMenu } from "./view/contextMenu.ts";
 import { createEditorChrome, type EditorChrome, registerEditorChromeCommands } from "./view/editorChrome.ts";
@@ -706,9 +706,14 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },
   ]);
-  deps.menus.register(PREVIEW_MEDIA_MENU, [
-    { command: "editor.open", group: "open" },
-    { command: "editor.openInNewTab", group: "open" },
+  // In the file's own tab, Open and Open in new tab would leave it where it
+  // is, as a group holds one tab per file, so they hide there. Open to the
+  // side still shows it in the other group.
+  const elsewhere = (context: CommandContext, arg: unknown) =>
+    context.tab.kind === "empty" || context.tab.path !== fileOf(arg);
+  deps.menus.register(MEDIA_MENU, [
+    { command: "editor.open", group: "open", when: elsewhere },
+    { command: "editor.openInNewTab", group: "open", when: elsewhere },
     { command: "editor.openToSide", group: "open" },
     guidesMenuItem(),
     lutsMenuItem(),

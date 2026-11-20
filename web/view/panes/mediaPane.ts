@@ -45,7 +45,7 @@ import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
 import { videoGuides, videoLoop, videoLut, videoVolume } from "../../services/settings.ts";
-import { videoMoreOptions } from "../../services/videoMenu.ts";
+import { moreOptionsMenu } from "../../services/videoMenu.ts";
 
 export interface MediaPaneDeps {
   // The raw-file route: a `src` for the bytes, and a HEAD against the same
@@ -195,7 +195,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   // A look grades pixels: a raster image's, never a vector image's.
   let gradable = false;
   const more = moreOptionsButton("media-hud-more", (anchor) => {
-    if (shownPath !== undefined) videoMoreOptions(deps.contextMenu, shownPath, deps.guides, deps.lut)(anchor);
+    if (shownPath !== undefined) moreOptionsMenu(deps.contextMenu, shownPath)(anchor);
   });
   more.element.tabIndex = -1;
   const hud = createImageHud(deps.lut, more.element);
@@ -441,7 +441,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
         guides: deps.guides,
         lut: deps.lut,
         rangeKey: tab.path,
-        moreOptions: videoMoreOptions(deps.contextMenu, tab.path),
+        moreOptions: moreOptionsMenu(deps.contextMenu, tab.path),
       });
       // The overlay follows the player: `video:hover + .media-hud`.
       const frame = mediaFrame(video, hud.root, "editor-video-stage");

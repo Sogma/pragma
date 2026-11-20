@@ -5,6 +5,7 @@ import { DRAGGED_ENTRY_TYPE } from "../../../../web/core/paths.ts";
 import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
 import { type Look, NO_LOOK } from "../../../../web/lib/videoLut.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
+import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import { createImagePane, createVideoPane, imagePane, videoPane } from "../../../../web/view/panes/mediaPane.ts";
 import { fireDrag } from "../../support/drag.ts";
 import { memorySetting } from "../../support/editorLayout.ts";
@@ -229,25 +230,21 @@ describe("imagePane", () => {
     expect(guides.get().shown).toBe(true);
   });
 
-  // The video tab's player menu: the tab already holds the file, so no way to open it.
-  it("opens the file's Guides, Looks and Bookmark from the ⋮ that ends its bottom bar", async () => {
+  // The menu every media file's ⋮ opens, which knows its own tab.
+  it("opens the file's media menu from the ⋮ that ends its bottom bar", async () => {
     const { pane, contextMenu } = setup();
     await pane.setInput(tab, current);
     const more = pane.element.querySelector(".media-hud-bar:last-child > .media-hud-more") as HTMLButtonElement;
     expect(more.tabIndex).toBe(-1);
     more.click();
-    expect(contextMenu.opened).toHaveLength(1);
-    const [opened] = contextMenu.opened;
-    expect(opened).toMatchObject({
-      arg: { file: "art/cover.png", bookmark: "art/cover.png" },
-      anchor: more,
-      align: "end",
-      ariaLabel: "More options",
-    });
-    expect(contextMenu.labels()).toEqual(["Guides", "Looks", "", ""]);
-    expect(opened.items?.slice(2)).toEqual([
-      { command: "bookmarks.add", group: "bookmark" },
-      { command: "bookmarks.remove", group: "bookmark" },
+    expect(contextMenu.opened).toEqual([
+      {
+        menu: MEDIA_MENU,
+        arg: { file: "art/cover.png", bookmark: "art/cover.png" },
+        anchor: more,
+        align: "end",
+        ariaLabel: "More options",
+      },
     ]);
   });
 
@@ -993,8 +990,8 @@ describe("videoPane", () => {
     expect((pane.element.querySelector(".editor-video-error") as HTMLElement).hidden).toBe(true);
   });
 
-  // Guides and Looks, then the tree's and a tab's Bookmark items, for the tab's own file.
-  it("opens More options for the tab's file, and closes it from the same button", async () => {
+  // The menu every media file's ⋮ opens, which knows its own tab.
+  it("opens the media menu for the tab's file, and closes it from the same button", async () => {
     const { pane, contextMenu, release } = videoSetup();
     const opening = pane.setInput(videoTab, current);
     release();
@@ -1004,12 +1001,7 @@ describe("videoPane", () => {
     more.click();
     expect(contextMenu.opened).toHaveLength(1);
     const [menu] = contextMenu.opened;
-    expect(menu?.items?.map((item) => item.command ?? item.label)).toEqual([
-      "Guides",
-      "Looks",
-      "bookmarks.add",
-      "bookmarks.remove",
-    ]);
+    expect(menu?.menu).toBe(MEDIA_MENU);
     expect(menu?.arg).toEqual({ file: videoTab.path, bookmark: videoTab.path });
     expect(menu?.anchor).toBe(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");

@@ -8,6 +8,7 @@ import { createNodeCards, markLeftOut, type NodeCardDeps } from "../../../web/fl
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuOpenOptions } from "../../../web/services/menus.ts";
 import { spellcheck } from "../../../web/services/settings.ts";
+import { MEDIA_MENU } from "../../../web/services/videoMenu.ts";
 import { polyfillRangeRects } from "../support/codemirrorJsdom.ts";
 import { fakeModelFields } from "../support/fakeModelFields.ts";
 
@@ -1139,7 +1140,7 @@ describe("an Applet node's card", () => {
       vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {}),
       vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {}),
     ];
-    const { cards, deps, modelFields } = setup();
+    const { cards, deps, modelFields, opened } = setup();
     const flowNode = node("generateVideo", { outputFolderPath: "clips" });
     const el = cards.build(flowNode);
 
@@ -1171,6 +1172,12 @@ describe("an Applet node's card", () => {
     frame.querySelector("video")?.click();
     expect(media[1]).toHaveBeenCalledTimes(1);
     expect(deps.previewResult).toHaveBeenCalledWith("clips/steam-0123456789ab.mp4");
+    // Its ⋮ opens the menu the preview's does, ways to open the file included.
+    frame.querySelector<HTMLButtonElement>(".video-player-more")?.click();
+    expect(opened.at(-1)).toMatchObject({
+      menu: MEDIA_MENU,
+      arg: { file: "clips/steam-0123456789ab.mp4", bookmark: "clips/steam-0123456789ab.mp4" },
+    });
 
     cards.clearRunState();
     expect(frame.hidden).toBe(true);

@@ -1,7 +1,7 @@
-// The More options menu of a video player and of the image tab: Guides and
-// Looks, then Bookmark or Remove from Bookmarks for the file, the items the
-// tree's and a tab's menus offer. The preview registers its own from the
-// rows here, with the ways to open the file before them.
+// The More options menu of a media file, the one every ⋮ over a clip or a
+// still opens: in the preview, the video and image tabs and a Flow's clips.
+// One registered menu, so no surface's list drifts from another's: the ways
+// to open the file, Guides and Looks, then Bookmark or Remove from Bookmarks.
 //
 // The argument names the file twice, as a Bookmarks row's does: `file` for
 // the open commands, `bookmark` for the bookmark ones. A command that finds
@@ -115,25 +115,20 @@ function isVectorImage(arg: unknown): boolean {
   return typeof file === "string" && vectorImageMediaTypeForPath(file) !== undefined;
 }
 
-/** Opens the menu for the clip or still at `path` under its button, or
- * closes it there: Guides, Looks and the file's Bookmark items. */
-export function videoMoreOptions(
+/** The menu a media file's ⋮ opens, given `{ file, bookmark }`. */
+export const MEDIA_MENU = "media.more";
+
+/** Opens `menu` for the file at `path` under its ⋮, or closes it there. */
+export function moreOptionsMenu(
   contextMenu: ContextMenuService,
   path: string,
-  guides: GuidesChoice = videoGuides,
-  lut: LutChoice = videoLut,
+  menu = MEDIA_MENU,
 ): (anchor: HTMLElement) => void {
   return (anchor) => {
     if (contextMenu.isOpen(anchor)) contextMenu.close();
     else {
-      const items: MenuItem[] = [
-        guidesMenuItem(guides),
-        lutsMenuItem(lut),
-        { command: "bookmarks.add", group: "bookmark" },
-        { command: "bookmarks.remove", group: "bookmark" },
-      ];
       contextMenu.open({
-        items,
+        menu,
         arg: { file: path, bookmark: path },
         anchor,
         align: "end",

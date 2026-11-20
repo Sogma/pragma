@@ -9,7 +9,7 @@ import { mediaFrame, type ThumbnailHud, thumbnailHud } from "../lib/mediaHud.ts"
 import { createVideoPlayer, type VideoPlayer } from "../lib/videoPlayer.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { videoGuides, videoLoop, videoLut, videoVolume } from "../services/settings.ts";
-import { videoMoreOptions } from "../services/videoMenu.ts";
+import { moreOptionsMenu } from "../services/videoMenu.ts";
 
 export interface ResultClip {
   el: HTMLDivElement;
@@ -72,7 +72,7 @@ export function createResultClip(
         guides: videoGuides,
         lut: videoLut,
         pictureClick,
-        moreOptions: videoMoreOptions(contextMenu, path),
+        moreOptions: moreOptionsMenu(contextMenu, path),
       });
       frame.append(player.element);
     },

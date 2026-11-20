@@ -2,9 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileResponse } from "../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../web/core/paths.ts";
-import { createFilePreview, PREVIEW_MEDIA_MENU, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
+import { createFilePreview, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats } from "../../web/services/formats.ts";
+import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
 import { fireDrag } from "./support/drag.ts";
 import { fakeContextMenu } from "./support/fakeContextMenu.ts";
 import { testPreviewSources } from "./support/previewSources.ts";
@@ -303,7 +304,7 @@ describe("a previewed file's More options", () => {
     return img;
   }
 
-  it("opens the preview's clip menu for the clip's file under its player's button", () => {
+  it("opens the media menu for the clip's file under its player's button", () => {
     const { preview, overlay, contextMenu } = setup({ files: ["clips/a.mp4"] });
     preview.show(0);
     const more = overlay.querySelector(".video-player-more") as HTMLButtonElement;
@@ -312,7 +313,7 @@ describe("a previewed file's More options", () => {
     more.click();
     expect(contextMenu.opened).toEqual([
       {
-        menu: PREVIEW_MEDIA_MENU,
+        menu: MEDIA_MENU,
         arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4" },
         anchor: more,
         align: "end",
@@ -322,7 +323,7 @@ describe("a previewed file's More options", () => {
     expect(preview.shownIndex()).toBe(0);
   });
 
-  it("ends a still's bottom bar, after its name, and opens the clip's menu for the file under it", () => {
+  it("ends a still's bottom bar, after its name, and opens the media menu for the file under it", () => {
     const { preview, overlay, contextMenu } = setup();
     preview.show(0);
     decode(overlay, [600, 450]);
@@ -336,7 +337,7 @@ describe("a previewed file's More options", () => {
     more.click();
     expect(contextMenu.opened).toEqual([
       {
-        menu: PREVIEW_MEDIA_MENU,
+        menu: MEDIA_MENU,
         arg: { file: "stills/a.png", bookmark: "stills/a.png" },
         anchor: more,
         align: "end",

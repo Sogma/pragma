@@ -4,13 +4,13 @@ import { metadataText } from "../../../../src/protocol/metadata.ts";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
 import type { TableLayout } from "../../../../src/protocol/types.ts";
 import type { FileResponse, TableFileResponse } from "../../../../web/core/apiClient.ts";
-import { PREVIEW_MEDIA_MENU } from "../../../../web/filePreview.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
 import { createFormats } from "../../../../web/services/formats.ts";
 import { createKeybindings } from "../../../../web/services/keybindings.ts";
 import { createMenus } from "../../../../web/services/menus.ts";
+import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import { createContextMenu } from "../../../../web/view/contextMenu.ts";
 import { createTablePane, tablePane } from "../../../../web/view/panes/tablePane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
@@ -326,7 +326,7 @@ describe("a media cell's preview", () => {
     const open = vi.spyOn(contextMenu, "open");
     (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
     expect(open).toHaveBeenCalledWith(
-      expect.objectContaining({ menu: PREVIEW_MEDIA_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
+      expect.objectContaining({ menu: MEDIA_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
     );
   });
 

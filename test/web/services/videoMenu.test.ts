@@ -4,34 +4,29 @@ import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import { type Look, NO_LOOK } from "../../../web/lib/videoLut.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuTileSection } from "../../../web/services/menus.ts";
-import { guidesMenuItem, lutsMenuItem, videoMoreOptions } from "../../../web/services/videoMenu.ts";
+import { guidesMenuItem, lutsMenuItem, MEDIA_MENU, moreOptionsMenu } from "../../../web/services/videoMenu.ts";
 import { memorySetting } from "../support/editorLayout.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
 const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
 
-describe("videoMoreOptions", () => {
-  // Guides and Looks, then the Bookmark items the tree's and a tab's menus offer, for the clip's file.
-  it("opens Guides and Looks above the clip's Bookmark items under its button, and closes them from it", () => {
+describe("moreOptionsMenu", () => {
+  // The one menu every media file's ⋮ opens; editorArea.test.ts resolves its rows.
+  it("opens the media menu for the file under its button, and closes it from there", () => {
     const contextMenu = fakeContextMenu();
     const anchor = document.createElement("button");
-    const open = videoMoreOptions(contextMenu, "lib:takes/a.mp4");
+    const open = moreOptionsMenu(contextMenu, "lib:takes/a.mp4");
 
     open(anchor);
-    expect(contextMenu.opened).toHaveLength(1);
-    const [options] = contextMenu.opened;
-    expect(options.items?.[0]).toMatchObject({ label: "Guides", group: "guides" });
-    expect(options.items?.[1]).toMatchObject({ label: "Looks", group: "guides" });
-    expect(options.items?.slice(2)).toEqual([
-      { command: "bookmarks.add", group: "bookmark" },
-      { command: "bookmarks.remove", group: "bookmark" },
+    expect(contextMenu.opened).toEqual([
+      {
+        menu: MEDIA_MENU,
+        arg: { file: "lib:takes/a.mp4", bookmark: "lib:takes/a.mp4" },
+        anchor,
+        align: "end",
+        ariaLabel: "More options",
+      },
     ]);
-    expect(options).toMatchObject({
-      arg: { file: "lib:takes/a.mp4", bookmark: "lib:takes/a.mp4" },
-      anchor,
-      align: "end",
-      ariaLabel: "More options",
-    });
     expect(contextMenu.isOpen(anchor)).toBe(true);
 
     open(anchor);
