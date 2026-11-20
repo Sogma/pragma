@@ -11,13 +11,14 @@
 import type { CreateEntryResponse, FindContextResponse, SpaceInfoResponse } from "../../../src/protocol/api.ts";
 import { suggestedFields, THIS_FOLDER } from "../../../src/protocol/class.ts";
 import { serializeClassFile } from "../../../src/protocol/classHtml.ts";
-import { entryNameForTitle, illegalEntryNameReason, isNamed } from "../../../src/protocol/entryName.ts";
+import { entryNameForTitle, entryNameKey, illegalEntryNameReason, isNamed } from "../../../src/protocol/entryName.ts";
 import { toSortValue } from "../../../src/protocol/folderSort.ts";
 import { editFrontmatter, isPrivate, readFrontmatter } from "../../../src/protocol/frontmatter.ts";
 import { PRESET_KINDS, type PresetKind, presetFolderOf } from "../../../src/protocol/presets.ts";
 import {
   basenameOf,
   dirnameOf,
+  formatRootedPath,
   isLibraryPath,
   type PathRoot,
   parseRootedPath,
@@ -50,6 +51,7 @@ import {
 import {
   fetchFile,
   fetchFolderRows,
+  fetchLibraryTree,
   fetchPragmaTemplates,
   fetchSpaceInfo,
   fetchTemplateStartingName,
@@ -68,7 +70,7 @@ import {
 } from "../../core/apiClient.ts";
 import { splitDocumentProperties } from "../../core/documentContent.ts";
 import { ownSortOf } from "../../core/folderOrder.ts";
-import { libraryIds, libraryName } from "../../core/libraries.ts";
+import { isLibraryLocated, libraryIds, libraryName } from "../../core/libraries.ts";
 import {
   carriesDesktopFiles,
   desktopFiles,
@@ -85,7 +87,7 @@ import {
   treeTakesDrag,
   treeTotalsLabel,
 } from "../../core/paths.ts";
-import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf } from "../../core/presets.ts";
+import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
 import { must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
@@ -461,14 +463,21 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   }
 
   // A preset's rows open and nothing more, in either root.
-  function presetsContext(root: PathRoot): TreeRenderContext {
+  function presetsContext(root: PathRoot, kind: PresetKind): TreeRenderContext {
     const nothing = () => undefined;
     return {
       root,
       readOnly: true,
       onOpen: (filePath, label) => void deps.open(filePath, { from: { anchor: label, marked: true } }),
       onOpenDirectory: (path) => deps.openDirectory(path),
-      onContextMenu: nothing,
+      onContextMenu: (event, node) => {
+        if (node.type !== "directory") return;
+        const folder = formatRootedPath({ root, path: node.path });
+        const listed = presetFoldersOf(kind).find(
+          (view) => view.missing === undefined && entryNameKey(view.path) === entryNameKey(folder),
+        );
+        folderMenu(event, folder, listed && { kind, folder: listed.path });
+      },
       onDragStart: nothing,
       onDrop: nothing,
       isCollapsed: collapsed.isCollapsed,
@@ -576,8 +585,13 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       return [heading, ...flat(source.folders[0].rows).map((row) => plainRow(row.icon, row.label))];
     }
     const shown: HTMLElement[] = [heading];
+    const [only] = source.folders;
     if (source.folders.length === 1)
-      heading.addEventListener("contextmenu", (event) => removeMenu(event, kind, source.folders[0].path));
+      heading.addEventListener("contextmenu", (event) =>
+        only.missing === undefined
+          ? folderMenu(event, only.path, { kind, folder: only.path })
+          : removeMenu(event, kind, only.path),
+      );
     for (const folder of source.folders) {
       if (folder.missing === undefined) continue;
       const row = plainRow({ glyph: "folder" }, folder.label, folder.missing);
@@ -598,7 +612,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     }
     const drawn = view;
     shown.push(drawn.element);
-    draws.push(() => drawn.render(sourceNodes(kind, source), presetsContext(root)));
+    draws.push(() => drawn.render(sourceNodes(kind, source), presetsContext(root, kind)));
     return shown;
   }
 
@@ -626,8 +640,8 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     const sources = presetSources(kind, pragmaRows(kind));
     if (!sources.some((source) => source.key !== PRAGMA_SOURCE)) {
       const empty = document.createElement("p");
-      empty.className = "stack-section-message";
-      empty.textContent = "No folders yet. Add one with +.";
+      empty.className = "stack-section-message presets-empty";
+      empty.textContent = "empty";
       block.append(empty);
     }
     for (const source of sources) block.append(...renderPresetSource(kind, source, keep, draws));
@@ -664,6 +678,24 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     }
   }
 
+  // A preset folder's menu: where it lives, and, for one the space lists,
+  // taking it out. A library's folder is the Libraries view's to show.
+  function folderMenu(event: MouseEvent, folder: string, listed?: { kind: PresetKind; folder: string }): void {
+    event.preventDefault();
+    const items: MenuItem[] = [
+      isLibraryPath(folder)
+        ? { command: "library.show", group: "show" }
+        : { label: "Show in space", group: "show", run: () => revealFolder(folder) },
+    ];
+    if (listed)
+      items.push({
+        label: "Remove from Presets",
+        group: "presets",
+        run: () => void removePreset(listed.kind, listed.folder),
+      });
+    deps.contextMenu.open({ at: { x: event.clientX, y: event.clientY }, items, arg: { folder } });
+  }
+
   function removeMenu(event: MouseEvent, kind: PresetKind, folder: string): void {
     event.preventDefault();
     deps.contextMenu.open({
@@ -676,25 +708,31 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   // them, a folder of the space chosen from its tree, or a whole library.
   function openAddMenu(kind: PresetKind, anchor: HTMLElement): void {
     const templateFolder = presetFoldersOf("templates").find((view) => !view.library && !view.missing)?.path;
+    // A library listed whole, for any kind, has no folder left to add.
     const listedLibraries = new Set(
-      presetFoldersOf(kind).flatMap((view) =>
+      presets().folders.flatMap((view) =>
         view.library && presetFolderOf(view.written)?.path === "" ? [view.library.id] : [],
       ),
     );
-    const libraries = libraryIds().filter((id) => !listedLibraries.has(id));
+    const libraries = libraryIds().filter((id) => isLibraryLocated(id) && !listedLibraries.has(id));
     const items: MenuItem[] = [];
     if (kind === "templates" && templateFolder !== undefined) {
       items.push({ label: "New Template", group: "new", run: () => newTemplate(templateFolder) });
     }
-    items.push({ label: "Add Folder…", group: "add", run: () => chooseFolder(kind, anchor) });
+    items.push({
+      label: "Space",
+      icon: true,
+      entryIcon: { glyph: "space" },
+      group: "roots",
+      run: () => chooseFolder(kind, anchor),
+    });
     for (const id of libraries) {
       items.push({
         label: libraryName(id) ?? id,
         icon: true,
         entryIcon: { glyph: "library" },
-        group: "libraries",
-        tooltip: `Add the library's top folder to ${KIND_NAMES[kind]}`,
-        run: () => void addPreset(kind, `lib:${id}`),
+        group: "roots",
+        run: () => void chooseLibraryFolder(kind, anchor, id),
       });
     }
     deps.contextMenu.open({ anchor, align: "end", items, ariaLabel: `Add to ${KIND_NAMES[kind]}` });
@@ -713,6 +751,36 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       within: "",
       label: `Add a folder to ${KIND_NAMES[kind]}`,
       isOpen: (folder) => !collapsed.isCollapsed(folder),
+      openFolder: (folder) => deps.openDirectory(folder),
+      onPick: (folder) => void addPreset(kind, folder),
+    });
+  }
+
+  // A library's folders, its top first and open, so the whole library can be
+  // picked too; every path is rooted in the library, as the file lists it.
+  async function chooseLibraryFolder(kind: PresetKind, anchor: HTMLElement, id: string): Promise<void> {
+    let listing: SpaceTreeNode[];
+    try {
+      listing = await fetchLibraryTree(id);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Couldn't read that library.");
+      return;
+    }
+    const rooted = (nodes: readonly SpaceTreeNode[]): SpaceTreeNode[] =>
+      nodes.map((node) => ({
+        ...node,
+        path: formatRootedPath({ root: { library: id }, path: node.path }),
+        children: node.children && rooted(node.children),
+      }));
+    const top = formatRootedPath({ root: { library: id }, path: "" });
+    openFolderChooser({
+      anchor,
+      alignTo: anchor,
+      within: "",
+      folders: [{ name: libraryName(id) ?? id, path: top, type: "directory", children: rooted(listing) }],
+      icon: (node) => (node.path === top ? { glyph: "library" } : entryIcon(node)),
+      label: `Add a folder to ${KIND_NAMES[kind]}`,
+      isOpen: (folder) => folder === top,
       openFolder: (folder) => deps.openDirectory(folder),
       onPick: (folder) => void addPreset(kind, folder),
     });

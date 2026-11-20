@@ -45,6 +45,7 @@ vi.mock("../../../web/core/spaceTree.ts", async (importOriginal) => {
     }),
     libraryFiles: async () => [],
     findDirectoryNode: (path: string) => listing.folders.get(path),
+    findDirectoryChildren: (path: string) => listing.folders.get(path)?.children,
   };
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LibraryRow } from "../../../web/core/apiClient.ts";
-import { libraryName, onLibraryNames, setLibraryPermissions } from "../../../web/core/libraries.ts";
+import { isLibraryLocated, libraryName, onLibraryNames, setLibraryPermissions } from "../../../web/core/libraries.ts";
 
 const row = (id: string, name: string): LibraryRow => ({
   id,
@@ -33,5 +33,18 @@ describe("library names", () => {
     stop();
     setLibraryPermissions([row("footage", "Footage")]);
     expect(listener).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("located libraries", () => {
+  it("counts a library as here only while this computer has its folder", () => {
+    setLibraryPermissions([
+      row("footage", "Footage"),
+      { ...row("archive", "Archive"), missing: true },
+      { ...row("film", "Film"), path: undefined },
+    ]);
+    expect(["footage", "archive", "film"].map(isLibraryLocated)).toEqual([true, false, false]);
+    setLibraryPermissions([]);
+    expect(isLibraryLocated("footage")).toBe(false);
   });
 });

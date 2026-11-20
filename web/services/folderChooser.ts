@@ -6,8 +6,8 @@
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
 import { entryNameKey } from "../../src/protocol/entryName.ts";
 import { dirnameOf, isWithin } from "../../src/protocol/rootedPath.ts";
-import { entryIcon } from "../core/paths.ts";
-import { findDirectoryNode } from "../core/spaceTree.ts";
+import { type EntryIcon, entryIcon } from "../core/paths.ts";
+import { findDirectoryChildren } from "../core/spaceTree.ts";
 import { setEntryIcon } from "../lib/dom.ts";
 import { openFlyout } from "../lib/flyout.ts";
 
@@ -17,8 +17,14 @@ export interface FolderChooserSpec {
   /** Its right edge is lined up with this one's, so it opens back over the
    * row it belongs to. */
   alignTo: HTMLElement;
-  /** The folder whose folders are offered, never itself. */
+  /** The folder whose folders are offered, never itself: "" for the space's
+   * top folder. */
   within: string;
+  /** The folders offered, as a tree, when they aren't the space's own inside
+   * `within`: a library's, its paths rooted. */
+  folders?: readonly SpaceTreeNode[];
+  /** A row's glyph, when it isn't the one the space tree would draw. */
+  icon?(node: SpaceTreeNode): EntryIcon;
   /** The folder the setting holds, marked as the tree marks the open file. */
   current?: string;
   /** The folder to start on when the setting holds none here. */
@@ -40,7 +46,9 @@ const folderChildren = (node: SpaceTreeNode | undefined): SpaceTreeNode[] =>
   node?.children?.filter((child) => child.type === "directory") ?? [];
 
 export function openFolderChooser(spec: FolderChooserSpec): void {
-  const top = folderChildren(findDirectoryNode(spec.within));
+  // Read as children, not from the folder's node: the space's top folder has
+  // no node in the tree.
+  const top = (spec.folders ?? findDirectoryChildren(spec.within) ?? []).filter((child) => child.type === "directory");
   const inside = (path: string | undefined): path is string =>
     path !== undefined && path !== spec.within && isWithin(spec.within, path);
 
@@ -80,7 +88,7 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
   const search = document.createElement("input");
   search.type = "text";
   search.className = "context-menu-search";
-  search.placeholder = `Search folders in ${spec.within.split("/").at(-1)}`;
+  search.placeholder = spec.within ? `Search folders in ${spec.within.split("/").at(-1)}` : "Search folders";
   search.setAttribute("aria-label", search.placeholder);
 
   const tree = document.createElement("div");
@@ -109,7 +117,7 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
     label.classList.toggle("cursor", node.path === cursor);
     const icon = document.createElement("span");
     icon.className = "node-icon";
-    setEntryIcon(icon, entryIcon(node));
+    setEntryIcon(icon, spec.icon?.(node) ?? entryIcon(node));
     const name = document.createElement("span");
     name.className = "node-name";
     name.append(...withMatch(node.name, query));
@@ -237,6 +245,9 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
   });
 
   draw();
+  // Placed again now its rows are in: it was placed empty, so it fit below
+  // even an anchor at the window's foot, and the rows ran off the bottom.
+  flyout.reposition();
   const box = spec.alignTo.getBoundingClientRect();
   const left = Math.min(box.right - element.offsetWidth, window.innerWidth - 4 - element.offsetWidth);
   element.style.left = `${Math.max(4, left)}px`;

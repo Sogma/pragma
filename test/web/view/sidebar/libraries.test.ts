@@ -685,6 +685,7 @@ describe("createLibraryManager", () => {
     const deleteEntry = vi.fn(async () => undefined);
     const onDeleted = vi.fn();
     const reveal = vi.fn();
+    const revealFolder = vi.fn();
     const trash = { on: true };
     const tree: LibraryTreeActions = {
       startCreate: vi.fn(),
@@ -709,8 +710,10 @@ describe("createLibraryManager", () => {
       tree,
       refresh,
       reveal,
+      revealFolder,
     });
     return {
+      revealFolder,
       trash,
       commands,
       menus,
@@ -818,16 +821,18 @@ describe("createLibraryManager", () => {
     expect(cancelled.refresh).not.toHaveBeenCalled();
   });
 
-  // The status bar's path names a library by its top folder. Only the top:
-  // a reveal opens the library, never a folder inside it.
-  it("offers Show in Libraries on a library's top folder alone, and reveals that library", async () => {
-    const { commands, reveal } = manager("read-only");
+  // A status bar path's folder or a preset folder names a library's folder:
+  // its top shows the library, one inside opens down to that folder.
+  it("offers Show in library on a library's folders, the top showing the library", async () => {
+    const { commands, reveal, revealFolder } = manager("read-only");
     expect(commands.isEnabled("library.show", context, { folder: "lib:one", ownView: true })).toBe(true);
-    expect(commands.isEnabled("library.show", context, { folder: "lib:one/batch", ownView: true })).toBe(false);
+    expect(commands.isEnabled("library.show", context, { folder: "lib:one/batch", ownView: true })).toBe(true);
     expect(commands.isEnabled("library.show", context, { folder: "notes", ownView: true })).toBe(false);
     expect(commands.isEnabled("library.show", context, target())).toBe(false);
     await commands.run("library.show", context, { folder: "lib:one", ownView: true });
+    await commands.run("library.show", context, { folder: "lib:one/batch", ownView: true });
     expect(reveal).toHaveBeenCalledWith("one");
+    expect(revealFolder).toHaveBeenCalledWith("lib:one/batch");
   });
 
   // Rename, Properties and Remove name no path, so they are offered on every

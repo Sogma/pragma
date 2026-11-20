@@ -57,6 +57,14 @@
   --tree-indent-root: calc(22px + 10px - 1em);
 }
 
+/* A kind no folder of the space's or a library's supplies: the word sits
+   where their sources would. */
+.presets-empty {
+  padding: 2px 8px 2px 22px;
+  line-height: 20px;
+  font-style: italic;
+}
+
 .presets-row-name {
   min-width: 0;
   overflow: hidden;

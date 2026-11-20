@@ -7,6 +7,7 @@ import { isLibraryRoot, type PathRoot } from "../../src/protocol/rootedPath.ts";
 import { fetchLibraries, type LibraryRow } from "./apiClient.ts";
 
 const writable = new Set<string>();
+const located = new Set<string>();
 let names = new Map<string, string>();
 const renameListeners = new Set<() => void>();
 let loading: Promise<void> | undefined;
@@ -15,7 +16,11 @@ let loading: Promise<void> | undefined;
  * so changing a library's access or label takes effect without a reload. */
 export function setLibraryPermissions(rows: readonly LibraryRow[]): void {
   writable.clear();
-  for (const row of rows) if (row.access === "read-write") writable.add(row.id);
+  located.clear();
+  for (const row of rows) {
+    if (row.access === "read-write") writable.add(row.id);
+    if (row.path !== undefined && !row.missing) located.add(row.id);
+  }
   const next = new Map(rows.map((row) => [row.id, row.label]));
   const renamed = next.size !== names.size || [...next].some(([id, name]) => names.get(id) !== name);
   names = next;
@@ -25,6 +30,12 @@ export function setLibraryPermissions(rows: readonly LibraryRow[]): void {
 /** Every library's id the space declares, once they have been read. */
 export function libraryIds(): string[] {
   return [...names.keys()];
+}
+
+/** Whether this computer has the library's folder, once its entry has been
+ * read: located here, and still there. */
+export function isLibraryLocated(id: string): boolean {
+  return located.has(id);
 }
 
 /** A library's display name, once its entry has been read. */

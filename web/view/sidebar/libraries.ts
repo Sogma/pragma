@@ -745,6 +745,8 @@ export interface LibraryManagerDeps {
   // Shows the panel with that library open: one just added, or one whose
   // name was clicked elsewhere in the UI.
   reveal(id: string): void;
+  // Shows the panel open down to the folder at a rooted path, its row flashed.
+  revealFolder(path: string): void;
 }
 
 export interface LibraryManager {
@@ -839,11 +841,13 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
 
   deps.commands.register({
     id: "library.show",
-    label: "Show in Libraries",
-    when: (_, arg) => libraryTopOf(arg) !== undefined,
+    label: "Show in library",
+    when: (_, arg) => libraryFolderOf(arg) !== undefined,
     run: (_, arg) => {
-      const id = libraryTopOf(arg);
-      if (id !== undefined) deps.reveal(id);
+      const folder = libraryFolderOf(arg);
+      if (folder === undefined) return;
+      if (folder.path === "") deps.reveal(folder.root.library);
+      else deps.revealFolder(formatRootedPath(folder));
     },
   });
 
@@ -1108,6 +1112,7 @@ export interface LibrariesPanelDeps
       LibraryManagerDeps,
       | "refresh"
       | "reveal"
+      | "revealFolder"
       | "setLibraryAccess"
       | "setLibraryLabel"
       | "setLibraryDescription"
@@ -1164,22 +1169,22 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     tree: view.tree,
     refresh: () => view.refresh(),
     reveal: (id) => view.reveal(id),
+    revealFolder: (path) => view.revealFolder(path),
   });
   return view;
 }
 
-// The library whose top folder a menu's `{ folder }` names, as the status
-// bar's path names a library file's. Only the top: a reveal opens the
-// library's row, never a folder inside it.
 function isLibraryRow(arg: unknown): arg is Extract<ListItemTarget, { kind: "library" }> {
   return typeof arg === "object" && arg !== null && (arg as { kind?: unknown }).kind === "library";
 }
 
-function libraryTopOf(arg: unknown): string | undefined {
+// The library folder a menu's `{ folder }` names, its top or one inside it:
+// a status bar path's folder, or a preset folder.
+function libraryFolderOf(arg: unknown): { root: { library: string }; path: string } | undefined {
   if (typeof arg !== "object" || arg === null || !("folder" in arg) || typeof arg.folder !== "string") return undefined;
   try {
     const { root, path } = parseRootedPath(arg.folder);
-    return isLibraryRoot(root) && path === "" ? root.library : undefined;
+    return isLibraryRoot(root) ? { root, path } : undefined;
   } catch {
     return undefined;
   }

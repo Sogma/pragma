@@ -729,7 +729,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   ]);
   deps.menus.register(GRAPH_NODE_MENU, opens);
   // A click already opens the folder in place, so the menu holds the other
-  // two ways; a library's top folder adds the way to its row.
+  // two ways; a library's folder adds the way to it in the Libraries view.
   deps.menus.register(PATH_FOLDER_MENU, [
     { command: "gallery.openFolderInNewTab", group: "open" },
     { command: "gallery.openFolderToSide", group: "open" },
