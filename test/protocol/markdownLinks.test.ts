@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyReferenceEdits, findMarkdownReferences, noteLinks } from "../../src/protocol/markdownLinks.ts";
+import {
+  applyReferenceEdits,
+  findMarkdownReferences,
+  isPathDestination,
+  noteLinks,
+} from "../../src/protocol/markdownLinks.ts";
 
 // What a rewrite is allowed to touch. The cases that matter most here are
 // the negative ones: a reference the parser does *not* report is a reference
@@ -139,5 +144,14 @@ describe("what a note links to", () => {
 
   it("keeps the link around a thumbnail but not the thumbnail", () => {
     expect(links("[![thumb](small.png)](big.md)")).toEqual(["markdown:big.md"]);
+  });
+
+  it("reads a destination as a path by the same rule", () => {
+    for (const path of ["./a.md", "../b c.png", "lib:refs/b.md", "space:c.md", " notes/d.md "]) {
+      expect(isPathDestination(path), path).toBe(true);
+    }
+    for (const other of ["https://x.com/a.md", "mailto:a@b.c", "#top", "//x.com/a", "ftp://x.com/a"]) {
+      expect(isPathDestination(other), other).toBe(false);
+    }
   });
 });

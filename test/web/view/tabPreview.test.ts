@@ -85,7 +85,12 @@ function install(overrides: Partial<TabPreviewDeps> = {}): void {
   document.body.append(host, area);
   deps = {
     loadFile: vi.fn(async (path: string) => file(path)),
-    readingResolvers: () => ({ image: () => undefined, link: () => undefined, wikilink: () => undefined }),
+    readingResolvers: () => ({
+      image: () => undefined,
+      link: () => undefined,
+      wikilink: () => undefined,
+      hint: () => undefined,
+    }),
     formats: createFormats(),
     dialog: createDialogService(),
     contextMenu: { open: vi.fn(), close: vi.fn(), isOpen: () => false },

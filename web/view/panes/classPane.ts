@@ -62,7 +62,7 @@ import {
   postCreateFromTemplate,
 } from "../../core/apiClient.ts";
 import { isWritableRoot } from "../../core/libraries.ts";
-import { DRAGGED_ENTRY_TYPE, readDraggedPath, stripExtension } from "../../core/paths.ts";
+import { DRAGGED_ENTRY_TYPE, pathHint, readDraggedPath, stripExtension } from "../../core/paths.ts";
 import {
   classLinkFiles,
   entryIconAt,
@@ -89,7 +89,7 @@ import { buildLockNotice, onLinkClick } from "../../lib/dom.ts";
 import { createFieldValue } from "../../lib/fieldValue.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
-import { installLinkPreview, pageKind } from "../../notePreview.ts";
+import { installLinkPreview } from "../../notePreview.ts";
 import { createPageFind } from "../../pageFind.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
@@ -593,9 +593,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     title.className = "class-row-title";
     title.textContent = row.title;
     title.dataset.spacePath = row.path;
-    // A page's preview takes the place of the path's hint, which would show
-    // over it.
-    if (pageKind(row.path) === undefined) title.dataset.tooltip = row.path;
+    const hint = pathHint(row.path, row.title);
+    if (hint) title.dataset.tooltip = hint;
     onLinkClick(title, () => deps.openPath(row.path));
     if (row.error === undefined) return title;
     const cell = document.createElement("div");

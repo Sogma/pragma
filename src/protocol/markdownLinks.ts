@@ -164,9 +164,13 @@ export interface NoteLink {
   to: number;
 }
 
-// A Markdown link that isn't a path at all: a web link, `mailto:` and the
-// like, or a bare `#anchor`.
 const NOT_A_PATH = /^(?!(?:lib|space):)[A-Za-z][A-Za-z0-9+.-]*:|^\/\/|^#/;
+
+/** Whether a Markdown link's destination is a path, a `lib:` or `space:` one
+ * included, and not a web link, `mailto:` and the like, or a bare `#anchor`. */
+export function isPathDestination(destination: string): boolean {
+  return !NOT_A_PATH.test(destination.trim());
+}
 
 /** What a note links to: its wikilinks and its Markdown links to paths, in
  * source order. An embed is left out, since the page shows it, and so are a
@@ -181,7 +185,7 @@ function linksIn(references: readonly MarkdownReference[]): NoteLink[] {
   for (const reference of references) {
     if (reference.isImage) continue;
     const form = reference.kind === "wikilink" ? "wikilink" : "markdown";
-    if (form === "markdown" && NOT_A_PATH.test(reference.raw.trim())) continue;
+    if (form === "markdown" && !isPathDestination(reference.raw)) continue;
     links.push({ form, raw: reference.raw, from: reference.from, to: reference.to });
   }
   return links;
@@ -200,7 +204,7 @@ export function noteLinksAndTags(text: string): { links: NoteLink[]; embeds: str
   }));
   const references = referencesIn(parsed);
   const embeds = references.flatMap((reference) =>
-    reference.isImage && !NOT_A_PATH.test(reference.raw.trim()) ? [reference.raw] : [],
+    reference.isImage && isPathDestination(reference.raw) ? [reference.raw] : [],
   );
   return { links: linksIn(references), embeds, tags };
 }

@@ -59,7 +59,12 @@ function install(overrides: Partial<LinkPreviewDeps> = {}): void {
   document.body.append(container, elsewhere);
   deps = {
     loadFile: vi.fn(async (path: string): Promise<FileResponse> => textFile(path, "# Keeper\n\nSee [[lamp]].\n")),
-    readingResolvers: vi.fn(() => ({ image: () => undefined, link: () => undefined, wikilink: () => "notes/lamp.md" })),
+    readingResolvers: vi.fn(() => ({
+      image: () => undefined,
+      link: () => undefined,
+      wikilink: () => "notes/lamp.md",
+      hint: () => undefined,
+    })),
     formats: createFormats(),
     openPath: vi.fn(),
     openBeside: vi.fn(),
@@ -111,6 +116,15 @@ describe("a link's preview", () => {
     over(container.querySelector("p") as HTMLElement);
     await vi.advanceTimersByTimeAsync(1000);
     over(link(), { buttons: 1 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(deps.loadFile).not.toHaveBeenCalled();
+    expect(preview()).toBeNull();
+  });
+
+  it("leaves a link with a hint, a note not found, to its hint", async () => {
+    install();
+    link().dataset.tooltip = "Not found: keeper.md";
+    over(link());
     await vi.advanceTimersByTimeAsync(1000);
     expect(deps.loadFile).not.toHaveBeenCalled();
     expect(preview()).toBeNull();

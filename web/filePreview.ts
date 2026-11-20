@@ -19,7 +19,7 @@ import {
   type SelectedFile,
   type VideoFormatResponse,
 } from "./core/apiClient.ts";
-import { wireEntryDrag } from "./core/paths.ts";
+import { type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
 import { readingResolvers } from "./core/spaceTree.ts";
 import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
 import { pixelFormatText } from "./lib/mediaDetails.ts";
@@ -31,15 +31,7 @@ import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
 import { type GuidesChoice, toggleGuides } from "./lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "./lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "./lib/videoPlayer.ts";
-import {
-  createPage,
-  fitPage,
-  loadPage,
-  PAGE_PREVIEW_SCALE,
-  type PageKind,
-  pageKind,
-  releasePage,
-} from "./notePreview.ts";
+import { createPage, fitPage, loadPage, PAGE_PREVIEW_SCALE, releasePage } from "./notePreview.ts";
 import type { DialogService } from "./services/dialog.ts";
 import type { FormatRegistry } from "./services/formats.ts";
 import { focusMediaField, mediaFieldPath, mediaStrip } from "./services/mediaField.ts";

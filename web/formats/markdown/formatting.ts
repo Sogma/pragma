@@ -40,7 +40,7 @@ import type { TagDefinition } from "../../../src/protocol/tags.ts";
 import { splitWikilinkLabel } from "../../../src/protocol/wikilink.ts";
 import { hiddenSyntax, hidingSwitched, syntaxHidden } from "../../hiddenSyntax.ts";
 import { tagPillColors } from "../../lib/tagPill.ts";
-import { autolinkHref, isSafeHref } from "../../markdownRender.ts";
+import { autolinkHref, isSafeHref, type LinkLead } from "../../markdownRender.ts";
 import { type Span, shownSpans, shownSpansChanged, syntaxMark } from "../../shownSyntax.ts";
 import { bareUrlHref, linkDestination } from "../../webLinks.ts";
 import { AS_WRITTEN, HEADING_LEVELS, headingMarks, isBlank, noteSyntax, RUN_DELIMITERS } from "./marks.ts";
@@ -49,7 +49,13 @@ import { AS_WRITTEN, HEADING_LEVELS, headingMarks, isBlank, noteSyntax, RUN_DELI
  * opens; the space's declared tags, which color a tag, and how a tag opens. */
 export interface FormattingLinks {
   // Undefined while the editor shows no file.
-  resolvers(): { link(href: string): string | undefined; wikilink(target: string): string | undefined } | undefined;
+  resolvers():
+    | {
+        link(href: string): string | undefined;
+        wikilink(target: string): string | undefined;
+        hint?(lead: LinkLead, text: string): string | undefined;
+      }
+    | undefined;
   open(path: string, anchor: HTMLElement): void;
   tags?(): readonly TagDefinition[];
   openTag?(name: string): void;
@@ -75,8 +81,6 @@ const quoteMark = Decoration.mark({ class: "cm-md-quote-mark" });
 // this mark nests inside the highlighter's colored span; drawn around it, the
 // line would be in the plain text's color.
 const anchor = Decoration.mark({ class: "cm-md-anchor" });
-const plainLabel = Decoration.mark({ class: "cm-md-plain" });
-const unresolved = Decoration.mark({ class: "cm-md-unresolved" });
 const commentText = Decoration.mark({ class: "cm-md-comment" });
 
 // A tag, as written and whole, drawn as reading view draws it: its pill,
@@ -103,11 +107,19 @@ const RUN_LOOKS: Record<string, Decoration> = {
   InlineCode: Decoration.mark({ class: "cm-md-code" }),
 };
 
+const hinted = (hint: string | undefined): Record<string, string> => (hint ? { "data-tooltip": hint } : {});
+
 // What a click on a link to a space file opens. Its underline is a mark of its
 // own: a mark inside the highlighter's span splits wherever bold or italic
-// starts in the label, and the link preview takes each piece for a link.
-function spaceLink(path: string): Decoration {
-  return Decoration.mark({ class: "cm-md-link", attributes: { "data-space-path": path } });
+// starts in the label, and the link preview takes each piece for a link. A
+// link's hint sits on its label's own mark for the same reason.
+function spaceLink(path: string, hint: string | undefined): Decoration {
+  return Decoration.mark({ class: "cm-md-link", attributes: { "data-space-path": path, ...hinted(hint) } });
+}
+
+// The label of a web link, or of a link to no file.
+function linkLabel(className: string | undefined, hint: string | undefined): Decoration {
+  return Decoration.mark({ class: className, attributes: hinted(hint) });
 }
 
 /** Where in a wikilink's raw label the text reading view shows sits: the
@@ -202,8 +214,8 @@ function formattingDecorations({ state, visible, shown, opened, hiding, links, h
   const syntaxSpan = (from: number, to: number, show: boolean) => {
     if (from < to) ranges.push((show ? syntaxMark : hidden).range(from, to));
   };
-  const fileLink = (path: string, from: number, to: number) => {
-    ranges.push(spaceLink(path).range(from, to));
+  const fileLink = (path: string, from: number, to: number, hint: string | undefined) => {
+    ranges.push(spaceLink(path, hint).range(from, to));
     underlines.push(anchor.range(from, to));
   };
 
@@ -272,13 +284,17 @@ function formattingDecorations({ state, visible, shown, opened, hiding, links, h
     const destination = linkDestination(node);
     const href = destination ? doc.sliceString(destination.from, destination.to) : undefined;
     if (open.to >= close.from) return;
+    const text = doc.sliceString(open.to, close.from);
     if (href !== undefined && isSafeHref(href)) {
+      const hint = resolvers?.hint?.({ url: href }, text);
+      if (hint) ranges.push(linkLabel(undefined, hint).range(open.to, close.from));
       underlines.push(anchor.range(open.to, close.from));
       return;
     }
     const path = href === undefined ? undefined : resolvers?.link(href);
-    if (path === undefined) ranges.push(plainLabel.range(open.to, close.from));
-    else fileLink(path, open.to, close.from);
+    const hint = href === undefined ? undefined : resolvers?.hint?.({ form: "markdown", written: href, path }, text);
+    if (path === undefined) ranges.push(linkLabel("cm-md-plain", hint).range(open.to, close.from));
+    else fileLink(path, open.to, close.from, hint);
   };
 
   // An autolink, or a bare URL, reading view links.
@@ -304,10 +320,12 @@ function formattingDecorations({ state, visible, shown, opened, hiding, links, h
     const show = opens(node.from, node.to);
     syntaxSpan(node.from, from, show);
     syntaxSpan(to, node.to, show);
-    const path = resolvers?.wikilink(splitWikilinkLabel(raw).target);
+    const { target } = splitWikilinkLabel(raw);
+    const path = resolvers?.wikilink(target);
     if (from >= to) return;
-    if (path === undefined) ranges.push(unresolved.range(from, to));
-    else fileLink(path, from, to);
+    const hint = resolvers?.hint?.({ form: "wikilink", written: target, path }, doc.sliceString(from, to));
+    if (path === undefined) ranges.push(linkLabel("cm-md-unresolved", hint).range(from, to));
+    else fileLink(path, from, to, hint);
   };
 
   // Fence lines stay as the block's top and bottom, their text hidden.

@@ -13,6 +13,7 @@ import {
 } from "../../src/protocol/rootedPath.ts";
 import { isAgentsFile, isReadme } from "../../src/protocol/scopes.ts";
 import {
+  documentTypeFor,
   hasKnownKind,
   imageMediaTypeForPath,
   isAppletFile,
@@ -164,6 +165,26 @@ export function mediaTabKind(path: string): "image" | "video" | "pdf" | undefine
  * route itself: media, or a LUT. */
 export function rawTabKind(path: string): "image" | "video" | "pdf" | "lut" | undefined {
   return mediaTabKind(path) ?? (isLutFile(path) ? "lut" : undefined);
+}
+
+/** What a preview draws on a page: a note rendered, a Table, or a document of
+ * another type in its format's locked editor. */
+export type PageKind = "note" | "table" | "editor";
+
+/** How the file at `path` shows on a page, or undefined for a kind that
+ * doesn't. */
+export function pageKind(path: string): PageKind | undefined {
+  if (isMarkdownFile(path)) return "note";
+  if (isTableFile(path)) return "table";
+  if (documentTypeFor(path) !== "note") return "editor";
+  return undefined;
+}
+
+/** What a link to the file at `path` says while the pointer rests on it: its
+ * path, unless a page of the file shows instead, which the hint would open
+ * over, or the link's `text` says it already. */
+export function pathHint(path: string, text: string): string | undefined {
+  return pageKind(path) !== undefined || text === path ? undefined : path;
 }
 
 export type FileType =

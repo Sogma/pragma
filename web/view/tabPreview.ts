@@ -6,19 +6,11 @@
 // A glance, not a visit: the page takes no pointer (note-preview.css), so
 // moving down onto it leaves the strip and the page goes at once. A click on
 // the pill is what opens the file.
+import { type PageKind, pageKind } from "../core/paths.ts";
 import { type Disposable, DisposableStore, listen } from "../lib/disposable.ts";
 import { createPathLabel, type PathNames } from "../lib/pathLabel.ts";
 import { closeTooltip } from "../lib/tooltip.ts";
-import {
-  createPage,
-  loadPage,
-  type PageKind,
-  type PageSource,
-  PREVIEW_DELAY_MS,
-  pageKind,
-  releasePage,
-  sizePage,
-} from "../notePreview.ts";
+import { createPage, loadPage, type PageSource, PREVIEW_DELAY_MS, releasePage, sizePage } from "../notePreview.ts";
 
 // Between the pill and the page, and between the page and its bounds.
 const GAP = 6;

@@ -1,5 +1,5 @@
 import { spellingIn } from "../../src/protocol/entryName.ts";
-import { noteLinks } from "../../src/protocol/markdownLinks.ts";
+import { isPathDestination, noteLinks } from "../../src/protocol/markdownLinks.ts";
 import type { NameIndex } from "../../src/protocol/nameIndex.ts";
 import {
   createPathIndex,
@@ -24,6 +24,7 @@ import { isTemplatePath, TEMPLATES_FOLDER } from "../../src/protocol/templates.t
 import { type DocumentType, documentTypeFor, imageMediaTypeForPath, isMarkdownFile } from "../../src/protocol/types.ts";
 import { createWorldIndex, resolveWorldName, worldFolder } from "../../src/protocol/worldNames.ts";
 import type { PathNames } from "../lib/pathLabel.ts";
+import type { LinkLead } from "../markdownRender.ts";
 import {
   fetchLibraryPaths,
   fetchLibraryTree,
@@ -42,6 +43,7 @@ import {
   flattenTreeFilePaths,
   isJsonFile,
   nodeFileType,
+  pathHint,
 } from "./paths.ts";
 
 // Owns the last tree fetched from the server — every consumer (the tree
@@ -395,7 +397,19 @@ export function readingResolversIn(docDir: string) {
     },
     link: (href: string) => (href.startsWith("#") ? undefined : markdown(href)),
     wikilink: (target: string) => found(target, "wikilink"),
+    hint: linkHint,
   };
+}
+
+// A link's hint where no page of its file shows: the file's path, the web
+// address, or the target as written when the listing holds nothing there.
+// A Markdown link to no file at all, a bare `#anchor`, says nothing.
+function linkHint(lead: LinkLead, text: string): string | undefined {
+  if ("url" in lead) return lead.url === text ? undefined : lead.url;
+  if (lead.path !== undefined && !listedAsGone(lead.path)) return pathHint(lead.path, text);
+  const written = lead.written.trim();
+  if (!written || (lead.form === "markdown" && !isPathDestination(written))) return undefined;
+  return `Not found: ${written}`;
 }
 
 /** What a `[[` offers in one document, and what it writes the pick by. */

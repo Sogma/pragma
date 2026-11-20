@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import {
+  type LinkLead,
   renderFrontmatter,
   renderMarkdown,
   renderMarkdownInline,
@@ -408,5 +409,38 @@ describe("a link into the space", () => {
       expect(link.getAttribute("href")?.startsWith("#")).toBe(true);
       expect(link.protocol).not.toBe("javascript:");
     }
+  });
+});
+
+describe("a link's hint in reading view", () => {
+  // Says back where each link leads, and its text.
+  const hint = (lead: LinkLead, text: string) =>
+    `${"url" in lead ? lead.url : `${lead.form} ${lead.written} ${lead.path ?? "none"}`} / ${text}`;
+  const hinting = {
+    image: () => undefined,
+    link: (href: string) => (href.startsWith("#") ? undefined : `notes/${href}`),
+    wikilink: (target: string) => (target === "missing" ? undefined : `notes/${target}.md`),
+    hint,
+  };
+  const hintsIn = (markdown: string, given: Parameters<typeof renderMarkdown>[1]) => {
+    const host = document.createElement("div");
+    host.appendChild(renderMarkdown(markdown, given));
+    return [...host.querySelectorAll<HTMLElement>("a, span")].map((el) => [el.textContent, el.dataset.tooltip]);
+  };
+  const doc = "[docs](https://a.com) [the **clip**](clip.mp4) [[plan|the plan]] [[missing]] [top](#top) https://b.com";
+
+  it("asks for each link's hint by where it leads, and a bare address needs none", () => {
+    expect(hintsIn(doc, hinting)).toEqual([
+      ["docs", "https://a.com / docs"],
+      ["the clip", "markdown clip.mp4 notes/clip.mp4 / the clip"],
+      ["the plan", "wikilink plan notes/plan.md / the plan"],
+      ["missing", "wikilink missing none / missing"],
+      ["top", "markdown #top none / top"],
+      ["https://b.com", undefined],
+    ]);
+  });
+
+  it("gives none where the caller gives no hints", () => {
+    expect(hintsIn(doc, { ...hinting, hint: undefined }).every(([, tooltip]) => tooltip === undefined)).toBe(true);
   });
 });

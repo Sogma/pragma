@@ -7,11 +7,13 @@ import type { FileResponse } from "../../../web/core/apiClient.ts";
 import type { DocumentLinks, LinkScope } from "../../../web/core/spaceTree.ts";
 import { markdownFormat } from "../../../web/formats/markdown/format.ts";
 import { screenplayFormat } from "../../../web/formats/screenplay/format.ts";
+import type { LinkLead } from "../../../web/markdownRender.ts";
 import { createFormats, type FormatRegistry } from "../../../web/services/formats.ts";
 import { fakeContextMenu } from "./fakeContextMenu.ts";
 
 export interface FormatSources {
   resolveWikilinkTarget?: (target: string, docPath: string) => string | undefined;
+  linkHint?: (lead: LinkLead, text: string) => string | undefined;
   linkScope?: (docPath: string) => LinkScope | undefined;
   markdownLinks?: (docPath: string, content: string) => DocumentLinks;
   worldNames?: (docPath: string) => ((name: string) => string | undefined) | undefined;
@@ -39,6 +41,7 @@ export function testFormats(sources: FormatSources = {}): FormatRegistry {
             },
             link: (href) => (href.startsWith("#") ? undefined : resolveFileReference(docDir, href)),
             wikilink: (target) => sources.resolveWikilinkTarget?.(target, docPath),
+            hint: sources.linkHint ?? (() => undefined),
           };
         },
         linkScope: sources.linkScope ?? (() => undefined),

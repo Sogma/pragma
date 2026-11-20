@@ -12,11 +12,10 @@
 // tab area.
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { FileResponse, Tab } from "../core/apiClient.ts";
-import { type EntryIcon, folderTitle, isForeignRootTab, stripExtension } from "../core/paths.ts";
+import { type EntryIcon, folderTitle, isForeignRootTab, pageKind, stripExtension } from "../core/paths.ts";
 import { entryIconAt } from "../core/spaceTree.ts";
 import { dateTimeLabel, versionWhen } from "../lib/dateText.ts";
 import { must, setEntryIcon } from "../lib/dom.ts";
-import { pageKind } from "../notePreview.ts";
 import type { EditorPane, EditorPaneRegistry, PaneGroup, PaneTabKind } from "../services/editorPanes.ts";
 
 export interface EditorGroupTabCallbacks {

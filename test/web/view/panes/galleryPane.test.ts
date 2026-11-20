@@ -133,7 +133,12 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
     pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: true, bitDepth: 8, sourceType: null })),
     clipFacts: vi.fn(async () => ({ width: 1188, height: 2112, duration: 26.8, clip: proresDetails })),
     loadFile: vi.fn(async (path: string) => textFile(path, "# A note\n\nIts text.\n")),
-    readingResolvers: vi.fn(() => ({ image: () => undefined, link: () => undefined, wikilink: () => undefined })),
+    readingResolvers: vi.fn(() => ({
+      image: () => undefined,
+      link: () => undefined,
+      wikilink: () => undefined,
+      hint: () => undefined,
+    })),
     formats: createFormats(),
     renderer: renderer(),
     openEntry: vi.fn(),
@@ -1542,6 +1547,7 @@ describe("a previewed note", () => {
         image: (href: string) => `/raw?path=${href}`,
         link: () => undefined,
         wikilink: () => "notes/keeper.md",
+        hint: () => undefined,
       })),
     });
 

@@ -10,10 +10,9 @@
 // page is the same size, and a grid wider than it scrolls sideways in it.
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { documentTypeFor, isMarkdownFile, isTableFile } from "../src/protocol/types.ts";
 import type { FileResponse, TableFileResponse, TextFileResponse } from "./core/apiClient.ts";
 import { countWordsAndChars, formatWordCount, splitDocumentProperties, titleBarOf } from "./core/documentContent.ts";
-import { OPEN_IN_NEW_TAB, shownTitle, tableContentsLabel } from "./core/paths.ts";
+import { OPEN_IN_NEW_TAB, type PageKind, pageKind, shownTitle, tableContentsLabel } from "./core/paths.ts";
 import type { readingResolvers } from "./core/spaceTree.ts";
 import { createCell, createTableForm } from "./lib/dataGrid.ts";
 import { type Disposable, DisposableStore, listen } from "./lib/disposable.ts";
@@ -37,19 +36,6 @@ const MIN_PAGE_ZOOM = 0.75;
  * within a legible floor and full size. */
 export function pageZoom(shown: number, natural: number): number {
   return Math.max(MIN_PAGE_ZOOM, Math.min(1, shown / natural));
-}
-
-/** What a preview draws on a page: a note rendered, a Table, or a document of
- * another type in its format's locked editor. */
-export type PageKind = "note" | "table" | "editor";
-
-/** How the file at `path` shows on a page, or undefined for a kind that
- * doesn't. */
-export function pageKind(path: string): PageKind | undefined {
-  if (isMarkdownFile(path)) return "note";
-  if (isTableFile(path)) return "table";
-  if (documentTypeFor(path) !== "note") return "editor";
-  return undefined;
 }
 
 /** An empty page (web/styles/note-preview.css) for a file of `kind`,
@@ -357,10 +343,12 @@ export function installLinkPreview(container: HTMLElement, deps: LinkPreviewDeps
   deps.area.append(veil);
   store.add(() => veil.remove());
 
-  // A link is any element carrying a space path, a button as well as an anchor.
+  // A link is any element carrying a space path, a button as well as an
+  // anchor. One with a hint, a file not found, shows the hint alone: both
+  // would open, the hint over the page.
   function pageLink(target: EventTarget | null): HTMLElement | undefined {
     const link = target instanceof Element ? target.closest<HTMLElement>("[data-space-path]") : null;
-    if (!link || !container.contains(link)) return undefined;
+    if (!link || !container.contains(link) || link.dataset.tooltip !== undefined) return undefined;
     return pageKind(link.dataset.spacePath ?? "") ? link : undefined;
   }
 

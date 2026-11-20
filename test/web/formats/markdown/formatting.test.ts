@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TagDefinition } from "../../../../src/protocol/tags.ts";
 import { editProposal, proposeEdit } from "../../../../web/editProposal.ts";
 import { formattingChanged, wikilinkShown } from "../../../../web/formats/markdown/formatting.ts";
+import type { LinkLead } from "../../../../web/markdownRender.ts";
 import type { FormatContext } from "../../../../web/services/formats.ts";
 import { hideFormatSyntax } from "../../../../web/services/settings.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
@@ -33,14 +34,19 @@ interface Options {
   extensions?: Extension;
   // The space's declared tags.
   tags?: TagDefinition[];
+  linkHint?: (lead: LinkLead, text: string) => string | undefined;
 }
 
 // A note's editor as the pane builds it: the format's language and its
 // formatting, with history and several selection ranges, a wikilink
 // resolving unless it names "missing".
-function edit(doc: string, { cursor = doc.length, focused = false, extensions = [], tags = [] }: Options = {}) {
+function edit(
+  doc: string,
+  { cursor = doc.length, focused = false, extensions = [], tags = [], linkHint }: Options = {},
+) {
   const format = testFormats({
     resolveWikilinkTarget: (target) => (target === "missing" ? undefined : `notes/${target}.md`),
+    linkHint,
     tags: { known: tags },
   }).get("note");
   const context: FormatContext = {
@@ -258,6 +264,24 @@ describe("links in a note's editor", () => {
     for (const mark of underlines) expect(mark.closest(colored)).not.toBeNull();
     const links = [...view.contentDOM.querySelectorAll(".cm-md-link")].map((link) => link.textContent);
     expect(links).toEqual(["the keeper", "x"]);
+  });
+
+  it("gives a link its hint over the whole of its text, by where it leads, as reading view does", () => {
+    const linkHint = (lead: LinkLead, text: string) =>
+      `${"url" in lead ? lead.url : `${lead.form} ${lead.written} ${lead.path ?? "none"}`} / ${text}`;
+    const doc =
+      "[site](https://a.com) [the **clip**](c.mp4) [[plan]] [[missing]] [top](#top) <https://c.com> www.d.com";
+    const hinted = [
+      ...edit(doc, { linkHint, cursor: 0 }).view.contentDOM.querySelectorAll<HTMLElement>("[data-tooltip]"),
+    ];
+    expect(hinted.map((mark) => [mark.textContent, mark.dataset.tooltip])).toEqual([
+      ["site", "https://a.com / site"],
+      ["the clip", "markdown c.mp4 notes/c.mp4 / the **clip**"],
+      ["plan", "wikilink plan notes/plan.md / plan"],
+      ["missing", "wikilink missing none / missing"],
+      ["top", "markdown #top none / top"],
+    ]);
+    expect(edit(doc).view.contentDOM.querySelector("[data-tooltip]")).toBeNull();
   });
 
   // Between the two events the press puts the cursor where it landed, as the

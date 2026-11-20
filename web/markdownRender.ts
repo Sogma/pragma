@@ -9,6 +9,7 @@ import { withoutComments } from "../src/protocol/markdownComments.ts";
 import { foldReferenceLabel, isWikilinkNode, referenceLabel, wikilinkRawLabel } from "../src/protocol/markdownLinks.ts";
 import { titleHeadingNode } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
+import type { PathForm } from "../src/protocol/relativeReference.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
 import { splitWikilinkLabel, wikilinkPattern } from "../src/protocol/wikilink.ts";
 import { propertyIcon } from "./lib/propertyIcon.ts";
@@ -188,10 +189,22 @@ type LinkPathResolver = (href: string) => string | undefined;
 // caller's cached tree does the lookup, never this file.
 type WikilinkResolver = (target: string) => string | undefined;
 
+/** Where a link leads, for its hint: a web address, or a path as the
+ * document writes it, with the file the link resolvers found for it. */
+export type LinkLead = { url: string } | { form: PathForm; written: string; path: string | undefined };
+
+// What a link says while the pointer rests on it, given where it leads and
+// its text, or undefined where a page of its file shows instead. Which files
+// a page shows and which the space holds are the caller's to know.
+type LinkHintResolver = (lead: LinkLead, text: string) => string | undefined;
+
 interface MarkdownResolvers {
   image: ImageSrcResolver;
   link: LinkPathResolver;
   wikilink: WikilinkResolver;
+  // Without it, as in a title read from its heading alone, a link says
+  // nothing on hover.
+  hint?: LinkHintResolver;
   // The file line an offset into the rendered text sits on, when that text
   // is a file's: each block is then marked with the line it starts on, the
   // place a view scrolling beside the editor finds it by.
@@ -227,18 +240,24 @@ function blockElement<K extends keyof HTMLElementTagNameMap>(
 function appendWikilinkElement(raw: string, container: Node, resolvers: MarkdownResolvers): void {
   const { target, display } = splitWikilinkLabel(raw);
   const spacePath = resolvers.wikilink(target);
+  let el: HTMLElement;
   if (spacePath !== undefined) {
-    const el = document.createElement("a");
-    el.href = inSpaceHref(spacePath);
-    el.dataset.spacePath = spacePath;
-    el.textContent = display;
-    container.appendChild(el);
+    const anchor = document.createElement("a");
+    anchor.href = inSpaceHref(spacePath);
+    anchor.dataset.spacePath = spacePath;
+    el = anchor;
   } else {
-    const el = document.createElement("span");
+    el = document.createElement("span");
     el.className = "wikilink-unresolved";
-    el.textContent = display;
-    container.appendChild(el);
   }
+  el.textContent = display;
+  addLinkHint(el, { form: "wikilink", written: target, path: spacePath }, resolvers);
+  container.appendChild(el);
+}
+
+function addLinkHint(el: HTMLElement, lead: LinkLead, resolvers: MarkdownResolvers): void {
+  const hint = resolvers.hint?.(lead, el.textContent ?? "");
+  if (hint) el.dataset.tooltip = hint;
 }
 
 function appendTextWithWikilinks(text: string, container: Node, resolvers: MarkdownResolvers): void {
@@ -636,6 +655,8 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
         }
       }
       appendLinkLabel(node, doc, el, resolvers);
+      const lead: LinkLead = SAFE_URL.test(href) ? { url: href } : { form: "markdown", written: href, path: spacePath };
+      addLinkHint(el, lead, resolvers);
       container.appendChild(el);
       return;
     }

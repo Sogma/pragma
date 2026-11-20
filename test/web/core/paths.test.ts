@@ -17,6 +17,8 @@ import {
   folderTitle,
   mediaTabKind,
   nodeFileType,
+  pageKind,
+  pathHint,
   pendingFileType,
   pragmaFileLabel,
   rawTabKind,
@@ -247,6 +249,25 @@ describe("mediaTabKind / fileTypeClass", () => {
     expect(fileTypeClass("film/README.txt")).toBeUndefined();
     expect(fileTypeClass("film/notes.md")).toBe("markdown");
     expect(fileTypeLabel("readme")).toBe("Readme");
+  });
+});
+
+describe("what a link to a file shows while the pointer rests on it", () => {
+  it("shows a page of a note, a Table or a screenplay", () => {
+    expect(pageKind("film/notes.md")).toBe("note");
+    expect(pageKind("data/takes.table.html")).toBe("table");
+    expect(pageKind("film/act.fountain")).toBe("editor");
+    for (const path of ["film/notes.md", "data/takes.table.html", "film/act.fountain"]) {
+      expect(pathHint(path, "a link"), path).toBeUndefined();
+    }
+  });
+
+  it("names any other file or a folder by its path, unless the link's text is that path", () => {
+    for (const path of ["art/cover.png", "story.flow.html", "lib:footage/a.mov", "projects/film/"]) {
+      expect(pageKind(path), path).toBeUndefined();
+      expect(pathHint(path, "a link"), path).toBe(path);
+    }
+    expect(pathHint("art/cover.png", "art/cover.png")).toBeUndefined();
   });
 });
 

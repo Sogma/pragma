@@ -281,6 +281,25 @@ describe("resolving a written path", () => {
     expect(resolvers.image("a.md")).toBeUndefined();
   });
 
+  it("gives a link no page shows a hint: its file's path, its web address, or what isn't found", async () => {
+    const spaceTree = await withListing();
+    const { link, wikilink, hint } = spaceTree.readingResolvers("projects/note.md");
+    const markdown = (written: string) => hint({ form: "markdown", written, path: link(written) }, "a link");
+    const named = (written: string) => hint({ form: "wikilink", written, path: wikilink(written) }, "a link");
+    // A page of a note shows instead.
+    expect(markdown("a.md")).toBeUndefined();
+    expect(named("a")).toBeUndefined();
+    expect(markdown("budget.csv")).toBe("projects/budget.csv");
+    expect(named("nested/")).toBe("projects/nested/");
+    // Nothing listed there, a note or not, says so as written.
+    expect(markdown("gone.md")).toBe("Not found: gone.md");
+    expect(markdown("../art/gone.png")).toBe("Not found: ../art/gone.png");
+    expect(named("missing")).toBe("Not found: missing");
+    expect(markdown("#top")).toBeUndefined();
+    expect(hint({ url: "https://a.com/docs" }, "the docs")).toBe("https://a.com/docs");
+    expect(hint({ url: "https://a.com/docs" }, "https://a.com/docs")).toBeUndefined();
+  });
+
   // The root searched is the referring document's. A library note's link
   // must not land on a space file of the same path — that is a confidently
   // wrong file, which is worse than no link at all.
