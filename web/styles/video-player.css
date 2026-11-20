@@ -39,7 +39,7 @@
 /* The bars stay up while the pointer is on the controls, which take the
    hover off the video under them. */
 .media-frame:has(> .video-player):hover > .media-hud {
-  opacity: 1;
+  --hud-shown: 1;
 }
 
 .video-player .icon-button {

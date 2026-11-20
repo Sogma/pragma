@@ -145,9 +145,28 @@
 }
 
 /* The pointer never leaves a picture that fills the stage, so the bars
-   would cover its top and bottom the whole time it is zoomed. */
+   would cover its top and bottom the whole time it is zoomed: they stay
+   off. A look's badge stays, over the part of the picture in view, so the
+   overlay sticks to the frame as the picture scrolls under it. */
 .file-preview-frame.is-zoomed > .media-hud {
-  display: none;
+  position: sticky;
+  top: 0;
+  left: 0;
+  justify-self: start;
+  align-self: start;
+  width: min(100%, 100cqw);
+  height: min(100%, 100cqh);
+}
+
+.file-preview-frame.is-zoomed > .media-hud > .media-hud-bar::before,
+.file-preview-frame.is-zoomed > .media-hud > .media-hud-bar > :not(.media-hud-badge[aria-pressed="true"]) {
+  visibility: hidden;
+}
+
+/* A zoom's run moves the picture by a transform the overlay doesn't
+   follow, so the overlay waits for the run's end. */
+.file-preview-frame.is-zooming > .media-hud {
+  visibility: hidden;
 }
 
 /* While a zoom runs, the frame clips and its size is animated. A flex item
@@ -198,11 +217,11 @@
   overflow: clip;
 }
 
-.file-preview-document .media-hud-bar {
+.file-preview-document .media-hud-bar::before {
   background: linear-gradient(var(--media-hud-bg), var(--media-hud-bg)), var(--neutral-bg);
 }
 
 /* The bar shows while the page is hovered. */
 .file-preview-document:hover > .media-hud {
-  opacity: 1;
+  --hud-shown: 1;
 }

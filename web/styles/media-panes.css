@@ -141,33 +141,51 @@
 /* Raised over a player's guides, which its positioned box would paint
    across the bars. */
 .media-hud {
+  --hud-shown: 0;
   contain: size;
   z-index: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 150ms ease;
 }
 
 .media-frame > :is(img, video):hover + .media-hud {
-  opacity: 1;
+  --hud-shown: 1;
+}
+
+/* The overlay fades part by part as --hud-shown turns, never as one layer:
+   an opacity on the overlay would take a look's badge with it, and that
+   stays in view while the look is on. */
+.media-hud-bar::before,
+.media-hud-bar > * {
+  opacity: var(--hud-shown);
+  transition: opacity 150ms ease;
 }
 
 .media-hud-bar {
   position: sticky;
+  isolation: isolate;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   overflow: clip;
   padding: 6px 10px;
-  background: var(--media-hud-bg);
   color: var(--media-hud-fg);
   font-family: var(--font-hud);
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The bar's fill, in a box of its own so it fades apart from the facts. The
+   bar isolates, so the fill never sinks under the picture. */
+.media-hud-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--media-hud-bg);
 }
 
 /* A sticky box stops at its scroller's padding, so each offset reaches back
@@ -220,6 +238,13 @@
 
 .media-hud-badge[aria-pressed="false"] {
   background: var(--media-hud-badge-off-bg);
+}
+
+/* A look that is on stays in view without the hover, where its bar puts it,
+   so a graded picture never passes for the file's own colors. Off, the
+   badge is a control like the rest, shown with them. */
+.media-hud-bar > .media-hud-badge[aria-pressed="true"] {
+  opacity: 1;
 }
 
 /* A bar showing three facts centres the middle one on the picture.
@@ -278,7 +303,7 @@
    the ⋮'s menu is open. */
 .media-hud:hover,
 .media-hud:has(.media-hud-more[aria-expanded="true"]) {
-  opacity: 1;
+  --hud-shown: 1;
 }
 
 /* Too small for its facts, a still or a page keeps its ⋮ alone, in a box of
