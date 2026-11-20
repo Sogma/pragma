@@ -64,6 +64,28 @@
   visibility: hidden;
 }
 
+/* At actual size the overlay covers the part of the picture in view, not
+   all of it: it sticks to the scroller, reaching back over its padding to
+   the edge, so every fact and a look's badge stay in sight as the picture
+   scrolls under it.
+
+   Across a picture wider than the view, it hangs over the padding on both
+   sides (--hud-overhang steps from none to the padding), so it never runs
+   past a side and no fact needs to stick on its own. None may: a fact
+   sticking in a sticky bar in this sticky overlay is shifted twice, which
+   flings the first fact to the far end of its bar. */
+.editor-image.is-actual-size .media-hud {
+  --hud-overhang: clamp(0px, (100% - 100cqw) * 1000, var(--hud-stick));
+  position: sticky;
+  top: calc(-1 * var(--hud-stick));
+  left: calc(-1 * var(--hud-stick));
+  justify-self: start;
+  align-self: start;
+  margin-inline: calc(-1 * var(--hud-overhang));
+  width: min(100% + 2 * var(--hud-overhang), 100cqw + 2 * var(--hud-stick));
+  height: min(100%, 100cqh + 2 * var(--hud-stick));
+}
+
 /* Its scrollbars are hidden but keep their room, so nothing moves as the
    run ends. Chromium repaints a thumb only when its scroller's own style
    changes, so the thumb's mix (base.css) is zeroed there, at once. */
@@ -122,10 +144,9 @@
    only. It shares its frame's one grid cell with the media, so its box is
    the media's; contain: size keeps its text from widening that cell.
 
-   At an image's actual size the bars stick to the scroller's edges, and
-   their outer facts to its sides, so they stay in view as the picture
-   scrolls. overflow: clip, not hidden, which would make each bar a scroll
-   container and hold its facts in place.
+   At an image's actual size the overlay covers the part of the picture in
+   view. Where it runs past the scroller's top or bottom edge by the
+   padding, its bars stick to that edge.
 
    pointer-events: none keeps the hover, right-click, drag and the player's
    controls on the media underneath — without it, the bars would end the
@@ -196,16 +217,6 @@
 
 .media-hud-bar:last-child:not(:first-child) {
   bottom: calc(-1 * var(--hud-stick, 0px));
-}
-
-.media-hud-bar > :first-child {
-  position: sticky;
-  left: calc(10px - var(--hud-stick, 0px));
-}
-
-.media-hud-bar > :last-child:not(:first-child) {
-  position: sticky;
-  right: calc(10px - var(--hud-stick, 0px));
 }
 
 .media-hud-name {
