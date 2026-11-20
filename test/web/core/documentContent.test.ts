@@ -43,6 +43,7 @@ describe("activeTitleFor", () => {
 
   it("falls back to an empty text with the stripped filename as placeholder", () => {
     expect(activeTitleFor(undefined, "notes/a.md")).toEqual({ text: "", placeholder: "a" });
+    expect(activeTitleFor(undefined, "lib:lab/story.flow.html")).toEqual({ text: "", placeholder: "story" });
   });
 });
 

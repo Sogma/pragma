@@ -22,7 +22,6 @@ import {
   pendingFileType,
   pragmaFileLabel,
   rawTabKind,
-  shownTitle,
   stripExtension,
   tableContentsLabel,
   treeTakesDrag,
@@ -153,14 +152,6 @@ describe("tableContentsLabel", () => {
     expect(tableContentsLabel(3, 12)).toBe("3 columns · 12 rows");
     expect(tableContentsLabel(1, 1)).toBe("1 column · 1 row");
     expect(tableContentsLabel(2, 0)).toBe("2 columns · 0 rows");
-  });
-});
-
-describe("shownTitle", () => {
-  it("is the title given, else the file's name without its extension", () => {
-    expect(shownTitle(" Takes ", "shots/takes.table.html")).toBe("Takes");
-    expect(shownTitle("  ", "shots/takes.table.html")).toBe("takes");
-    expect(shownTitle(undefined, "lib:lab/story.flow.html")).toBe("story");
   });
 });
 

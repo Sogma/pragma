@@ -11,8 +11,14 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { FileResponse, TableFileResponse, TextFileResponse } from "./core/apiClient.ts";
-import { countWordsAndChars, formatWordCount, splitDocumentProperties, titleBarOf } from "./core/documentContent.ts";
-import { OPEN_IN_NEW_TAB, type PageKind, pageKind, shownTitle, tableContentsLabel } from "./core/paths.ts";
+import {
+  activeTitleFor,
+  countWordsAndChars,
+  formatWordCount,
+  splitDocumentProperties,
+  titleBarOf,
+} from "./core/documentContent.ts";
+import { OPEN_IN_NEW_TAB, type PageKind, pageKind, tableContentsLabel } from "./core/paths.ts";
 import type { readingResolvers } from "./core/spaceTree.ts";
 import { createCell, createTableForm } from "./lib/dataGrid.ts";
 import { type Disposable, DisposableStore, listen } from "./lib/disposable.ts";
@@ -89,8 +95,10 @@ function fillNotePage(
 // The Table as its tab draws it in reading view, in the layout it opens in.
 function fillTablePage(page: HTMLElement, path: string, file: TableFileResponse, source: PageSource): string {
   const { bar, input } = createTitleBar();
+  const title = activeTitleFor(file.name, path);
   input.readOnly = true;
-  input.value = shownTitle(file.name, path);
+  input.value = title.text;
+  input.placeholder = title.placeholder;
   const controls = tableCellControls({
     tablePath: () => path,
     openMedia: (target) => source.openPath(target),

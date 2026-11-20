@@ -384,10 +384,10 @@ async function requestVoid(path: string, options: ApiRequestOptions): Promise<vo
   await apiFetch(path, options);
 }
 
-// The editor title bar's working state for a note. `text` is the leading
-// `# Heading`, lifted out of #editor-cm into the bar; "" when there is none,
-// and the bar then shows `placeholder` (the filename) greyed. Snapshotted per
-// tab like `properties`.
+// A title bar's state: `text` is the document's own title, "" when there is
+// none, and the bar then shows `placeholder` (the filename) greyed. A note's
+// is its leading `# Heading`, lifted out of #editor-cm into the bar and
+// snapshotted per tab like `properties`.
 export interface ActiveTitle {
   text: string;
   placeholder: string;

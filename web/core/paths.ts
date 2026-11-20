@@ -101,12 +101,6 @@ export function tableContentsLabel(columns: number, rows: number): string {
   return `${counted(columns, "column")} · ${counted(rows, "row")}`;
 }
 
-/** What a title bar shows for the file at `path`: the title it is given,
- * else the file's name. */
-export function shownTitle(title: string | undefined, path: string): string {
-  return title?.trim() || stripExtension(basenameOf(path));
-}
-
 /** Everything listed under `entries`, all the way down, as a folder's tree
  * row counts it in its tooltip: "3 files, 2 folders". */
 export function treeTotalsLabel(entries: readonly SpaceTreeNode[]): string {

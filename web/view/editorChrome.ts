@@ -8,7 +8,8 @@
 // chrome; a press on a toolbar focuses its group before its click runs.
 
 import type { Tab } from "../core/apiClient.ts";
-import { isReadOnlyTab, shownTitle } from "../core/paths.ts";
+import { activeTitleFor } from "../core/documentContent.ts";
+import { isReadOnlyTab } from "../core/paths.ts";
 import type { FlowView } from "../flow/xyflowAdapter.ts";
 import { buildRunCount, setRunCount } from "../lib/dom.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
@@ -161,7 +162,7 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
       deps.titleBar.hide();
       return;
     }
-    deps.titleBar.show(shownTitle(pane.title(), tab.path), pane.titleHost());
+    deps.titleBar.show(activeTitleFor(pane.title(), tab.path), pane.titleHost());
   }
 
   function refreshFlowRun(): void {
@@ -311,22 +312,25 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // title bar and the canvas heading show — not the space path, which is
   // the tree's Rename. A prompt rather than an inline input: there is no
   // tree row here to swap one into.
+  //
+  // An empty title is allowed: it removes the `<title>`, and the title bar
+  // shows the filename again, grey.
   function openFlowRename(context: CommandContext): void {
     const tab = context.tab;
     if (tab.kind !== "flow") return;
     const chrome = deps.focused();
     const flowView = deps.activeFlowView();
-    const currentName = shownTitle(flowView?.getFileName(), tab.path);
+    const current = activeTitleFor(flowView?.getFileName(), tab.path);
     void deps.dialog().prompt({
       title: "Title",
       icon: { glyph: "flow" },
-      value: currentName,
+      value: current.text,
+      placeholder: current.placeholder,
       submitLabel: "Save",
       busyLabel: "Saving…",
-      validate: (value) => (value.trim() ? undefined : "Enter a title."),
       submit: async (value) => {
         const newName = value.trim();
-        if (newName === currentName) return;
+        if (newName === current.text) return;
         const saved = (await flowView?.setDisplayName(newName)) ?? false;
         if (!saved) return "Failed to save the title.";
         chrome.refreshTitle();

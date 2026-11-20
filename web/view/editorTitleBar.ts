@@ -5,6 +5,7 @@
 // One per group, not one per pane, because a pane that scrolls its own title
 // has to own the scroll region too — mounting the group's single bar inside
 // it is what keeps that one region rather than two competing ones.
+import type { ActiveTitle } from "../core/apiClient.ts";
 import { createTitleBar } from "../lib/dom.ts";
 
 /** What the active pane is, for the one caller that has to ask: a pane names
@@ -16,10 +17,11 @@ export interface TitleHost {
 }
 
 export interface EditorTitleBar {
-  /** Shows `title` in `host`, or detaches the bar outright when either is
-   * absent. The document pane renders its own editable `# Heading`, so it
-   * passes no host and the shared bar stays out of its way. */
-  show(title: string, host: HTMLElement): void;
+  /** Shows `title` in `host`: its text, or while that is empty the filename,
+   * grey, as the field's placeholder, so a title someone set reads apart from
+   * the stand-in. The document pane renders its own editable `# Heading`, so
+   * it passes no host and the shared bar stays out of its way. */
+  show(title: ActiveTitle, host: HTMLElement): void;
   hide(): void;
 }
 
@@ -30,7 +32,8 @@ export function createEditorTitleBar(): EditorTitleBar {
     show(title, host) {
       // Don't clobber the field the user is actively typing in — a guard that
       // only matters if the bar stops being read-only.
-      if (document.activeElement !== input) input.value = title;
+      if (document.activeElement !== input) input.value = title.text;
+      input.placeholder = title.placeholder;
       input.readOnly = true;
       // Re-parenting is conditional, not unconditional: `prepend` on an
       // already-correct parent still moves the node, which blurs anything

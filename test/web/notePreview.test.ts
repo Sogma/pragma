@@ -363,9 +363,10 @@ describe("a link's preview", () => {
       expect(labels).toEqual(["Ref"]);
     });
 
-    it("titles a Table with no name by its file", async () => {
+    it("shows a Table with no name by its file, grey", async () => {
       await shown(deck({ name: undefined }));
-      expect(titleOf()).toBe("deck");
+      expect(titleOf()).toBe("");
+      expect(preview()?.querySelector<HTMLInputElement>(".editor-title-input")?.placeholder).toBe("deck");
     });
 
     it("opens what a path cell or a picture names, the page going first", async () => {

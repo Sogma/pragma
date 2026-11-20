@@ -4,7 +4,7 @@ import type { LibraryRow, Tab } from "../../../web/core/apiClient.ts";
 import { setLibraryPermissions } from "../../../web/core/libraries.ts";
 import type { FlowView } from "../../../web/flow/xyflowAdapter.ts";
 import { createCommands } from "../../../web/services/commands.ts";
-import type { DialogService } from "../../../web/services/dialog.ts";
+import type { DialogService, PromptOptions } from "../../../web/services/dialog.ts";
 import { createEditorPanes, type EditorPane } from "../../../web/services/editorPanes.ts";
 import type { FormatActions } from "../../../web/services/formats.ts";
 import { createKeybindings } from "../../../web/services/keybindings.ts";
@@ -25,7 +25,7 @@ function fakePane() {
     designing: false,
     setInput: async () => undefined,
     clearInput: () => undefined,
-    title: () => "Takes",
+    title: (): string | undefined => "Takes",
     titleHost: () => document.createElement("div"),
     refresh: vi.fn(),
     design: {
@@ -52,7 +52,13 @@ beforeEach(() => {
   setLibraryPermissions([]);
 });
 
-function setup(tab: Tab, reading = false, documentPane?: DocumentPane, dialog: Partial<DialogService> = {}) {
+function setup(
+  tab: Tab,
+  reading = false,
+  documentPane?: DocumentPane,
+  dialog: Partial<DialogService> = {},
+  flowView?: FlowView,
+) {
   const commands = createCommands();
   const menus = createMenus(commands);
   const panes = createEditorPanes();
@@ -70,6 +76,7 @@ function setup(tab: Tab, reading = false, documentPane?: DocumentPane, dialog: P
   const formatColumn = memorySetting(false);
   const takeBack = vi.fn();
   const announce = vi.fn(() => takeBack);
+  const titleBar = { show: vi.fn(), hide: vi.fn() } satisfies EditorTitleBar;
   panes.register({
     kind: "table",
     chrome: { toolbar: true, readingView: true, statusbar: true, actions: ["data-design"] },
@@ -88,7 +95,7 @@ function setup(tab: Tab, reading = false, documentPane?: DocumentPane, dialog: P
   const chrome = createEditorChrome({
     panes,
     contextMenu: { open: vi.fn(), close: vi.fn(), isOpen: () => false, dispose: vi.fn() } as unknown as ContextMenu,
-    titleBar: { show: vi.fn(), hide: vi.fn() } as unknown as EditorTitleBar,
+    titleBar,
     activeTab: () => tab,
     activePane: () => pane,
     activeFlowView: () => undefined,
@@ -111,7 +118,7 @@ function setup(tab: Tab, reading = false, documentPane?: DocumentPane, dialog: P
     panes,
     dialog: () => dialog as DialogService,
     focused: () => chrome,
-    activeFlowView: () => undefined,
+    activeFlowView: () => flowView,
     activeDocumentPane: () => documentPane,
     openAppletCode: vi.fn(async () => undefined),
     runApplet: vi.fn(async () => undefined),
@@ -140,6 +147,7 @@ function setup(tab: Tab, reading = false, documentPane?: DocumentPane, dialog: P
     formatColumn,
     announce,
     takeBack,
+    titleBar,
   };
 }
 
@@ -225,15 +233,57 @@ describe("editorChrome modes", () => {
   });
 });
 
+// A title of the document's own is the field's text; with none, the field is
+// empty and the filename shows as its placeholder, grey.
+describe("editorChrome title bar", () => {
+  it("shows the pane's title, else the filename as the placeholder", () => {
+    const { chrome, pane, titleBar } = setup(table);
+    chrome.refreshTitle();
+    expect(titleBar.show).toHaveBeenLastCalledWith({ text: "Takes", placeholder: "takes" }, expect.any(HTMLElement));
+
+    pane.title = () => undefined;
+    chrome.refreshTitle();
+    expect(titleBar.show).toHaveBeenLastCalledWith({ text: "", placeholder: "takes" }, expect.any(HTMLElement));
+  });
+});
+
 describe("editorChrome Title", () => {
-  it("asks for a Flow's title under the Flow's icon", () => {
-    const prompt = vi.fn(async () => null);
-    const { commands, context } = setup(flow, false, undefined, { prompt });
-    void commands.get("flow.rename")?.run(context(), undefined);
-    const options = (prompt.mock.calls[0] as unknown[])[0] as { title: string; value: string; icon?: unknown };
-    expect(options.title).toBe("Title");
-    expect(options.value).toBe("a");
-    expect(options.icon).toEqual({ glyph: "flow" });
+  function askTitle(name: string | undefined) {
+    const prompt = vi.fn(async (_options: PromptOptions) => null);
+    const flowView = { getFileName: () => name, setDisplayName: vi.fn(async (_name: string) => true) };
+    const shown = setup(flow, false, undefined, { prompt }, flowView as unknown as FlowView);
+    void shown.commands.get("flow.rename")?.run(shown.context(), undefined);
+    const options = prompt.mock.calls[0]?.[0];
+    if (!options) throw new Error("Title… asked nothing");
+    return { ...shown, options, flowView };
+  }
+
+  it("asks under the Flow's icon, empty with the filename as placeholder while the Flow has no title", () => {
+    expect(askTitle(undefined).options).toMatchObject({
+      title: "Title",
+      value: "",
+      placeholder: "a",
+      icon: { glyph: "flow" },
+    });
+  });
+
+  it("starts from the Flow's own title", () => {
+    expect(askTitle("Story Expander").options).toMatchObject({ value: "Story Expander", placeholder: "a" });
+  });
+
+  it("saves an emptied title as none, and redraws the title bar", async () => {
+    const { options, flowView, titleBar } = askTitle("Story Expander");
+    expect(options.validate).toBeUndefined();
+    titleBar.show.mockClear();
+    await options.submit?.("  ");
+    expect(flowView.setDisplayName).toHaveBeenCalledWith("");
+    expect(titleBar.show).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves nothing when the title is left as it was", async () => {
+    const { options, flowView } = askTitle(undefined);
+    await options.submit?.("");
+    expect(flowView.setDisplayName).not.toHaveBeenCalled();
   });
 });
 

@@ -14,11 +14,12 @@ import { splitLeadingHeading } from "../markdownRender.ts";
 import type { ActiveTitle, FileResponse, TextFileResponse } from "./apiClient.ts";
 import { stripExtension } from "./paths.ts";
 
-// The initial title-bar state for a freshly loaded note: `text` is
-// its leading `# Heading` (empty when it has none), `placeholder` the
-// filename shown greyed until one is typed.
-export function activeTitleFor(headingText: string | undefined, path: string): ActiveTitle {
-  return { text: headingText ?? "", placeholder: stripExtension(basenameOf(path)) };
+// A title bar's state for the file at `path`, from its display title: `text`
+// is the title (empty when it has none), `placeholder` the filename, shown
+// grey until a title is set. Every kind's title bar takes it, so a title of
+// the document's own always reads apart from the filename standing in.
+export function activeTitleFor(title: string | undefined, path: string): ActiveTitle {
+  return { text: title ?? "", placeholder: stripExtension(basenameOf(path)) };
 }
 
 // English words a title leaves lowercase between its first and last word.
