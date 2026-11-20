@@ -2,8 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LibraryRow, Tab } from "../../../web/core/apiClient.ts";
 import { setLibraryPermissions } from "../../../web/core/libraries.ts";
+import { refresh as refreshSpaceTree } from "../../../web/core/spaceTree.ts";
 import { createEditorPanes, type EditorPane, type PaneTabKind } from "../../../web/services/editorPanes.ts";
-import { createEditorGroupView } from "../../../web/view/editorGroup.ts";
+import { createEditorGroupView, pillContent } from "../../../web/view/editorGroup.ts";
 import { fakePaneGroup } from "../support/paneGroup.ts";
 
 // A pane whose input load can be held open, to exercise the stale-open guard.
@@ -69,6 +70,17 @@ function setup() {
     paneGroup: fakePaneGroup(),
   });
   return { panes, stripHost, host, group, created, tabs, onPaneMounted, onScrollMarkHover };
+}
+
+// The space tree is what knows a folder's site and scope, so a test lists it
+// for real, and empties it again after.
+async function listing(tree: unknown[]): Promise<void> {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(tree), { status: 200 })),
+  );
+  await refreshSpaceTree();
+  vi.unstubAllGlobals();
 }
 
 function keyOn(pill: Element, key: string): KeyboardEvent {
@@ -404,7 +416,7 @@ describe("createEditorGroupView", () => {
     expect(labels()).toEqual(["Space", "Footage", "day 1", "v1.2"]);
   });
 
-  it("gives a pill its file's tree glyph, and none to a plain file or a folder view", () => {
+  it("gives a pill its entry's tree glyph, and none to a plain file", () => {
     const { stripHost, group } = setup();
     group.renderTabs(
       [
@@ -425,7 +437,7 @@ describe("createEditorGroupView", () => {
       "applet",
       "markdown",
       undefined,
-      undefined,
+      "folder",
       undefined,
     ]);
     expect(pills.map((pill) => pill.querySelector(".editor-tab-icon") !== null)).toEqual([
@@ -434,10 +446,65 @@ describe("createEditorGroupView", () => {
       true,
       true,
       false,
-      false,
+      true,
       false,
     ]);
     expect(pills[0].firstElementChild?.className).toBe("editor-tab-icon");
+  });
+
+  it("gives a gallery its folder's tree icon, a library's top folder the library's, Find in context none", async () => {
+    await listing([
+      { name: "blog", path: "blog", type: "directory", children: [], site: { name: "Blog" } },
+      {
+        name: "world",
+        path: "world",
+        type: "directory",
+        children: [{ name: "README.md", path: "world/README.md", type: "file", opensScope: true }],
+      },
+    ]);
+    try {
+      const { stripHost, group } = setup();
+      group.renderTabs(
+        [
+          { kind: "gallery", path: "blog" },
+          { kind: "gallery", path: "world" },
+          { kind: "gallery", path: "" },
+          { kind: "gallery", path: "lib:footage" },
+          { kind: "gallery", path: "lib:footage/day 1" },
+          { kind: "find-context", path: "world", result: {} } as Tab,
+        ],
+        0,
+      );
+      const icons = [...stripHost.querySelectorAll<HTMLElement>(".editor-tab")].map((pill) => {
+        const icon = pill.querySelector<HTMLElement>(".editor-tab-icon");
+        return [icon?.dataset.entryIcon, icon?.hasAttribute("data-scope")];
+      });
+      expect(icons).toEqual([
+        ["site", false],
+        ["folder", true],
+        ["folder", false],
+        ["library", false],
+        ["folder", false],
+        [undefined, undefined],
+      ]);
+    } finally {
+      await listing([]);
+    }
+  });
+
+  it("counts a folder's site and scope in what its gallery's pill is drawn from", async () => {
+    const blog = (more: object) => [{ name: "blog", path: "blog", type: "directory", children: [], ...more }];
+    const readme = { name: "README.md", path: "blog/README.md", type: "file", opensScope: true };
+    const drawnFrom: string[] = [];
+    try {
+      for (const tree of [blog({}), blog({ site: { name: "Blog" } }), blog({ children: [readme] })]) {
+        await listing(tree);
+        drawnFrom.push(pillContent({ kind: "gallery", path: "blog" }));
+      }
+      expect(new Set(drawnFrom).size).toBe(3);
+    } finally {
+      await listing([]);
+    }
   });
 
   it("a pill click switches; its close button closes without switching; a closed tab's pill goes", () => {

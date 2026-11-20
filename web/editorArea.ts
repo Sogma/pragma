@@ -46,7 +46,7 @@ import { guidesMenuItem, lutsMenuItem, MEDIA_MENU } from "./services/videoMenu.t
 import type { Inspector } from "./view/assistantPanel.ts";
 import type { ContextMenu } from "./view/contextMenu.ts";
 import { createEditorChrome, type EditorChrome, registerEditorChromeCommands } from "./view/editorChrome.ts";
-import { createEditorGroupView, type EditorGroupView, tabLabel } from "./view/editorGroup.ts";
+import { createEditorGroupView, type EditorGroupView, pillContent } from "./view/editorGroup.ts";
 import { createEditorTitleBar } from "./view/editorTitleBar.ts";
 import {
   type DocumentPane,
@@ -158,14 +158,8 @@ interface GroupParts {
 }
 
 // Everything a strip's pills are drawn from.
-// A pill's icon and label count as well as its path: a README's icon comes
-// and goes with its `pragma` key, and a library's name with a rename, under
-// a path that stays the same.
 function stripContent(group: EditorGroup): string {
-  const tabs = group.tabs.map((tab) =>
-    tab.kind === "empty" ? "empty" : `${tab.kind}:${tab.path}:${spaceTree.fileTypeAt(tab.path) ?? ""}:${tabLabel(tab)}`,
-  );
-  return `${group.activeTabIndex}\n${tabs.join("\n")}`;
+  return `${group.activeTabIndex}\n${group.tabs.map(pillContent).join("\n")}`;
 }
 
 /** The file a tree menu's argument names: a file row of the space's tree, a

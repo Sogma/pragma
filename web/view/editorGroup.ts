@@ -10,7 +10,7 @@
 // Nothing here may be a singleton — a group is instantiable any number of
 // times, and a second group brings its own strip up into the app header's
 // tab area.
-import { basenameOf } from "../../src/protocol/rootedPath.ts";
+import { basenameOf, isLibraryRoot, parseRootedPath } from "../../src/protocol/rootedPath.ts";
 import type { FileResponse, Tab } from "../core/apiClient.ts";
 import { type EntryIcon, folderTitle, isForeignRootTab, pageKind, stripExtension } from "../core/paths.ts";
 import { entryIconAt } from "../core/spaceTree.ts";
@@ -84,7 +84,7 @@ export interface EditorGroupOptions {
 // path lives in the pill's title and the status bar, so the pill stays lean.
 // A folder's is the title its view shows, so a root a gallery shows, whose
 // path has no name of its own, reads as the space or the library's name.
-export function tabLabel(tab: Tab): string {
+function tabLabel(tab: Tab): string {
   if (tab.kind === "empty") return "New tab";
   if (tab.kind === "find-context") return "Find in context";
   if (tab.kind === "gallery") return folderTitle(tab.path);
@@ -115,13 +115,25 @@ function setData(element: HTMLElement, key: string, value: string | undefined): 
   else if (element.dataset[key] !== value) element.dataset[key] = value;
 }
 
-// A file's tab shows the icon its tree row does, and only then: a plain file
-// has none, and neither does a folder view, whose path is a folder's.
+// A tab shows the icon its entry's tree row does: a plain file none, a gallery
+// its folder's. Find in context names a folder too but shows search results,
+// so it has none. A library's top folder has no tree row; its gallery wears
+// the library's icon, as a path label marks a library.
 function tabIcon(tab: Tab): EntryIcon {
-  if (tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "gallery") {
-    return {};
-  }
-  return entryIconAt(tab.path, "file");
+  if (tab.kind === "empty" || tab.kind === "find-context") return {};
+  if (tab.kind !== "gallery") return entryIconAt(tab.path, "file");
+  const { root, path } = parseRootedPath(tab.path);
+  return isLibraryRoot(root) && path === "" ? { glyph: "library" } : entryIconAt(tab.path, "directory");
+}
+
+// What a pill is drawn from, its selection aside, so a strip redraws only
+// when a pill would change. Its icon and label count with its path: a
+// README's icon follows its `pragma` key, a folder's its site or scope, and
+// a library's name a rename, under a path that stays the same.
+export function pillContent(tab: Tab): string {
+  if (tab.kind === "empty") return "empty";
+  const icon = tabIcon(tab);
+  return `${tab.kind}:${tab.path}:${icon.glyph ?? ""}${icon.scope ? ":scope" : ""}:${tabLabel(tab)}`;
 }
 
 const CLOSE_ICON =
