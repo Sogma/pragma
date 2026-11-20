@@ -402,6 +402,15 @@ describe("a link into the space", () => {
     expect(link.dataset.spacePath).toBe("notes/plan.md");
   });
 
+  it("reads a destination in angle brackets as the text inside them, a link's, an image's or a web link's", () => {
+    const host = document.createElement("div");
+    const resolvers = { ...anyPath, image: (href: string) => `/raw/${href}` };
+    host.appendChild(renderMarkdown("[Plan](<my plan.md>) ![shot](<my shot.png>) [site](<https://a.com>)", resolvers));
+    expect(host.querySelector<HTMLElement>("a[data-space-path]")?.dataset.spacePath).toBe("my plan.md");
+    expect(host.querySelector("img")?.getAttribute("src")).toBe("/raw/my shot.png");
+    expect(host.querySelector("a[target=_blank]")?.getAttribute("href")).toBe("https://a.com");
+  });
+
   it("never carries a script URL, however its target is spelled", () => {
     const links = linksIn("[x][r] and [[javascript:alert(1)]]\n\n[r]: <java\tscript:alert(document.domain)>");
     expect(links).toHaveLength(2);

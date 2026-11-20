@@ -32,6 +32,10 @@ describe("webLinksIn", () => {
     ]);
   });
 
+  it("reads a destination in angle brackets as the address inside them", () => {
+    expect(linksIn("[d](<https://d.com>)")).toEqual([{ text: "[d](<https://d.com>)", href: "https://d.com" }]);
+  });
+
   it("leaves mail, space links, wikilinks, images, definitions and code alone", () => {
     const doc = [
       "a@b.com mailto:a@b.com <a@b.com> [mail](mailto:a@b.com)",

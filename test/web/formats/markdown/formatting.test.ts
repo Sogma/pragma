@@ -246,6 +246,14 @@ describe("links in a note's editor", () => {
     expect(view.contentDOM.querySelector(".cm-md-plain")?.textContent).toBe("ref");
   });
 
+  it("reads a destination in angle brackets as the text inside them, as reading view does", () => {
+    const { view } = edit("[plan](<my plan.md>) [site](<https://a.com>) end");
+    const link = view.contentDOM.querySelector<HTMLElement>(".cm-md-link");
+    expect(link?.dataset.spacePath).toBe("notes/my plan.md");
+    const underlined = [...view.contentDOM.querySelectorAll(".cm-md-anchor")].map((mark) => mark.textContent);
+    expect(underlined).toEqual(["plan", "site"]);
+  });
+
   it("underlines what reading view links, and nothing it leaves as text", () => {
     const doc =
       "[site](https://a.com) [mail](mailto:a@b.com) [note](b.md) [[x]] [[missing]] <https://c.com> www.d.com e@f.com [g](#h)";

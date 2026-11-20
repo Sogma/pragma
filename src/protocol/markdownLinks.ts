@@ -78,6 +78,15 @@ export interface MarkdownReference {
   isImage: boolean;
 }
 
+const isAngled = (written: string): boolean => written.length >= 2 && written.startsWith("<") && written.endsWith(">");
+
+/** A link destination's text, without the angle brackets that may enclose it
+ * so it can hold spaces (`<./a file.md>`): they delimit it, as CommonMark
+ * reads them, and are no part of it. */
+export function destinationText(written: string): string {
+  return isAngled(written) ? written.slice(1, -1) : written;
+}
+
 /** Locates every reference in `text`, in source order. A `URL` node covers
  * inline links, images, and `[ref]: path` definitions alike; an
  * angle-bracketed destination (`<./a file.md>`) reports the span inside the
@@ -109,7 +118,7 @@ function referencesIn({ body, offset, tree }: ParsedBody): MarkdownReference[] {
   tree.iterate({
     enter: (ref) => {
       if (ref.name === "URL") {
-        const angled = body.charAt(ref.from) === "<" && body.charAt(ref.to - 1) === ">";
+        const angled = isAngled(body.slice(ref.from, ref.to));
         const from = angled ? ref.from + 1 : ref.from;
         const to = angled ? ref.to - 1 : ref.to;
         references.push({

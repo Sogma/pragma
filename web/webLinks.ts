@@ -7,6 +7,7 @@ import type { EditorSelection, EditorState } from "@codemirror/state";
 import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import { Autolink, type MarkdownConfig } from "@lezer/markdown";
+import { destinationText } from "../src/protocol/markdownLinks.ts";
 
 const WEB_URL = /^https?:/i;
 
@@ -63,7 +64,7 @@ export function webLinksIn(state: EditorState, from: number, to: number): WebLin
         case "Link":
         case "Autolink": {
           const url = node.name === "Link" ? linkDestination(node.node) : node.node.getChild("URL");
-          const href = url ? state.sliceDoc(url.from, url.to) : "";
+          const href = url ? destinationText(state.sliceDoc(url.from, url.to)) : "";
           if (WEB_URL.test(href)) links.push({ from: node.from, to: node.to, href });
           return false;
         }

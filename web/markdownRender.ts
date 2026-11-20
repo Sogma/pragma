@@ -6,7 +6,13 @@ import { documentBody, isListFrontmatterKey } from "../src/protocol/frontmatter.
 import { highlightSyntax } from "../src/protocol/highlightSyntax.ts";
 import { holdsProse, tagsInProse } from "../src/protocol/inlineTags.ts";
 import { withoutComments } from "../src/protocol/markdownComments.ts";
-import { foldReferenceLabel, isWikilinkNode, referenceLabel, wikilinkRawLabel } from "../src/protocol/markdownLinks.ts";
+import {
+  destinationText,
+  foldReferenceLabel,
+  isWikilinkNode,
+  referenceLabel,
+  wikilinkRawLabel,
+} from "../src/protocol/markdownLinks.ts";
 import { titleHeadingNode } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
@@ -359,7 +365,7 @@ function isTightList(list: SyntaxNode, doc: string): boolean {
 // Undefined for a reference no definition names.
 function linkHref(node: SyntaxNode, doc: string, resolvers: MarkdownResolvers): string | undefined {
   const urlNode = linkDestination(node);
-  if (urlNode) return doc.slice(urlNode.from, urlNode.to);
+  if (urlNode) return destinationText(doc.slice(urlNode.from, urlNode.to));
   const label = referenceLabel(node, doc);
   return label === undefined ? "" : resolvers.references?.get(label);
 }
@@ -387,7 +393,7 @@ function linkReferences(tree: Tree, doc: string): Map<string, string> {
       const url = ref.node.getChild("URL");
       const key = label && foldReferenceLabel(doc.slice(label.from + 1, label.to - 1));
       if (key && url && !references.has(key)) {
-        references.set(key, doc.slice(url.from, url.to).replace(/^<(.*)>$/, "$1"));
+        references.set(key, destinationText(doc.slice(url.from, url.to)));
       }
       return false;
     },

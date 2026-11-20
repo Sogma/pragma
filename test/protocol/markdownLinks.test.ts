@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyReferenceEdits,
+  destinationText,
   findMarkdownReferences,
   isPathDestination,
   noteLinks,
@@ -144,6 +145,14 @@ describe("what a note links to", () => {
 
   it("keeps the link around a thumbnail but not the thumbnail", () => {
     expect(links("[![thumb](small.png)](big.md)")).toEqual(["markdown:big.md"]);
+  });
+
+  it("reads a destination in angle brackets as the text inside them", () => {
+    expect(destinationText("<./my note.md>")).toBe("./my note.md");
+    expect(destinationText("<https://a.com>")).toBe("https://a.com");
+    expect(destinationText("<>")).toBe("");
+    expect(destinationText("./a.md")).toBe("./a.md");
+    expect(destinationText("<a.md")).toBe("<a.md");
   });
 
   it("reads a destination as a path by the same rule", () => {

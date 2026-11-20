@@ -35,6 +35,7 @@ import {
 import type { SyntaxNode } from "@lezer/common";
 import { tagsInTree } from "../../../src/protocol/inlineTags.ts";
 import { commentsOf } from "../../../src/protocol/markdownComments.ts";
+import { destinationText } from "../../../src/protocol/markdownLinks.ts";
 import { basenameOf } from "../../../src/protocol/rootedPath.ts";
 import type { TagDefinition } from "../../../src/protocol/tags.ts";
 import { splitWikilinkLabel } from "../../../src/protocol/wikilink.ts";
@@ -282,7 +283,7 @@ function formattingDecorations({ state, visible, shown, opened, hiding, links, h
     syntaxSpan(open.from, open.to, show);
     syntaxSpan(close.from, node.to, show);
     const destination = linkDestination(node);
-    const href = destination ? doc.sliceString(destination.from, destination.to) : undefined;
+    const href = destination ? destinationText(doc.sliceString(destination.from, destination.to)) : undefined;
     if (open.to >= close.from) return;
     const text = doc.sliceString(open.to, close.from);
     if (href !== undefined && isSafeHref(href)) {
