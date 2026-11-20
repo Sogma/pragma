@@ -8,7 +8,12 @@ import {
   type PathIndex,
   resolveWrittenPath,
 } from "../../src/protocol/pathIndex.ts";
-import { formatWrittenPath, type PathForm, resolveFileReference } from "../../src/protocol/relativeReference.ts";
+import {
+  formatWrittenPath,
+  type PathForm,
+  readWrittenPath,
+  resolveFileReference,
+} from "../../src/protocol/relativeReference.ts";
 import {
   dirnameOf,
   formatRootedPath,
@@ -53,8 +58,9 @@ import {
 // gitStatusStore.
 let currentTree: SpaceTreeNode[] = [];
 // Every file and folder the space holds, which a written path is read
-// against: the tree leaves out the files it doesn't show.
-let currentPaths: RootPathsResponse = { files: [], folders: [], scopes: [] };
+// against: the tree leaves out the files it doesn't show. Undefined until the
+// first read lands.
+let currentPaths: RootPathsResponse | undefined;
 // The change version the tree was read at, undefined until a read names one.
 let readAt: string | undefined;
 // Writes noted since the window opened, and how many of them the listing
@@ -91,13 +97,17 @@ const libraryLoadListeners = new Set<() => void>();
 // A library's tree and listing, kept beside the space's because a document
 // in a library resolves its links against its own library. Each loads the
 // first time something asks, so a library nobody reads costs nothing, and is
-// announced when it lands so an open document can resolve again.
+// announced when it lands or fails, so an open document can resolve again.
 function libraryCache<T>(fetch: (id: string) => Promise<T>) {
   const loaded = new Map<string, T>();
   // A load in flight, or failed: either way not asked for again until the
   // library is forgotten, or every redraw of an unresolved link would ask once
   // more. A load a forget overtook is dropped when it lands.
   const loads = new Map<string, Promise<T | undefined>>();
+  const failed = new Set<string>();
+  const announce = () => {
+    for (const listener of libraryLoadListeners) listener();
+  };
   function load(id: string): Promise<T | undefined> {
     const known = loaded.get(id);
     if (known) return Promise.resolve(known);
@@ -107,24 +117,34 @@ function libraryCache<T>(fetch: (id: string) => Promise<T>) {
       (value) => {
         if (loads.get(id) !== next) return undefined;
         loaded.set(id, value);
-        for (const listener of libraryLoadListeners) listener();
+        announce();
         return value;
       },
-      () => undefined,
+      () => {
+        if (loads.get(id) === next) {
+          failed.add(id);
+          announce();
+        }
+        return undefined;
+      },
     );
     loads.set(id, next);
     return next;
   }
+  function get(id: string): T | undefined {
+    const known = loaded.get(id);
+    if (!known) void load(id);
+    return known;
+  }
   return {
-    get(id: string): T | undefined {
-      const known = loaded.get(id);
-      if (!known) void load(id);
-      return known;
-    },
+    get,
+    // Asked for, and neither landed nor failed.
+    pending: (id: string) => get(id) === undefined && !failed.has(id),
     load,
     forget(id: string): void {
       loaded.delete(id);
       loads.delete(id);
+      failed.delete(id);
     },
   };
 }
@@ -143,7 +163,7 @@ export function forgetLibraryTree(id: string): void {
   libraryPaths.forget(id);
 }
 
-/** Calls `listener` whenever a library's tree or listing lands. */
+/** Calls `listener` whenever a library's tree or listing lands, or fails to. */
 export function onLibraryTreeLoaded(listener: () => void): () => void {
   libraryLoadListeners.add(listener);
   return () => libraryLoadListeners.delete(listener);
@@ -176,7 +196,7 @@ export function noteUnlistedWrites(): void {
  * library's path, whose listing may be old or not loaded yet, or while the
  * listing may lack a write noted since its read went out. */
 export function listedAsGone(rootedPath: string): boolean {
-  if (listedThrough !== unlistedWrites) return false;
+  if (listedThrough !== unlistedWrites || !currentPaths) return false;
   const { root, path } = parseRootedPath(rootedPath);
   if (isLibraryRoot(root)) return false;
   return matchEntries(path, "any", indexesOf(currentPaths).paths.names).length === 0;
@@ -339,6 +359,12 @@ function pathIndexOf(root: PathRoot): PathIndex | undefined {
   return listing && indexesOf(listing).paths;
 }
 
+// Whether the listing of `root` is still to land, so what a path into it
+// names can't be told. A library whose listing failed to load names nothing.
+function listingPending(root: PathRoot): boolean {
+  return isLibraryRoot(root) ? libraryPaths.pending(root.library) : currentPaths === undefined;
+}
+
 /** What a path written in the document at `docPath` names, read by `form`:
  * the entry's rooted path and type. Undefined when it names nothing, or its
  * root's listing hasn't landed yet: that one is asked for, and announced
@@ -350,7 +376,7 @@ export function resolvePathFrom(docPath: string, written: string, form: PathForm
 /** The folders a scope opens over in the root `path` sits in, for writing a
  * path from there. A library is one scope. */
 export function scopesOf(path: string): ReadonlySet<string> {
-  return isLibraryPath(path) ? new Set() : indexesOf(currentPaths).scopes;
+  return isLibraryPath(path) || !currentPaths ? new Set() : indexesOf(currentPaths).scopes;
 }
 
 /** How a document in the folder `docDir` writes a path to `target`, by the
@@ -384,10 +410,15 @@ export function readingResolvers(docPath: string) {
 }
 
 /** The same for text read as a document in the folder `docDir` reads it,
- * `""` being the space root. */
+ * `""` being the space root. A wikilink into a root whose listing is still
+ * to land is pending: neither a link nor missing until the listing lands. */
 export function readingResolversIn(docDir: string) {
   const found = (written: string, form: PathForm) => linkTarget(resolveWrittenPath(docDir, written, form, pathIndexOf));
   const markdown = (href: string) => found(href, "markdown") ?? resolveFileReference(docDir, href);
+  const pending = (written: string, form: PathForm) => {
+    const read = readWrittenPath(docDir, written, form);
+    return read !== undefined && listingPending(read.target.root);
+  };
   return {
     image(href: string): string | undefined {
       const path = markdown(href);
@@ -397,19 +428,25 @@ export function readingResolversIn(docDir: string) {
     },
     link: (href: string) => (href.startsWith("#") ? undefined : markdown(href)),
     wikilink: (target: string) => found(target, "wikilink"),
-    hint: linkHint,
+    wikilinkPending: (target: string) => pending(target, "wikilink"),
+    hint: (lead: LinkLead, text: string) => linkHint(lead, text, pending),
   };
 }
 
 // A link's hint where no page of its file shows: the file's path, the web
 // address, or the target as written when the listing holds nothing there.
-// A Markdown link to no file at all, a bare `#anchor`, says nothing.
-function linkHint(lead: LinkLead, text: string): string | undefined {
+// A Markdown link to no file at all, a bare `#anchor`, says nothing, and so
+// does a path whose root's listing is still to land.
+function linkHint(
+  lead: LinkLead,
+  text: string,
+  pending: (written: string, form: PathForm) => boolean,
+): string | undefined {
   if ("url" in lead) return lead.url === text ? undefined : lead.url;
   if (lead.path !== undefined && !listedAsGone(lead.path)) return pathHint(lead.path, text);
   const written = lead.written.trim();
   if (!written || (lead.form === "markdown" && !isPathDestination(written))) return undefined;
-  return `Not found: ${written}`;
+  return pending(lead.written, lead.form) ? undefined : `Not found: ${written}`;
 }
 
 /** What a `[[` offers in one document, and what it writes the pick by. */
@@ -507,13 +544,13 @@ export function worldNameResolver(docPath: string): ((name: string) => string | 
  * `pragma` value holds them; undefined for a folder that opens none, or
  * whose block holds no settings. "" is the space's own. */
 export function scopeBlock(folder: string): unknown {
-  return currentPaths.settings?.[folder];
+  return currentPaths?.settings?.[folder];
 }
 
 /** Whether the space folder at `folder` holds a document of `type` anywhere
  * under it. */
 export function holdsDocumentType(folder: string, type: DocumentType): boolean {
-  return currentPaths.files.some((file) => isWithin(folder, file) && documentTypeFor(file) === type);
+  return currentPaths?.files.some((file) => isWithin(folder, file) && documentTypeFor(file) === type) ?? false;
 }
 
 /** What a document links to: each file it names, once, in order of first

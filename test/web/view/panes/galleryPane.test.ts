@@ -138,6 +138,7 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
       image: () => undefined,
       link: () => undefined,
       wikilink: () => undefined,
+      wikilinkPending: () => false,
       hint: () => undefined,
     })),
     formats: createFormats(),
@@ -1548,6 +1549,7 @@ describe("a previewed note", () => {
         image: (href: string) => `/raw?path=${href}`,
         link: () => undefined,
         wikilink: () => "notes/keeper.md",
+        wikilinkPending: () => false,
         hint: () => undefined,
       })),
     });

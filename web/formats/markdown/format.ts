@@ -12,7 +12,7 @@ import { droppedLinkFor } from "../../core/imageAttach.ts";
 import type { DocumentLinks, LinkScope, readingResolvers } from "../../core/spaceTree.ts";
 import type { TagVocabulary } from "../../core/tagVocabulary.ts";
 import { addCodeBlockCopyButtons } from "../../lib/dom.ts";
-import { renderMarkdown } from "../../markdownRender.ts";
+import { keepingAnswers, renderMarkdown } from "../../markdownRender.ts";
 import type { TextFormat } from "../../services/formats.ts";
 import { singleLineBreaks, useWikilinks } from "../../services/settings.ts";
 import { tagCompletion } from "../../tagCompletion.ts";
@@ -102,15 +102,16 @@ export function markdownFormat(deps: MarkdownFormatDeps): TextFormat {
       };
     },
     renderReading(model) {
-      const fragment = renderMarkdown(
+      const { resolvers, changed } = keepingAnswers(deps.links.readingResolvers(model.path));
+      const page = renderMarkdown(
         model.content(),
-        deps.links.readingResolvers(model.path),
+        resolvers,
         // The title bar carries the leading heading; don't render it twice. A
         // note shown without one keeps its heading here.
         { omitLeadingH1: model.title() !== undefined },
       );
-      addCodeBlockCopyButtons(fragment);
-      return fragment;
+      addCodeBlockCopyButtons(page);
+      return { page, changed };
     },
     embedsImages: true,
     linkFor: (docPath, target, folder) => droppedLinkFor(docPath, target, { folder, wikilinks: useWikilinks.get() }),

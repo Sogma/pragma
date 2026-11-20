@@ -192,7 +192,8 @@ html:not(.bright-selection) #editor .cm-md-highlight {
   border-bottom: 1px dashed var(--color-danger);
 }
 
-/* A link reading view shows as text, its target no file, reads as text. */
+/* A link reading view shows as text reads as text: its target no file, or a
+   wikilink whose root's listing is still to land. */
 #editor .cm-md-plain,
 #editor .cm-md-plain * {
   color: inherit;

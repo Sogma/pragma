@@ -54,6 +54,7 @@ export interface FormattingLinks {
     | {
         link(href: string): string | undefined;
         wikilink(target: string): string | undefined;
+        wikilinkPending?(target: string): boolean;
         hint?(lead: LinkLead, text: string): string | undefined;
       }
     | undefined;
@@ -325,8 +326,12 @@ function formattingDecorations({ state, visible, shown, opened, hiding, links, h
     const path = resolvers?.wikilink(target);
     if (from >= to) return;
     const hint = resolvers?.hint?.({ form: "wikilink", written: target, path }, doc.sliceString(from, to));
-    if (path === undefined) ranges.push(linkLabel("cm-md-unresolved", hint).range(from, to));
-    else fileLink(path, from, to, hint);
+    if (path !== undefined) fileLink(path, from, to, hint);
+    else {
+      // Text, as reading view draws it, while its root's listing is still to land.
+      const look = resolvers?.wikilinkPending?.(target) ? "cm-md-plain" : "cm-md-unresolved";
+      ranges.push(linkLabel(look, hint).range(from, to));
+    }
   };
 
   // Fence lines stay as the block's top and bottom, their text hidden.

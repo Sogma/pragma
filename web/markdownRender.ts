@@ -208,6 +208,10 @@ interface MarkdownResolvers {
   image: ImageSrcResolver;
   link: LinkPathResolver;
   wikilink: WikilinkResolver;
+  // Whether a wikilink that names nothing points into a root whose listing
+  // is still to land, so it may name a file once it does: drawn as text
+  // until then, never as broken.
+  wikilinkPending?: (target: string) => boolean;
   // Without it, as in a title read from its heading alone, a link says
   // nothing on hover.
   hint?: LinkHintResolver;
@@ -254,7 +258,7 @@ function appendWikilinkElement(raw: string, container: Node, resolvers: Markdown
     el = anchor;
   } else {
     el = document.createElement("span");
-    el.className = "wikilink-unresolved";
+    if (!resolvers.wikilinkPending?.(target)) el.className = "wikilink-unresolved";
   }
   el.textContent = display;
   addLinkHint(el, { form: "wikilink", written: target, path: spacePath }, resolvers);
@@ -885,4 +889,30 @@ export function renderMarkdownInline(content: string, resolvers: MarkdownResolve
   const fragment = document.createDocumentFragment();
   appendMarkdownBody(content, fragment, { ...resolvers, math: true }, false, undefined, replyParser);
   return fragment;
+}
+
+/** `resolvers` keeping each answer a page drawn from them is given, and
+ * whether asking each question again answers differently: the space changed
+ * where the page's links lead, so it must be drawn again. */
+export function keepingAnswers(resolvers: MarkdownResolvers): { resolvers: MarkdownResolvers; changed(): boolean } {
+  const unchanged: (() => boolean)[] = [];
+  function kept<A extends unknown[], R>(ask: (...args: A) => R): (...args: A) => R {
+    return (...args) => {
+      const answer = ask(...args);
+      unchanged.push(() => ask(...args) === answer);
+      return answer;
+    };
+  }
+  const { image, link, wikilink, wikilinkPending, hint } = resolvers;
+  return {
+    resolvers: {
+      ...resolvers,
+      image: kept(image),
+      link: kept(link),
+      wikilink: kept(wikilink),
+      wikilinkPending: wikilinkPending && kept(wikilinkPending),
+      hint: hint && kept(hint),
+    },
+    changed: () => !unchanged.every((same) => same()),
+  };
 }

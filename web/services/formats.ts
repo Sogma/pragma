@@ -105,6 +105,13 @@ export function applyFormat(actions: FormatActions, id: string, view: EditorView
   return true;
 }
 
+/** A rendered page, and whether the space has changed where its links lead
+ * since it was drawn, so it must be drawn again. */
+export interface ReadingPage {
+  page: DocumentFragment;
+  changed(): boolean;
+}
+
 export interface TextFormat {
   // The editor's language and the format's own editing behaviour.
   extensions(context: FormatContext): Extension;
@@ -126,7 +133,7 @@ export interface TextFormat {
   // Reading view as a rendered page, whose space-relative links carry
   // `data-space-path` for the pane to open. Absent, reading view locks the
   // editor instead.
-  renderReading?(model: DocumentModel): DocumentFragment;
+  renderReading?(model: DocumentModel): ReadingPage;
   // Whether an image dropped or pasted in is embedded, as Markdown's `![]()`.
   readonly embedsImages: boolean;
   // The link a tree row dropped into the text writes when it isn't an image;

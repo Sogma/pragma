@@ -527,6 +527,29 @@ describe("documentPane", () => {
     expect(deps.openPath).not.toHaveBeenCalled();
   });
 
+  it("redraws reading view when the space changes where one of its links leads, and only then", async () => {
+    let listed = false;
+    const formats = testFormats({
+      resolveWikilinkTarget: (target) => (listed ? `notes/${target}.md` : undefined),
+      wikilinkPending: () => !listed,
+    });
+    const { pane, documents, setReadingView } = setup("document", noteFile(), { formats });
+    documents.adopt(noteFile({ content: "# Song\n\nSee [[chorus]]\n" }));
+    setReadingView(true);
+    await pane.setInput(songTab(), current);
+
+    const page = () => q(pane.element, ".editor-reading-content");
+    const drawn = page().firstElementChild;
+    expect(page().querySelector("a, .wikilink-unresolved")).toBeNull();
+    pane.spaceChanged();
+    expect(page().firstElementChild).toBe(drawn);
+
+    listed = true;
+    pane.spaceChanged();
+    expect(page().firstElementChild).not.toBe(drawn);
+    expect(q(page(), "a[data-space-path]").dataset.spacePath).toBe("notes/chorus.md");
+  });
+
   it("a screenplay has no title bar or properties and stays in the editor under reading view", async () => {
     const { pane, documents, deps, setReadingView } = setup();
     documents.adopt(screenplay());

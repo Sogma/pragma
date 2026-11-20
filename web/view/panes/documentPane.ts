@@ -1292,11 +1292,14 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
     return [EditorView.scrollIntoView(swap ? swap.mapPos(top, 1) : top, { y: "start", yMargin: 0 })];
   }
 
+  // Whether the page reading view shows would be drawn differently now.
+  let readingChanged = () => false;
   function renderReading(): void {
     const model = current?.model;
-    const page = model && formatOf(model).renderReading?.(model);
-    if (!page) return;
-    readingContent.replaceChildren(page);
+    const rendered = model && formatOf(model).renderReading?.(model);
+    if (!rendered) return;
+    readingChanged = rendered.changed;
+    readingContent.replaceChildren(rendered.page);
     paintTagPills(readingContent, deps.tags);
     noteScroll("reflow");
   }
@@ -1662,6 +1665,10 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
     spaceChanged() {
       const model = current?.model;
       if (model) formatOf(model).spaceChanged?.(view);
+      // Only when a link leads somewhere new: the space changes with every
+      // save, and drawing the page again drops its selection and stops a
+      // video playing in it.
+      if (!reading.hidden && readingChanged()) renderReading();
       renderLinks(true);
     },
     revealLink(path) {

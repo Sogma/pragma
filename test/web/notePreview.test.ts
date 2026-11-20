@@ -63,6 +63,7 @@ function install(overrides: Partial<LinkPreviewDeps> = {}): void {
       image: () => undefined,
       link: () => undefined,
       wikilink: () => "notes/lamp.md",
+      wikilinkPending: () => false,
       hint: () => undefined,
     })),
     formats: createFormats(),

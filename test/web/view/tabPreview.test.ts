@@ -89,6 +89,7 @@ function install(overrides: Partial<TabPreviewDeps> = {}): void {
       image: () => undefined,
       link: () => undefined,
       wikilink: () => undefined,
+      wikilinkPending: () => false,
       hint: () => undefined,
     }),
     formats: createFormats(),

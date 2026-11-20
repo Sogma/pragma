@@ -17,6 +17,7 @@ export function testPreviewSources(): PreviewSources {
       image: () => undefined,
       link: () => undefined,
       wikilink: () => undefined,
+      wikilinkPending: () => false,
       hint: () => undefined,
     })),
     readableLineLength: {

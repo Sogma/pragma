@@ -35,6 +35,7 @@ interface Options {
   // The space's declared tags.
   tags?: TagDefinition[];
   linkHint?: (lead: LinkLead, text: string) => string | undefined;
+  wikilinkPending?: (target: string) => boolean;
 }
 
 // A note's editor as the pane builds it: the format's language and its
@@ -42,10 +43,11 @@ interface Options {
 // resolving unless it names "missing".
 function edit(
   doc: string,
-  { cursor = doc.length, focused = false, extensions = [], tags = [], linkHint }: Options = {},
+  { cursor = doc.length, focused = false, extensions = [], tags = [], linkHint, wikilinkPending }: Options = {},
 ) {
   const format = testFormats({
     resolveWikilinkTarget: (target) => (target === "missing" ? undefined : `notes/${target}.md`),
+    wikilinkPending,
     linkHint,
     tags: { known: tags },
   }).get("note");
@@ -244,6 +246,17 @@ describe("links in a note's editor", () => {
     ]);
     expect(view.contentDOM.querySelector(".cm-md-unresolved")?.textContent).toBe("missing");
     expect(view.contentDOM.querySelector(".cm-md-plain")?.textContent).toBe("ref");
+  });
+
+  it("draws a wikilink naming nothing as text while its root's listing is still to land, then as broken", () => {
+    let pending = true;
+    const { view } = edit("see [[missing]] now", { cursor: 0, wikilinkPending: () => pending });
+    expect(view.contentDOM.querySelector(".cm-md-unresolved")).toBeNull();
+    expect(view.contentDOM.querySelector(".cm-md-plain")?.textContent).toBe("missing");
+    pending = false;
+    view.dispatch({ effects: formattingChanged.of(null) });
+    expect(view.contentDOM.querySelector(".cm-md-unresolved")?.textContent).toBe("missing");
+    expect(view.contentDOM.querySelector(".cm-md-plain")).toBeNull();
   });
 
   it("reads a destination in angle brackets as the text inside them, as reading view does", () => {

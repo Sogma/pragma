@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import {
+  keepingAnswers,
   type LinkLead,
   renderFrontmatter,
   renderMarkdown,
@@ -418,6 +419,39 @@ describe("a link into the space", () => {
       expect(link.getAttribute("href")?.startsWith("#")).toBe(true);
       expect(link.protocol).not.toBe("javascript:");
     }
+  });
+
+  it("draws a wikilink naming nothing as broken, or as text while its root's listing is still to land", () => {
+    const drawn = (pending: boolean) => {
+      const host = document.createElement("div");
+      const wikilink = (target: string) => (target === "plan" ? "notes/plan.md" : undefined);
+      host.appendChild(
+        renderMarkdown("[[plan]] and [[gone|the gone]]", { ...anyPath, wikilink, wikilinkPending: () => pending }),
+      );
+      return host;
+    };
+    expect(drawn(false).querySelector(".wikilink-unresolved")?.textContent).toBe("the gone");
+    const waiting = drawn(true);
+    expect(waiting.querySelector(".wikilink-unresolved")).toBeNull();
+    expect([...waiting.querySelectorAll("a")].map((link) => link.textContent)).toEqual(["plan"]);
+    expect(waiting.textContent).toBe("plan and the gone");
+  });
+});
+
+describe("the answers a page was drawn from", () => {
+  it("say it changed only once asking again answers differently", () => {
+    let listed = false;
+    const { resolvers: kept, changed } = keepingAnswers({
+      image: (href: string) => `/raw/${href}`,
+      link: (href: string) => `notes/${href}`,
+      wikilink: (target: string) => (listed ? `notes/${target}.md` : undefined),
+      wikilinkPending: () => !listed,
+      hint: (lead: LinkLead) => ("url" in lead ? lead.url : lead.path),
+    });
+    renderMarkdown("[[plan]] [clip](clip.mp4) ![shot](shot.png)", kept);
+    expect(changed()).toBe(false);
+    listed = true;
+    expect(changed()).toBe(true);
   });
 });
 

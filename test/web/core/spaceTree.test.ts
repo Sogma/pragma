@@ -319,6 +319,54 @@ describe("resolving a written path", () => {
     expect(spaceTree.resolvePathFrom("lib:footage/read-me.md", "cover", "wikilink")?.path).toBe("lib:footage/cover.md");
     expect(spaceTree.resolvePathFrom("note.md", "cover", "wikilink")?.path).toBe("cover.md");
   });
+
+  // A wikilink naming nothing in a root whose listing is still to land is
+  // drawn as text, never as broken, and its hint says nothing is missing.
+  it("holds a wikilink pending while its root's listing is still to land", async () => {
+    const spaceTree = await freshSpaceTree();
+    vi.stubGlobal(
+      "fetch",
+      serve(SAMPLE_TREE, undefined, { footage: [{ name: "cover.md", path: "cover.md", type: "file" }] }),
+    );
+    const landed = vi.fn();
+    spaceTree.onLibraryTreeLoaded(landed);
+    const missing = (resolvers: ReturnType<typeof spaceTree.readingResolvers>, written: string) =>
+      resolvers.hint({ form: "wikilink", written, path: resolvers.wikilink(written) }, written);
+
+    const space = spaceTree.readingResolvers("projects/note.md");
+    expect(space.wikilink("a")).toBeUndefined();
+    expect(space.wikilinkPending("a")).toBe(true);
+    expect(missing(space, "a")).toBeUndefined();
+    await spaceTree.refresh();
+    expect(space.wikilink("a")).toBe("projects/a.md");
+    expect(space.wikilinkPending("gone")).toBe(false);
+    expect(missing(space, "gone")).toBe("Not found: gone");
+
+    const library = spaceTree.readingResolvers("lib:footage/read-me.md");
+    expect(space.wikilinkPending("lib:footage/cover")).toBe(true);
+    expect(library.wikilinkPending("gone")).toBe(true);
+    expect(missing(library, "gone")).toBeUndefined();
+    await vi.waitFor(() => expect(landed).toHaveBeenCalled());
+    expect(space.wikilink("lib:footage/cover")).toBe("lib:footage/cover.md");
+    expect(library.wikilinkPending("gone")).toBe(false);
+    expect(missing(library, "gone")).toBe("Not found: gone");
+  });
+
+  it("names nothing in a library whose listing fails to load, and says so when it fails", async () => {
+    const spaceTree = await freshSpaceTree();
+    vi.stubGlobal("fetch", serve(SAMPLE_TREE));
+    await spaceTree.refresh();
+    const failed = vi.fn();
+    spaceTree.onLibraryTreeLoaded(failed);
+    const resolvers = spaceTree.readingResolvers("lib:gone/read-me.md");
+
+    expect(resolvers.wikilinkPending("cover")).toBe(true);
+    await vi.waitFor(() => expect(failed).toHaveBeenCalled());
+    expect(resolvers.wikilinkPending("cover")).toBe(false);
+    expect(resolvers.hint({ form: "wikilink", written: "cover", path: undefined }, "cover")).toBe("Not found: cover");
+    spaceTree.forgetLibraryTree("gone");
+    expect(resolvers.wikilinkPending("cover")).toBe(true);
+  });
 });
 
 // What a media cell draws offline without asking: only what a current

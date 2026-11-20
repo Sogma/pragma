@@ -13,6 +13,7 @@ import { fakeContextMenu } from "./fakeContextMenu.ts";
 
 export interface FormatSources {
   resolveWikilinkTarget?: (target: string, docPath: string) => string | undefined;
+  wikilinkPending?: (target: string, docPath: string) => boolean;
   linkHint?: (lead: LinkLead, text: string) => string | undefined;
   linkScope?: (docPath: string) => LinkScope | undefined;
   markdownLinks?: (docPath: string, content: string) => DocumentLinks;
@@ -41,6 +42,7 @@ export function testFormats(sources: FormatSources = {}): FormatRegistry {
             },
             link: (href) => (href.startsWith("#") ? undefined : resolveFileReference(docDir, href)),
             wikilink: (target) => sources.resolveWikilinkTarget?.(target, docPath),
+            wikilinkPending: (target) => sources.wikilinkPending?.(target, docPath) ?? false,
             hint: sources.linkHint ?? (() => undefined),
           };
         },
