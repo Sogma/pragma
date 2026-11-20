@@ -19,7 +19,7 @@
 }
 
 .welcome #header-window-controls {
-  margin-inline: auto 0;
+  margin-inline-start: auto;
 }
 
 .welcome-spaces {

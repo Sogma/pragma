@@ -27,27 +27,32 @@
   -webkit-app-region: no-drag;
 }
 
-/* Exactly #rail's width, so the button matches the rail's footprint below it;
-   the id's specificity overrides .icon-button's 28px.
+/* The two header panel toggles are bare glyphs with .icon-button's hover as
+   the only chrome, and share one box: #rail's width, the header's height.
+   The ids' specificity overrides .icon-button's 28px.
 
-   On macOS it starts after the traffic lights instead. env(titlebar-area-x)
-   is their room (electron/main.ts) at any zoom, and is unset everywhere else
-   and in fullscreen, which puts the button back over the rail. */
-#header-sidebar-toggle {
+   The sidebar's box matches the rail's footprint below it. The assistant's
+   mirrors it at the window's far edge, so a hover fills the header's corner
+   the same way on both sides. */
+#header-sidebar-toggle,
+#header-assistant-toggle {
   width: var(--rail-width);
   height: 100%;
+}
+
+/* On macOS the sidebar toggle starts after the traffic lights instead.
+   env(titlebar-area-x) is their room (electron/main.ts) at any zoom, and is
+   unset everywhere else and in fullscreen, which puts the button back over
+   the rail. */
+#header-sidebar-toggle {
   margin-inline-start: env(titlebar-area-x, 0px);
 }
 
-/* The two header panel toggles are bare glyphs with .icon-button's hover as
-   the only chrome. The glyph is a panel outline whose near-side segment is
-   always drawn: a thin bar while that panel is collapsed, a solid block when
-   it's open, so the states read as a contrast rather than on/off. */
-#header-assistant-toggle {
-  width: 32px;
-}
+/* The glyph is a panel outline whose near-side segment is always drawn: a
+   thin bar while that panel is collapsed, a solid block when it's open, so
+   the states read as a contrast rather than on/off.
 
-/* x/width are SVG geometry driven from CSS: the near-side segment is ~2u wide
+   x/width are SVG geometry driven from CSS: the near-side segment is ~2u wide
    collapsed and ~6u open. The right toggle also shifts x left as it widens,
    so its segment stays pinned to the far edge. */
 #header-sidebar-toggle .panel-toggle-fill,
@@ -135,8 +140,9 @@
 }
 
 /* #header-sidebar-spacer's mirror: exactly #assistant's open width, so the
-   inspector's tabs start at the column's edge. The padding is room before
-   the window controls.
+   inspector's tabs start at the column's edge. No end padding: the row's
+   last box, the toggle or the window controls' room, reaches the window's
+   edge, as the sidebar toggle does on the other side.
 
    Its max-content is the column's floor (assistantPanel.ts): open, it never
    outgrows the column, which would part its line from the column's edge. It
@@ -150,7 +156,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-inline: 6px 8px;
+  padding-inline-start: 6px;
   container-name: header-assistant;
 }
 
@@ -337,14 +343,12 @@
 
 /* The room for the minimize, maximize and close Electron draws over the
    header's end on Windows and Linux (electron/main.ts): what the overlay's
-   titlebar-area-* leave out. The margin takes back #header-assistant's end
-   padding, so the room reaches the window's edge as the controls do.
+   titlebar-area-* leave out.
 
    Its color is the one they draw their glyphs in (windowControls.ts). */
 #header-window-controls {
   flex-shrink: 0;
   width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
-  margin-inline-end: -8px;
   color: var(--text-muted);
 }
 

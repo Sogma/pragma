@@ -81,9 +81,9 @@
   --tab-move-duration: 200ms;
   --tab-land-duration: 150ms;
   --tab-move-easing: cubic-bezier(0.33, 0.67, 0.67, 1);
-  /* Read by both #rail and #header-sidebar-toggle, for the same reason as
-     --sidebar-width: a second hardcoded copy is what let the two drift
-     apart. */
+  /* Read by #rail and both header panel toggles, so the sidebar toggle can't
+     drift from the rail below it, nor the assistant toggle from the sidebar
+     toggle it mirrors. */
   --rail-width: 54px;
   /* #app-header's height — the window's title bar row, which the editor
      groups' tab strips share. */
