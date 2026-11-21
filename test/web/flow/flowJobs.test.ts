@@ -104,7 +104,7 @@ describe("createFlowJobs", () => {
     await vi.waitFor(() => expect(element.hasAttribute("data-empty")).toBe(false));
     expect(texts(element, ".flow-jobs-heading")).toEqual(["Running", "Finished"]);
     expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Generate Video · started /);
-    expect(texts(element, ".flow-jobs-stage")[0]).toBe("Rendering · 0:48 · quoted 70 credits");
+    expect(texts(element, ".flow-jobs-stage")[0]).toBe("Generating · 0:48 · quoted 70 credits");
     expect(texts(element, ".flow-jobs-title").slice(1, 3)).toEqual(["video-b.mp4", "video-c.mp4"]);
 
     expect(add.mock.calls.map(([path, source, notice]) => [path, source, notice.level, notice.content])).toEqual([
@@ -154,8 +154,8 @@ describe("createFlowJobs", () => {
     ]);
     expect(texts(element, ".flow-jobs-stage")).toEqual([
       "Generate Text (AI)",
-      "Rendering · 0:48 · quoted 70 credits",
-      "Rendering · 0:48 · quoted 70 credits",
+      "Generating · 0:48 · quoted 70 credits",
+      "Generating · 0:48 · quoted 70 credits",
     ]);
     expect(element.getAttribute("data-running")).toBe("3");
     expect(onCount).toHaveBeenLastCalledWith(3);
@@ -329,7 +329,7 @@ describe("createFlowJobs", () => {
     });
     const [summary, line] = asked.message as [HTMLElement, string];
     expect(summary.textContent).toMatch(
-      /^Run 2 · started .*Steam rises from the red cupseedance_2_5 · 720p · 5 s · 16:9Rendering · 0:48 · quoted 70 credits$/,
+      /^Run 2 · started .*Steam rises from the red cupseedance_2_5 · 720p · 5 s · 16:9Generating · 0:48 · quoted 70 credits$/,
     );
     expect(line).toBe(
       "Higgsfield is already making this clip. Its 70 credits are spent, and Pragma can't call the job back.",

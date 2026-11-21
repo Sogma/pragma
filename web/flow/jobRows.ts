@@ -77,7 +77,7 @@ export function liveStage(job: JobView): string {
   if (job.problem !== undefined) return job.problem;
   if (job.stage === "starting") return "Starting the job";
   const quote = job.quote ? ` · quoted ${describeCost(job.quote)}` : "";
-  return `Rendering · ${elapsed(Date.now() - job.startedAt)}${quote}`;
+  return `Generating · ${elapsed(Date.now() - job.startedAt)}${quote}`;
 }
 
 /** A live job's row, under `title`, by default its kind and start. */

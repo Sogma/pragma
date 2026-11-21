@@ -70,7 +70,7 @@ describe("createToolkitRuns", () => {
     expect(texts(element, ".flow-jobs-title")[0]).toMatch(/^Another take · started /);
     expect(texts(element, ".flow-jobs-detail")).toEqual(["Shot 4, take 2"]);
     expect(texts(element, ".flow-jobs-settings")).toEqual(["seedance_2_5 · 1080p · 8 s"]);
-    expect(texts(element, ".flow-jobs-stage")).toEqual(["Rendering · 0:20 · quoted 70 credits"]);
+    expect(texts(element, ".flow-jobs-stage")).toEqual(["Generating · 0:20 · quoted 70 credits"]);
     // A job of the same Flow no run here started is another list's to show.
     expect(markJobsShown.mock.calls.flatMap(([ids]) => ids)).not.toContain("canvas");
 
@@ -110,7 +110,7 @@ describe("createToolkitRuns", () => {
     listed.jobStarting("start-2")("j2");
     listed.ended();
     await vi.advanceTimersByTimeAsync(2000);
-    expect(texts(element, ".flow-jobs-stage")).toEqual(["Rendering · 0:20 · quoted 70 credits"]);
+    expect(texts(element, ".flow-jobs-stage")).toEqual(["Generating · 0:20 · quoted 70 credits"]);
 
     runs.show("other.md");
     expect(element.hasAttribute("data-empty")).toBe(true);
