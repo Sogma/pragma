@@ -4,11 +4,10 @@
 
    The box takes no pointer, so a click on the picture still plays or pauses
    it; only the bar does. It holds the LUT's picture (video-lut.css) and the
-   guides (video-guides.css) under the bar, isolated so they never sink
-   under the picture. */
+   guides (video-guides.css), and isolates nothing, so the guides' frame
+   markers add their light to the picture under it. */
 .video-player {
   position: relative;
-  isolation: isolate;
   container: video-player / size;
   display: flex;
   flex-direction: column;
@@ -17,7 +16,11 @@
   pointer-events: none;
 }
 
+/* Raised over the look and the guides, positioned boxes that would paint
+   over it. */
 .video-player-bar {
+  position: relative;
+  z-index: 1;
   box-sizing: border-box;
   pointer-events: auto;
   color: var(--media-hud-fg);

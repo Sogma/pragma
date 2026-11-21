@@ -131,10 +131,12 @@
    box holds over a clip: its look's canvas and its guides. It shares the
    frame's one cell with the picture, so its box is the picture's, and
    contain: size keeps it from sizing that cell. It takes no pointer, so a
-   click, a drag or the hover that shows the bars lands on the picture. */
+   click, a drag or the hover that shows the bars lands on the picture.
+
+   It isolates nothing, so the guides' frame markers add their light to the
+   picture under it. */
 .picture-layers {
   position: relative;
-  isolation: isolate;
   contain: size;
   pointer-events: none;
 }
@@ -153,14 +155,18 @@
    hover that shows them. */
 .media-frame {
   display: grid;
+  /* What lies over the media blends with it alone: the frame markers' light
+     adds to the picture (video-guides.css), never to the pane around it, and
+     the bars' z-index ranks them in the frame only. */
+  isolation: isolate;
 }
 
 .media-frame > * {
   grid-area: 1 / 1;
 }
 
-/* Raised over a player's guides, which its positioned box would paint
-   across the bars. */
+/* Raised over the look and the guides of a player or a still, positioned
+   boxes that would paint across the bars. */
 .media-hud {
   --hud-shown: 0;
   contain: size;

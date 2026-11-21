@@ -37,9 +37,14 @@ const FRAME_GLYPHS: Record<GuideFrame, string> = {
   "2.39": "var(--icon-frame-2-39)",
 };
 
-type SafeArea = "extents" | "action" | "title" | "center" | "social";
+interface GuideTile {
+  key: "extents" | "action" | "title" | "center" | "social" | "cross" | "level";
+  label: string;
+  glyph: string;
+  tooltip: string;
+}
 
-const SAFE_AREAS: { key: SafeArea; label: string; glyph: string; tooltip: string }[] = [
+const SAFE_AREAS: GuideTile[] = [
   { key: "extents", label: "Extents", glyph: "var(--icon-safe-extents)", tooltip: "The frame's edge" },
   {
     key: "social",
@@ -50,6 +55,22 @@ const SAFE_AREAS: { key: SafeArea; label: string; glyph: string; tooltip: string
   { key: "action", label: "Action", glyph: "var(--icon-safe-action)", tooltip: "Action safe, 93% of the frame" },
   { key: "title", label: "Title", glyph: "var(--icon-safe-title)", tooltip: "Title safe, 90% of the frame" },
   { key: "center", label: "Center", glyph: "var(--icon-safe-center)", tooltip: "The frame's center" },
+];
+
+// Marks of the whole picture, whatever frames are cut from it.
+const FRAME_MARKERS: GuideTile[] = [
+  {
+    key: "cross",
+    label: "Cross",
+    glyph: "var(--icon-marker-cross)",
+    tooltip: "Lines across the whole picture, through its center",
+  },
+  {
+    key: "level",
+    label: "Level",
+    glyph: "var(--icon-marker-level)",
+    tooltip: "A camera's level display: horizon line, tilt marks and focus area",
+  },
 ];
 
 /** The Guides row above Bookmark in the More options of a player that draws
@@ -72,15 +93,15 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
     checked: () => guides.get().frames.length === 0,
     pick: () => change({ frames: [] }),
   };
-  const safeTiles = (): MenuTile[] =>
-    SAFE_AREAS.map((area) => ({
-      label: area.label,
-      glyph: area.glyph,
-      tooltip: area.tooltip,
-      checked: () => guides.get()[area.key],
+  const toggleTiles = (list: readonly GuideTile[]): MenuTile[] =>
+    list.map((guide) => ({
+      label: guide.label,
+      glyph: guide.glyph,
+      tooltip: guide.tooltip,
+      checked: () => guides.get()[guide.key],
       pick: () => {
         const next: Guides = { ...guides.get(), shown: true };
-        next[area.key] = !next[area.key];
+        next[guide.key] = !next[guide.key];
         guides.set(next);
       },
     }));
@@ -91,7 +112,8 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
     tiles: () => [
       { label: "Social media", tiles: frameTiles(SOCIAL_FRAMES) },
       { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)] },
-      { label: "Safe area", tiles: safeTiles() },
+      { label: "Safe area", tiles: toggleTiles(SAFE_AREAS) },
+      { label: "Frame markers", tiles: toggleTiles(FRAME_MARKERS) },
     ],
   };
 }
