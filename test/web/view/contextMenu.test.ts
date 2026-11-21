@@ -432,6 +432,63 @@ describe("contextMenu", () => {
       expect(row.querySelector(".menu-item-check")).toBeNull();
     });
 
+    it("draws a section's slider under its tiles, its value after the label, applied as it moves", () => {
+      const { contextMenu } = setup();
+      let kept = 7;
+      contextMenu.open({
+        at: { x: 0, y: 0 },
+        items: [
+          {
+            label: "Guides",
+            tiles: () => [
+              {
+                label: "Frames",
+                tiles: [],
+                range: {
+                  label: "Protection",
+                  min: 0,
+                  max: 25,
+                  step: 1,
+                  tooltip: "Room kept around each frame",
+                  value: () => kept,
+                  format: (percent) => `${percent}%`,
+                  change: (percent) => {
+                    kept = percent;
+                  },
+                },
+              },
+            ],
+          },
+          { label: "Bookmark", run() {} },
+        ],
+      });
+      const row = menu()?.querySelector(".context-menu-tiles")?.lastElementChild as HTMLElement;
+      expect([row.className, row.dataset.tooltip]).toEqual(["context-menu-tiles-range", "Room kept around each frame"]);
+      const input = row.querySelector("input") as HTMLInputElement;
+      expect([input.type, input.min, input.max, input.step, input.value]).toEqual(["range", "0", "25", "1", "7"]);
+      expect([input.getAttribute("aria-label"), input.getAttribute("aria-valuetext")]).toEqual(["Protection", "7%"]);
+      // The value's slot is as wide as either end's, the current one shown.
+      const values = () => [...row.querySelectorAll(".context-menu-slider-name")].map((name) => name.textContent);
+      const shown = () => row.querySelector(".context-menu-slider-name.current")?.textContent;
+      expect([values(), shown()]).toEqual([["(0%)", "(25%)", "(7%)"], "(7%)"]);
+      input.value = "12";
+      input.dispatchEvent(new Event("input"));
+      expect([kept, shown(), input.getAttribute("aria-valuetext"), menu() !== null]).toEqual([
+        12,
+        "(12%)",
+        "12%",
+        true,
+      ]);
+      // Pointing at a row outside the flyout takes the focus that holds it open.
+      input.focus();
+      menu()
+        ?.querySelector<HTMLElement>(":scope > button")
+        ?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      expect(document.activeElement).not.toBe(input);
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      expect(menu()).toBeNull();
+    });
+
     it("applies a tile at once, leaves the menu open, and redraws every tile whether it is on", () => {
       const { tiles, checked, state } = openWithTiles();
       tiles()[1].click();

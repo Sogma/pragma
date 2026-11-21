@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
-import type { MenuTileSection } from "../../../web/services/menus.ts";
+import type { MenuRange, MenuTileSection } from "../../../web/services/menus.ts";
 import { guidesMenuItem, lutsMenuItem, MEDIA_MENU, moreOptionsMenu } from "../../../web/services/videoMenu.ts";
 import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
@@ -170,6 +170,18 @@ describe("guidesMenuItem", () => {
     social.tiles[0].pick();
     film.tiles[0].pick();
     expect([guides.get().frames, lit()]).toEqual([[], ["None"]]);
+  });
+
+  // Under both rows of frames, since it frames every one of them.
+  it("sets the protection kept around every frame, 0 to 25%, under Broadcast and film", () => {
+    const guides = memorySetting({ ...NO_GUIDES, shown: false });
+    const all = sections(guides);
+    expect(all.map((section) => section.range?.label)).toEqual([undefined, "Protection", undefined, undefined]);
+    const range = all[1].range as MenuRange;
+    expect([range.min, range.max, range.step, range.value(), range.format(7)]).toEqual([0, 25, 1, 0, "7%"]);
+    range.change(7);
+    expect(guides.get()).toEqual({ ...NO_GUIDES, protection: 0.07 });
+    expect(range.value()).toBe(7);
   });
 
   it("turns each safe area and frame marker on and off by itself, a pick showing guides that G hid", () => {

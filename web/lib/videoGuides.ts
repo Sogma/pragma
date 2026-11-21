@@ -28,6 +28,9 @@ export interface Guides {
   social: boolean;
   cross: boolean;
   level: boolean;
+  /** The share of each frame kept around its framing, in whole percents up
+   * to a quarter. */
+  protection: number;
 }
 
 /** The guides every player shares: changed in one, they change in all. */
@@ -47,6 +50,7 @@ export const NO_GUIDES: Guides = {
   social: false,
   cross: false,
   level: false,
+  protection: 0,
 };
 
 export interface FrameChoice {
@@ -114,6 +118,15 @@ export function frameBox(width: number, height: number, aspect: number): Box & {
   return { x: 0, y: (height - cutHeight) / 2, width, height: cutHeight, cut: true };
 }
 
+export const MAX_PROTECTION = 0.25;
+
+/** The framing of a frame cut as `box`, shrunk inside it by `protection` of
+ * its size: the cut holds the protection, so it never runs past the picture
+ * as protection grown outward from the frame would. */
+export function framingBox(box: Box, protection: number): Box {
+  return insetBox(box, everySide(protection / 2));
+}
+
 /** `box` with each side's share of its size taken from that side. */
 export function insetBox(box: Box, insets: Insets): Box {
   return {
@@ -155,26 +168,43 @@ export function sharedBox(width: number, height: number, boxes: readonly Box[]):
 const round = (value: number) => Math.round(value * 100) / 100;
 const rect = (x0: number, y0: number, x1: number, y1: number) => `M${x0} ${y0}H${x1}V${y1}H${x0}Z`;
 
-/** The matte's path over what none of `boxes` shows, or nothing where one
- * of them is the whole picture or there are none. Frames cut from the middle
- * are full height or full width, so the widest of the one and the tallest
- * of the other hold all the rest, and what lies outside both is two bands,
- * or the four corners between them. */
-export function matteOutside(width: number, height: number, boxes: readonly (Box & { cut: boolean })[]): string {
-  if (boxes.length === 0 || boxes.some((box) => !box.cut)) return "";
-  const tall = boxes.filter((box) => box.y === 0).reduce((widest, box) => Math.max(widest, box.width), 0);
-  const wide = boxes.filter((box) => box.x === 0).reduce((tallest, box) => Math.max(tallest, box.height), 0);
-  const left = round((width - tall) / 2);
-  const top = round((height - wide) / 2);
-  const [right, bottom] = [round(width - left), round(height - top)];
-  if (!wide) return [rect(0, 0, left, height), rect(right, 0, width, height)].join(" ");
-  if (!tall) return [rect(0, 0, width, top), rect(0, bottom, width, height)].join(" ");
-  return [
-    rect(0, 0, left, top),
-    rect(right, 0, width, top),
-    rect(0, bottom, left, height),
-    rect(right, bottom, width, height),
-  ].join(" ");
+// Sizes alone decide it: every box here is centered on the picture.
+const holds = (outer: Box, inner: Box) => outer.width >= inner.width && outer.height >= inner.height;
+
+/** The matte's path over what none of `boxes`, each centered on the
+ * picture, shows: nothing where one of them is the whole picture or there
+ * are none. Centered boxes overlap in a stepped cross, so what lies outside
+ * them is a band down each side past the widest, and a strip above and
+ * below each step, out to the next narrower one. */
+export function matteOutside(width: number, height: number, boxes: readonly Box[]): string {
+  // Widest first, each taller than the one before: a box another one is as
+  // wide and as tall as lies inside it.
+  const steps: Box[] = [];
+  for (const box of [...boxes].sort((a, b) => b.width - a.width || b.height - a.height)) {
+    if (box.height > (steps.at(-1)?.height ?? 0)) steps.push(box);
+  }
+  if (steps.length === 0) return "";
+  const inset = (box: Box) => ({ left: round((width - box.width) / 2), top: round((height - box.height) / 2) });
+  const shapes: string[] = [];
+  const add = (x0: number, y0: number, x1: number, y1: number) => {
+    if (x1 > x0 && y1 > y0) shapes.push(rect(x0, y0, x1, y1));
+  };
+  const side = inset(steps[0]).left;
+  add(0, 0, side, height);
+  add(round(width - side), 0, width, height);
+  const lefts = steps.map((box, index) => {
+    const { left, top } = inset(box);
+    const next = steps[index + 1];
+    return { x0: left, x1: next ? inset(next).left : round(width - left), top };
+  });
+  const rights = lefts
+    .slice(0, -1)
+    .reverse()
+    .map(({ x0, x1, top }) => ({ x0: round(width - x1), x1: round(width - x0), top }));
+  const columns = [...lefts, ...rights];
+  for (const { x0, x1, top } of columns) add(x0, 0, x1, top);
+  for (const { x0, x1, top } of columns) add(x0, round(height - top), x1, height);
+  return shapes.join(" ");
 }
 
 /** Guides read back from storage, where anything missing or unknown reads
@@ -201,7 +231,13 @@ export function readGuides(stored: string | null): Guides {
     social: flag("social", false),
     cross: flag("cross", false),
     level: flag("level", false),
+    protection: storedProtection(record.protection),
   };
+}
+
+// In whole percents within its range; anything else keeps none.
+function storedProtection(value: unknown): number {
+  return typeof value === "number" && value >= 0 && value <= MAX_PROTECTION ? Math.round(value * 100) / 100 : 0;
 }
 
 // The cross's mark as measured on a 1920 by 1080 picture, scaled with the
@@ -343,37 +379,61 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
       current.center ||
       current.social ||
       current.cross ||
-      current.level;
+      current.level ||
+      current.protection > 0;
     const visible = current.shown && any && width > 0 && height > 0;
     element.toggleAttribute("hidden", !visible);
     if (!visible) return;
     for (const layer of [lines, markers]) layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const boxes = current.frames.map((id) => ({ id, ...frameBox(width, height, frameAspect(id)) }));
-    const path = matteOutside(width, height, boxes);
+    // With no frame lit, the picture is the frame. Each frame's framing is
+    // outlined and named, and the matte shades what no framing holds.
+    const kept = current.protection;
+    const whole = { x: 0, y: 0, width, height, cut: false };
+    const frames: (Box & { id?: GuideFrame; cut: boolean })[] = boxes.length > 0 ? boxes : [whole];
+    const framed = frames.map((box, index) => ({
+      ...box,
+      framing: framingBox(box, kept),
+      // Protection is measured on the largest lit frame: a cut inside a
+      // larger lit one, or an equal one lit before it, gets no line.
+      outlinesCut:
+        box.cut &&
+        kept > 0 &&
+        !frames.some((other, at) => at !== index && holds(other, box) && (at < index || !holds(box, other))),
+    }));
+    const path = matteOutside(
+      width,
+      height,
+      framed.map((box) => box.framing),
+    );
     matte.setAttribute("d", path);
     show(matte, path !== "");
-    // A frame of the picture's own shape is its edge: no line, no name.
-    const drawn = boxes.filter((box) => box.cut);
+    const drawn = framed.filter((box) => box.cut || kept > 0);
+    const outline = (kind: string, box: Box) => {
+      const node = document.createElementNS(SVG, "rect");
+      node.setAttribute("class", `video-guides-line ${kind}`);
+      place(node, box);
+      return node;
+    };
     cuts.replaceChildren(
-      ...drawn.map((box) => {
-        const outline = document.createElementNS(SVG, "rect");
-        outline.setAttribute("class", "video-guides-line is-cut");
-        place(outline, box);
-        return outline;
-      }),
+      ...drawn.flatMap((box) => [
+        ...(box.outlinesCut ? [outline("is-protection", box)] : []),
+        outline("is-frame", box.framing),
+      ]),
     );
     names.style.setProperty("--guides-aspect", String(width / height));
     names.replaceChildren(
-      ...drawn.map((box) => {
+      ...drawn.flatMap(({ id, framing }) => {
+        if (id === undefined) return [];
         const name = document.createElement("span");
         name.className = "video-guides-name";
-        name.textContent = FRAMES.find((choice) => choice.id === box.id)?.label ?? box.id;
-        name.style.left = `${(box.x / width) * 100}%`;
-        name.style.top = `${(box.y / height) * 100}%`;
-        return name;
+        name.textContent = FRAMES.find((choice) => choice.id === id)?.label ?? id;
+        name.style.left = `${(framing.x / width) * 100}%`;
+        name.style.top = `${(framing.y / height) * 100}%`;
+        return [name];
       }),
     );
-    const frame = sharedBox(width, height, boxes);
+    const frame = framingBox(sharedBox(width, height, boxes), kept);
     place(extents, frame);
     show(extents, current.extents);
     place(action, insetBox(frame, ACTION_SAFE));

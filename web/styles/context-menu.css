@@ -52,7 +52,11 @@
    deliberate pick of the brighter blue over --color-primary-hover, which
    passes. */
 .context-menu button:not(:disabled, .danger, .context-menu-tile):is(.highlighted, :hover:not(:has(> .highlighted) > *)),
-.context-menu-item.has-submenu:is(:hover, :has(> .context-submenu > .context-menu-search:focus)) {
+.context-menu-item.has-submenu:is(
+  :hover,
+  :has(> .context-submenu > .context-menu-search:focus),
+  :has(> .context-submenu .context-menu-tiles-range-input:focus)
+) {
   --row-ink: var(--text-on-primary);
   --row-ink-faint: color-mix(in srgb, var(--text-on-primary) 40%, transparent);
   background: var(--color-primary);
@@ -114,10 +118,12 @@
 
 /* Shown while hovered, and while a value in it has focus, which the click
    selecting the value gives (view/contextMenu.ts): hidden, a selection
-   copies nothing, so a pointer drifting off before Ctrl+C would lose it. */
+   copies nothing, so a pointer drifting off before Ctrl+C would lose it.
+   A slider held there keeps it the same way, through a drag that drifts. */
 .context-menu-item.has-submenu:hover > .context-submenu,
 .context-menu-item.has-submenu:has(> .context-submenu .context-menu-detail:focus) > .context-submenu,
-.context-menu-item.has-submenu:has(> .context-submenu > .context-menu-search:focus) > .context-submenu {
+.context-menu-item.has-submenu:has(> .context-submenu > .context-menu-search:focus) > .context-submenu,
+.context-menu-item.has-submenu:has(> .context-submenu .context-menu-tiles-range-input:focus) > .context-submenu {
   display: flex;
 }
 

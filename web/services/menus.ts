@@ -113,6 +113,21 @@ export interface ResolvedMenuItem {
 export interface MenuTileSection {
   label: string;
   tiles: MenuTile[];
+  // Under the tiles, applied as it moves.
+  range?: MenuRange;
+}
+
+// A number set along a slider, its value after the label.
+export interface MenuRange {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  tooltip?: string;
+  value(): number;
+  // The value as the label shows it.
+  format(value: number): string;
+  change(value: number): void;
 }
 
 export interface MenuTile {

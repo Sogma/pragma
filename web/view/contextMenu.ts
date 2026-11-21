@@ -13,6 +13,7 @@ import type {
   ContextMenuService,
   MenuOpenOptions,
   MenuPreview,
+  MenuRange,
   MenuRegistry,
   MenuSlider,
   MenuTile,
@@ -298,9 +299,61 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         grid.append(button);
       }
       group.append(heading, grid);
+      if (section.range) group.append(renderRange(section.range));
       into.append(group);
     }
     redraw();
+  }
+
+  // The shared slider (settings.css), its value after the label in a slot
+  // as wide as either end's, as the stops' names sit, so the label keeps its
+  // width as the knob moves.
+  function renderRange(range: MenuRange): HTMLElement {
+    const row = el("div", "context-menu-tiles-range");
+    if (range.tooltip) row.dataset.tooltip = range.tooltip;
+    const values = el("span", "context-menu-slider-names");
+    const shown = el("span", "context-menu-slider-name current");
+    for (const end of [range.min, range.max]) {
+      const value = el("span", "context-menu-slider-name");
+      value.textContent = `(${range.format(end)})`;
+      values.append(value);
+    }
+    values.append(shown);
+    const label = el("span", "context-menu-slider-label");
+    label.setAttribute("aria-hidden", "true");
+    label.append(range.label, " ", values);
+    const input = document.createElement("input");
+    input.type = "range";
+    input.className = "settings-slider context-menu-tiles-range-input";
+    input.min = String(range.min);
+    input.max = String(range.max);
+    input.step = String(range.step);
+    input.value = String(range.value());
+    input.setAttribute("aria-label", range.label);
+    const show = () => {
+      const text = range.format(Number(input.value));
+      shown.textContent = `(${text})`;
+      input.setAttribute("aria-valuetext", text);
+    };
+    show();
+    input.addEventListener("input", () => {
+      show();
+      range.change(Number(input.value));
+    });
+    closeOnEnterOrEscape(input);
+    row.append(label, input);
+    return row;
+  }
+
+  // Enter closes the menu, as a pick would. Escape is taken here first, as
+  // the search box takes its own, so a dialog's Escape can't outrank it.
+  function closeOnEnterOrEscape(input: HTMLInputElement): void {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || (event.key === "Escape" && !event.isComposing)) {
+        event.preventDefault();
+        close();
+      }
+    });
   }
 
   // The stops are drawn under a native range input, which brings the
@@ -340,14 +393,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       const stop = slider.stops[Number(input.value)];
       if (stop) slider.change(stop.value);
     });
-    // Enter closes the menu, as a pick would. Escape is taken here first, as
-    // the search box takes its own, so a dialog's Escape can't outrank it.
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || (event.key === "Escape" && !event.isComposing)) {
-        event.preventDefault();
-        close();
-      }
-    });
+    closeOnEnterOrEscape(input);
     input.addEventListener("blur", () => row.classList.remove("highlighted"));
     track.append(input);
     row.append(label, track);
@@ -654,14 +700,15 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       session.add(() => window.clearTimeout(arm));
       session.add(listen(window, "resize", close));
       // Pointing at a row previews it, and any other row, or leaving the
-      // menu, ends that. A flyout's search box gives up its focus to a row
-      // outside its flyout, which then closes as any flyout does.
+      // menu, ends that. A flyout's search box or slider gives up its focus
+      // to a row outside its flyout, which then closes as any flyout does.
       session.add(
         listen(element, "mouseover", (event) => {
           const row = (event.target as Element).closest<HTMLElement>("button, .context-menu-item");
           preview(row ? previews.get(row) : undefined);
           const focused = document.activeElement;
-          if (!(focused instanceof HTMLElement) || !focused.matches(".context-submenu > .context-menu-search")) return;
+          const held = ".context-submenu > .context-menu-search, .context-menu-tiles-range-input";
+          if (!(focused instanceof HTMLElement) || !focused.matches(held)) return;
           const owner = focused.closest(".has-submenu");
           if (owner && row && !owner.contains(row)) focused.blur();
         }),

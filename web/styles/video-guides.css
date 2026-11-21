@@ -52,6 +52,12 @@
   stroke-dasharray: 6 4;
 }
 
+/* A frame's cut around its framing, the protection: fainter, so the framing
+   reads as the frame. */
+.video-guides-line.is-protection {
+  stroke-opacity: 0.5;
+}
+
 /* Snapped to whole pixels: a 1px line astride two of them draws at half
    strength, darker than the solid bars it meets. */
 .video-guides-line.is-cross {

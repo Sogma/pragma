@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createGuidesOverlay,
   frameBox,
+  framingBox,
   type Guides,
   insetBox,
   matteOutside,
@@ -56,6 +57,20 @@ describe("insetBox", () => {
   });
 });
 
+// The cut holds the protection, so the framing is shrunk inside it.
+describe("framingBox", () => {
+  it("shrinks a frame's cut about its middle by the share kept around it", () => {
+    expect(framingBox({ x: 0, y: 0, width: 1920, height: 1080 }, 0.1)).toEqual({
+      x: 96,
+      y: 54,
+      width: 1728,
+      height: 972,
+    });
+    const cut = { x: 656.25, y: 0, width: 607.5, height: 1080 };
+    expect(framingBox(cut, 0)).toEqual(cut);
+  });
+});
+
 describe("readGuides", () => {
   it("reads back what was stored", () => {
     const stored: Guides = {
@@ -68,6 +83,7 @@ describe("readGuides", () => {
       social: true,
       cross: true,
       level: true,
+      protection: 0.07,
     };
     expect(readGuides(JSON.stringify(stored))).toEqual(stored);
   });
@@ -80,6 +96,11 @@ describe("readGuides", () => {
     expect(readGuides(JSON.stringify({ title: true }))).toEqual({ ...NO_GUIDES, title: true });
     // A lone `frame`, which this reader doesn't know, reads as none.
     expect(readGuides(JSON.stringify({ frame: "9:16", title: true }))).toEqual({ ...NO_GUIDES, title: true });
+  });
+
+  it("keeps a protection in whole percents up to a quarter, and reads any other as none", () => {
+    const protection = (value: unknown) => readGuides(JSON.stringify({ protection: value })).protection;
+    expect([0.07, 0.25, 0.088, 0.3, -0.05, "0.1", null].map(protection)).toEqual([0.07, 0.25, 0.09, 0, 0, 0, 0]);
   });
 
   it("keeps the frames it knows, once each, in the menu's order", () => {
@@ -116,6 +137,22 @@ describe("sharedBox and matteOutside", () => {
     );
     expect(matteOutside(1920, 1080, [])).toBe("");
     expect(matteOutside(1920, 1080, [tall, frameBox(1920, 1080, 16 / 9)])).toBe("");
+  });
+
+  // Framings inside their protection fill neither the picture's width nor its height.
+  it("mattes a band down each side and a strip above and below each step of boxes short of both edges", () => {
+    expect(matteOutside(1920, 1080, [framingBox(wide, 0.1)])).toBe(
+      "M0 0H96V1080H0Z M1824 0H1920V1080H1824Z M96 0H1824V178.49H96Z M96 901.51H1824V1080H96Z",
+    );
+    expect(matteOutside(1920, 1080, [framingBox(tall, 0.1), framingBox(wide, 0.1)])).toBe(
+      "M0 0H96V1080H0Z M1824 0H1920V1080H1824Z M96 0H686.63V178.49H96Z M686.63 0H1233.37V54H686.63Z " +
+        "M1233.37 0H1824V178.49H1233.37Z M96 901.51H686.63V1080H96Z M686.63 1026H1233.37V1080H686.63Z " +
+        "M1233.37 901.51H1824V1080H1233.37Z",
+    );
+    // A box inside another adds no step.
+    expect(matteOutside(1920, 1080, [framingBox(wide, 0.1), framingBox(frameBox(1920, 1080, 1.85), 0.1)])).toBe(
+      matteOutside(1920, 1080, [framingBox(frameBox(1920, 1080, 1.85), 0.1)]),
+    );
   });
 });
 
@@ -192,7 +229,7 @@ describe("createGuidesOverlay", () => {
     expect(svg.getAttribute("viewBox")).toBe("0 0 1920 1080");
     expect(shown()).toEqual([
       "video-guides-matte",
-      "video-guides-line is-cut",
+      "video-guides-line is-frame",
       "video-guides-line is-extents",
       "video-guides-line",
       "video-guides-line",
@@ -217,8 +254,8 @@ describe("createGuidesOverlay", () => {
     overlay.setSize(1920, 1080);
     expect(shown()).toEqual([
       "video-guides-matte",
-      "video-guides-line is-cut",
-      "video-guides-line is-cut",
+      "video-guides-line is-frame",
+      "video-guides-line is-frame",
       "video-guides-line is-extents",
     ]);
     expect(svg.querySelector(".video-guides-matte")?.getAttribute("d")).toBe(
@@ -237,7 +274,7 @@ describe("createGuidesOverlay", () => {
   it("draws the social safe area inside the frame, clear of its sides by their own shares", () => {
     const { overlay, svg, shown } = draw({ ...NO_GUIDES, frames: ["9:16"], social: true });
     overlay.setSize(1920, 1080);
-    expect(shown()).toEqual(["video-guides-matte", "video-guides-line is-cut", "video-guides-line"]);
+    expect(shown()).toEqual(["video-guides-matte", "video-guides-line is-frame", "video-guides-line"]);
     const social = [...svg.querySelectorAll("rect")].at(-1) as Element;
     // The 9:16 cut is 607.5 by 1080 from x 656.25: 5% of its width off the left, 20% of its height off the top.
     expect(["x", "y", "width", "height"].map((name) => social.getAttribute(name))).toEqual([
@@ -269,11 +306,101 @@ describe("createGuidesOverlay", () => {
     choice.set({ ...NO_GUIDES, frames: ["9:16"], cross: true });
     expect(shown()).toEqual([
       "video-guides-matte",
-      "video-guides-line is-cut",
+      "video-guides-line is-frame",
       "video-guides-line is-cross",
       "video-guides-cross-bars",
     ]);
     expect([lines, bars, cut].map((path) => path.getAttribute("d"))).toEqual(whole);
+  });
+
+  // On a 1920 by 1080 picture: the 2.39 cut, and 10% of it kept around its framing.
+  it("draws a frame's framing inside its cut, the cut keeping the protection, and the guides inside the framing", () => {
+    const { overlay, svg, shown, names, box } = draw({ ...NO_GUIDES, frames: ["2.39"], title: true, protection: 0.1 });
+    overlay.setSize(1920, 1080);
+    expect(shown()).toEqual([
+      "video-guides-matte",
+      "video-guides-line is-protection",
+      "video-guides-line is-frame",
+      "video-guides-line",
+    ]);
+    // The matte shades what the frame line leaves out, the protection with it.
+    expect(svg.querySelector(".video-guides-matte")?.getAttribute("d")).toBe(
+      "M0 0H96V1080H0Z M1824 0H1920V1080H1824Z M96 0H1824V178.49H96Z M96 901.51H1824V1080H96Z",
+    );
+    const [protection, framing, , , title] = [...svg.querySelectorAll("rect")];
+    expect(box(protection)).toEqual(["0", "138.33", "1920", "803.35"]);
+    expect(box(framing)).toEqual(["96", "178.49", "1728", "723.01"]);
+    expect(box(title)).toEqual(["182.4", "214.64", "1555.2", "650.71"]);
+    expect(names()).toEqual([["2.39", 5, 16.53]]);
+  });
+
+  // A wide frame and a tall one hold neither each other: each keeps its own protection.
+  it("keeps protection around each frame no other holds, and draws the guides where their framings overlap", () => {
+    const { overlay, svg, shown, box } = draw({
+      ...NO_GUIDES,
+      frames: ["9:16", "2.39"],
+      extents: true,
+      protection: 0.1,
+    });
+    overlay.setSize(1920, 1080);
+    expect(shown()).toEqual([
+      "video-guides-matte",
+      "video-guides-line is-protection",
+      "video-guides-line is-frame",
+      "video-guides-line is-protection",
+      "video-guides-line is-frame",
+      "video-guides-line is-extents",
+    ]);
+    expect(box(svg.querySelector(".is-extents") as Element)).toEqual(["686.63", "178.49", "546.75", "723.01"]);
+  });
+
+  // Protection is measured on the largest lit frame, whose frame line a smaller one inside it fits as it is.
+  it("draws the protection of frames inside a larger one only around the larger, their frame lines kept", () => {
+    const { choice, overlay, svg, shown, box } = draw({ ...NO_GUIDES, frames: ["1:1", "9:16"], protection: 0.1 });
+    overlay.setSize(1920, 1080);
+    expect(shown()).toEqual([
+      "video-guides-matte",
+      "video-guides-line is-protection",
+      "video-guides-line is-frame",
+      "video-guides-line is-frame",
+    ]);
+    const [protection, square, tall] = [...svg.querySelectorAll("rect")];
+    expect([box(protection), box(square), box(tall)]).toEqual([
+      ["420", "0", "1080", "1080"],
+      ["474", "54", "972", "972"],
+      ["686.63", "54", "546.75", "972"],
+    ]);
+    // A frame of the picture's own shape holds every other: its protection is the picture's edge.
+    choice.set({ ...NO_GUIDES, frames: ["16:9", "2.39"], protection: 0.1 });
+    expect(shown()).toEqual(["video-guides-matte", "video-guides-line is-frame", "video-guides-line is-frame"]);
+    // Two frames of one shape are outlined once, the first lit.
+    overlay.setSize(1440, 1080);
+    choice.set({ ...NO_GUIDES, frames: ["16:9", "1.77"], protection: 0.1 });
+    expect(shown()).toEqual([
+      "video-guides-matte",
+      "video-guides-line is-protection",
+      "video-guides-line is-frame",
+      "video-guides-line is-frame",
+    ]);
+  });
+
+  // With no frame lit the picture is the frame, whose protection runs out to the picture's edge.
+  it("frames the whole picture inside the protection with no frame lit, as it does a frame of its own shape", () => {
+    const { choice, overlay, svg, shown, names, box } = draw({ ...NO_GUIDES, protection: 0.1 });
+    overlay.setSize(1920, 1080);
+    expect(overlay.element.hasAttribute("hidden")).toBe(false);
+    expect([shown(), names()]).toEqual([["video-guides-matte", "video-guides-line is-frame"], []]);
+    expect(box(svg.querySelector(".is-frame") as Element)).toEqual(["96", "54", "1728", "972"]);
+    expect(svg.querySelector(".video-guides-matte")?.getAttribute("d")).toBe(
+      "M0 0H96V1080H0Z M1824 0H1920V1080H1824Z M96 0H1824V54H96Z M96 1026H1824V1080H96Z",
+    );
+    choice.set({ ...NO_GUIDES, frames: ["16:9"], action: true, protection: 0.1 });
+    expect([shown(), names()]).toEqual([
+      ["video-guides-matte", "video-guides-line is-frame", "video-guides-line"],
+      [["16:9", 5, 5]],
+    ]);
+    const [, , action] = [...svg.querySelectorAll("rect")];
+    expect(box(action)).toEqual(["156.48", "88.02", "1607.04", "903.96"]);
   });
 
   // A frame of the picture's own shape is its edge, and shows all of it.
@@ -282,7 +409,7 @@ describe("createGuidesOverlay", () => {
     overlay.setSize(1920, 1080);
     expect([shown(), names()]).toEqual([["video-guides-line"], []]);
     choice.set({ ...NO_GUIDES, frames: ["9:16", "16:9"] });
-    expect([shown(), names().map(([name]) => name)]).toEqual([["video-guides-line is-cut"], ["9:16"]]);
+    expect([shown(), names().map(([name]) => name)]).toEqual([["video-guides-line is-frame"], ["9:16"]]);
     choice.set({ ...NO_GUIDES, action: true, shown: false });
     expect(overlay.element.hasAttribute("hidden")).toBe(true);
   });

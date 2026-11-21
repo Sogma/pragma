@@ -15,12 +15,13 @@ import {
   type GuideFrame,
   type Guides,
   type GuidesChoice,
+  MAX_PROTECTION,
   SOCIAL_FRAMES,
   toggleFrame,
 } from "../lib/videoGuides.ts";
 import { LOOKS, type LutChoice, lookLabel } from "../lib/videoLut.ts";
 import { looks } from "./looks.ts";
-import type { ContextMenuService, MenuItem, MenuTile } from "./menus.ts";
+import type { ContextMenuService, MenuItem, MenuRange, MenuTile } from "./menus.ts";
 import { type PresetRow, presetMenuItems, presetSearch, presetSources } from "./presetMenu.ts";
 import { videoGuides } from "./settings.ts";
 
@@ -76,7 +77,8 @@ const FRAME_MARKERS: GuideTile[] = [
 /** The Guides row above Bookmark in the More options of a player that draws
  * guides: tiles setting the guides those players share. A pick shows the
  * guides again if G hid them. Each frame turns on and off by itself, and
- * None, lit while no frame is on, turns them all off. */
+ * None, lit while no frame is on, turns them all off. Protection, under the
+ * frames, keeps a share of every frame around its framing. */
 export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
   const change = (patch: Partial<Guides>) => guides.set({ ...guides.get(), ...patch, shown: true });
   const frameTiles = (frames: readonly FrameChoice[]): MenuTile[] =>
@@ -92,6 +94,16 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
     radio: true,
     checked: () => guides.get().frames.length === 0,
     pick: () => change({ frames: [] }),
+  };
+  const protection: MenuRange = {
+    label: "Protection",
+    min: 0,
+    max: Math.round(MAX_PROTECTION * 100),
+    step: 1,
+    tooltip: "Room kept around each frame",
+    value: () => Math.round(guides.get().protection * 100),
+    format: (percent) => `${percent}%`,
+    change: (percent) => change({ protection: percent / 100 }),
   };
   const toggleTiles = (list: readonly GuideTile[]): MenuTile[] =>
     list.map((guide) => ({
@@ -111,7 +123,7 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
     when: (_, arg) => drawsGuides(arg),
     tiles: () => [
       { label: "Social media", tiles: frameTiles(SOCIAL_FRAMES) },
-      { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)] },
+      { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)], range: protection },
       { label: "Safe area", tiles: toggleTiles(SAFE_AREAS) },
       { label: "Frame markers", tiles: toggleTiles(FRAME_MARKERS) },
     ],
