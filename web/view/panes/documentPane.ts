@@ -109,7 +109,7 @@ import { FIND_KEYMAP, findOnPage, findPanel, openFindOnPage, openReplace } from 
 import { createFormatColumn } from "../../formatColumn.ts";
 import { activeLineHighlight } from "../../lib/activeLine.ts";
 import { type Disposable, DisposableStore, listen, toDisposable } from "../../lib/disposable.ts";
-import { createTitleBar } from "../../lib/dom.ts";
+import { createTitleBar, el } from "../../lib/dom.ts";
 import { editorFlash, flash, flashRange } from "../../lib/flash.ts";
 import { indentGuides, wrappedLineIndent } from "../../lib/indentGuides.ts";
 import { selectedTextMark } from "../../lib/selection.ts";
@@ -473,12 +473,6 @@ const frontmatterUnchecked = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
-function el(className: string): HTMLDivElement {
-  const div = document.createElement("div");
-  div.className = className;
-  return div;
-}
-
 interface SplitContent {
   body: string;
   title: string | undefined;
@@ -559,7 +553,7 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
   // The edit surface (title bar, CodeMirror) and the reading view are
   // siblings; one shows at a time. The title bar moves between
   // them so it scrolls with whichever is showing.
-  const element = el("editor-document-pane");
+  const element = el("div", "editor-document-pane");
   // Code, not a note: it takes the Code page's font (editor.css).
   element.classList.toggle("editor-applet-source", kind === "applet-source");
   // The layout's classes go on the pane, never on #editor, so two groups
@@ -569,7 +563,7 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
   store.add(deps.layout.foldMarkers.subscribe((show) => element.classList.toggle("hide-fold-markers", !show)));
   const guides = deps.layout.indentGuides;
   if (guides) store.add(guides.subscribe((show) => element.classList.toggle("hide-indent-guides", !show)));
-  const editSurface = el("editor-document");
+  const editSurface = el("div", "editor-document");
   const { bar: titleBar, input: titleInput } = createTitleBar();
   titleBar.hidden = true;
   // No heading: the tab names it. Still an inspector section, whose rules lay
@@ -590,15 +584,15 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
       oneList: deps.linksOneList,
     }),
   );
-  const cm = el("editor-cm");
+  const cm = el("div", "editor-cm");
   editSurface.append(cm);
-  const reading = el("editor-reading");
+  const reading = el("div", "editor-reading");
   reading.hidden = true;
-  const readingContent = el("prose editor-reading-content");
+  const readingContent = el("div", "prose editor-reading-content");
   reading.append(readingContent);
   element.append(editSurface, reading);
   // Where find's card shows: the group mounts it left of its toolbar.
-  const findHost = el("find-card-host");
+  const findHost = el("div", "find-card-host");
 
   const readingViewCompartment = new Compartment();
   const lineNumberOffsetCompartment = new Compartment();

@@ -4,6 +4,7 @@
 import { fetchHistoryVersion, type HistoryVersion, type Tab } from "../../core/apiClient.ts";
 import { replacedBy } from "../../core/versionText.ts";
 import { dateTimeLabel } from "../../lib/dateText.ts";
+import { el } from "../../lib/dom.ts";
 import { diffLines, renderLineDiff } from "../../lineDiff.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 
@@ -21,13 +22,6 @@ export function versionPane(deps: VersionPaneDeps): EditorPaneDescriptor {
     chrome: { toolbar: true, readingView: false, statusbar: true, actions: [] },
     create: () => createVersionPane(deps),
   };
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 interface Shown {

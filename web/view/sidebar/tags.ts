@@ -10,6 +10,7 @@ import type { SpaceTagChangeRequestBody } from "../../../src/protocol/api.ts";
 import { illegalTagNameReason, sameTag, type TagDefinition, tagKey, tagNameOf } from "../../../src/protocol/tags.ts";
 import { openColorPicker } from "../../colorPicker.ts";
 import type { TagVocabulary } from "../../core/tagVocabulary.ts";
+import { el } from "../../lib/dom.ts";
 import { flash } from "../../lib/flash.ts";
 import { attachEditInputHandlers } from "../../lib/inlineEdit.ts";
 import { createSectionAction } from "../../lib/sectionStack.ts";
@@ -31,13 +32,6 @@ export interface TagsSection {
   // Where the section's header shows how many tags it lists: "" for none,
   // or for a file that doesn't read.
   showCountIn(setCount: (text: string) => void): void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 // Each tag once, as the first entry naming it has it, alphabetically.

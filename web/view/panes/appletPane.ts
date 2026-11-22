@@ -6,7 +6,7 @@ import type { AppletManifest } from "../../../src/protocol/types.ts";
 import { appletRefusal } from "../../../src/protocol/types.ts";
 import type { AppletFileResponse, AppletImportSource, FileResponse } from "../../core/apiClient.ts";
 import { DisposableStore } from "../../lib/disposable.ts";
-import { appendMetaRow, createInspectorSection } from "../../lib/dom.ts";
+import { appendMetaRow, createInspectorSection, el } from "../../lib/dom.ts";
 import { dispatchFrameRequests } from "../../services/capabilityBroker.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import type { SaveQueue } from "../../services/saveQueue.ts";
@@ -41,12 +41,6 @@ export function appletPane(deps: Omit<AppletPaneDeps, "onRendered">): EditorPane
     chrome: { toolbar: true, readingView: false, statusbar: true, actions: [] },
     create: (group) => createAppletPane({ ...deps, onRendered: () => group.rendered() }),
   };
-}
-
-function el(tag: string, className: string): HTMLElement {
-  const node = document.createElement(tag);
-  node.className = className;
-  return node;
 }
 
 function blankFrame(): HTMLIFrameElement {

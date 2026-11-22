@@ -13,7 +13,7 @@ import { entryNameKey } from "../../../src/protocol/entryName.ts";
 import { basenameOf, dirnameOf, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
 import { fileTypeLabel, noteDragInFlight, stripExtension, writeEntryDrag } from "../../core/paths.ts";
 import { entryIconAt, fileTypeAt } from "../../core/spaceTree.ts";
-import { renderTreeIcon } from "../../lib/dom.ts";
+import { el, renderTreeIcon } from "../../lib/dom.ts";
 import { type Bookmarks, bookmarkTargetOf, bookmarks as spaceBookmarks } from "../../services/bookmarks.ts";
 import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
 import { COMMAND_PALETTE, type ContextMenuService, type MenuRegistry } from "../../services/menus.ts";
@@ -46,13 +46,6 @@ export interface BookmarksViewDeps {
 const BOOKMARK_DRAG_TYPE = "application/x-pragma-bookmark";
 
 const BOOKMARK_MENU = "bookmark";
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 // The folder a bookmark's entry sits in, by name, to tell two bookmarks of
 // one name apart: "" at the space's top level, a library's id at its own.

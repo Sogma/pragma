@@ -8,7 +8,7 @@
 import { type SetupNeed, withSetupNeed } from "../../src/protocol/setupNeed.ts";
 import type { EntryIcon } from "../core/paths.ts";
 import { DisposableStore, listen } from "../lib/disposable.ts";
-import { createEntryIcon } from "../lib/dom.ts";
+import { createEntryIcon, el } from "../lib/dom.ts";
 import { createOutcomeLine, type OutcomeLine } from "../lib/outcomeLine.ts";
 import { createSpaceIcon } from "../lib/spaceIcon.ts";
 import type { CommandRegistry } from "./commands.ts";
@@ -180,13 +180,6 @@ const FOCUSABLE =
 // A panel is named by its title's id, and dialogs stack, so each title needs
 // one of its own.
 let titleCount = 0;
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 function button(label: string, className = ""): HTMLButtonElement {
   const node = el("button", className, label);

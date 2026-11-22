@@ -13,6 +13,7 @@ import { type EntryIcon, folderTitle, stripExtension, treePath } from "../core/p
 import { pathNames } from "../core/spaceTree.ts";
 import { dateLabel } from "../lib/dateText.ts";
 import { type Disposable, listen } from "../lib/disposable.ts";
+import { el } from "../lib/dom.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { DialogHandle, DialogService } from "./dialog.ts";
 import type { ContextMenuService, MenuItem } from "./menus.ts";
@@ -193,12 +194,6 @@ export interface CapabilityBroker {
   // The revocation panel: every declared capability, granted or not.
   showPermissions(): void;
   dispose(): void;
-}
-
-function el(tag: string, className: string): HTMLElement {
-  const node = document.createElement(tag);
-  node.className = className;
-  return node;
 }
 
 export function createCapabilityBroker(deps: CapabilityBrokerDeps): CapabilityBroker {

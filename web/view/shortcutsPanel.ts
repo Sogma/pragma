@@ -4,7 +4,7 @@
 // marked rather than refused: two commands that never apply at once can
 // share a chord.
 import { scoreLabel } from "../core/quickOpenMatch.ts";
-import { keyLabel, must } from "../lib/dom.ts";
+import { el, keyLabel, must } from "../lib/dom.ts";
 import type { CommandContext } from "../services/commands.ts";
 import {
   chordOf,
@@ -29,12 +29,6 @@ export interface ShortcutsPanelDeps {
 interface Row {
   command: string;
   label: string;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  element.className = className;
-  return element;
 }
 
 function iconButton(className: string, title: string, ariaLabel: string): HTMLButtonElement {

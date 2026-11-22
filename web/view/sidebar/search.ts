@@ -13,7 +13,7 @@ import { readSearchQuery } from "../../../src/protocol/searchQuery.ts";
 import type { SpaceSearchFile, SpaceSearchHit, SpaceSearchResponse, SpaceTreeNode } from "../../core/apiClient.ts";
 import { stripExtension } from "../../core/paths.ts";
 import { entryIconAt } from "../../core/spaceTree.ts";
-import { setEntryIcon } from "../../lib/dom.ts";
+import { el, setEntryIcon } from "../../lib/dom.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
 import type { EditorPane } from "../../services/editorPanes.ts";
 import type { KeybindingRegistry } from "../../services/keybindings.ts";
@@ -42,13 +42,6 @@ export interface SearchViewDeps {
   show: () => void;
   tabs: () => Pick<Tabs, "openSpacePath" | "activePath">;
   activePane: () => EditorPane | undefined;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 /** `text` with every case-insensitive occurrence of `needle` in a <mark>,

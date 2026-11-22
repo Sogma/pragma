@@ -7,9 +7,21 @@ import type { EntryIcon } from "../core/paths.ts";
 // app wires up is present in web/index.html, so a miss is a build-time bug that
 // should fail loudly at boot rather than surface as a downstream null.
 export function must<E extends Element>(selector: string, root: ParentNode = document): E {
-  const el = root.querySelector<E>(selector);
-  if (!el) throw new Error(`element not found: ${selector}`);
-  return el;
+  const found = root.querySelector<E>(selector);
+  if (!found) throw new Error(`element not found: ${selector}`);
+  return found;
+}
+
+/** An element of `tag` with its class name and its text, each when given. */
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className !== undefined) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
 /** The muted line a tree shows where rows are still being listed. */

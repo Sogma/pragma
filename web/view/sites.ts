@@ -22,6 +22,7 @@ import {
   type SiteSettingsField,
   type SiteSettingsResponse,
 } from "../core/apiClient.ts";
+import { el } from "../lib/dom.ts";
 import type { ListItemTarget } from "../lib/listItemMenu.ts";
 import { settingsNav } from "../lib/settingsNav.ts";
 import type { CommandRegistry } from "../services/commands.ts";
@@ -52,13 +53,6 @@ function skippedNote(loaded: SiteSettingsResponse): string | undefined {
 // whose schema names no group.
 const GENERAL = "\0general";
 const UNGROUPED = "\0ungrouped";
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 function textInput(id: string, value: string, placeholder?: string): HTMLInputElement {
   const input = el("input", "form-input settings-input");

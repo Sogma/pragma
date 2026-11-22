@@ -23,7 +23,7 @@ import {
   type TableColumn,
 } from "../../src/protocol/types.ts";
 import type { EntryIcon } from "../core/paths.ts";
-import { setEntryIcon } from "./dom.ts";
+import { el, setEntryIcon } from "./dom.ts";
 import { createFieldPopover } from "./fieldPopover.ts";
 import { type Flyout, openFlyout } from "./flyout.ts";
 
@@ -144,17 +144,6 @@ function ruleOf(line: Line): ClassRule | undefined {
     .filter(Boolean);
   if (!property || (needsValues(line.test) && values.length === 0)) return undefined;
   return { property, test: line.test, values: needsValues(line.test) ? values : [] };
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
 }
 
 function iconButton(label: string, icon: string): HTMLButtonElement {

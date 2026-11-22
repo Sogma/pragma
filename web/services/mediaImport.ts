@@ -5,7 +5,7 @@
 // large enough that a silent wait reads as a failure, and worth stopping.
 import { isMarkdownFile, rawFileTypeForPath } from "../../src/protocol/types.ts";
 import type { CreateEntryResponse, UploadEntryResponse } from "../core/apiClient.ts";
-import { formatFileSize } from "../lib/dom.ts";
+import { el, formatFileSize } from "../lib/dom.ts";
 import type { DialogService } from "./dialog.ts";
 
 export interface UploadProgressOptions {
@@ -28,13 +28,6 @@ export interface DroppedImportResult {
   failed: { name: string; reason: string }[];
   /** True when the person stopped it: whatever had not started was skipped. */
   cancelled: boolean;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ""): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  node.textContent = text;
-  return node;
 }
 
 /** Copies `files` into `dir`, a rooted path the tree handed out. Resolves

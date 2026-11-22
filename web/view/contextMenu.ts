@@ -4,7 +4,7 @@
 // dispatcher. A picked item closes the menu first, then runs its command, or
 // its own action, with the context the menu was opened in.
 import { DisposableStore, listen } from "../lib/disposable.ts";
-import { keyLabel, setEntryIcon } from "../lib/dom.ts";
+import { el, keyLabel, setEntryIcon } from "../lib/dom.ts";
 import { installPathChipMenu } from "../lib/pathChipMenu.ts";
 import { installTextMenu } from "../lib/textMenu.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
@@ -43,12 +43,6 @@ interface RenderedSlider {
   footer: HTMLElement;
   row: HTMLElement;
   input: HTMLInputElement;
-}
-
-function el(tag: string, className: string): HTMLElement {
-  const node = document.createElement(tag);
-  node.className = className;
-  return node;
 }
 
 export function createContextMenu(deps: ContextMenuDeps): ContextMenu {

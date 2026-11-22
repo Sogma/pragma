@@ -7,6 +7,7 @@
 // so there is no form in a browser; the main process does the filesystem work
 // (electron/main.ts).
 import { DisposableStore, listen } from "./disposable.ts";
+import { el } from "./dom.ts";
 import { Emitter } from "./emitter.ts";
 import { canSlide, createPageSlide } from "./pageSlide.ts";
 import { toggleSettingRow } from "./toggleRow.ts";
@@ -35,13 +36,6 @@ export interface SpaceForm {
 }
 
 let formCount = 0;
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 function button(label: string, className: string): HTMLButtonElement {
   const node = el("button", `btn space-form-button ${className}`.trim(), label);

@@ -5,6 +5,7 @@
 // the panel around this; this module owns what is in it.
 import { type fetchSpaceList, postForgetSpace, postResetSpaceGrants, postSpaceLabel } from "../core/apiClient.ts";
 import { DisposableStore } from "../lib/disposable.ts";
+import { el } from "../lib/dom.ts";
 import { type ListItemTarget, locateSpaceCommand } from "../lib/listItemMenu.ts";
 import { createSpaceForm, type SpaceFormBridge } from "../lib/spaceForm.ts";
 import { createSpaceRow } from "../lib/spaceRow.ts";
@@ -43,13 +44,6 @@ export interface ManageSpacesContent {
   // run from a context menu, which is gone by the time the call settles.
   showError(thrown: unknown, fallback: string): void;
   dispose(): void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 // A browser can't pick a folder, and no route takes one, so a space is added

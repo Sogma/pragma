@@ -9,7 +9,7 @@ import type { SearchQuery } from "@codemirror/search";
 import { fetchFileRaw } from "../../core/apiClient.ts";
 import { createPaneFind, type FindCount, type Finder, seedText, slideIn, slideOut } from "../../findCard.ts";
 import { DisposableStore, toDisposable } from "../../lib/disposable.ts";
-import { appendMetaRow, createInspectorSection } from "../../lib/dom.ts";
+import { appendMetaRow, createInspectorSection, el } from "../../lib/dom.ts";
 import { zoomMenu, zoomMenuItems } from "../../lib/zoomPicker.ts";
 import { dispatchFrameRequests, type FrameRequest } from "../../services/capabilityBroker.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
@@ -172,12 +172,6 @@ export function pdfPane(
     chrome: { toolbar: true, readingView: false, statusbar: true, actions: [] },
     create: (group) => createPdfPane({ ...deps, reportReadout: (text) => group.reportReadout(text) }),
   };
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  return node;
 }
 
 interface PageCard {

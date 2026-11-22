@@ -6,6 +6,7 @@
 // with the nearest open section above it, else with the scroller. Dragging
 // the line between two open sections leaves the scroller where it was.
 import { type Disposable, DisposableStore, listen } from "./disposable.ts";
+import { el } from "./dom.ts";
 import { pixelToken, wirePanelResize } from "./panelResize.ts";
 
 export interface Stored<T> {
@@ -42,13 +43,6 @@ export interface StackSection {
 export interface SectionStack extends Disposable {
   readonly element: HTMLElement;
   readonly sections: readonly StackSection[];
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 /** An icon button for a section's header, drawn with one of its glyphs. */

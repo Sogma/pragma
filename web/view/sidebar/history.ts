@@ -13,7 +13,7 @@ import {
 import { fileTypeClass, fileTypeLabel, stripExtension } from "../../core/paths.ts";
 import { replacedBy } from "../../core/versionText.ts";
 import { dateTimeLabel, shortWhen, versionWhen } from "../../lib/dateText.ts";
-import { renderTreeIcon } from "../../lib/dom.ts";
+import { el, renderTreeIcon } from "../../lib/dom.ts";
 
 export interface HistorySectionDeps {
   /** Whether the space still holds the file. */
@@ -30,13 +30,6 @@ export interface HistorySection {
   refresh(): void;
   // Where the section's header shows how many files it lists.
   showCountIn(setCount: (text: string) => void): void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 // A row the keyboard reaches and runs, as a click does.

@@ -4,6 +4,7 @@
 // answer, never persisted — so the pane has nothing to fetch.
 import { basenameOf } from "../../../src/protocol/rootedPath.ts";
 import type { FindContextResponse } from "../../core/apiClient.ts";
+import { el } from "../../lib/dom.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 
 export interface FindContextPaneDeps {
@@ -18,13 +19,6 @@ export function findContextPane(deps: FindContextPaneDeps): EditorPaneDescriptor
     chrome: { toolbar: false, readingView: false, statusbar: true, actions: [] },
     create: () => createFindContextPane(deps),
   };
-}
-
-function el(tag: string, className: string, text?: string): HTMLElement {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 export function createFindContextPane(deps: FindContextPaneDeps): EditorPane {

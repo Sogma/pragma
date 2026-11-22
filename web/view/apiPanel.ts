@@ -13,7 +13,7 @@ import {
   postDeleteApiToken,
 } from "../core/apiClient.ts";
 import { dateLabel } from "../lib/dateText.ts";
-import { buildRevokeButton } from "../lib/dom.ts";
+import { buildRevokeButton, el } from "../lib/dom.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface ApiPanelDeps {
@@ -22,13 +22,6 @@ export interface ApiPanelDeps {
   // ever opens "api-token". Closing it re-runs this panel's loader.
   openSettingsSubpage: (id: string) => void;
   closeSettingsSubpage: () => void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
 }
 
 export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void {
