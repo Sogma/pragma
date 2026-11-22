@@ -31,7 +31,6 @@
   padding: 3px 6px;
   font-size: var(--small-font-size);
   width: 100%;
-  box-sizing: border-box;
   /* Overrides .flow-node's grab cursor; a text field should show the I-beam. */
   cursor: text;
 }
@@ -48,7 +47,6 @@
   padding: 2px 4px;
   font-size: 11px;
   width: 100%;
-  box-sizing: border-box;
 }
 
 .flow-config-field.checkbox {

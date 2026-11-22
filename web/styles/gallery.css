@@ -157,7 +157,6 @@
 /* A rename or a new entry's name, typed on the tile: the tree's in-place
    field, one name line tall so the tile keeps its height. */
 .gallery-tile-field {
-  box-sizing: border-box;
   width: 100%;
   height: 18px;
   padding: 0 4px;

@@ -79,7 +79,6 @@
 
 .flow-loose-end-pin {
   flex: none;
-  box-sizing: border-box;
   width: 12px;
   height: 12px;
   border-radius: 50%;

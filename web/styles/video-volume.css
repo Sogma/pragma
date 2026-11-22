@@ -37,7 +37,6 @@
 /* The pill's fill and rounded ends, standing on end. The whole capsule
    takes the press; the track inside it measures the level. */
 .video-player-volume-slider {
-  box-sizing: border-box;
   display: flex;
   justify-content: center;
   width: 32px;

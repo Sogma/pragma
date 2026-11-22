@@ -231,7 +231,6 @@
 .context-menu-search {
   display: block;
   width: 100%;
-  box-sizing: border-box;
   margin-bottom: 4px;
   padding: 4px 6px;
   padding-bottom: 8px;

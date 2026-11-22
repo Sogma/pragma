@@ -241,7 +241,6 @@
    can; only a value too long for one line grows the row. */
 .data-table-value {
   display: block;
-  box-sizing: border-box;
   min-height: calc(var(--cell-line-height) + 10px);
   padding: 5px 7px;
   font-family: var(--font-default);

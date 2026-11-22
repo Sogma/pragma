@@ -12,7 +12,6 @@
    break. */
 .editor-reading-content {
   user-select: text;
-  box-sizing: border-box;
   max-width: calc(var(--readable-line-length) + 48px);
   margin: 0 auto;
   padding: 24px;

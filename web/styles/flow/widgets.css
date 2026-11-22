@@ -260,7 +260,6 @@
   flex: 1 1 0;
   min-height: 80px;
   width: 100%;
-  box-sizing: border-box;
   resize: none;
   padding: 6px 8px;
   font-size: var(--small-font-size);

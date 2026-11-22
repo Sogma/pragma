@@ -2,7 +2,6 @@
    The pane sets every card in a folder to its tallest's height, and
    border-box makes that the whole card's. */
 .gallery-tile.is-card {
-  box-sizing: border-box;
   gap: 6px;
   padding: 10px 12px;
   overflow: hidden;

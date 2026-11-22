@@ -49,7 +49,6 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  box-sizing: border-box;
   width: calc((var(--stops) - 1) * 20px + 16px);
   height: 16px;
   padding-inline: 4px;
@@ -63,7 +62,6 @@
 }
 
 .context-menu-slider-stop.ring {
-  box-sizing: border-box;
   border: 1.5px solid var(--text-faint);
   background: none;
 }

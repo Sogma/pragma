@@ -13,7 +13,6 @@
    both. */
 .wrapping-field > :is(.wrapping-field-input, .wrapping-field-copy) {
   grid-area: 1 / 1;
-  box-sizing: border-box;
   min-width: 0;
   margin: 0;
   padding: 2px 4px;

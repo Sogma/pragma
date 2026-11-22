@@ -137,7 +137,6 @@ select.dialog-input {
 }
 
 .dialog-textarea {
-  box-sizing: border-box;
   width: 100%;
   line-height: 1.45;
   padding: 8px 10px;

@@ -18,7 +18,6 @@
 }
 
 .video-player-bar {
-  box-sizing: border-box;
   pointer-events: auto;
   color: var(--media-hud-fg);
   font-family: var(--font-hud);
@@ -195,7 +194,6 @@
   width: calc((var(--range-end, 0) - var(--range-start, 0)) * 100%);
   height: 13px;
   margin-top: -6.5px;
-  box-sizing: border-box;
   border-inline: 2px solid var(--media-hud-accent);
   background: color-mix(in srgb, var(--media-hud-accent) 35%, transparent);
 }

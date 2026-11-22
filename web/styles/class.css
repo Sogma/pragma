@@ -126,7 +126,6 @@ button.class-chip-label {
    so a row's cells line up whatever each holds. */
 .class-row-title,
 .class-pills {
-  box-sizing: border-box;
   min-height: calc(var(--cell-line-height) + 10px);
   padding: 5px 7px;
   font-family: var(--font-default);
@@ -192,7 +191,6 @@ button.class-chip-label {
    box, and a click away from an editor. Its padding is a locked value's less
    the border it shows on hover, or its row grows by two pixels. */
 .class-unfit {
-  box-sizing: border-box;
   width: 100%;
   min-height: calc(var(--cell-line-height) + 10px);
   padding: 4px 6px;
