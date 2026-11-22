@@ -7,6 +7,7 @@ import { fetchSpaceGraph, type Tab } from "../core/apiClient.ts";
 import { linkedEntry } from "../core/paths.ts";
 import { bindFrameStats } from "../lib/frameStats.ts";
 import { createInlineError } from "../lib/inlineError.ts";
+import { createSwitch } from "../lib/toggleRow.ts";
 import type { InspectorTab } from "../services/inspectorTabs.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { showStats } from "../services/settings.ts";
@@ -208,44 +209,24 @@ export function createGraphTab(deps: GraphTabDeps): InspectorTab {
     draw();
   }
 
-  function toggle(label: string, on: () => boolean, set: (value: boolean) => void): HTMLElement {
+  function toggle(label: string, on: boolean, set: (value: boolean) => void): HTMLElement {
     const row = document.createElement("div");
     row.className = "graph-option";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "toggle-switch";
-    button.setAttribute("role", "switch");
-    button.setAttribute("aria-label", label);
-    button.setAttribute("aria-checked", String(on()));
-    button.append(Object.assign(document.createElement("span"), { className: "toggle-knob" }));
-    button.addEventListener("click", () => {
-      set(!on());
-      button.setAttribute("aria-checked", String(on()));
-    });
-    row.append(Object.assign(document.createElement("span"), { textContent: label }), button);
+    row.append(Object.assign(document.createElement("span"), { textContent: label }), createSwitch(label, on, set));
     return row;
   }
 
   options.append(
     Object.assign(document.createElement("h3"), { className: "section-label graph-option-title", textContent: "Show" }),
     ...EDGE_GROUPS.map((group) =>
-      toggle(
-        group.label,
-        () => show.edges.includes(group.key),
-        (value) =>
-          change({
-            ...show,
-            edges: value ? [...show.edges, group.key] : show.edges.filter((key) => key !== group.key),
-          }),
+      toggle(group.label, show.edges.includes(group.key), (value) =>
+        change({
+          ...show,
+          edges: value ? [...show.edges, group.key] : show.edges.filter((key) => key !== group.key),
+        }),
       ),
     ),
-    ...SHOW_SWITCHES.map((row) =>
-      toggle(
-        row.label,
-        () => show[row.key],
-        (value) => change({ ...show, [row.key]: value }),
-      ),
-    ),
+    ...SHOW_SWITCHES.map((row) => toggle(row.label, show[row.key], (value) => change({ ...show, [row.key]: value }))),
   );
 
   let optionsOpen = false;

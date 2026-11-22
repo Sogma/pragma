@@ -1,6 +1,8 @@
-// A switch bound to a boolean setting, and the Settings row around one, for
-// pages built in script as well as the ones written in web/index.html.
+// The app's switch: built for any surface, bound to a boolean setting (on
+// pages built in script as well as the ones written in web/index.html), and
+// the Settings row around one.
 import type { Setting } from "../services/settings.ts";
+import { el } from "./dom.ts";
 
 export interface ToggleBinding {
   /** What the preference does, run at startup as well as on every change, so
@@ -10,6 +12,27 @@ export interface ToggleBinding {
    * on state the writer built up under the old setting, which at startup
    * doesn't exist yet. */
   onChange?(value: boolean): void;
+}
+
+/** A switch named `label`, showing `checked`. Every switch built in script
+ * comes from here, so none goes without a name for a screen reader. Given
+ * `onChange`, a click flips it and reports the new state; without one, the
+ * caller binds the click. */
+export function createSwitch(label: string, checked = false, onChange?: (checked: boolean) => void): HTMLButtonElement {
+  const button = el("button", "toggle-switch");
+  button.type = "button";
+  button.setAttribute("role", "switch");
+  button.setAttribute("aria-label", label);
+  button.setAttribute("aria-checked", String(checked));
+  button.append(el("span", "toggle-knob"));
+  if (onChange) {
+    button.addEventListener("click", () => {
+      const next = button.getAttribute("aria-checked") !== "true";
+      button.setAttribute("aria-checked", String(next));
+      onChange(next);
+    });
+  }
+  return button;
 }
 
 /** A checkbox-style control: reflects `setting` on the button's
@@ -51,14 +74,7 @@ export function toggleSettingRow(options: ToggleRow): HTMLDivElement {
   const text = document.createElement("div");
   text.className = "field-row-text";
   text.append(title, description);
-  const knob = document.createElement("span");
-  knob.className = "toggle-knob";
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "toggle-switch";
-  button.setAttribute("role", "switch");
-  button.setAttribute("aria-label", options.title);
-  button.append(knob);
+  const button = createSwitch(options.title);
   bindToggle(button, options.setting, options);
   const row = document.createElement("div");
   row.className = "field-row";

@@ -255,6 +255,17 @@ describe("appMode", () => {
     for (const spy of media) spy.mockRestore();
   });
 
+  it("names each switch for its field, a widget's and a config field's alike", () => {
+    const { appMode, elements } = setup([
+      node("toggleText", { true: "true" }, ["true", "on_true"]),
+      node("generateText", { reuse: "false" }, ["reuse", "text"]),
+    ]);
+    appMode.setActive(true);
+    const name = (nodeId: string) =>
+      elements.appModePane.querySelector(`[data-node-id="${nodeId}"] .toggle-switch`)?.getAttribute("aria-label");
+    expect([name("toggleText-1"), name("generateText-1")]).toEqual(["true", "Reuse result on repeat"]);
+  });
+
   it("puts Regenerate on a held text node's result once it has one, while it holds, following its switch", () => {
     const generate = node("generateText", { reuse: "false" }, ["reuse", "text"]);
     const { appMode, deps, elements } = setup([generate]);

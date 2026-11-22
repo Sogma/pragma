@@ -33,6 +33,7 @@ import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
 import { buildCopyButton, buildRunCount, setRunCount } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
+import { createSwitch } from "../lib/toggleRow.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { type AppletFrame, createAppletFrame, runInputs } from "./appletFrame.ts";
 import { combinedTileSize, createTileGrid, TILE_SIZES, type TileGrid, type TileSize } from "./appModeGrid.ts";
@@ -233,24 +234,27 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     syncAppModeRegenerate(nodeId);
   }
 
-  // Every checkbox-shaped App Mode field renders as the app's .toggle-switch
-  // (web/styles/controls.css), not the graph card's cramped inline checkbox:
-  // App Mode has the room for a real switch.
-  function createAppModeSwitch(checked: boolean, onChange: (checked: boolean) => void): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "toggle-switch";
-    button.setAttribute("role", "switch");
-    button.setAttribute("aria-checked", String(checked));
-    const knob = document.createElement("span");
-    knob.className = "toggle-knob";
-    button.appendChild(knob);
-    button.addEventListener("click", () => {
-      const next = button.getAttribute("aria-checked") !== "true";
-      button.setAttribute("aria-checked", String(next));
-      onChange(next);
+  // Every checkbox-shaped App Mode field is the app's switch, not the graph
+  // card's cramped inline checkbox: App Mode has the room for a real one.
+  function buildAppModeSwitchField(
+    node: FlowNodeInstance,
+    key: string,
+    label: string,
+    description: string | undefined,
+    checked: boolean,
+  ): HTMLDivElement {
+    const wrap = document.createElement("div");
+    wrap.className = "flow-config-field checkbox";
+    if (description) wrap.dataset.tooltip = description;
+    const title = document.createElement("label");
+    title.className = "flow-config-label";
+    title.textContent = label;
+    const toggle = createSwitch(label, checked, (on) => {
+      node.config[key] = on ? "true" : "false";
+      persistAppModeEdit(node.id);
     });
-    return button;
+    wrap.append(title, toggle);
+    return wrap;
   }
 
   // One output field — an output port's produced value, read-only until
@@ -411,18 +415,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     // An input's description, as on the card. An output's stays on the card:
     // it says how the pin is wired, which App Mode hides.
     if (widget.type === "checkbox") {
-      const wrap = document.createElement("div");
-      wrap.className = "flow-config-field checkbox";
-      if (port.description) wrap.dataset.tooltip = port.description;
-      const label = document.createElement("label");
-      label.className = "flow-config-label";
-      label.textContent = formLabel(port.label);
-      const toggle = createAppModeSwitch(currentValue() === "true", (checked) => {
-        node.config[port.id] = checked ? "true" : "false";
-        persistAppModeEdit(node.id);
-      });
-      wrap.append(label, toggle);
-      return wrap;
+      return buildAppModeSwitchField(node, port.id, formLabel(port.label), port.description, currentValue() === "true");
     }
 
     const wrap = document.createElement("div");
@@ -487,18 +480,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       appModeFieldShows.set(node.id, [...(appModeFieldShows.get(node.id) ?? []), show]);
 
     if (field.type === "checkbox") {
-      const wrap = document.createElement("div");
-      wrap.className = "flow-config-field checkbox";
-      if (field.description) wrap.dataset.tooltip = field.description;
-      const label = document.createElement("label");
-      label.className = "flow-config-label";
-      label.textContent = field.label;
-      const toggle = createAppModeSwitch(currentValue === "true", (checked) => {
-        node.config[field.key] = checked ? "true" : "false";
-        persistAppModeEdit(node.id);
-      });
-      wrap.append(label, toggle);
-      return wrap;
+      return buildAppModeSwitchField(node, field.key, field.label, field.description, currentValue === "true");
     }
 
     const wrap = document.createElement("div");

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { Emitter } from "../../../web/lib/emitter.ts";
-import { bindToggle, toggleSettingRow } from "../../../web/lib/toggleRow.ts";
+import { bindToggle, createSwitch, toggleSettingRow } from "../../../web/lib/toggleRow.ts";
 import type { Setting } from "../../../web/services/settings.ts";
 
 function fakeSetting(initial: boolean): Setting<boolean> & { sets: boolean[] } {
@@ -23,6 +23,31 @@ function button(): HTMLButtonElement {
   document.body.append(el);
   return el;
 }
+
+describe("createSwitch", () => {
+  it("is named and shows its state; a click flips it and reports the new state", () => {
+    const onChange = vi.fn();
+    const toggle = createSwitch("Show tags", true, onChange);
+    expect([toggle.type, toggle.getAttribute("role"), toggle.getAttribute("aria-label")]).toEqual([
+      "button",
+      "switch",
+      "Show tags",
+    ]);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+
+    toggle.click();
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    toggle.click();
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(onChange.mock.calls).toEqual([[false], [true]]);
+  });
+
+  it("leaves the click to the caller when given nothing to report to", () => {
+    const toggle = createSwitch("Line numbers");
+    toggle.click();
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+});
 
 describe("bindToggle", () => {
   it("reflects and applies the stored value at startup, without firing onChange", () => {
