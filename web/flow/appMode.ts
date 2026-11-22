@@ -502,10 +502,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       return wrap;
     }
 
-    const control: HTMLInputElement | HTMLTextAreaElement =
-      field.type === "textarea" ? document.createElement("textarea") : document.createElement("input");
+    const control = document.createElement("input");
     control.className = "form-input";
-    if (control instanceof HTMLInputElement) control.type = "text";
+    control.type = "text";
     control.value = currentValue;
     control.addEventListener("input", () => save(control.value));
     showsAgain(() => {
@@ -639,7 +638,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
 
     const configField = definition.configFields.find((f) => f.key === id);
     if (configField) {
-      const kind = configField.type === "checkbox" ? "toggle" : configField.type === "textarea" ? "textBox" : "line";
+      const kind = configField.type === "checkbox" ? "toggle" : "line";
       return field(buildAppModeConfigField(node, configField), kind);
     }
 

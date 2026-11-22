@@ -8,14 +8,6 @@
 import type { ActiveTitle } from "../core/apiClient.ts";
 import { createTitleBar } from "../lib/dom.ts";
 
-/** What the active pane is, for the one caller that has to ask: a pane names
- * itself and says where its title scrolls, or — having a title bar of its own,
- * or none at all — offers no host for the shared one. */
-export interface TitleHost {
-  title(): string | undefined;
-  titleHost(): HTMLElement | null;
-}
-
 export interface EditorTitleBar {
   /** Shows `title` in `host`: its text, or while that is empty the filename,
    * grey, as the field's placeholder, so a title someone set reads apart from

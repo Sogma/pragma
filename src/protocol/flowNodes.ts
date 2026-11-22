@@ -46,7 +46,7 @@ export interface FlowNodePathInput {
 // validator. "checkbox" fields store "true"/"false" text in config, same
 // convention TableColumn's checkbox type already uses for cell values; an
 // "integer" field stores a whole number as text too, as `intValue` reads it.
-export type FlowNodeConfigFieldType = "text" | "textarea" | "path" | "checkbox" | "integer" | "select";
+export type FlowNodeConfigFieldType = "text" | "checkbox" | "integer" | "select";
 
 export interface FlowNodeConfigField {
   key: string;

@@ -5,7 +5,7 @@
 // module's, so no two pickers' lists drift apart.
 import type { PresetFolderView } from "../../src/protocol/api.ts";
 import { type LutEntry, PRESET_KINDS, type PresetKind, presetFolderOf } from "../../src/protocol/presets.ts";
-import { basenameOf, dirnameOf, formatRootedPath, parseRootedPath } from "../../src/protocol/rootedPath.ts";
+import { dirnameOf, formatRootedPath, parseRootedPath } from "../../src/protocol/rootedPath.ts";
 import type { TemplateEntry } from "../../src/protocol/templates.ts";
 import { type EntryIcon, fileTypeClass, stripExtension } from "../core/paths.ts";
 import { changePresets, presetFoldersOf, presets } from "../core/presets.ts";
@@ -183,21 +183,8 @@ export function presetSearch(
   };
 }
 
-/** A preset's name as a picker shows it, from its path. */
-export function presetLabel(path: string): string {
-  try {
-    return stripExtension(basenameOf(formatRootedPath(parseRootedPath(path))));
-  } catch {
-    return path;
-  }
-}
-
+// The words a kind of preset goes by on every surface.
 const KIND_NAMES: Record<PresetKind, string> = { templates: "Templates", luts: "LUTs" };
-
-/** The words a kind of preset goes by on every surface. */
-export function presetKindName(kind: PresetKind): string {
-  return KIND_NAMES[kind];
-}
 
 /** A folder's own items, on every surface that draws one: Add to Presets,
  * by kind, or Remove from Presets once the space lists it. `folderOf` reads

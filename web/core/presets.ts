@@ -9,7 +9,7 @@ import {
   presetFolderAt,
   presetFolderOf,
 } from "../../src/protocol/presets.ts";
-import { fetchSpacePresets, postSpacePresetChange } from "./apiClient.ts";
+import { postSpacePresetChange } from "./apiClient.ts";
 
 let current: SpacePresetsResponse = { folders: [] };
 let folders: PresetFolder[] = [];
@@ -50,10 +50,6 @@ export function inTemplateFolders(path: string): boolean {
 export function onPresetsChanged(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
-}
-
-export async function refreshPresets(): Promise<void> {
-  setPresets(await fetchSpacePresets());
 }
 
 /** Lists `folder`, a rooted path, for `kind`, or takes it out; the answer is

@@ -718,10 +718,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       return wrap;
     }
 
-    const control: HTMLInputElement | HTMLTextAreaElement =
-      field.type === "textarea" ? document.createElement("textarea") : document.createElement("input");
+    const control = document.createElement("input");
     control.className = "form-input nodrag";
-    if (control instanceof HTMLInputElement) control.type = "text";
+    control.type = "text";
     control.value = currentValue;
     control.addEventListener("input", () => save(control.value));
     wrap.appendChild(control);

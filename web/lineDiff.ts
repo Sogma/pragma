@@ -171,17 +171,13 @@ export function diffWords(before: string, after: string): TextHunk[] {
   return hunks;
 }
 
-export interface RenderLineDiffOptions {
-  /** Unchanged lines kept visible on each side of a change. */
-  context?: number;
-}
+// Unchanged lines kept visible on each side of a change.
+const CONTEXT = 3;
 
 /** Builds the `.diff` DOM for a confirm card. A long run of unchanged lines
  * with no change nearby collapses to a "⋯ N unchanged lines" row, so a small
  * edit in a big file stays readable. */
-export function renderLineDiff(ops: LineDiffOp[], options: RenderLineDiffOptions = {}): HTMLElement {
-  const context = options.context ?? 3;
-
+export function renderLineDiff(ops: LineDiffOp[]): HTMLElement {
   const container = document.createElement("div");
   container.className = "diff";
 
@@ -195,7 +191,7 @@ export function renderLineDiff(ops: LineDiffOp[], options: RenderLineDiffOptions
 
   const isChange = ops.map((op) => op.type !== "equal");
   const nearChange = ops.map((_, i) => {
-    for (let d = -context; d <= context; d++) if (isChange[i + d]) return true;
+    for (let d = -CONTEXT; d <= CONTEXT; d++) if (isChange[i + d]) return true;
     return false;
   });
 

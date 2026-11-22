@@ -33,7 +33,6 @@ export interface FlowRunOutput {
 const FIELD_INPUT_TYPES: Partial<Record<FlowNodeConfigFieldType, FlowRunInputType>> = {
   checkbox: "boolean",
   integer: "integer",
-  path: "path",
 };
 
 // The pickers Expose covers that the registry does not declare as fields.
