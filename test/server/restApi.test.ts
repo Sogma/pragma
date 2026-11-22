@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, request } from "node:http";
+import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
 import { type GrantSubject, grantCapability, setUnattended } from "../../src/server/grants.ts";
+import { hungFlow } from "../support/hungFlow.ts";
 
 // Over real HTTP, like the MCP suite: the point of a second encoding is that a
 // caller can reach it with nothing but an HTTP client, so the test uses one.
@@ -48,49 +49,6 @@ function mint(readOnly: boolean): string {
   });
   saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
   return secret;
-}
-
-// A flow whose model endpoint never answers, so a run is reliably in flight.
-// Returns whether the model request has been closed.
-async function hungFlow(file: string): Promise<{ closed: () => boolean; seen: () => boolean; stop: () => void }> {
-  let seen = false;
-  let closed = false;
-  const hung = createServer((req) => {
-    seen = true;
-    req.on("close", () => (closed = true));
-  });
-  await new Promise<void>((resolve) => hung.listen(0, "127.0.0.1", resolve));
-  const port = (hung.address() as { port: number }).port;
-  saveGlobalConfig({
-    ...loadGlobalConfig(),
-    modelProviders: [{ id: "hung", kind: "openai", baseURL: `http://127.0.0.1:${port}/v1`, textModels: ["m"] }],
-  });
-  writeFileSync(
-    path.join(space, file),
-    serializeFlowFile({
-      version: "1.0",
-      name: "Hang",
-      graph: {
-        nodes: [
-          { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text: "hi" } },
-          { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: { model: "hung/m" } },
-        ],
-        edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" }],
-      },
-    }),
-  );
-  const flow = await readFlowFile(path.join(space, file));
-  const subject = { path: file, contentHash: capabilityDigest(flow.graph) };
-  await grantCapability(space, subject, "generateText");
-  await setUnattended(space, subject, true);
-  return {
-    closed: () => closed,
-    seen: () => seen,
-    stop: () => {
-      hung.closeAllConnections();
-      hung.close();
-    },
-  };
 }
 
 beforeEach(async () => {
@@ -302,7 +260,7 @@ describe("the REST surface", () => {
   // One run at a time per flow, and a client that disconnects takes its run
   // with it, model call included.
   it("refuses a second run of a busy flow, and stops one whose client leaves", async () => {
-    const model = await hungFlow("hang.flow.html");
+    const model = await hungFlow(space, "hang.flow.html");
     const leaving = new AbortController();
     const first = fetch(`${base}/files/hang.flow.html/run`, {
       method: "POST",
@@ -397,7 +355,7 @@ describe("a request held open", () => {
   });
 
   it("ends, run and model call included, when its token is revoked", async () => {
-    const model = await hungFlow("hang.flow.html");
+    const model = await hungFlow(space, "hang.flow.html");
     const running = fetch(`${base}/files/hang.flow.html/run`, {
       method: "POST",
       headers: { authorization: `Bearer ${writeToken}` },

@@ -1,5 +1,4 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -16,7 +15,8 @@ import {
 import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
-import { grantCapability, setUnattended } from "../../src/server/grants.ts";
+import { setUnattended } from "../../src/server/grants.ts";
+import { hungFlow } from "../support/hungFlow.ts";
 
 // End-to-end over real HTTP with the SDK's own client, rather than calling the
 // tool callbacks directly: the point of taking the SDK was that the protocol
@@ -55,49 +55,6 @@ function writeJoinFlow(file: string, visibility?: string): void {
 async function allowUnattended(file: string): Promise<void> {
   const flow = await readFlowFile(path.join(space, file));
   await setUnattended(space, { path: file, contentHash: capabilityDigest(flow.graph) }, true);
-}
-
-// A flow whose model endpoint never answers, so a run is reliably in flight.
-// Returns whether the model request has been closed.
-async function hungFlow(file: string): Promise<{ closed: () => boolean; seen: () => boolean; stop: () => void }> {
-  let seen = false;
-  let closed = false;
-  const hung = createServer((req) => {
-    seen = true;
-    req.on("close", () => (closed = true));
-  });
-  await new Promise<void>((resolve) => hung.listen(0, "127.0.0.1", resolve));
-  const port = (hung.address() as { port: number }).port;
-  saveGlobalConfig({
-    ...loadGlobalConfig(),
-    modelProviders: [{ id: "hung", kind: "openai", baseURL: `http://127.0.0.1:${port}/v1`, textModels: ["m"] }],
-  });
-  writeFileSync(
-    path.join(space, file),
-    serializeFlowFile({
-      version: "1.0",
-      name: "Hang",
-      graph: {
-        nodes: [
-          { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text: "hi" } },
-          { id: "gen-1", type: "generateText", position: { x: 0, y: 0 }, config: { model: "hung/m" } },
-        ],
-        edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "gen-1", targetPort: "prompt" }],
-      },
-    }),
-  );
-  const flow = await readFlowFile(path.join(space, file));
-  const subject = { path: file, contentHash: capabilityDigest(flow.graph) };
-  await grantCapability(space, subject, "generateText");
-  await setUnattended(space, subject, true);
-  return {
-    closed: () => closed,
-    seen: () => seen,
-    stop: () => {
-      hung.closeAllConnections();
-      hung.close();
-    },
-  };
 }
 
 async function connect(secret: string): Promise<Client> {
@@ -366,7 +323,7 @@ describe("running flows over MCP", () => {
   // of its own rather than dropping the connection; the run must still stop,
   // model call included.
   it("stops a run the client gives up on", async () => {
-    const model = await hungFlow("hang.flow.html");
+    const model = await hungFlow(space, "hang.flow.html");
     const writer = await connect(writeSecret);
     await expect(
       writer.callTool({ name: "run_flow", arguments: { path: "hang.flow.html" } }, undefined, { timeout: 300 }),
