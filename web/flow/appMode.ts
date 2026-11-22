@@ -20,7 +20,6 @@ import {
   nodePorts,
   nodesLeftOut,
 } from "../../src/protocol/flowNodes.ts";
-import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 import type {
   FlowCapabilityDeclaration,
@@ -29,32 +28,19 @@ import type {
   FlowPort,
   FlowPortType,
 } from "../../src/protocol/types.ts";
-import {
-  type AppletManifest,
-  chartSpecFrom,
-  isMarkdownFile,
-  rasterImageMediaTypeForPath,
-} from "../../src/protocol/types.ts";
+import { type AppletManifest, chartSpecFrom } from "../../src/protocol/types.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
-import { stripExtension } from "../core/paths.ts";
 import { buildCopyButton, buildRunCount, setRunCount } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { type AppletFrame, createAppletFrame, runInputs } from "./appletFrame.ts";
 import { combinedTileSize, createTileGrid, TILE_SIZES, type TileGrid, type TileSize } from "./appModeGrid.ts";
-import {
-  createIntStepper,
-  createSelectControl,
-  createSelectPicker,
-  fillPickSelect,
-  formLabel,
-  regenerateHint,
-} from "./controls.ts";
+import { createIntStepper, createSelectControl, createSelectPicker, formLabel, regenerateHint } from "./controls.ts";
 import type { FlowElements } from "./flowElements.ts";
-import { flowPickPath, flowTreePath } from "./flowPaths.ts";
+import { flowTreePath } from "./flowPaths.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
-import { createPickers, type PathPicker, type PickerDeps, type Pickers, sourceIn } from "./pickers.ts";
+import { createPickers, folderPickKey, type PathPicker, type PickerDeps, type Pickers, sourceIn } from "./pickers.ts";
 import { createResultClip, type ResultClip } from "./resultClip.ts";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -584,7 +570,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   // the card's maps. An edit through one marks its card for a remount on
   // leaving. A right-click offers the field's own actions, never Expose,
   // which is the canvas's: every field here is exposed already.
-  function pickersFor(node: FlowNodeInstance, remount: () => void): Pickers {
+  function pickersFor(node: FlowNodeInstance, remount: () => void = () => {}): Pickers {
     return createPickers({
       persistGraph: () => persistAppModeEdit(node.id),
       saveGraphNow: deps.saveGraphNow,
@@ -638,106 +624,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
-  // loadRow's "Selected row" App Mode control — a live <select> over
-  // whatever's currently at the (non-exposed, fixed-in-the-graph)
-  // config.tablePath, same refresh-on-open read as the graph card's
-  // dropdown, writing the pick into config.selectedValue.
-  function buildAppModeTableRowField(node: FlowNodeInstance): HTMLDivElement {
-    const wrap = document.createElement("div");
-    wrap.className = "flow-config-field";
-    const label = document.createElement("label");
-    label.className = "flow-config-label";
-    // Same live "Select <column>" label as the graph card's picker.
-    label.textContent = "Select";
-    const select = createSelectControl("", [], (value) => {
-      node.config.selectedValue = value;
-      persistAppModeEdit(node.id);
-    });
-    select.disabled = true;
-    wrap.append(label, select);
-
-    void (async () => {
-      const path = typeof node.config.tablePath === "string" ? node.config.tablePath : "";
-      if (!path) return;
-      const granted = await deps.ensureCapability({ type: "readFile", path });
-      if (!granted) return;
-      try {
-        const result = await deps.read(path);
-        if (!result || result.kind !== "table" || result.columns.length === 0 || result.rows.length === 0) return;
-        const columnId = result.columns[0].id;
-        label.textContent = `Select ${result.columns[0].label || "row"}`;
-        const stored = typeof node.config.selectedValue === "string" ? node.config.selectedValue : "";
-        const options = result.rows.map((row) => {
-          const value = row.values[columnId] ?? "";
-          return { value, label: value || "(empty)" };
-        });
-        const picked = fillPickSelect(select, options, stored, stored);
-        select.disabled = false;
-        if (picked !== undefined) {
-          node.config.selectedValue = picked;
-          persistAppModeEdit(node.id);
-        }
-      } catch {
-        // Unreadable, malformed, or not actually a table — left disabled.
-      }
-    })();
-
-    return wrap;
-  }
-
-  // loadFolderNote/loadFolderImage's "Selected note/image" App Mode
-  // control — a live <select> over config.folderPath's direct children,
-  // read synchronously from the space tree like the graph card's pickers.
-  // No capability check: the tree is already visible, ungated — only the
-  // content read at Run time is gated.
-  function buildAppModeFolderChildField(
-    node: FlowNodeInstance,
-    label: string,
-    valueKey: "notePath" | "imagePath",
-    matches: (path: string) => boolean,
-  ): HTMLDivElement {
-    const wrap = document.createElement("div");
-    wrap.className = "flow-config-field";
-    const labelEl = document.createElement("label");
-    labelEl.className = "flow-config-label";
-    labelEl.textContent = label;
-    const select = createSelectControl("", [], (value) => {
-      node.config[valueKey] = value;
-      persistAppModeEdit(node.id);
-    });
-    select.disabled = true;
-    wrap.append(labelEl, select);
-
-    const folderPath = typeof node.config.folderPath === "string" ? node.config.folderPath : "";
-    const flowPath = deps.flowPath();
-    const children = folderPath ? deps.directoryChildren(flowTreePath(flowPath, folderPath)) : undefined;
-    const stored = typeof node.config[valueKey] === "string" ? (node.config[valueKey] as string) : "";
-    const options = (children ?? [])
-      .filter((child) => child.type === "file" && matches(child.path))
-      .map((child) => ({
-        value: flowPickPath(flowPath, child.path, stored),
-        label: stripExtension(basenameOf(child.path)),
-      }));
-    if (options.length > 0) {
-      const picked = fillPickSelect(
-        select,
-        options,
-        stored,
-        stripExtension(basenameOf(flowTreePath(flowPath, stored))),
-      );
-      select.disabled = false;
-      if (picked !== undefined) {
-        node.config[valueKey] = picked;
-        persistAppModeEdit(node.id);
-      }
-    }
-
-    return wrap;
-  }
-
   // Dispatches one exposed id to its control builder — the registry-driven
-  // kinds (output port / input widget / config field), the four bespoke
-  // pickers Expose covers but the registry doesn't declare (see pickers.ts),
+  // kinds (output port / input widget / config field), the bespoke pickers
+  // Expose covers but the registry doesn't declare (see pickers.ts),
   // and a Chart's rows, drawn. Node types and keys must mirror nodeCard.ts's
   // picker dispatch exactly.
   function buildAppModeField(node: FlowNodeInstance, id: string): AppModeField | undefined {
@@ -782,14 +671,11 @@ export function createAppMode(deps: AppModeDeps): AppMode {
         "videoResult",
       );
     }
-    if (node.type === "loadRow" && id === "selectedValue") return field(buildAppModeTableRowField(node), "line");
-    if (node.type === "loadFolderNote" && id === "notePath") {
-      return field(buildAppModeFolderChildField(node, "Selected note", "notePath", isMarkdownFile), "line");
-    }
-    if (node.type === "loadFolderImage" && id === "imagePath") {
-      const isRasterImage = (path: string) => !!rasterImageMediaTypeForPath(path);
-      return field(buildAppModeFolderChildField(node, "Selected image", "imagePath", isRasterImage), "line");
-    }
+    // A Load Row's or a folder loader's pick is the card's dropdown alone:
+    // the table or folder it picks from stays the graph's.
+    if (node.type === "loadRow" && id === "selectedValue")
+      return field(pickersFor(node).createRowSelect(node).el, "line");
+    if (folderPickKey(node.type) === id) return field(pickersFor(node).createFolderSelect(node).el, "line");
 
     return undefined;
   }

@@ -337,7 +337,8 @@ describe("appMode", () => {
     appMode.setActive(true);
     await tick();
     await tick();
-    expect(deps.ensureCapability).toHaveBeenCalledWith({ type: "readFile", path: "t.table.html" });
+    // A path from the saved file is never a drag, so the read asks.
+    expect(deps.ensureCapability).toHaveBeenCalledWith({ type: "readFile", path: "t.table.html" }, false);
     const select = elements.appModePane.querySelector("select") as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual(["A", "B"]);
     expect(elements.appModePane.querySelector(".flow-config-label")?.textContent).toBe("Select Name");

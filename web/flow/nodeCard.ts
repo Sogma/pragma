@@ -88,6 +88,7 @@ import {
   type ClipPicker,
   createPickers,
   type FieldPicker,
+  folderPickKey,
   type GenerationView,
   type PathPicker,
   sourceIn,
@@ -2267,11 +2268,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       contentEl.appendChild(view.el);
     } else if (flowNode.type === "choice" && textPortLabelEl) {
       contentEl.appendChild(createChoiceContent(flowNode, textPortLabelEl));
-    } else if (flowNode.type === "loadFolderNote") {
-      pathPicker = pickers.createLoadFolderNotePicker(flowNode);
-      contentEl.appendChild(pathPicker.el);
-    } else if (flowNode.type === "loadFolderImage") {
-      pathPicker = pickers.createLoadFolderImagePicker(flowNode);
+    } else if (folderPickKey(flowNode.type) !== undefined) {
+      pathPicker = pickers.createFolderPicker(flowNode);
       contentEl.appendChild(pathPicker.el);
     } else if (flowNode.type === "loadTableRows") {
       pathPicker = pickers.createLoadTableRowsPicker(flowNode);

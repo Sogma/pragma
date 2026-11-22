@@ -101,6 +101,33 @@ export interface PickerDeps {
   showPinValues(node: FlowNodeInstance, values: Record<string, string | undefined>): void;
 }
 
+// What a folder loader picks from its folder: the key it stores the pick
+// under, the noun the pick goes by, its output's type, and the files it takes.
+const FOLDER_PICKS: Record<
+  string,
+  { key: string; noun: string; portType: FlowPortType; takes(path: string): boolean }
+> = {
+  loadFolderNote: { key: "notePath", noun: "note", portType: "text", takes: isMarkdownFile },
+  loadFolderImage: {
+    key: "imagePath",
+    noun: "image",
+    portType: "image",
+    takes: (path) => rasterImageMediaTypeForPath(path) !== undefined,
+  },
+};
+
+/** The key a folder loader of `type` stores its pick under, the one Expose
+ * shows; undefined for any other node type. */
+export function folderPickKey(type: string): string | undefined {
+  return Object.hasOwn(FOLDER_PICKS, type) ? FOLDER_PICKS[type].key : undefined;
+}
+
+/** A loader's dropdown of what it picks, and its refresh for when what it
+ * picks from changes. */
+export interface LoaderSelect extends PathPicker {
+  refresh(consented?: boolean): void | Promise<void>;
+}
+
 /** The node and output port wired into `nodeId`'s input `portId`, as every
  * surface that builds pickers answers PickerDeps' `sourceOf`. */
 export function sourceIn(
@@ -124,8 +151,11 @@ export interface Pickers {
   createOpenToSidePicker(node: FlowNodeInstance): PathPicker;
   createLoadTableRowsPicker(node: FlowNodeInstance): PathPicker;
   createAddRowPicker(node: FlowNodeInstance, onChosen: () => void): AddRowPicker;
-  createLoadFolderNotePicker(node: FlowNodeInstance): PathPicker;
-  createLoadFolderImagePicker(node: FlowNodeInstance): PathPicker;
+  createFolderPicker(node: FlowNodeInstance): PathPicker;
+  // The dropdown alone of the value a Load Row or a folder loader exposes,
+  // as App Mode shows it, with no chip naming the table or folder.
+  createRowSelect(node: FlowNodeInstance): LoaderSelect;
+  createFolderSelect(node: FlowNodeInstance): LoaderSelect;
   createGenerationPicker(node: FlowNodeInstance, onRegenerate: () => void): GenerationView;
   createGetFieldPicker(node: FlowNodeInstance): FieldPicker;
   createChartPicker(node: FlowNodeInstance): ChartPicker;
@@ -823,33 +853,26 @@ export function createPickers(deps: PickerDeps): Pickers {
     return { el: wrap, target: chip, dispose: clip.dispose };
   }
 
-  // loadRow's config: a drag-only drop target and a live "Selected row"
-  // dropdown over that table's first column. Neither `tablePath` nor
-  // `selectedValue` is in configFields — editing one refreshes the other.
+  // A Load Row's "Select <column>" dropdown over its table's first column,
+  // the value Expose shows: App Mode builds it alone, the card under the chip
+  // naming the table. Neither `tablePath` nor `selectedValue` is in
+  // configFields, and editing one refreshes the other.
   //
-  // `selectedLabelEl` is the "selected" output port's label, already built
-  // by the caller; the read below renames it to the table's first column.
-  // Only the label changes — the port id stays "selected", so no edge's
-  // `sourcePort` breaks.
-  function createLoadTablePicker(node: FlowNodeInstance, selectedLabelEl: HTMLElement): PathPicker {
-    const wrap = document.createElement("div");
-    wrap.className = "flow-node-config";
-
-    const target = loaderTarget(node, "table", "Drag a Table from your space here");
-    target.setPath(typeof node.config.tablePath === "string" ? node.config.tablePath : "");
-    clearsTo(node, target, () => {
-      delete node.config.tablePath;
-      delete node.config.selectedValue;
-    });
-
+  // `card` hears what the read found: the chip says what the table holds or
+  // that it's gone, and `renamed` hands the first column's label to the
+  // "selected" output port. Only the label changes, the port id stays
+  // "selected", so no edge's `sourcePort` breaks.
+  function createRowSelect(
+    node: FlowNodeInstance,
+    card?: { chip: SpaceDropTarget; renamed(label: string): void },
+  ): LoaderSelect {
     const selectField = document.createElement("div");
     selectField.className = "flow-config-field";
     const selectLabel = document.createElement("label");
     selectLabel.className = "flow-config-label";
     // "Select" alone until the loaded table's first column is known, then
-    // "Select <column>" — the "selected" output port's rename above, plus a
-    // verb, since this label sits over the dropdown that does the picking
-    // rather than naming a value already picked.
+    // "Select <column>", a verb, since this label sits over the dropdown
+    // that does the picking rather than naming a value already picked.
     selectLabel.textContent = "Select";
     const select = createSelectControl("", [], (value) => {
       node.config.selectedValue = value;
@@ -857,24 +880,21 @@ export function createPickers(deps: PickerDeps): Pickers {
     });
     select.disabled = true;
     selectField.append(selectLabel, select);
-    // The picked row's own display value is a real value by itself
-    // (unlike tablePath, just a pointer to which table to read) — the
-    // "Load Row select row" case this feature was built around.
+    // The picked row's own display value is a real value by itself, unlike
+    // tablePath, just a pointer to which table to read.
     deps.bindExposeToggle(node, "selectedValue", "text", selectLabel, selectField);
 
     // Re-reads the table at tablePath and refills the dropdown from its
     // first column. The editor's own read goes through the capability the
-    // executor checks at Run — the server can't tell an editing read from a
-    // running one — so picking a table can prompt right away.
+    // executor checks at Run (the server can't tell an editing read from a
+    // running one), so picking a table can prompt right away.
     async function refresh(consented = false): Promise<void> {
       const path = typeof node.config.tablePath === "string" ? node.config.tablePath : "";
       select.replaceChildren();
       select.disabled = true;
-      // Reset up front, same as select's own disabled/empty reset above —
-      // every early return below (no path, no grant, unreadable/malformed,
-      // no columns) leaves both labels at their generic fallback rather
-      // than a stale column name from whatever table was loaded before.
-      selectedLabelEl.textContent = "selected";
+      // Every early return below leaves both labels at their generic
+      // fallback rather than a stale column name from an earlier table.
+      card?.renamed("selected");
       selectLabel.textContent = "Select";
       if (!path) return;
       const granted = await deps.ensureCapability({ type: "readFile", path }, consented);
@@ -882,13 +902,12 @@ export function createPickers(deps: PickerDeps): Pickers {
       try {
         const result = await deps.read(path);
         if (result?.kind !== "table") return;
-        target.setDetail(tableContentsLabel(result.columns.length, result.rows.length));
+        card?.chip.setDetail(tableContentsLabel(result.columns.length, result.rows.length));
         deps.sourceLoaded(node.id);
         if (result.columns.length === 0 || result.rows.length === 0) return;
         const columnId = result.columns[0].id;
-        const columnLabel = result.columns[0].label || "row";
-        selectedLabelEl.textContent = result.columns[0].label || "selected";
-        selectLabel.textContent = `Select ${columnLabel}`;
+        card?.renamed(result.columns[0].label || "selected");
+        selectLabel.textContent = `Select ${result.columns[0].label || "row"}`;
         const stored = typeof node.config.selectedValue === "string" ? node.config.selectedValue : "";
         const options = result.rows.map((row) => {
           const value = row.values[columnId] ?? "";
@@ -901,11 +920,35 @@ export function createPickers(deps: PickerDeps): Pickers {
           deps.persistGraph();
         }
       } catch (error) {
-        // Unreadable, malformed, or not actually a table — left disabled
-        // with no options; dragging a different table in is the only fix.
-        if (isMissingFile(error)) target.setMissing(error.message);
+        // Unreadable, malformed, or not actually a table: left disabled with
+        // no options; dragging a different table in is the only fix.
+        if (isMissingFile(error)) card?.chip.setMissing(error.message);
       }
     }
+
+    void refresh();
+    return { el: selectField, target: select, refresh };
+  }
+
+  // loadRow's card: a drag-only drop target naming the table, over its
+  // "Select <column>" dropdown. `selectedLabelEl` is the "selected" output
+  // port's label, already built by the caller.
+  function createLoadTablePicker(node: FlowNodeInstance, selectedLabelEl: HTMLElement): PathPicker {
+    const wrap = document.createElement("div");
+    wrap.className = "flow-node-config";
+
+    const target = loaderTarget(node, "table", "Drag a Table from your space here");
+    target.setPath(typeof node.config.tablePath === "string" ? node.config.tablePath : "");
+    clearsTo(node, target, () => {
+      delete node.config.tablePath;
+      delete node.config.selectedValue;
+    });
+    const rows = createRowSelect(node, {
+      chip: target,
+      renamed: (label) => {
+        selectedLabelEl.textContent = label;
+      },
+    });
 
     target.onDrop((event) => {
       const consented = isEntryDrop(event);
@@ -923,13 +966,11 @@ export function createPickers(deps: PickerDeps): Pickers {
       // needs no prompt, and any other drop asks; the grant is checked
       // against the graph on disk, so save first.
       void (async () => {
-        if (await deps.saveGraphNow()) await refresh(consented);
+        if (await deps.saveGraphNow()) await rows.refresh(consented);
       })();
     });
 
-    void refresh();
-
-    wrap.append(...target.elements, selectField);
+    wrap.append(...target.elements, rows.el);
     return { el: wrap, target: target.elements[0] };
   }
 
@@ -1288,27 +1329,17 @@ export function createPickers(deps: PickerDeps): Pickers {
     return { el: wrap, target: target.elements[0] };
   }
 
-  // A folder loader's config: a drop-only folder plus a live "Selected …"
-  // dropdown of its direct children the node takes (no recursion).
+  // A folder loader's "Selected …" dropdown of its folder's direct children
+  // the node takes (no recursion), the value Expose shows: App Mode builds it
+  // alone, the card under the chip naming the folder, which hears how many
+  // there are.
   //
   // Listing needs no capability check: the space tree is already visible in
   // the sidebar, ungated, so it reads synchronously, and only the picked
   // file's read needs a readFile grant. An image gets no thumbnail, which
   // would need its own gated read just to render.
-  function createFolderPickPicker(
-    node: FlowNodeInstance,
-    pick: { key: string; noun: string; portType: FlowPortType; takes: (path: string) => boolean },
-  ): PathPicker {
-    const wrap = document.createElement("div");
-    wrap.className = "flow-node-config";
-
-    const target = loaderTarget(node, "folder", "Drag a folder from your space here");
-    target.setPath(typeof node.config.folderPath === "string" ? node.config.folderPath : "");
-    clearsTo(node, target, () => {
-      delete node.config.folderPath;
-      delete node.config[pick.key];
-    });
-
+  function createFolderSelect(node: FlowNodeInstance, chip?: SpaceDropTarget): LoaderSelect {
+    const pick = FOLDER_PICKS[node.type];
     const selectField = document.createElement("div");
     selectField.className = "flow-config-field";
     const selectLabel = document.createElement("label");
@@ -1330,7 +1361,7 @@ export function createPickers(deps: PickerDeps): Pickers {
       const children = deps.directoryChildren(shown(folderPath));
       if (!children) return;
       const files = children.filter((child) => child.type === "file" && pick.takes(child.path));
-      target.setDetail(count(files.length, pick.noun));
+      chip?.setDetail(count(files.length, pick.noun));
       if (files.length === 0) return;
       const held = node.config[pick.key];
       const stored = typeof held === "string" ? held : "";
@@ -1346,32 +1377,37 @@ export function createPickers(deps: PickerDeps): Pickers {
       }
     }
 
+    refresh();
+    return { el: selectField, target: select, refresh };
+  }
+
+  // A folder loader's card: a drop-only folder over its "Selected …"
+  // dropdown.
+  function createFolderPicker(node: FlowNodeInstance): PathPicker {
+    const wrap = document.createElement("div");
+    wrap.className = "flow-node-config";
+
+    const target = loaderTarget(node, "folder", "Drag a folder from your space here");
+    target.setPath(typeof node.config.folderPath === "string" ? node.config.folderPath : "");
+    const files = createFolderSelect(node, target);
+    clearsTo(node, target, () => {
+      delete node.config.folderPath;
+      delete node.config[FOLDER_PICKS[node.type].key];
+    });
+
     target.onDrop((event) => {
       const path = readFolderDrop(event, target);
       if (path === undefined) return;
-      if (!samePath(node.config.folderPath, path)) delete node.config[pick.key];
+      if (!samePath(node.config.folderPath, path)) delete node.config[FOLDER_PICKS[node.type].key];
       node.config.folderPath = path;
       target.setPath(path);
       deps.persistGraph();
-      refresh();
+      files.refresh();
     });
 
-    refresh();
-
-    wrap.append(...target.elements, selectField);
-    return { el: wrap, target: select };
+    wrap.append(...target.elements, files.el);
+    return { el: wrap, target: files.target };
   }
-
-  const createLoadFolderNotePicker = (node: FlowNodeInstance): PathPicker =>
-    createFolderPickPicker(node, { key: "notePath", noun: "note", portType: "text", takes: isMarkdownFile });
-
-  const createLoadFolderImagePicker = (node: FlowNodeInstance): PathPicker =>
-    createFolderPickPicker(node, {
-      key: "imagePath",
-      noun: "image",
-      portType: "image",
-      takes: (path) => rasterImageMediaTypeForPath(path) !== undefined,
-    });
 
   // The keys a source's object will carry, read from the document its
   // executor reads: a Load Row's or Load Table's column labels. undefined for
@@ -1575,8 +1611,9 @@ export function createPickers(deps: PickerDeps): Pickers {
     createOpenToSidePicker,
     createLoadTableRowsPicker,
     createAddRowPicker,
-    createLoadFolderNotePicker,
-    createLoadFolderImagePicker,
+    createFolderPicker,
+    createRowSelect: (node) => createRowSelect(node),
+    createFolderSelect: (node) => createFolderSelect(node),
     createWriteFolderNotePicker,
     createGenerationPicker,
     createGetFieldPicker,

@@ -226,7 +226,7 @@ describe("pickers", () => {
     expect(deps.openChipMenu).toHaveBeenLastCalledWith(5, 6, { file: "notes/a.md" }, expect.any(Function));
     contextMenuOn(chipOf(pickers.createDropzone(node("loadImage", { imagePath: "lib:footage/sunset.png" })).el));
     expect(deps.openChipMenu).toHaveBeenLastCalledWith(5, 6, { file: "lib:footage/sunset.png" }, expect.any(Function));
-    contextMenuOn(chipOf(pickers.createLoadFolderNotePicker(node("loadFolderNote", { folderPath: "notes" })).el));
+    contextMenuOn(chipOf(pickers.createFolderPicker(node("loadFolderNote", { folderPath: "notes" })).el));
     expect(deps.openChipMenu).toHaveBeenLastCalledWith(5, 6, { folder: "notes" }, expect.any(Function));
 
     // An empty target names nothing, so the canvas's own handling stands.
@@ -254,7 +254,7 @@ describe("pickers", () => {
     expect(deps.remount).toHaveBeenLastCalledWith("loadRow-1");
 
     const folder = node("loadFolderNote", { folderPath: "notes", notePath: "notes/a.md" });
-    chipClear(deps, chipOf(pickers.createLoadFolderNotePicker(folder).el))();
+    chipClear(deps, chipOf(pickers.createFolderPicker(folder).el))();
     expect(folder.config).toEqual({});
 
     const applet = node("applet", { appletPath: "space:a.applet.html", state: { x: 1 } });
@@ -402,7 +402,7 @@ describe("pickers", () => {
   it("the folder pickers list a folder's direct notes or images from the tree, no read needed", () => {
     const { deps, pickers } = setup();
     const noteNode = node("loadFolderNote", { folderPath: "notes" });
-    const noteEl = pickers.createLoadFolderNotePicker(noteNode).el;
+    const noteEl = pickers.createFolderPicker(noteNode).el;
     expect([...selectOf(noteEl).options].map((o) => [o.value, o.textContent])).toEqual([
       ["notes/a.md", "a"],
       ["notes/b.md", "b"],
@@ -414,7 +414,7 @@ describe("pickers", () => {
     // A folder, dropped, is written with its `/`; the pick inside it is
     // written as a drop of that file would be.
     const imageNode = node("loadFolderImage");
-    const imageEl = pickers.createLoadFolderImagePicker(imageNode).el;
+    const imageEl = pickers.createFolderPicker(imageNode).el;
     drop(zoneOf(imageEl), "notes/a.md");
     expect(zoneOf(imageEl).textContent).toBe("Not a folder: notes/a.md");
     drop(zoneOf(imageEl), "notes");
@@ -445,7 +445,7 @@ describe("pickers", () => {
   it("a pick its folder or table no longer has stays, shown missing, and nothing is saved", async () => {
     const { deps, pickers } = setup();
     const noteNode = node("loadFolderNote", { folderPath: "notes", notePath: "notes/gone.md" });
-    const noteEl = pickers.createLoadFolderNotePicker(noteNode).el;
+    const noteEl = pickers.createFolderPicker(noteNode).el;
     expect([...selectOf(noteEl).options].map((o) => [o.value, o.textContent, o.disabled])).toEqual([
       ["notes/gone.md", "gone (missing)", true],
       ["notes/a.md", "a", false],
@@ -454,7 +454,7 @@ describe("pickers", () => {
     expect(selectOf(noteEl).value).toBe("notes/gone.md");
 
     const imageNode = node("loadFolderImage", { folderPath: "notes", imagePath: "notes/gone.png" });
-    const imageEl = pickers.createLoadFolderImagePicker(imageNode).el;
+    const imageEl = pickers.createFolderPicker(imageNode).el;
     expect(selectOf(imageEl).value).toBe("notes/gone.png");
     expect(selectOf(imageEl).options[0].textContent).toBe("gone (missing)");
 
@@ -485,7 +485,7 @@ describe("pickers", () => {
     });
     // The same folder, however it was written, keeps its pick as written.
     const noteNode = node("loadFolderNote", { folderPath: "space:notes", notePath: "space:notes/a.md" });
-    const noteEl = pickers.createLoadFolderNotePicker(noteNode).el;
+    const noteEl = pickers.createFolderPicker(noteNode).el;
     drop(zoneOf(noteEl), "notes");
     expect(noteNode.config.notePath).toBe("space:notes/a.md");
     drop(zoneOf(noteEl), "other");
@@ -504,7 +504,7 @@ describe("pickers", () => {
   // change. A card being built is measured once it is placed.
   it("asks for its card to be measured again when a placed chip changes", () => {
     const { deps, pickers } = setup();
-    const picker = pickers.createLoadFolderNotePicker(node("loadFolderNote"));
+    const picker = pickers.createFolderPicker(node("loadFolderNote"));
     expect(deps.layoutChanged).not.toHaveBeenCalled();
     document.body.append(picker.el);
     try {
@@ -582,7 +582,7 @@ describe("pickers", () => {
     expect(deps.ensureCapability).not.toHaveBeenCalled();
     expect(deps.read).not.toHaveBeenCalled();
 
-    const folderEl = pickers.createLoadFolderImagePicker(node("loadFolderImage", { folderPath: "art" })).el;
+    const folderEl = pickers.createFolderPicker(node("loadFolderImage", { folderPath: "art" })).el;
     expect([...selectOf(folderEl).options].map((o) => o.value)).toEqual(["art/cover.png"]);
   });
 
@@ -927,7 +927,7 @@ describe("pickers", () => {
     // The folder pickers would otherwise have said "Not a folder", which is
     // true of the space tree they search and beside the point.
     const folderNode = node("loadFolderImage");
-    const folderZone = zoneOf(pickers.createLoadFolderImagePicker(folderNode).el);
+    const folderZone = zoneOf(pickers.createFolderPicker(folderNode).el);
     drop(folderZone, "lib:footage");
     expect(folderZone.textContent).toBe("A library file can only go in a note, a media field or a Load Image node.");
     expect(folderNode.config.folderPath).toBeUndefined();
