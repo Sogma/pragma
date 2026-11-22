@@ -125,6 +125,17 @@
   width: min(100cqw, 100cqh * var(--guides-aspect, 1));
   height: min(100cqh, 100cqw / var(--guides-aspect, 1));
   margin: auto;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+/* The names show only with the media's bars (media-panes.css), fading as
+   they do: while the picture, a video's controls or the bars' own are under
+   the pointer, and while a menu opened in the frame is open, so they stay up
+   while frames are picked. */
+.media-frame:has(> :is(img, video):hover, > .media-hud:hover, [aria-expanded="true"]) .video-guides-names,
+.media-frame:has(> .video-player):hover .video-guides-names {
+  opacity: 1;
 }
 
 /* A frame's ratio, just inside its top left corner, and the protection, just
