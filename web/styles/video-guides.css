@@ -127,7 +127,8 @@
   margin: auto;
 }
 
-/* A frame's ratio, just inside its top left corner. */
+/* A frame's ratio, just inside its top left corner, and the protection, just
+   inside the picture's. */
 .video-guides-name {
   position: absolute;
   margin: 4px 0 0 6px;

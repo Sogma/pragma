@@ -120,6 +120,12 @@ export function frameBox(width: number, height: number, aspect: number): Box & {
 
 export const MAX_PROTECTION = 0.25;
 
+// From this protection, in whole percents, it is named inside the picture's
+// top left corner. Below it, the dark band a frame of the picture's shape
+// leaves there is too thin for the name on a picture fitted to its pane, so
+// the outer frame's own name carries its framing's share of the cut instead.
+const PROTECTION_IN_CORNER = 7;
+
 /** The framing of a frame cut as `box`, shrunk inside it by `protection` of
  * its size: the cut holds the protection, so it never runs past the picture
  * as protection grown outward from the frame would. */
@@ -384,16 +390,15 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
     const kept = current.protection;
     const whole = { x: 0, y: 0, width, height, cut: false };
     const frames: (Box & { id?: GuideFrame; cut: boolean })[] = boxes.length > 0 ? boxes : [whole];
-    const framed = frames.map((box, index) => ({
-      ...box,
-      framing: framingBox(box, kept),
-      // Protection is measured on the largest lit frame: a cut inside a
-      // larger lit one, or an equal one lit before it, gets no line.
-      outlinesCut:
-        box.cut &&
-        kept > 0 &&
-        !frames.some((other, at) => at !== index && holds(other, box) && (at < index || !holds(box, other))),
-    }));
+    const framed = frames.map((box, index) => {
+      // Protection is measured on the largest lit frame: one inside a larger
+      // lit one, or an equal one lit before it, is not outer, and its cut
+      // gets no line.
+      const outer = !frames.some(
+        (other, at) => at !== index && holds(other, box) && (at < index || !holds(box, other)),
+      );
+      return { ...box, framing: framingBox(box, kept), outer, outlinesCut: box.cut && kept > 0 && outer };
+    });
     const path = matteOutside(
       width,
       height,
@@ -415,16 +420,27 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
       ]),
     );
     names.style.setProperty("--guides-aspect", String(width / height));
+    const name = (text: string, corner: Box) => {
+      const node = document.createElement("span");
+      node.className = "video-guides-name";
+      node.textContent = text;
+      node.style.left = `${(corner.x / width) * 100}%`;
+      node.style.top = `${(corner.y / height) * 100}%`;
+      return node;
+    };
+    // The protection is named once: inside the picture's top left corner,
+    // dark whenever protection is on, or, too thin there, after the first
+    // outer frame's ratio as its framing's share.
+    const percent = Math.round(kept * 100);
+    const inCorner = percent >= PROTECTION_IN_CORNER;
+    const shared = percent > 0 && !inCorner ? framed.find((box) => box.outer) : undefined;
     names.replaceChildren(
-      ...drawn.flatMap(({ id, framing }) => {
-        if (id === undefined) return [];
-        const name = document.createElement("span");
-        name.className = "video-guides-name";
-        name.textContent = FRAMES.find((choice) => choice.id === id)?.label ?? id;
-        name.style.left = `${(framing.x / width) * 100}%`;
-        name.style.top = `${(framing.y / height) * 100}%`;
-        return [name];
+      ...drawn.flatMap((box) => {
+        const own = box.id === undefined ? "" : (FRAMES.find((choice) => choice.id === box.id)?.label ?? box.id);
+        const text = box === shared ? [own, `${100 - percent}%`].filter(Boolean).join(" ") : own;
+        return text ? [name(text, box.framing)] : [];
       }),
+      ...(inCorner ? [name(`${percent}%`, whole)] : []),
     );
     const frame = framingBox(sharedBox(width, height, boxes), kept);
     place(extents, frame);

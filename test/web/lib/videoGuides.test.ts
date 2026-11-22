@@ -316,7 +316,10 @@ describe("createGuidesOverlay", () => {
     expect(box(protection)).toEqual(["0", "138.33", "1920", "803.35"]);
     expect(box(framing)).toEqual(["96", "178.49", "1728", "723.01"]);
     expect(box(title)).toEqual(["182.4", "214.64", "1555.2", "650.71"]);
-    expect(names()).toEqual([["2.39", 5, 16.53]]);
+    expect(names()).toEqual([
+      ["2.39", 5, 16.53],
+      ["10%", 0, 0],
+    ]);
   });
 
   // A wide frame and a tall one hold neither each other: each keeps its own protection.
@@ -374,7 +377,7 @@ describe("createGuidesOverlay", () => {
     const { choice, overlay, svg, shown, names, box } = draw({ ...NO_GUIDES, protection: 0.1 });
     overlay.setSize(1920, 1080);
     expect(overlay.element.hasAttribute("hidden")).toBe(false);
-    expect([shown(), names()]).toEqual([["video-guides-matte", "video-guides-line is-frame"], []]);
+    expect([shown(), names()]).toEqual([["video-guides-matte", "video-guides-line is-frame"], [["10%", 0, 0]]]);
     expect(box(svg.querySelector(".is-frame") as Element)).toEqual(["96", "54", "1728", "972"]);
     expect(svg.querySelector(".video-guides-matte")?.getAttribute("d")).toBe(
       "M0 0H96V1080H0Z M1824 0H1920V1080H1824Z M96 0H1824V54H96Z M96 1026H1824V1080H96Z",
@@ -382,10 +385,51 @@ describe("createGuidesOverlay", () => {
     choice.set({ ...NO_GUIDES, frames: ["16:9"], action: true, protection: 0.1 });
     expect([shown(), names()]).toEqual([
       ["video-guides-matte", "video-guides-line is-frame", "video-guides-line"],
-      [["16:9", 5, 5]],
+      [
+        ["16:9", 5, 5],
+        ["10%", 0, 0],
+      ],
     ]);
     const [, , action] = [...svg.querySelectorAll("rect")];
     expect(box(action)).toEqual(["156.48", "88.02", "1607.04", "903.96"]);
+  });
+
+  // Named once for every frame: each frame's ratio sits inside its own corner, the protection inside the picture's.
+  it("names the protection once, inside the picture's top left corner, from 7%", () => {
+    const { choice, overlay, names } = draw({ ...NO_GUIDES, frames: ["9:16", "2.39"], protection: 0.1 });
+    overlay.setSize(1920, 1080);
+    expect(names()).toEqual([
+      ["9:16", 35.76, 5],
+      ["2.39", 5, 16.53],
+      ["10%", 0, 0],
+    ]);
+    choice.set({ ...NO_GUIDES, frames: ["9:16", "1:1"], protection: 0.07 });
+    expect(names()).toEqual([
+      ["9:16", 35.29, 3.5],
+      ["1:1", 23.84, 3.5],
+      ["7%", 0, 0],
+    ]);
+  });
+
+  // Under 7% the corner's band is too thin for it, so the outer frame's ratio carries its framing's share of the cut.
+  it("names a protection under 7% as the outer frame's share, after its ratio", () => {
+    const { choice, overlay, names } = draw({ ...NO_GUIDES, frames: ["1:1", "9:16"], protection: 0.06 });
+    overlay.setSize(1920, 1080);
+    expect(names()).toEqual([
+      ["1:1 94%", 23.56, 3],
+      ["9:16", 35.13, 3],
+    ]);
+    // A wide frame and a tall one, each outer: the first lit.
+    choice.set({ ...NO_GUIDES, frames: ["9:16", "2.39"], protection: 0.05 });
+    expect(names()).toEqual([
+      ["9:16 95%", 34.97, 2.5],
+      ["2.39", 2.5, 14.67],
+    ]);
+    // A frame of the picture's own shape, and the picture itself with no frame lit, which has no ratio.
+    choice.set({ ...NO_GUIDES, frames: ["16:9"], protection: 0.03 });
+    expect(names()).toEqual([["16:9 97%", 1.5, 1.5]]);
+    choice.set({ ...NO_GUIDES, protection: 0.03 });
+    expect(names()).toEqual([["97%", 1.5, 1.5]]);
   });
 
   // A frame of the picture's own shape is its edge, and shows all of it.
