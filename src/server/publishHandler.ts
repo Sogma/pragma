@@ -211,10 +211,10 @@ export async function runPublish(
   if (!described.ok) {
     return {
       ok: false,
-      message: described.httpCall
+      message: described.responded
         ? `Couldn't read the publisher's API description. ${described.message}`
         : described.message,
-      status: described.httpCall ? 400 : 502,
+      status: described.responded ? 400 : 502,
     };
   }
   const paramKeys = documentParamKeys(described.schemas.documentParams);
@@ -263,10 +263,10 @@ export async function runPublish(
       });
 
   if (!result.ok) {
-    // httpCall present ⇔ Sogma actually responded (and rejected the
-    // request) — absent means the fetch itself never got a response. Same
-    // 400-vs-502 distinction /api/space/site's New Site route makes.
-    return { ok: false, message: refusalMessage(result, slug, params), status: result.httpCall ? 400 : 502 };
+    // `responded` ⇔ Sogma actually responded (and rejected the request);
+    // absent means the fetch itself never got a response. Same 400-vs-502
+    // distinction /api/space/site's New Site route makes.
+    return { ok: false, message: refusalMessage(result, slug, params), status: result.responded ? 400 : 502 };
   }
 
   // `pushed` mirrors Sogma's own `updated_at`. The published URL is not

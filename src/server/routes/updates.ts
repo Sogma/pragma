@@ -1,7 +1,6 @@
 // pragma's own version and the update check.
 import type { Hono } from "hono";
 import type { AppletInfoResponse, UpdateStatus } from "../../protocol/api.ts";
-import { httpCall } from "../../protocol/httpCall.ts";
 import { pragmaRepository, pragmaVersion } from "../version.ts";
 import type { RouteContext } from "./shared.ts";
 
@@ -36,7 +35,7 @@ export function mountUpdateRoutes(app: Hono, _context: RouteContext): void {
       return c.json<UpdateStatus>({ phase: "error", message: "package.json names no GitHub repository" });
     }
     try {
-      const { response } = await httpCall(`https://api.github.com/repos/${pragmaRepository}/releases/latest`, {
+      const response = await fetch(`https://api.github.com/repos/${pragmaRepository}/releases/latest`, {
         headers: { accept: "application/vnd.github+json" },
       });
       if (!response.ok) {

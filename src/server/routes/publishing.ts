@@ -174,9 +174,9 @@ export function mountPublishingRoutes(app: Hono, { spaceRoot }: RouteContext): v
 
         const result = await createSogmaSite(publisher, { name, domain: body.domain });
         if (!result.ok) {
-          // httpCall present ⇔ a response came back; absent means the fetch
+          // `responded` ⇔ a response came back; absent means the fetch
           // itself threw.
-          return c.json({ message: result.message }, result.httpCall ? 400 : 502);
+          return c.json({ message: result.message }, result.responded ? 400 : 502);
         }
         site = result.site;
       }

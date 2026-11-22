@@ -1,5 +1,4 @@
 import type { ResolvedPublisher } from "../config/loadConfig.ts";
-import { type HttpCallMeta, httpCall } from "./httpCall.ts";
 
 /**
  * The Sogma client: every call shares one base-URL normalization and
@@ -45,7 +44,7 @@ export async function verifyPublisherKey(publisher: PublisherConnection): Promis
   if (!publisher.baseURL) return { ok: true };
   if (publisher.kind !== "sogma") return { ok: true };
   try {
-    const { response } = await httpCall(`${sogmaBase(publisher)}/sites`, { headers: sogmaHeaders(publisher) });
+    const response = await fetch(`${sogmaBase(publisher)}/sites`, { headers: sogmaHeaders(publisher) });
     return { ok: response.status !== 401 && response.status !== 403 };
   } catch (error) {
     return { ok: true, error: error instanceof Error ? error.message : "Network error" };
@@ -62,10 +61,10 @@ export interface SogmaSite {
 
 export type CreateSogmaSiteResult =
   | { ok: true; site: SogmaSite }
-  // `httpCall` present ⇔ a response actually came back from Sogma — absent
-  // means the fetch itself threw, which the caller (routes.ts) uses to pick
-  // a 502 (never reached Sogma) vs. 400 (Sogma rejected the request).
-  | { ok: false; message: string; httpCall?: HttpCallMeta };
+  // `responded` ⇔ a response actually came back from Sogma; absent means the
+  // fetch itself threw, which the caller (routes.ts) uses to pick a 502
+  // (never reached Sogma) vs. 400 (Sogma rejected the request).
+  | { ok: false; message: string; responded?: true };
 
 // New Site (docs/publishing.md's Creating a site section) — `POST
 // /v1/sites`. `domain` is only ever a caller-supplied request field, never
@@ -75,9 +74,9 @@ export async function createSogmaSite(
   publisher: PublisherConnection,
   { name, domain }: { name: string; domain?: string },
 ): Promise<CreateSogmaSiteResult> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/sites`, {
+    response = await fetch(`${sogmaBase(publisher)}/sites`, {
       method: "POST",
       headers: sogmaHeaders(publisher, {
         "content-type": "application/json",
@@ -89,13 +88,12 @@ export async function createSogmaSite(
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => undefined)) as { error?: { message?: string } } | undefined;
     return {
       ok: false,
       message: errorBody?.error?.message ?? `Sogma rejected the request (${response.status}).`,
-      httpCall: meta,
+      responded: true,
     };
   }
 
@@ -122,7 +120,7 @@ export interface DeleteSogmaSiteResult {
 // whether the site needs a manual retry.
 export async function deleteSogmaSite(publisher: PublisherConnection, siteId: string): Promise<DeleteSogmaSiteResult> {
   try {
-    const { response } = await httpCall(`${sogmaBase(publisher)}/sites/${siteId}`, {
+    const response = await fetch(`${sogmaBase(publisher)}/sites/${siteId}`, {
       method: "DELETE",
       headers: sogmaHeaders(publisher),
     });
@@ -137,7 +135,7 @@ export async function deleteSogmaSite(publisher: PublisherConnection, siteId: st
  * leaves it out. */
 export async function readSogmaSiteName(publisher: PublisherConnection, siteId: string): Promise<string | undefined> {
   try {
-    const { response } = await httpCall(`${sogmaBase(publisher)}/sites`, { headers: sogmaHeaders(publisher) });
+    const response = await fetch(`${sogmaBase(publisher)}/sites`, { headers: sogmaHeaders(publisher) });
     if (!response.ok) return undefined;
     const body = (await response.json()) as { sites?: Array<{ id?: unknown; name?: unknown }> };
     const site = Array.isArray(body.sites) ? body.sites.find((entry) => entry.id === siteId) : undefined;
@@ -149,11 +147,11 @@ export async function readSogmaSiteName(publisher: PublisherConnection, siteId: 
 
 export type SogmaSettingsResult<T> =
   | ({ ok: true } & T)
-  // Same httpCall-present-or-not distinction as CreateSogmaSiteResult above.
+  // The same `responded` distinction as CreateSogmaSiteResult above.
   // `field` is the JSON Pointer Sogma names when a single field is to blame
   // (its Errors section) — carried through so a form can say which control
   // was rejected instead of showing one message for the whole dialog.
-  | { ok: false; message: string; field?: string; httpCall?: HttpCallMeta };
+  | { ok: false; message: string; field?: string; responded?: true };
 
 /** The schemas Pragma reads out of a publisher's API description. */
 export interface SogmaApiSchemas {
@@ -178,20 +176,19 @@ export async function fetchSogmaApiSchemas(
   publisher: PublisherConnection,
   etag?: string,
 ): Promise<SogmaSettingsResult<{ schemas?: SogmaApiSchemas; etag?: string; notModified: boolean }>> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/openapi.json`, {
+    response = await fetch(`${sogmaBase(publisher)}/openapi.json`, {
       headers: sogmaHeaders(publisher, etag ? { "if-none-match": etag } : {}),
     });
   } catch {
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (response.status === 304) return { ok: true, notModified: true, etag };
   if (response.status === 404) return { ok: true, notModified: false, schemas: {} };
   if (!response.ok) {
-    return { ok: false, message: `Sogma rejected the request (${response.status}).`, httpCall: meta };
+    return { ok: false, message: `Sogma rejected the request (${response.status}).`, responded: true };
   }
 
   const document = (await response.json().catch(() => undefined)) as
@@ -216,13 +213,13 @@ export async function fetchSogmaSiteSettings(
   publisher: PublisherConnection,
   siteId: string,
 ): Promise<SogmaSettingsResult<{ settings: unknown }>> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/sites/${siteId}/settings`, { headers: sogmaHeaders(publisher) });
+    response = await fetch(`${sogmaBase(publisher)}/sites/${siteId}/settings`, { headers: sogmaHeaders(publisher) });
   } catch {
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
-  return readSettingsResponse(call);
+  return readSettingsResponse(response);
 }
 
 // `PATCH /v1/sites/{id}`: the name and the settings in one request, which
@@ -238,9 +235,9 @@ export async function patchSogmaSite(
   siteId: string,
   patch: { name?: string; settings?: Record<string, unknown> },
 ): Promise<SogmaSettingsResult<{ name?: string; settings: unknown }>> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/sites/${siteId}`, {
+    response = await fetch(`${sogmaBase(publisher)}/sites/${siteId}`, {
       method: "PATCH",
       headers: sogmaHeaders(publisher, { "content-type": "application/json" }),
       body: JSON.stringify(patch),
@@ -248,16 +245,15 @@ export async function patchSogmaSite(
   } catch {
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
-  return readSettingsResponse(call);
+  return readSettingsResponse(response);
 }
 
 // Both settings calls answer with the same envelope, and reject with the
 // same one — so the success parse and the `field`-carrying error parse live
 // together rather than being written twice.
 async function readSettingsResponse(
-  call: Awaited<ReturnType<typeof httpCall>>,
+  response: Response,
 ): Promise<SogmaSettingsResult<{ name?: string; settings: unknown }>> {
-  const { response, meta } = call;
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as
       | { error?: { message?: string; field?: string } }
@@ -266,7 +262,7 @@ async function readSettingsResponse(
       ok: false,
       message: body?.error?.message ?? `Sogma rejected the request (${response.status}).`,
       ...(body?.error?.field ? { field: body.error.field } : {}),
-      httpCall: meta,
+      responded: true,
     };
   }
   const body = (await response.json().catch(() => undefined)) as { name?: unknown; settings?: unknown } | undefined;
@@ -286,10 +282,10 @@ export interface SogmaDocument {
 
 export type PublishSogmaDocumentResult =
   | { ok: true; document: SogmaDocument }
-  // Same httpCall-present-or-not distinction as CreateSogmaSiteResult above.
+  // The same `responded` distinction as CreateSogmaSiteResult above.
   // `code` and `field` are the error envelope's, for a caller that tells the
   // refusal in the document's own terms.
-  | { ok: false; message: string; code?: string; field?: string; httpCall?: HttpCallMeta };
+  | { ok: false; message: string; code?: string; field?: string; responded?: true };
 
 /** The useful members of the error envelope. `code` is the stable string
  * the spec says to branch on, and `field` the JSON Pointer to the value to
@@ -348,12 +344,12 @@ export async function createSogmaDocument(
     params?: Record<string, unknown>;
   },
 ): Promise<PublishSogmaDocumentResult> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
     // `content_format` is sent even though `markdown` is Sogma's default:
     // a PUT without it resets the stored format instead of keeping it, so
     // both calls name the body's format rather than leaving it implied.
-    call = await httpCall(`${sogmaBase(publisher)}/documents`, {
+    response = await fetch(`${sogmaBase(publisher)}/documents`, {
       method: "POST",
       headers: sogmaHeaders(publisher, {
         "content-type": "application/json",
@@ -375,12 +371,11 @@ export async function createSogmaDocument(
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (!response.ok) {
     return {
       ok: false,
       ...(await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`)),
-      httpCall: meta,
+      responded: true,
     };
   }
 
@@ -416,9 +411,9 @@ export async function updateSogmaDocument(
     params?: Record<string, unknown>;
   },
 ): Promise<PublishSogmaDocumentResult> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/documents/${documentId}`, {
+    response = await fetch(`${sogmaBase(publisher)}/documents/${documentId}`, {
       method: "PUT",
       headers: sogmaHeaders(publisher, { "content-type": "application/json" }),
       body: JSON.stringify({
@@ -436,12 +431,11 @@ export async function updateSogmaDocument(
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (!response.ok) {
     return {
       ok: false,
       ...(await readSogmaDocumentError(response, `Sogma rejected the request (${response.status}).`)),
-      httpCall: meta,
+      responded: true,
     };
   }
 
@@ -461,7 +455,7 @@ export interface DeleteSogmaDocumentResult {
 
 // Unpublish (docs/publishing.md's The pending queue section) — `DELETE
 // /v1/documents/{id}`. Idempotent per spec (204 on success and on a document
-// already gone), so no Idempotency-Key. No message/httpCall on failure, like
+// already gone), so no Idempotency-Key. No message or `responded` on failure, like
 // the site delete: the caller's fallback is a `_queue.json` entry, never a
 // reason shown to the user.
 export async function deleteSogmaDocument(
@@ -469,7 +463,7 @@ export async function deleteSogmaDocument(
   documentId: string,
 ): Promise<DeleteSogmaDocumentResult> {
   try {
-    const { response } = await httpCall(`${sogmaBase(publisher)}/documents/${documentId}`, {
+    const response = await fetch(`${sogmaBase(publisher)}/documents/${documentId}`, {
       method: "DELETE",
       headers: sogmaHeaders(publisher),
     });
@@ -505,11 +499,11 @@ export interface SogmaFile {
 
 export type SogmaFileResult =
   | { ok: true; file: SogmaFile }
-  // Same httpCall-present-or-not distinction as CreateSogmaSiteResult above.
+  // The same `responded` distinction as CreateSogmaSiteResult above.
   // `code` rides along because a size rejection has to be told from every
   // other refusal, and the service's own limit only ever appears in prose
   // its spec forbids parsing.
-  | { ok: false; message: string; code?: string; limitBytes?: number; httpCall?: HttpCallMeta };
+  | { ok: false; message: string; code?: string; limitBytes?: number; responded?: true };
 
 /** Sogma's own wire shape for a file, snake_case and all. Kept beside the
  * parser rather than exported: nothing outside this module should be reading
@@ -557,9 +551,9 @@ export async function stageSogmaFile(
   publisher: PublisherConnection,
   input: { siteId: string; filename: string; mimeType: string; sizeBytes: number; sha256: string },
 ): Promise<SogmaFileResult> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/files`, {
+    response = await fetch(`${sogmaBase(publisher)}/files`, {
       method: "POST",
       headers: sogmaHeaders(publisher, { "content-type": "application/json" }),
       body: JSON.stringify({
@@ -575,12 +569,11 @@ export async function stageSogmaFile(
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (!response.ok) {
     return {
       ok: false,
       ...(await readSogmaError(response, `Sogma rejected the upload (${response.status}).`)),
-      httpCall: meta,
+      responded: true,
     };
   }
   return { ok: true, file: parseSogmaFile((await response.json()) as SogmaFileBody) };
@@ -599,7 +592,7 @@ export async function putSogmaFileBytes(
   bytes: Uint8Array<ArrayBuffer>,
 ): Promise<{ ok: true } | { ok: false; message: string; responded: boolean }> {
   try {
-    const { response } = await httpCall(upload.url, {
+    const response = await fetch(upload.url, {
       method: upload.method,
       headers: upload.headers,
       body: bytes,
@@ -622,22 +615,21 @@ export async function putSogmaFileBytes(
 export async function listSogmaFiles(
   publisher: PublisherConnection,
   siteId: string,
-): Promise<{ ok: true; files: SogmaFile[] } | { ok: false; message: string; httpCall?: HttpCallMeta }> {
-  let call: Awaited<ReturnType<typeof httpCall>>;
+): Promise<{ ok: true; files: SogmaFile[] } | { ok: false; message: string; responded?: true }> {
+  let response: Response;
   try {
-    call = await httpCall(`${sogmaBase(publisher)}/files?site_id=${encodeURIComponent(siteId)}`, {
+    response = await fetch(`${sogmaBase(publisher)}/files?site_id=${encodeURIComponent(siteId)}`, {
       headers: sogmaHeaders(publisher),
     });
   } catch {
     return { ok: false, message: "Couldn't reach the publisher. Check the connection and try again." };
   }
 
-  const { response, meta } = call;
   if (!response.ok) {
     return {
       ok: false,
       ...(await readSogmaError(response, `Sogma rejected the request (${response.status}).`)),
-      httpCall: meta,
+      responded: true,
     };
   }
   const body = (await response.json()) as { files?: SogmaFileBody[] };

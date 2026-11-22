@@ -248,7 +248,7 @@ export async function uploadImage(
         ? `"${image.spacePath}" is ${describeSize(image.bytes.byteLength)}, over the ` +
           `${describeSize(staged.limitBytes)} the publisher accepts for images.`
         : staged.message;
-    return { ok: false, message, responded: staged.httpCall !== undefined };
+    return { ok: false, message, responded: staged.responded === true };
   }
 
   // No upload target means the site already holds these bytes, matched by

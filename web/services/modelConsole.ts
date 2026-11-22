@@ -30,14 +30,6 @@ export type LlmCallOutcome =
     }
   | { failed: true; message: string; need?: SetupNeed };
 
-export type HttpCallOutcome =
-  // A non-2xx response is still a completed call (warn, not error) — it
-  // got an answer, just not a happy one. `failed` is reserved for the call
-  // never getting a response at all (network error, thrown before a
-  // Response existed).
-  | { failed: false; method: string; url: string; status: number; ok: boolean; durationMs: number }
-  | { failed: true; message: string };
-
 export interface ModelConsoleElements {
   consoleEntries: HTMLElement;
   activityIndicator: HTMLElement;
@@ -67,7 +59,6 @@ export interface ModelConsole {
   // display order — the moment the outcome is known: every Flow's text
   // generation, and Find in context's call.
   logLlmCall(label: string, outcome: LlmCallOutcome): void;
-  logHttpCall(label: string, outcome: HttpCallOutcome): void;
   // Low-level escape hatch for a kind with no dedicated outcome formatter:
   // the caller's fully formed entry is written through unchanged. The
   // activity feed uses it, since the server has already decided how a
@@ -233,15 +224,6 @@ export function createModelConsole({ consoleEntries, activityIndicator }: ModelC
     write(outcome.warn ? "warn" : "info", "LLM", `${label} (${ran})`, parts.join("\n\n"));
   }
 
-  function logHttpCall(label: string, outcome: HttpCallOutcome): void {
-    if (outcome.failed) {
-      write("error", "HTTP", label, outcome.message);
-      return;
-    }
-    const level: ConsoleEntryLevel = outcome.ok ? "info" : "warn";
-    write(level, "HTTP", `${label} (${outcome.status})`, `${outcome.method} ${outcome.url}\n${outcome.durationMs}ms`);
-  }
-
   function logEntry(
     level: ConsoleEntryLevel,
     kind: string,
@@ -253,5 +235,5 @@ export function createModelConsole({ consoleEntries, activityIndicator }: ModelC
     return { reveal: () => revealEntry(entry), kept: () => entry.isConnected };
   }
 
-  return { logLlmCall, logHttpCall, logEntry, beginLlmActivity, endLlmActivity, entryAt, allText, clear };
+  return { logLlmCall, logEntry, beginLlmActivity, endLlmActivity, entryAt, allText, clear };
 }

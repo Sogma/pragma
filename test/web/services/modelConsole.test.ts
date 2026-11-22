@@ -97,48 +97,6 @@ describe("logLlmCall", () => {
   });
 });
 
-describe("logHttpCall", () => {
-  it("writes an entry tagged HTTP, level info, with method/url/duration in the content", () => {
-    const { modelConsole, consoleEntries } = setup();
-    modelConsole.logHttpCall("GitHub update check", {
-      failed: false,
-      method: "GET",
-      url: "https://api.github.com/x",
-      status: 200,
-      ok: true,
-      durationMs: 42,
-    });
-    const entry = consoleEntries.querySelector(".console-entry") as HTMLElement;
-    expect(entry.classList.contains("console-entry-level-info")).toBe(true);
-    expect(entry.querySelector(".console-entry-kind")?.textContent).toBe("HTTP");
-    expect(entry.querySelector(".console-entry-label-text")?.textContent).toBe("GitHub update check (200)");
-    expect(entry.querySelector(".console-entry-content")?.textContent).toBe("GET https://api.github.com/x\n42ms");
-  });
-
-  it("settles as level warn, not error, when the response came back but wasn't ok", () => {
-    const { modelConsole, consoleEntries } = setup();
-    modelConsole.logHttpCall("GitHub update check", {
-      failed: false,
-      method: "GET",
-      url: "https://api.github.com/x",
-      status: 404,
-      ok: false,
-      durationMs: 10,
-    });
-    const entry = consoleEntries.querySelector(".console-entry") as HTMLElement;
-    expect(entry.classList.contains("console-entry-level-warn")).toBe(true);
-    expect(entry.querySelector(".console-entry-label-text")?.textContent).toBe("GitHub update check (404)");
-  });
-
-  it("writes a level-error entry when the call never got a response at all", () => {
-    const { modelConsole, consoleEntries } = setup();
-    modelConsole.logHttpCall("GitHub update check", { failed: true, message: "Network error" });
-    const entry = consoleEntries.querySelector(".console-entry") as HTMLElement;
-    expect(entry.classList.contains("console-entry-level-error")).toBe(true);
-    expect(entry.querySelector(".console-entry-content")?.textContent).toBe("Network error");
-  });
-});
-
 describe("logEntry", () => {
   it("writes an entry through with the given level/kind/label/content unchanged", () => {
     const { modelConsole, consoleEntries } = setup();

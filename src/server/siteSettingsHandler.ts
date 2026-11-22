@@ -106,14 +106,14 @@ export async function runReadSiteSettings(
   if (!site) return { ok: false, message: "Not a site folder.", status: 404 };
 
   const schema = await resolveSchema(publisher);
-  if (!schema.ok) return { ok: false, message: schema.message, status: schema.httpCall ? 400 : 502 };
+  if (!schema.ok) return { ok: false, message: schema.message, status: schema.responded ? 400 : 502 };
 
   const [settings, heldName] = await Promise.all([
     fetchSogmaSiteSettings(publisher, site.id),
     readSogmaSiteName(publisher, site.id),
   ]);
   if (!settings.ok) {
-    return { ok: false, message: settings.message, field: settings.field, status: settings.httpCall ? 400 : 502 };
+    return { ok: false, message: settings.message, field: settings.field, status: settings.responded ? 400 : 502 };
   }
 
   // The publisher owns the name. `_site.json` keeps a copy for what reads
@@ -175,7 +175,12 @@ export async function runSaveSiteSettings(
     const patched = await patchSogmaSite(resolved.publisher, site.id, { name: changes.name, settings });
     if (!patched.ok) {
       const field = controlFor(patched.field);
-      return { ok: false, message: patched.message, ...(field ? { field } : {}), status: patched.httpCall ? 400 : 502 };
+      return {
+        ok: false,
+        message: patched.message,
+        ...(field ? { field } : {}),
+        status: patched.responded ? 400 : 502,
+      };
     }
     if (changes.name !== undefined) name = patched.name ?? changes.name.trim();
   }

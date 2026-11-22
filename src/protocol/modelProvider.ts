@@ -24,7 +24,6 @@ import {
 import { type DiscoverModelsResponse, EFFORT_LEVELS, type EffortLevel } from "./api.ts";
 import { CHATGPT_RESOURCE, needsSignIn } from "./chatgptAuth.ts";
 import { chatGptPlanFetch, listChatGptModels } from "./chatgptPlan.ts";
-import { httpCall } from "./httpCall.ts";
 import { type ProviderImageModel, withListedAspectRatios, withOptions } from "./imageGeneration.ts";
 import { SetupError, type SetupNeed } from "./setupNeed.ts";
 import type { RasterImageMediaType } from "./types.ts";
@@ -541,7 +540,7 @@ async function listModels(provider: ResolvedProvider, apiKey: string | undefined
   }
   // Anthropic pages its list (default 20); the largest page it allows covers
   // every model it serves. OpenAI-compatible servers ignore the parameter.
-  const { response } = await httpCall(`${baseURL}/models${isAnthropic ? "?limit=1000" : ""}`, { headers });
+  const response = await fetch(`${baseURL}/models${isAnthropic ? "?limit=1000" : ""}`, { headers });
   if (!response.ok) throw new ProviderHttpError(provider.id, response.status);
   const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
   const ids = (body.data ?? []).map((model) => model.id).filter((id): id is string => typeof id === "string");
@@ -557,7 +556,7 @@ async function listGoogleModels(provider: ResolvedProvider, apiKey: string | und
   const baseURL = baseURLOf(provider).replace(/\/+$/, "");
   const headers: Record<string, string> = apiKey ? { "x-goog-api-key": apiKey } : {};
   // The largest page Gemini allows covers every model it serves.
-  const { response } = await httpCall(`${baseURL}/models?pageSize=1000`, { headers });
+  const response = await fetch(`${baseURL}/models?pageSize=1000`, { headers });
   if (!response.ok) {
     const keyInvalid = response.status === 400 && (await response.text()).includes("API_KEY_INVALID");
     throw keyInvalid
