@@ -3,7 +3,8 @@
 // `digitalCapture` for a camera's. Read from the XMP packet alone, through
 // a positional byte reader, never the picture data.
 import { inflateSync } from "node:zlib";
-import type { ByteReader } from "./pixelFormat.ts";
+import type { ByteReader } from "./headerReader.ts";
+import { jpegSegments, rasterTypeOf } from "./imageHeader.ts";
 
 const XMP_KEYWORD = "XML:com.adobe.xmp";
 const JPEG_XMP = "http://ns.adobe.com/xap/1.0/\0";
@@ -55,17 +56,12 @@ async function pngXmp(read: ByteReader, size: number): Promise<string | null> {
   return null;
 }
 
-// Segments up to the scan's start, where the picture data begins.
-async function jpegXmp(read: ByteReader, size: number): Promise<string | null> {
-  for (let at = 2; at + 4 <= size; ) {
-    const head = await read(at, 4);
-    if (head.length < 4 || head[0] !== 0xff || head[1] === 0xda || head[1] === 0xd9) return null;
-    const length = head.readUInt16BE(2);
-    if (head[1] === 0xe1 && length > JPEG_XMP.length + 2 && length <= MAX_PACKET) {
-      const data = await read(at + 4, length - 2);
-      if (data.toString("latin1", 0, JPEG_XMP.length) === JPEG_XMP) return data.toString("utf8", JPEG_XMP.length);
-    }
-    at += 2 + length;
+// An APP1 segment ahead of the scan, where the picture data begins.
+async function jpegXmp(read: ByteReader): Promise<string | null> {
+  for await (const { marker, at, length } of jpegSegments(read)) {
+    if (marker !== 0xe1 || length <= JPEG_XMP.length + 2 || length > MAX_PACKET) continue;
+    const data = await read(at + 4, length - 2);
+    if (data.toString("latin1", 0, JPEG_XMP.length) === JPEG_XMP) return data.toString("utf8", JPEG_XMP.length);
   }
   return null;
 }
@@ -87,15 +83,17 @@ async function webpXmp(read: ByteReader, size: number): Promise<string | null> {
   return null;
 }
 
-/** A PNG's, JPEG's or WebP's source type, or null where it declares none,
- * its packet doesn't read, or it is another type. */
-export async function readDigitalSourceType(mediaType: string, read: ByteReader, size: number): Promise<string | null> {
+/** A PNG's, JPEG's or WebP's source type, by what its signature says it is,
+ * or null where it declares none, its packet doesn't read, or it is another
+ * type. */
+export async function readDigitalSourceType(read: ByteReader, size: number): Promise<string | null> {
   try {
+    const mediaType = rasterTypeOf(await read(0, 12));
     const xmp =
       mediaType === "image/png"
         ? await pngXmp(read, size)
         : mediaType === "image/jpeg"
-          ? await jpegXmp(read, size)
+          ? await jpegXmp(read)
           : mediaType === "image/webp"
             ? await webpXmp(read, size)
             : null;

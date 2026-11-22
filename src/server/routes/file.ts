@@ -52,9 +52,10 @@ import { entryDescription } from "../descriptions.ts";
 import { readDigitalSourceType } from "../digitalSourceType.ts";
 import { documentIndex, type IndexRoot } from "../documentIndex.ts";
 import { grantedCapabilities, grantPath, unattendedStanding } from "../grants.ts";
+import { withHeaderReader } from "../headerReader.ts";
 import { noteKnown } from "../history.ts";
+import { readPixelFormat, UnreadableImageHeader } from "../imageHeader.ts";
 import { readFlowAppModes, readTableLayouts } from "../layout.ts";
-import { readPixelFormat, UnreadablePixelFormat, withHeaderReader } from "../pixelFormat.ts";
 import { presetPaths } from "../presets.ts";
 import { parseByteRange } from "../rangeRequest.ts";
 import { resolveToolkits } from "../resolveToolkits.ts";
@@ -105,11 +106,10 @@ async function headerDetails(filePath: string): Promise<{ clip: ClipDetails } | 
     );
     return { clip: header ? clipDetails(header) : NO_CLIP_DETAILS };
   }
-  const imageType = rasterImageMediaTypeForPath(filePath);
-  if (!imageType) return { picture: NO_PICTURE_DETAILS };
+  if (!rasterImageMediaTypeForPath(filePath)) return { picture: NO_PICTURE_DETAILS };
   const picture = await withHeaderReader(filePath, async (read, size) => ({
-    sourceType: await readDigitalSourceType(imageType, read, size).catch(() => null),
-    pixels: await readPixelFormat(imageType, read).catch(() => null),
+    sourceType: await readDigitalSourceType(read, size).catch(() => null),
+    pixels: await readPixelFormat(read).catch(() => null),
   })).catch(() => NO_PICTURE_DETAILS);
   return { picture };
 }
@@ -236,7 +236,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       const declared = Number(c.req.header("content-length"));
       if (declared > MAX_THUMBNAIL_BYTES) return c.text("Thumbnail too large", 413);
       const bytes = new Uint8Array(await c.req.arrayBuffer());
-      checkThumbnail(bytes, decoded);
+      await checkThumbnail(bytes, decoded);
       await thumbnails.write(key, bytes, { ...decoded, ...(await headerDetails(resolved.filePath)) });
       return c.body(null, 204);
     } catch (error) {
@@ -269,7 +269,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
   });
 
   // The image pane's color mode and bit depth, read from the header through
-  // an open handle, never the whole file — see pixelFormat.ts. A route of its
+  // an open handle, never the whole file — see imageHeader.ts. A route of its
   // own, like the hash, so /api/file/info stays stat-only.
   app.get("/api/file/pixel-format", async (c) => {
     try {
@@ -277,17 +277,16 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       if (!relativePath) return c.text("Missing path query parameter", 400);
 
       const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
-      const mediaType = rasterImageMediaTypeForPath(filePath);
-      if (!mediaType) return c.text("Not a raster image", 400);
+      if (!rasterImageMediaTypeForPath(filePath)) return c.text("Not a raster image", 400);
 
       const format = await withHeaderReader(filePath, async (read, size) => ({
-        ...(await readPixelFormat(mediaType, read)),
-        sourceType: await readDigitalSourceType(mediaType, read, size),
+        ...(await readPixelFormat(read)),
+        sourceType: await readDigitalSourceType(read, size),
       }));
       return c.json<PixelFormatResponse>(format);
     } catch (error) {
       if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if (error instanceof UnreadablePixelFormat) return c.text(error.message, 422);
+      if (error instanceof UnreadableImageHeader) return c.text(error.message, 422);
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
       return c.text(error instanceof Error ? error.message : "Internal error", 500);
     }

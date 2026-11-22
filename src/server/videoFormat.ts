@@ -8,7 +8,7 @@
 // behind gigabytes of picture data, and the walk has to reach it without
 // reading them.
 import type { ClipHeaderResponse, VideoFormatResponse } from "../protocol/api.ts";
-import type { ByteReader } from "./pixelFormat.ts";
+import type { ByteReader } from "./headerReader.ts";
 
 export class UnreadableVideoFormat extends Error {
   constructor(mediaType: string, detail: string) {

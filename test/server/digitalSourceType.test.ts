@@ -58,8 +58,7 @@ function webp(packet: string | undefined): Buffer {
   return Buffer.concat([head, body]);
 }
 
-const read = (mediaType: string, bytes: Buffer) =>
-  readDigitalSourceType(mediaType, countingReader(bytes), bytes.length);
+const read = (bytes: Buffer) => readDigitalSourceType(countingReader(bytes), bytes.length);
 
 describe("sourceTypeIn", () => {
   it("finds the code as an attribute, an element, or an element's resource, by any prefix", () => {
@@ -83,33 +82,41 @@ describe("sourceTypeIn", () => {
 
 describe("readDigitalSourceType", () => {
   it("reads a PNG's packet from a text chunk, compressed or not, without the picture data", async () => {
-    expect(
-      await read("image/png", png(ihdr, chunk("tEXt", Buffer.concat([keyword, Buffer.from(xmp())])), idat, iend)),
-    ).toBe("trainedAlgorithmicMedia");
-    expect(await read("image/png", png(ihdr, itxt(xmp("digitalCapture"), true), idat, iend))).toBe("digitalCapture");
+    expect(await read(png(ihdr, chunk("tEXt", Buffer.concat([keyword, Buffer.from(xmp())])), idat, iend))).toBe(
+      "trainedAlgorithmicMedia",
+    );
+    expect(await read(png(ihdr, itxt(xmp("digitalCapture"), true), idat, iend))).toBe("digitalCapture");
     const bytes = png(ihdr, itxt(xmp()), idat, iend);
     const counted = countingReader(bytes);
-    expect(await readDigitalSourceType("image/png", counted, bytes.length)).toBe("trainedAlgorithmicMedia");
+    expect(await readDigitalSourceType(counted, bytes.length)).toBe("trainedAlgorithmicMedia");
     expect(counted.requested).toBeLessThan(2_000);
   });
 
   // The walk stops at the picture data, as a browser's would.
   it("leaves a PNG's packet behind its picture data unread", async () => {
-    expect(await read("image/png", png(ihdr, idat, itxt(xmp()), iend))).toBeNull();
+    expect(await read(png(ihdr, idat, itxt(xmp()), iend))).toBeNull();
   });
 
   it("reads a JPEG's packet from its XMP segment, and a WebP's from its XMP chunk past the picture", async () => {
-    expect(await read("image/jpeg", jpeg(xmp()))).toBe("trainedAlgorithmicMedia");
-    expect(await read("image/webp", webp(xmp("digitalCapture")))).toBe("digitalCapture");
-    expect(await read("image/webp", webp(undefined))).toBeNull();
+    expect(await read(jpeg(xmp()))).toBe("trainedAlgorithmicMedia");
+    expect(await read(webp(xmp("digitalCapture")))).toBe("digitalCapture");
+    expect(await read(webp(undefined))).toBeNull();
   });
 
-  it("gives null for another type, or a file that isn't what it says", async () => {
-    expect(await read("image/gif", png(ihdr, itxt(xmp()), iend))).toBeNull();
-    expect(await read("image/png", Buffer.from("not a picture at all"))).toBeNull();
+  // Found as libjpeg finds a marker, past the fill bytes an encoder may pad
+  // one with.
+  it("reads a JPEG's packet past fill bytes before its segment", async () => {
+    const bytes = jpeg(xmp());
+    expect(await read(Buffer.concat([bytes.subarray(0, 2), Buffer.from([0xff, 0xff]), bytes.subarray(2)]))).toBe(
+      "trainedAlgorithmicMedia",
+    );
+  });
+
+  it("gives null for another type, a file that is no picture, or a packet that doesn't read", async () => {
+    expect(await read(Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00"))).toBeNull();
+    expect(await read(Buffer.from("not a picture at all"))).toBeNull();
     expect(
       await read(
-        "image/png",
         png(ihdr, chunk("iTXt", Buffer.concat([keyword, Buffer.from([1, 0, 0, 0]), Buffer.from("not deflate")])), iend),
       ),
     ).toBeNull();

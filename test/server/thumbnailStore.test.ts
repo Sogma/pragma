@@ -132,31 +132,31 @@ describe("disk thumbnail store", () => {
 });
 
 describe("thumbnail uploads", () => {
-  it("accepts a WebP or JPEG within the edge, by its bytes", () => {
+  it("accepts a WebP or JPEG within the edge, by its bytes", async () => {
     expect(thumbnailMediaType(webp(512, 300))).toBe("image/webp");
     expect(thumbnailMediaType(jpeg(300, 512))).toBe("image/jpeg");
-    expect(() => checkThumbnail(webp(512, 288), { width: 3840, height: 2160 })).not.toThrow();
-    expect(() => checkThumbnail(jpeg(288, 512), { width: 1080, height: 1920 })).not.toThrow();
+    await expect(checkThumbnail(webp(512, 288), { width: 3840, height: 2160 })).resolves.toBeUndefined();
+    await expect(checkThumbnail(jpeg(288, 512), { width: 1080, height: 1920 })).resolves.toBeUndefined();
   });
 
-  it("refuses anything larger, heavier, or not one of the two", () => {
+  it("refuses anything larger, heavier, or not one of the two", async () => {
     const square = { width: 8, height: 8 };
-    expect(() => checkThumbnail(webp(513, 513), { width: 513, height: 513 })).toThrow(InvalidThumbnail);
-    expect(() => checkThumbnail(jpeg(10, 2000), { width: 10, height: 2000 })).toThrow(InvalidThumbnail);
-    expect(() => checkThumbnail(Buffer.from("GIF89a\x01\x00\x01\x00"), square)).toThrow(InvalidThumbnail);
-    expect(() => checkThumbnail(Buffer.concat([webp(8, 8), Buffer.alloc(MAX_THUMBNAIL_BYTES)]), square)).toThrow(
-      InvalidThumbnail,
-    );
+    await expect(checkThumbnail(webp(513, 513), { width: 513, height: 513 })).rejects.toThrow(InvalidThumbnail);
+    await expect(checkThumbnail(jpeg(10, 2000), { width: 10, height: 2000 })).rejects.toThrow(InvalidThumbnail);
+    await expect(checkThumbnail(Buffer.from("GIF89a\x01\x00\x01\x00"), square)).rejects.toThrow(InvalidThumbnail);
+    await expect(
+      checkThumbnail(Buffer.concat([webp(8, 8), Buffer.alloc(MAX_THUMBNAIL_BYTES)]), square),
+    ).rejects.toThrow(InvalidThumbnail);
   });
 
   // The facts ride along unchecked against the file, so their proportions
   // are held to the thumbnail's — within a pixel of rounding, a sliver
   // included.
-  it("refuses facts that aren't the thumbnail's shape", () => {
-    expect(() => checkThumbnail(webp(512, 288), { width: 1080, height: 1920 })).toThrow(InvalidThumbnail);
-    expect(() => checkThumbnail(webp(512, 289), { width: 3840, height: 2160 })).not.toThrow();
-    expect(() => checkThumbnail(webp(512, 1), { width: 10_000, height: 1 })).not.toThrow();
-    expect(() => checkThumbnail(webp(200, 100), { width: 200, height: 100 })).not.toThrow();
+  it("refuses facts that aren't the thumbnail's shape", async () => {
+    await expect(checkThumbnail(webp(512, 288), { width: 1080, height: 1920 })).rejects.toThrow(InvalidThumbnail);
+    await expect(checkThumbnail(webp(512, 289), { width: 3840, height: 2160 })).resolves.toBeUndefined();
+    await expect(checkThumbnail(webp(512, 1), { width: 10_000, height: 1 })).resolves.toBeUndefined();
+    await expect(checkThumbnail(webp(200, 100), { width: 200, height: 100 })).resolves.toBeUndefined();
   });
 
   it("reads a decoder's claim as whole sides and a finite duration, or not at all", () => {

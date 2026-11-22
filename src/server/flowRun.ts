@@ -21,7 +21,8 @@ import { type RunResult, runFlow } from "../protocol/flowRuntime.ts";
 import { type FlowGraph, flowCapabilityKey } from "../protocol/types.ts";
 import { recordActivity } from "./activityLog.ts";
 import { isCapabilityGranted, unattendedStanding } from "./grants.ts";
-import { decodeImageDimensions } from "./imageDimensions.ts";
+import { bytesReader } from "./headerReader.ts";
+import { readImageDimensions } from "./imageHeader.ts";
 import {
   performSandboxAddRow,
   performSandboxAddToNote,
@@ -146,9 +147,10 @@ export async function runFlowHeadless(
       generateImage: (_kind, _path, body, signal) => performSandboxGenerateImage(spaceRoot, doc, body, signal),
       generateVideo: (_kind, _path, body, signal) => performSandboxGenerateVideo(spaceRoot, doc, body, signal),
     },
-    // Read from the image's own header rather than an <img>, so a loadImage
-    // node with a persisted path runs here exactly as it does on the canvas.
-    decodeImageDimensions: async (mediaType, data) => decodeImageDimensions(mediaType, data),
+    // Read from the image's own header rather than an <img>, by its signature
+    // as an <img> reads it, so a loadImage node with a persisted path runs
+    // here exactly as it does on the canvas.
+    decodeImageDimensions: async (_mediaType, data) => readImageDimensions(bytesReader(Buffer.from(data, "base64"))),
     // A picker's ephemeral bytes never exist here. A loadImage node with a
     // persisted `imagePath` runs unchanged; one without it fails naming the
     // node, which is the executor's own behaviour and the right one — a

@@ -1830,6 +1830,19 @@ describe("API contract — libraries", () => {
     expect(still.status).toBe(200);
     expect(await still.json()).toEqual({ colorModel: "rgb", alpha: true, bitDepth: 8, sourceType: null });
 
+    // Read by its signature, as a browser reads it: a JPEG saved as .png
+    // reads as the JPEG it is.
+    const frame = Buffer.alloc(19);
+    frame.set([0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x10, 0x00, 0x20, 0x03]);
+    const named = Buffer.concat([Buffer.from([0xff, 0xd8]), frame, Buffer.from([0xff, 0xda, 0x00, 0x02])]);
+    await writeFile(path.join(testServer.spaceRoot, "photo.png"), named);
+    expect(await (await format("photo.png")).json()).toEqual({
+      colorModel: "rgb",
+      alpha: false,
+      bitDepth: 8,
+      sourceType: null,
+    });
+
     // A vector and a video have no pixel format; a damaged header has one
     // this can't read, which is not the same as the file being gone.
     await writeFile(path.join(testServer.spaceRoot, "logo.svg"), "<svg/>");

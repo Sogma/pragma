@@ -10,7 +10,8 @@ import path from "node:path";
 import { globalCacheDir } from "../config/loadConfig.ts";
 import type { ClipDetails, PictureDetails, PixelFormat } from "../protocol/api.ts";
 import { THUMBNAIL_MAX_EDGE } from "../protocol/types.ts";
-import { imageDimensionsOf } from "./imageDimensions.ts";
+import { bytesReader } from "./headerReader.ts";
+import { rasterTypeOf, readImageDimensions } from "./imageHeader.ts";
 import { writeFileAtomic } from "./spaceFiles.ts";
 
 export interface ThumbnailKey {
@@ -247,12 +248,8 @@ export class InvalidThumbnail extends Error {
  * keeps no type beside them, and an upload's own Content-Type is the
  * client's claim, not the file's. */
 export function thumbnailMediaType(bytes: Uint8Array): "image/webp" | "image/jpeg" | undefined {
-  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") {
-    return "image/webp";
-  }
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
-  return undefined;
+  const mediaType = rasterTypeOf(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+  return mediaType === "image/webp" || mediaType === "image/jpeg" ? mediaType : undefined;
 }
 
 /** Refuses an upload that isn't a small WebP or JPEG within the protocol's
@@ -261,14 +258,13 @@ export function thumbnailMediaType(bytes: Uint8Array): "image/webp" | "image/jpe
  *
  * The shape is all that can be checked without decoding the file: a claim
  * of the right proportions at the wrong scale still passes. */
-export function checkThumbnail(bytes: Uint8Array, facts: DecodedFacts): void {
+export async function checkThumbnail(bytes: Uint8Array, facts: DecodedFacts): Promise<void> {
   if (bytes.byteLength > MAX_THUMBNAIL_BYTES) throw new InvalidThumbnail(`over ${MAX_THUMBNAIL_BYTES} bytes`);
-  const mediaType = thumbnailMediaType(bytes);
-  if (!mediaType) throw new InvalidThumbnail("neither WebP nor JPEG");
+  if (!thumbnailMediaType(bytes)) throw new InvalidThumbnail("neither WebP nor JPEG");
   let width: number;
   let height: number;
   try {
-    ({ width, height } = imageDimensionsOf(mediaType, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)));
+    ({ width, height } = await readImageDimensions(bytesReader(bytes)));
   } catch (error) {
     throw new InvalidThumbnail(error instanceof Error ? error.message : "unreadable header");
   }

@@ -1,6 +1,6 @@
 // A reader over bytes in memory that counts what it was asked for, so a test
 // can say how much of a file a walk touched.
-import type { ByteReader } from "../../src/server/pixelFormat.ts";
+import type { ByteReader } from "../../src/server/headerReader.ts";
 
 export function countingReader(bytes: Buffer): ByteReader & { requested: number } {
   const read = Object.assign(
