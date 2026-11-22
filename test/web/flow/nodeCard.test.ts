@@ -609,6 +609,16 @@ describe("nodeCard", () => {
     expect(el.querySelector<HTMLElement>('.handle.source[data-handleid="text"]')?.dataset.tooltip).toBeUndefined();
   });
 
+  // A new node's prefix is written as the node is made; an older node with
+  // none shows the blank a run reads, never the new node's value.
+  it("shows an older Generate node's missing prefix as the blank a run reads", () => {
+    const { cards } = setup();
+    const el = cards.build(node("generateVideo", { outputFolderPath: "clips" }));
+    const input = rowNamed(el, "prefix").querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("");
+  });
+
   it("keeps a collapsed card's caption at the width the card has open", () => {
     const { cards } = setup();
     const size = { width: 300, height: 200 };

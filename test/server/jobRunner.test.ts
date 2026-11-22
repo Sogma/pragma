@@ -64,7 +64,7 @@ const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({
   document: "v.flow.html",
   folder: "clips",
   folderName: "clips",
-  stem: `video-${"b".repeat(12)}`,
+  stem: "",
   prefix: "",
   model: "test/m",
   summary: "Steam rises from the red cup",
@@ -121,12 +121,12 @@ describe("createJobRunner", () => {
     add(job("alone"));
     await runner.resume();
     await vi.waitFor(() => expect(records.get("alone")?.stage).toBe("saved"));
-    expect(records.get("alone")).toMatchObject({ delivered: false, owed: false, file: `video-${"b".repeat(12)}.mp4` });
-    expect(readdirSync(path.join(space, "clips"))).toEqual([`video-${"b".repeat(12)}.mp4`]);
+    expect(records.get("alone")).toMatchObject({ delivered: false, owed: false, file: `_${"b".repeat(12)}.mp4` });
+    expect(readdirSync(path.join(space, "clips"))).toEqual([`_${"b".repeat(12)}.mp4`]);
 
-    add(job("waited", { digest: "c".repeat(64), stem: `video-${"c".repeat(12)}` }));
-    expect(await runner.collect(job("waited", { digest: "c".repeat(64), stem: `video-${"c".repeat(12)}` }))).toEqual({
-      file: `video-${"c".repeat(12)}.mp4`,
+    add(job("waited", { digest: "c".repeat(64) }));
+    expect(await runner.collect(job("waited", { digest: "c".repeat(64) }))).toEqual({
+      file: `_${"c".repeat(12)}.mp4`,
     });
     expect(records.get("waited")?.delivered).toBe(true);
   });
@@ -215,11 +215,11 @@ describe("createJobRunner", () => {
     const outside = mkdtempSync(path.join(tmpdir(), "pragma-job-runner-outside-"));
     onTestFinished(() => rmSync(outside, { recursive: true, force: true }));
     writeFileSync(path.join(outside, "secret.txt"), "SECRET");
-    symlinkSync(path.join(outside, "secret.txt"), path.join(space, "clips", `video-${"b".repeat(12)}.mp4`));
+    symlinkSync(path.join(outside, "secret.txt"), path.join(space, "clips", `_${"b".repeat(12)}.mp4`));
 
-    const poster = add(job("poster", { stem: `poster-${"b".repeat(12)}`, prefix: "poster" }));
-    expect(await runner.collect(poster)).toEqual({ file: `poster-${"b".repeat(12)}.mp4` });
-    expect([...readFileSync(path.join(space, "clips", `poster-${"b".repeat(12)}.mp4`))]).toEqual([...MP4]);
+    const poster = add(job("poster", { stem: "poster", prefix: "poster" }));
+    expect(await runner.collect(poster)).toEqual({ file: `poster_${"b".repeat(12)}.mp4` });
+    expect([...readFileSync(path.join(space, "clips", `poster_${"b".repeat(12)}.mp4`))]).toEqual([...MP4]);
   });
 
   it("ends a job the provider ended, and gives up on one a week old", async () => {

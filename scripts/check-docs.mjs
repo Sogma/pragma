@@ -31,7 +31,7 @@ const REFERENCE_SECTION = "Reference implementation";
 const SIZE_LIMITS = {
   "architecture.md": 27_900,
   "protocol.md": 103_400,
-  "flow-nodes.md": 31_750,
+  "flow-nodes.md": 32_200,
   "publishing.md": 17_900,
   "deployment.md": 10_660,
   "README.md": 6_000,

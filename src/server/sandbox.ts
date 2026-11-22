@@ -30,7 +30,6 @@ import {
   type VideoReferencePayload,
 } from "../protocol/api.ts";
 import { generationEffort } from "../protocol/dispatchAction.ts";
-import { fileStemFor } from "../protocol/entryName.ts";
 import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
 import type { AffixMode, FrameKind } from "../protocol/flowNodes.ts";
 import {
@@ -78,7 +77,7 @@ import { type DeclaredVideoInputs, jobSettings, startVideoJob } from "../protoco
 import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol/videoResolution.ts";
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
-import { findResult, IMAGE_EXTENSIONS_BY_TYPE } from "./generatedResults.ts";
+import { findResult, IMAGE_EXTENSIONS_BY_TYPE, resultStart, saveResult } from "./generatedResults.ts";
 import { type GrantSubject, grantPath, isCapabilityGranted } from "./grants.ts";
 import { writeDocument } from "./history.ts";
 import { type JobOutcome, type JobRunner, jobRunner, type NewJob } from "./jobRunner.ts";
@@ -607,13 +606,17 @@ export async function performSandboxGenerateOptions(
   return { ...result, context: contextSent(context) };
 }
 
+// A found result's bytes written under a new name, its extension kept.
+function copyOf(data: Parameters<typeof writeFileAtomic>[1], found: string) {
+  return async (base: string): Promise<string> => {
+    const copy = `${base}${path.extname(found)}`;
+    await writeFileAtomic(copy, data);
+    return copy;
+  };
+}
+
 const IMAGE_NAME_EXTENSION = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO_NAME_EXTENSION = /\.(mp4|m4v|webm|mov)$/i;
-
-// The node's `prefix`, which starts the result's name before its digest,
-// "image" or "video" when blank: never the prompt, which a folder of results
-// would all start alike.
-const typedPrefix = (prefix: string | undefined, extension: RegExp) => fileStemFor(prefix ?? "", extension);
 
 // The folder a generation writes into: the one the document declares for
 // `type` and has been granted, as a file path, and as the request names it.
@@ -855,15 +858,15 @@ export async function startSandboxGenerateImage(
     )
     .digest("hex");
   const digest = key.slice(0, 12);
-  const named = typedPrefix(body.prefix, IMAGE_NAME_EXTENSION);
-  const stem = `${named || "image"}-${digest}`;
-  // The image already made for these inputs, copied to this prefix's name.
+  const start = resultStart(body.prefix, body.prefixTyped, IMAGE_NAME_EXTENSION);
+  // The image already made for these inputs, copied to this prefix's name
+  // when its own doesn't carry the prefix.
   async function reuse(): Promise<StartedImage | undefined> {
-    const existing = await findResult(folderPath, stem, digest, named);
+    const existing = await findResult(folderPath, digest, start);
     if (!existing) return undefined;
-    const { found, kept } = existing;
+    const { found, carried } = existing;
     const data = await readFile(path.join(folderPath, found));
-    if (kept !== found) await writeFileAtomic(path.join(folderPath, kept), data);
+    const kept = carried ? found : path.basename(await saveResult(folderPath, start, digest, copyOf(data, found)));
     const mediaType = rasterImageMediaTypeForPath(kept) ?? "application/octet-stream";
     return {
       found: {
@@ -892,8 +895,12 @@ export async function startSandboxGenerateImage(
       } catch (error) {
         throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
       }
-      const name = `${stem}.${IMAGE_EXTENSIONS_BY_TYPE[result.mediaType] ?? "png"}`;
-      await writeFileAtomic(path.join(folderPath, name), result.data);
+      const extension = IMAGE_EXTENSIONS_BY_TYPE[result.mediaType] ?? "png";
+      const written = await saveResult(folderPath, start, digest, async (base) => {
+        await writeFileAtomic(`${base}.${extension}`, result.data);
+        return `${base}.${extension}`;
+      });
+      const name = path.basename(written);
       return {
         found: {
           image: { mediaType: result.mediaType, data: Buffer.from(result.data).toString("base64") },
@@ -920,8 +927,8 @@ export async function startSandboxGenerateImage(
       ...(body.startId !== undefined ? { startId: body.startId } : {}),
       folder: rooted,
       folderName: folder,
-      stem,
-      prefix: named,
+      stem: start.filled,
+      prefix: start.typed,
       model,
       summary: summaryOf(body.prompt),
       settings: jobSettings({ aspectRatio: body.aspectRatio }),
@@ -1125,13 +1132,15 @@ export async function startSandboxGenerateVideo(
     )
     .digest("hex");
   const digest = key.slice(0, 12);
-  const named = typedPrefix(body.prefix, VIDEO_NAME_EXTENSION);
-  const stem = `${named || "video"}-${digest}`;
-  const existing = await findResult(folderPath, stem, digest, named);
+  const start = resultStart(body.prefix, body.prefixTyped, VIDEO_NAME_EXTENSION);
+  const existing = await findResult(folderPath, digest, start);
   if (existing) {
-    const { found, kept } = existing;
-    if (kept !== found)
-      await writeFileAtomic(path.join(folderPath, kept), createReadStream(path.join(folderPath, found)));
+    const { found, carried } = existing;
+    const kept = carried
+      ? found
+      : path.basename(
+          await saveResult(folderPath, start, digest, copyOf(createReadStream(path.join(folderPath, found)), found)),
+        );
     return { found: { path: `${folder}/${kept}`, model, reused: true, resumed: false, warnings: [] } };
   }
 
@@ -1145,8 +1154,8 @@ export async function startSandboxGenerateVideo(
       ...(body.startId !== undefined ? { startId: body.startId } : {}),
       folder: rooted,
       folderName: folder,
-      stem,
-      prefix: named,
+      stem: start.filled,
+      prefix: start.typed,
       model,
       summary: summaryOf(body.prompt),
       settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),

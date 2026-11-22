@@ -240,6 +240,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
         aspectRatio: typeof request.aspectRatio === "string" ? request.aspectRatio : undefined,
         seed: typeof request.seed === "string" ? request.seed : undefined,
         prefix: typeof request.prefix === "string" ? request.prefix : undefined,
+        prefixTyped: typeof request.prefixTyped === "string" ? request.prefixTyped : undefined,
         startId: readStartId(request.startId),
       },
       c.req.raw.signal,
@@ -276,6 +277,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
       duration: optional(request.duration),
       take: optional(request.take),
       prefix: optional(request.prefix),
+      prefixTyped: optional(request.prefixTyped),
       startId: readStartId(request.startId),
     });
     if ("found" in started) return c.json<GenerateVideoRouteResponse>(started.found);

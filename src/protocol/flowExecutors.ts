@@ -328,6 +328,13 @@ function writeCapability(path: string, wired: boolean): FlowCapabilityDeclaratio
   return { type: "writeDocument", path, ...(wired ? { wired: true as const } : {}) };
 }
 
+// A Generate node's prefix as typed, placeholders and all, which the host
+// matches a result already made against; none when a wire brings the prefix.
+function typedPrefix(node: FlowNodeInstance, inputs: Record<string, PortValue>): string | undefined {
+  if (inputs.prefix) return undefined;
+  return configString(node, "prefix").trim() || undefined;
+}
+
 // The images wired into a Generate node's reference pins, in pin order, each
 // with its pin. The host spells the prompt's mentions of them for the model.
 function wiredReferences(inputs: Record<string, PortValue>): ReferenceImagePayload[] {
@@ -384,6 +391,7 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
     aspectRatio: aspectRatio || undefined,
     seed: configString(node, "seed").trim() || undefined,
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
+    prefixTyped: typedPrefix(node, inputs),
   };
   context.beginLlmActivity(model ?? "");
   try {
@@ -479,6 +487,7 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
     duration: duration || undefined,
     take: take || undefined,
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
+    prefixTyped: typedPrefix(node, inputs),
   };
   if (Object.keys(modelSettings).length) request.modelSettings = modelSettings;
   context.beginLlmActivity(model ?? "");

@@ -1867,6 +1867,9 @@ export interface GenerateImageRequestBody extends JobStartRequestBody {
   aspectRatio?: string;
   seed?: string;
   prefix?: string;
+  // The prefix as typed on the node, placeholders and all, when no wire
+  // brought it: what a result already made is matched against.
+  prefixTyped?: string;
 }
 
 export type SandboxGenerateImageRequestBody = SandboxRequestBody & GenerateImageRequestBody;
@@ -1913,6 +1916,7 @@ export interface GenerateVideoRequestBody extends JobStartRequestBody {
   duration?: string;
   take?: string;
   prefix?: string;
+  prefixTyped?: string;
   modelSettings?: Record<string, ModelSettingValue>;
 }
 

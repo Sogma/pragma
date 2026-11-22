@@ -822,7 +822,7 @@ const generateImage: FlowNodeTypeDefinition = {
   inputWidgets: [
     { portId: "model", type: "imageModel" },
     { portId: "aspect_ratio", type: "select", options: ASPECT_RATIOS, defaultValue: "1:1" },
-    { portId: "prefix", type: "text", placeholder: "image" },
+    { portId: "prefix", type: "text", defaultValue: "{{$number}}_{{$date:%y%m%d}}" },
   ],
   capabilityFor: (config) => {
     const path = configString(config, "outputFolderPath");
@@ -892,7 +892,7 @@ const generateVideo: FlowNodeTypeDefinition = {
     { portId: "aspect_ratio", type: "select", options: VIDEO_ASPECT_RATIOS, defaultValue: "1:1" },
     { portId: "resolution", type: "select", options: VIDEO_RESOLUTIONS, defaultValue: "480p" },
     { portId: "duration", type: "select", options: VIDEO_DURATIONS, defaultValue: "3" },
-    { portId: "prefix", type: "text", placeholder: "video" },
+    { portId: "prefix", type: "text", defaultValue: "{{$number}}_{{$date:%y%m%d}}" },
   ],
   capabilityFor: (config) => {
     const path = configString(config, "outputFolderPath");

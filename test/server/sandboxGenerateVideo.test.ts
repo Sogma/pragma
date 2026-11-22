@@ -185,7 +185,7 @@ describe("performSandboxGenerateVideo", () => {
       notes: ["mode: used omni_reference"],
       quote: { amount: 2.4, unit: "credits" },
     });
-    expect(result.path).toMatch(/^clips\/video-[0-9a-f]{12}\.mp4$/);
+    expect(result.path).toMatch(/^clips\/_[0-9a-f]{12}\.mp4$/);
     expect([...readFileSync(path.join(space, result.path))]).toEqual([...MP4]);
     expect(starts[0]).toMatchObject({ prompt: "Steam rises from the red cup", aspectRatio: "16:9", duration: 7 });
     expect(starts[0].seed).toBeUndefined();
@@ -356,15 +356,15 @@ describe("performSandboxGenerateVideo", () => {
       )
       .digest("hex")
       .slice(0, 12);
-    expect((await run()).path).toBe(`clips/video-${digest}.mp4`);
+    expect((await run()).path).toBe(`clips/_${digest}.mp4`);
   });
 
   it("copies the clip to a new prefix on the same inputs, without a job", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const hero = await run({ prefix: "hero.mp4" });
     const poster = await run({ prefix: "poster" });
-    expect(hero.path).toMatch(/^clips\/hero-[0-9a-f]{12}\.mp4$/);
-    expect(poster).toMatchObject({ reused: true, path: hero.path.replace("clips/hero-", "clips/poster-") });
+    expect(hero.path).toMatch(/^clips\/hero_[0-9a-f]{12}\.mp4$/);
+    expect(poster).toMatchObject({ reused: true, path: hero.path.replace("clips/hero_", "clips/poster_") });
     expect([...readFileSync(path.join(space, poster.path))]).toEqual([...MP4]);
     expect(starts).toHaveLength(1);
   });

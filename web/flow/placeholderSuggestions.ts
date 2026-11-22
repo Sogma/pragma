@@ -26,6 +26,18 @@ export function dateChoices(now: Date): PlaceholderChoice[] {
   return DATE_OFFERS.map((text) => ({ text, detail: fillDates(text, reading) }));
 }
 
+/** Whether a field is a Generate node's prefix, whose `{{$number}}` the host
+ * fills as it saves the result. */
+export function isResultPrefix(node: { type: string }, portId: string): boolean {
+  return portId === "prefix" && (node.type === "generateImage" || node.type === "generateVideo");
+}
+
+/** What a Generate node's prefix offers after `{{`: the result's number in
+ * its folder, then the dates. */
+export function prefixChoices(now: Date): PlaceholderChoice[] {
+  return [{ text: "{{$number}}", detail: "Next free number in the folder, from 0001" }, ...dateChoices(now)];
+}
+
 /** What a Prompt's text offers after `{{`: the named, wired slots of each
  * Template Variables it is the source of, then the dates. */
 export function promptChoices(graph: FlowGraph, nodeId: string, now: Date): PlaceholderChoice[] {

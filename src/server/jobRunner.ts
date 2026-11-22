@@ -12,7 +12,7 @@ import path from "node:path";
 import { loadGlobalConfig } from "../config/loadConfig.ts";
 import { checkVideoJob, type VideoData, type VideoJob, type VideoOperation } from "../protocol/videoGeneration.ts";
 import { fetchPublicToFile } from "./fetchPublic.ts";
-import { findResult, IMAGE_EXTENSIONS_BY_TYPE, VIDEO_EXTENSIONS_BY_TYPE } from "./generatedResults.ts";
+import { findResult, IMAGE_EXTENSIONS_BY_TYPE, saveResult, VIDEO_EXTENSIONS_BY_TYPE } from "./generatedResults.ts";
 import { type JobRecord, type JobStore, jobStore } from "./jobs.ts";
 import {
   type ResolvedImageModel,
@@ -182,27 +182,25 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
       throw new Error(`${job.folderName}/ is gone. Put it back and the ${kind.noun} is saved at the next check.`);
     }
     const digest = job.digest.slice(0, 12);
-    return withFileLock(path.join(folderPath, job.stem), async () => {
+    const start = { filled: job.stem, typed: job.prefix };
+    return withFileLock(path.join(folderPath, digest), async () => {
       // Another process, or a run with a new prefix, may have saved it.
-      const existing = await findResult(folderPath, job.stem, digest, job.prefix);
-      if (existing) {
-        if (existing.kept === existing.found) return { file: existing.kept };
-        const copy = path.join(folderPath, existing.kept);
-        await writeFileAtomic(copy, createReadStream(path.join(folderPath, existing.found)));
-        return { file: existing.kept, written: copy };
-      }
-      const nameFor = (mediaType: string) =>
-        path.join(
-          folderPath,
-          `${job.stem}.${kind.extensions[mediaType] ?? kind.extensions[result.mediaType] ?? kind.fallback}`,
-        );
-      if (result.type === "url") {
-        const fetched = await fetchPublicToFile(result.url, { maxBytes: kind.maxBytes }, nameFor);
-        return { file: path.basename(fetched), written: fetched };
-      }
-      const filePath = nameFor(result.mediaType);
-      await writeFileAtomic(filePath, result.type === "base64" ? Buffer.from(result.data, "base64") : result.data);
-      return { file: path.basename(filePath), written: filePath };
+      const existing = await findResult(folderPath, digest, start);
+      if (existing?.carried) return { file: existing.found };
+      const written = await saveResult(folderPath, start, digest, async (base) => {
+        if (existing) {
+          const copy = `${base}${path.extname(existing.found)}`;
+          await writeFileAtomic(copy, createReadStream(path.join(folderPath, existing.found)));
+          return copy;
+        }
+        const nameFor = (mediaType: string) =>
+          `${base}.${kind.extensions[mediaType] ?? kind.extensions[result.mediaType] ?? kind.fallback}`;
+        if (result.type === "url") return fetchPublicToFile(result.url, { maxBytes: kind.maxBytes }, nameFor);
+        const filePath = nameFor(result.mediaType);
+        await writeFileAtomic(filePath, result.type === "base64" ? Buffer.from(result.data, "base64") : result.data);
+        return filePath;
+      });
+      return { file: path.basename(written), written };
     });
   }
 

@@ -402,9 +402,11 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     widget: FlowNodeInputWidget,
   ): HTMLDivElement {
     const currentValue = () =>
-      typeof node.config[port.id] === "string"
-        ? blankAsDefault(node.type, port.id, node.config[port.id] as string)
-        : (widget.defaultValue ?? "");
+      blankAsDefault(
+        node.type,
+        port.id,
+        typeof node.config[port.id] === "string" ? (node.config[port.id] as string) : "",
+      );
 
     // An input's description, as on the card. An output's stays on the card:
     // it says how the pin is wired, which App Mode hides.

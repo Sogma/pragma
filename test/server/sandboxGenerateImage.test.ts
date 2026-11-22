@@ -113,7 +113,7 @@ describe("performSandboxGenerateImage", () => {
     const result = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
 
     expect(result.reused).toBe(false);
-    expect(result.path).toMatch(/^art\/image-[0-9a-f]{12}\.png$/);
+    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}\.png$/);
     expect(result.image).toEqual({ mediaType: "image/png", data: Buffer.from(PNG).toString("base64") });
     expect(result.warnings).toEqual(["aspect_ratio: asked for 16:10, used 3:2"]);
     expect(result.model).toBe("test/m");
@@ -162,7 +162,7 @@ describe("performSandboxGenerateImage", () => {
     expect(calls).toHaveLength(1);
     expect([first.reused, second.reused, poster.reused]).toEqual([false, true, true]);
     expect(second.path).toBe(first.path);
-    expect(poster.path).toMatch(/^art\/poster-[0-9a-f]{12}\.png$/);
+    expect(poster.path).toMatch(/^art\/poster_[0-9a-f]{12}\.png$/);
     expect(second.image).toEqual(first.image);
   });
 
@@ -182,7 +182,7 @@ describe("performSandboxGenerateImage", () => {
   it('leads a result\'s name with its prefix in place of "image", keeping the digest', async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const result = await performSandboxGenerateImage(space, flow, body({ prefix: "shot-12" }), undefined, resolve);
-    expect(result.path).toMatch(/^art\/shot-12-[0-9a-f]{12}\.png$/);
+    expect(result.path).toMatch(/^art\/shot-12_[0-9a-f]{12}\.png$/);
     expect(readdirSync(path.join(space, "art"))).toEqual([path.basename(result.path)]);
   });
 
@@ -195,7 +195,7 @@ describe("performSandboxGenerateImage", () => {
       undefined,
       resolve,
     );
-    expect(titled.path).toMatch(/^art\/Scene 12 - Rooftop-[0-9a-f]{12}\.png$/);
+    expect(titled.path).toMatch(/^art\/Scene 12 - Rooftop_[0-9a-f]{12}\.png$/);
     const climbing = await performSandboxGenerateImage(
       space,
       flow,
@@ -203,7 +203,7 @@ describe("performSandboxGenerateImage", () => {
       undefined,
       resolve,
     );
-    expect(climbing.path).toMatch(/^art\/etc-passwd-[0-9a-f]{12}\.png$/);
+    expect(climbing.path).toMatch(/^art\/etc-passwd_[0-9a-f]{12}\.png$/);
     expect(readdirSync(path.join(space, "art"))).toHaveLength(2);
   });
 
@@ -214,7 +214,7 @@ describe("performSandboxGenerateImage", () => {
 
     expect(calls).toHaveLength(1);
     expect(renamed).toMatchObject({ reused: true, warnings: [] });
-    expect(renamed.path).toBe(first.path.replace("art/hero-", "art/poster-"));
+    expect(renamed.path).toBe(first.path.replace("art/hero_", "art/poster_"));
     expect(renamed.image).toEqual(first.image);
     expect(readdirSync(path.join(space, "art")).sort()).toEqual(
       [path.basename(first.path), path.basename(renamed.path)].sort(),
@@ -229,16 +229,43 @@ describe("performSandboxGenerateImage", () => {
     expect(readdirSync(path.join(space, "art"))).toHaveLength(1);
   });
 
-  // Results named before the prefix, after the prompt's first words, are
-  // matched by the digest alone, so a Run on the same inputs still pays nothing.
-  it("finds a result named by the prompt's words, as results once were", async () => {
+  // The run fills the date and the host the number as it saves; a run on
+  // another day finds what an earlier one made rather than copying it.
+  it("numbers results by their prefix and finds one made on another day without copying it", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const prefixTyped = "shot_{{$number}}_{{$date:%y%m%d}}";
+    const shot = (fields: Partial<GenerateImageRequestBody>) =>
+      performSandboxGenerateImage(space, flow, body({ prefixTyped, ...fields }), undefined, resolve);
+    const first = await shot({ prefix: "shot_{{$number}}_261121" });
+    expect(first.path).toMatch(/^art\/shot_0001_261121_[0-9a-f]{12}\.png$/);
+    expect(await shot({ prefix: "shot_{{$number}}_261122" })).toMatchObject({ reused: true, path: first.path });
+    const other = await shot({ prompt: "Another city", prefix: "shot_{{$number}}_261122" });
+    expect(other.path).toMatch(/^art\/shot_0002_261122_[0-9a-f]{12}\.png$/);
+    expect(readdirSync(path.join(space, "art"))).toHaveLength(2);
+  });
+
+  // A result is matched by the digest ending its name, in any case, so a Run
+  // on the same inputs pays nothing whatever its name begins with.
+  it("finds a result whatever its name begins with, its digest in any case", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const first = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
-    const older = first.path.replace("art/image-", "art/a-neon-city-at-dusk-rain-");
-    renameSync(path.join(space, first.path), path.join(space, older));
+    const digest = /_([0-9a-f]{12})\.png$/.exec(first.path)?.[1] ?? "";
+    const renamed = `art/a-neon-city-at-dusk-rain_${digest.toUpperCase()}.png`;
+    renameSync(path.join(space, first.path), path.join(space, renamed));
     const again = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
-    expect(again).toMatchObject({ reused: true, path: older });
+    expect(again).toMatchObject({ reused: true, path: renamed });
     expect(calls).toHaveLength(1);
+  });
+
+  // Only `_` comes before a digest: a result whose digest follows a hyphen
+  // is not found, and its inputs are generated again.
+  it("no longer finds a result whose digest follows a hyphen", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const first = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
+    renameSync(path.join(space, first.path), path.join(space, first.path.replace("art/_", "art/image-")));
+    const again = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
+    expect(again).toMatchObject({ reused: false, path: first.path });
+    expect(calls).toHaveLength(2);
   });
 
   // A result is found by its name alone, and a cloned or synced space can
@@ -405,7 +432,7 @@ describe("an image a provider makes as a job", () => {
     ]);
     expect(calls).toEqual([]);
     await vi.waitFor(() => expect([...records.values()][0]?.stage).toBe("saved"));
-    expect(readdirSync(path.join(space, "art"))).toEqual([expect.stringMatching(/^image-[0-9a-f]{12}\.png$/)]);
+    expect(readdirSync(path.join(space, "art"))).toEqual([expect.stringMatching(/^_[0-9a-f]{12}\.png$/)]);
 
     // The same inputs again find the saved image, paying nothing.
     const again = await performSandboxGenerateImage(space, flow, body(), undefined, resolveJobs, runner);
@@ -440,7 +467,7 @@ describe("an image a provider makes as a job", () => {
       notes: ["quality: used 2k (default for model)"],
       cost: { amount: 2, unit: "credits" },
     });
-    expect(result.path).toMatch(/^art\/image-[0-9a-f]{12}\.png$/);
+    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}\.png$/);
   });
 
   it("saves the image of a headless run that stopped waiting, with no request left", async () => {

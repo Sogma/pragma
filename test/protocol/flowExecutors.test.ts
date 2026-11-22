@@ -1329,6 +1329,23 @@ describe("the Generate Image node", () => {
     });
   });
 
+  // The host fills the number as it saves, and matches a result already made
+  // against the prefix as typed, so the run sends both.
+  it("sends a typed prefix filled and as typed, the number left for the host", async () => {
+    const generateImage = vi.fn(async () => answer);
+    await NODE_EXECUTORS.generateImage(
+      imageNode({ prefix: "shot_{{$number}}_{{$date:%y%m%d}}" }),
+      prompt,
+      context({ sandbox: { ...context().sandbox, generateImage } }),
+    );
+    expect(generateImage).toHaveBeenCalledWith(
+      "flow",
+      "picture.flow.html",
+      expect.objectContaining({ prefix: "shot_{{$number}}_261109", prefixTyped: "shot_{{$number}}_{{$date:%y%m%d}}" }),
+      undefined,
+    );
+  });
+
   it("says when a result was found again rather than generated", async () => {
     const report = vi.fn();
     const generateImage = vi.fn(async () => ({ ...answer, reused: true, warnings: [], cost: undefined }));
@@ -1637,6 +1654,7 @@ describe("the Generate Video node", () => {
         duration: "4",
         take: "3",
         prefix: "shot-12",
+        prefixTyped: "shot-12",
       },
       undefined,
     );

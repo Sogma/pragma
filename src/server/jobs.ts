@@ -34,7 +34,9 @@ export interface JobRecord {
   // time, and the folder as the node names it, for messages.
   folder: string;
   folderName: string;
-  // The result's name without its extension, and the prefix typed for it.
+  // How the result's name begins: the prefix with its dates filled and any
+  // `{{$number}}` still to come, and the prefix as typed, placeholders and
+  // all, "" when blank (generatedResults.ts's ResultStart).
   stem: string;
   prefix: string;
   model: string;

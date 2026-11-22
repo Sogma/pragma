@@ -96,6 +96,8 @@ import {
 import {
   attachPlaceholderSuggestions,
   dateChoices,
+  isResultPrefix,
+  prefixChoices,
   promptChoices,
   promptPins,
   promptSuggestions,
@@ -883,10 +885,14 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     label.className = "flow-port-label";
     label.textContent = port.label;
 
+    // A key the config lacks reads as a run reads it: a new node's value is
+    // written when the node is made, never shown to an older one.
     const currentValue = () =>
-      typeof node.config[port.id] === "string"
-        ? blankAsDefault(node.type, port.id, node.config[port.id] as string)
-        : (widget.defaultValue ?? "");
+      blankAsDefault(
+        node.type,
+        port.id,
+        typeof node.config[port.id] === "string" ? (node.config[port.id] as string) : "",
+      );
 
     let control: HTMLElement;
     const modelKind = modelKindOf(widget.type);
@@ -930,7 +936,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         node.config[port.id] = input.value;
         deps.persistGraph();
       });
-      attachPlaceholderSuggestions(input, () => dateChoices(new Date()));
+      const choices = isResultPrefix(node, port.id) ? prefixChoices : dateChoices;
+      attachPlaceholderSuggestions(input, () => choices(new Date()));
       control = input;
     }
     control.classList.add("nodrag");
