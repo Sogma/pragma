@@ -1,13 +1,4 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  utimesSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -107,14 +98,12 @@ describe("withHostStateLock", () => {
     await Promise.all([run("a"), run("b")]);
 
     expect(order).toEqual(["a in", "a out", "b in", "b out"]);
-    expect(existsSync(`${target}.lock`)).toBe(false);
   });
 
-  it("breaks a lock its holder left behind long ago", async () => {
+  // The OS holds the lock, so a file left beside the target says nothing.
+  it("runs at once beside a stray work.lock, however new", async () => {
     const target = path.join(dir, "work");
     writeFileSync(`${target}.lock`, "");
-    const longAgo = new Date(Date.now() - 10 * 60_000);
-    utimesSync(`${target}.lock`, longAgo, longAgo);
 
     expect(await withHostStateLock(target, async () => "ran")).toBe("ran");
   });

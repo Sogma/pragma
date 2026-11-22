@@ -2,14 +2,13 @@
 // result is saved and shown (docs/architecture.md, Space identity and state
 // ownership). One file per job, named by the job's own id, so two processes
 // sharing the config directory never rewrite each other's records.
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { withHostStateLock } from "../config/hostStateFile.ts";
+import { withHostStateLock, writeHostStateFile } from "../config/hostStateFile.ts";
 import { globalJobsDir } from "../config/loadConfig.ts";
 import type { GenerationCost, JobSettings } from "../protocol/api.ts";
 import { isHiddenName } from "../protocol/entryName.ts";
 import type { VideoOperation } from "../protocol/videoGeneration.ts";
-import { writeFileAtomic } from "./spaceFiles.ts";
 
 // One list, which reading a record checks too: a stage missing there reads
 // as no record at all.
@@ -124,8 +123,7 @@ export function createFileJobStore(dir = globalJobsDir()): JobStore {
     },
     get: (id) => read(fileOf(id)),
     async add(job) {
-      await mkdir(dir, { recursive: true });
-      await writeFileAtomic(fileOf(job.id), JSON.stringify(job));
+      writeHostStateFile(fileOf(job.id), job);
     },
     // Locked across processes: a host collecting a job and a run that
     // joined it may both write its stage.
@@ -134,7 +132,7 @@ export function createFileJobStore(dir = globalJobsDir()): JobStore {
         const job = await read(fileOf(id));
         if (!job) return undefined;
         const next = change(job);
-        await writeFileAtomic(fileOf(id), JSON.stringify(next));
+        writeHostStateFile(fileOf(id), next);
         return next;
       }),
     async remove(id) {

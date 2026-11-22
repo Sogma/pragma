@@ -1,19 +1,20 @@
 // Reading and writing the install-global JSON files — `config.json`,
-// `grants.json` and each space's layout — under the one rule that keeps them
-// from destroying themselves. See docs/architecture.md's Space identity and state ownership section.
+// `grants.json`, each space's layout, the job list and upload ids — under the
+// one rule that keeps them from destroying themselves. See
+// docs/architecture.md's Space identity and state ownership section.
 import {
   closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
   openSync,
   readFileSync,
   renameSync,
   rmSync,
-  statSync,
-  writeFileSync,
+  writeSync,
 } from "node:fs";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { withFileLock } from "./fileLock.ts";
 
 /** A host-state file that exists but does not hold a JSON object. Its own
  * class so a caller can choose to degrade on it — a capability check reading
@@ -64,6 +65,8 @@ export function readHostStateFile<T>(filePath: string): T | undefined {
 
 /** Never leaves a half-written file behind: a plain write truncates first, so
  * a crash or a full disk partway through leaves a file that parses as nothing.
+ * The bytes reach the disk before the rename, so a power cut just after it
+ * leaves the old file or the new one, never an empty one.
  *
  * Synchronous rather than reusing spaceFiles.ts's async atomic writer:
  * Electron saves window bounds from a `close` handler during teardown, where
@@ -78,7 +81,13 @@ export function writeHostStateFile(filePath: string, value: unknown, options: { 
     `.${path.basename(filePath)}.${process.pid}.${Date.now().toString(36)}.tmp`,
   );
   try {
-    writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: options.mode });
+    const fd = openSync(tempPath, "w", options.mode);
+    try {
+      writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(tempPath, filePath);
   } catch (error) {
     rmSync(tempPath, { force: true });
@@ -86,35 +95,10 @@ export function writeHostStateFile(filePath: string, value: unknown, options: { 
   }
 }
 
-// Longer than any work a lock is held for, so only a holder that died leaves
-// one this old.
-const STALE_LOCK_MS = 60_000;
-
-/** Runs `run` holding `<filePath>.lock`, which other processes wait on: for
- * work two processes sharing this directory must never do at once, such as
- * spending a refresh token that rotates. A stale lock is broken. */
+/** Runs `run` holding the OS lock beside `filePath`, which other processes
+ * wait on, for a read-modify-write two processes must never do at once. The
+ * OS frees it the moment its holder exits or dies, so none waits on a crashed
+ * one. */
 export async function withHostStateLock<T>(filePath: string, run: () => Promise<T>): Promise<T> {
-  const lockPath = `${filePath}.lock`;
-  mkdirSync(path.dirname(lockPath), { recursive: true });
-  const deadline = Date.now() + STALE_LOCK_MS + 5_000;
-  for (;;) {
-    try {
-      closeSync(openSync(lockPath, "wx"));
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      try {
-        if (Date.now() - statSync(lockPath).mtimeMs > STALE_LOCK_MS) rmSync(lockPath, { force: true });
-      } catch {
-        // Released between the open and the stat: the next try takes it.
-      }
-      if (Date.now() > deadline) throw new Error(`${lockPath} stayed locked; try again.`);
-      await delay(50);
-    }
-  }
-  try {
-    return await run();
-  } finally {
-    rmSync(lockPath, { force: true });
-  }
+  return withFileLock(path.join(path.dirname(filePath), `.${path.basename(filePath)}.lock`), run);
 }

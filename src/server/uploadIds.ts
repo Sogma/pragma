@@ -2,11 +2,10 @@
 // it, by each image's digest, so an image uploads once per server. A cache:
 // losing an entry costs one upload again, so the file implementation keeps
 // it in the cache directory, never with host state.
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { withHostStateLock } from "../config/hostStateFile.ts";
+import { withHostStateLock, writeHostStateFile } from "../config/hostStateFile.ts";
 import { globalCacheDir } from "../config/loadConfig.ts";
-import { writeFileAtomic } from "./spaceFiles.ts";
 
 /** Where upload ids are kept. A host with other storage installs its own
  * before any upload. */
@@ -44,8 +43,7 @@ export function createFileUploadIdStore(
     withHostStateLock(fileOf(serverId), async () => {
       const entries = await load(serverId);
       edit(entries);
-      await mkdir(dirOf(), { recursive: true });
-      await writeFileAtomic(fileOf(serverId), JSON.stringify(entries));
+      writeHostStateFile(fileOf(serverId), entries);
     });
   return {
     get: async (serverId, digest) => (await load(serverId))[digest],
