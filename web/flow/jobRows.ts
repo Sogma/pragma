@@ -118,9 +118,8 @@ export function liveRow(parts: LiveParts, tag: "div" | "span" = "div"): HTMLElem
 export function cancelButton(label: string, cancel: () => Promise<void>): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "flow-jobs-cancel";
+  button.className = "icon-button flow-jobs-cancel";
   button.setAttribute("aria-label", label);
-  button.dataset.tooltip = label;
   button.addEventListener("click", () => void cancel());
   return button;
 }

@@ -107,17 +107,8 @@ button.flow-jobs-row:hover {
 /* Cancel, as a circle and slash: muted, red on hover. */
 .flow-jobs-cancel {
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 24px;
   height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--control-radius);
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
 }
 
 .flow-jobs-cancel::before {
@@ -129,7 +120,6 @@ button.flow-jobs-row:hover {
 }
 
 .flow-jobs-cancel:hover {
-  background: var(--bg-hover);
   color: var(--color-danger);
 }
 

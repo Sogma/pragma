@@ -12,16 +12,11 @@
   background: var(--bg-primary);
 }
 
-/* The [hidden] rule beats the unconditional display. */
 .lut-body {
   display: flex;
   flex-direction: column;
   gap: 16px;
   width: min(100%, 720px);
-}
-
-.lut-body[hidden] {
-  display: none;
 }
 
 .lut-strip {

@@ -5,12 +5,6 @@
   height: 22px;
 }
 
-/* A pin the card leaves out, such as a frame the picked model doesn't take:
-   [hidden] alone loses to the display above. */
-.flow-port-row[hidden] {
-  display: none;
-}
-
 .flow-port-row.input {
   justify-content: flex-start;
 }

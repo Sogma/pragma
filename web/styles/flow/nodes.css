@@ -210,10 +210,6 @@
   pointer-events: none;
 }
 
-.flow-node-comment[hidden] {
-  display: none;
-}
-
 .flow-node.selected > .flow-node-comment {
   color: var(--text-muted);
 }
