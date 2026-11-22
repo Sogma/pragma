@@ -133,6 +133,39 @@ describe("performSandboxGenerateImage", () => {
     expect(calls).toHaveLength(1);
   });
 
+  // Runs go side by side, so a second Run can ask while the first is still
+  // being made; a new prefix on the same inputs is the same image too.
+  it("makes the image once for requests with the same inputs at once, the later ones finding it", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    let open = () => {};
+    const gate = new Promise<void>((resolveGate) => {
+      open = resolveGate;
+    });
+    const slow = (): ResolvedImageModel => ({
+      ...resolve(),
+      model: new MockImageModelV4({
+        doGenerate: async (options) => {
+          calls.push(options);
+          await gate;
+          return { images: [PNG], warnings: [], response: { timestamp: new Date(), modelId: "m", headers: undefined } };
+        },
+      }),
+    });
+    const all = Promise.all(
+      [body(), body(), body({ prefix: "poster" })].map((sent) =>
+        performSandboxGenerateImage(space, flow, sent, undefined, slow),
+      ),
+    );
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    open();
+    const [first, second, poster] = await all;
+    expect(calls).toHaveLength(1);
+    expect([first.reused, second.reused, poster.reused]).toEqual([false, true, true]);
+    expect(second.path).toBe(first.path);
+    expect(poster.path).toMatch(/^art\/poster-[0-9a-f]{12}\.png$/);
+    expect(second.image).toEqual(first.image);
+  });
+
   it("makes a new file when the seed changes, keeping the old one", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const first = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);

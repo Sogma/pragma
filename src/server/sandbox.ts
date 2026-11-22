@@ -857,8 +857,10 @@ export async function startSandboxGenerateImage(
   const digest = key.slice(0, 12);
   const named = typedPrefix(body.prefix, IMAGE_NAME_EXTENSION);
   const stem = `${named || "image"}-${digest}`;
-  const existing = await findResult(folderPath, stem, digest, named);
-  if (existing) {
+  // The image already made for these inputs, copied to this prefix's name.
+  async function reuse(): Promise<StartedImage | undefined> {
+    const existing = await findResult(folderPath, stem, digest, named);
+    if (!existing) return undefined;
     const { found, kept } = existing;
     const data = await readFile(path.join(folderPath, found));
     if (kept !== found) await writeFileAtomic(path.join(folderPath, kept), data);
@@ -878,27 +880,36 @@ export async function startSandboxGenerateImage(
   const aspectRatio = body.aspectRatio as `${number}:${number}` | undefined;
   const jobs = resolved.jobs;
   if (!jobs) {
-    let result: Awaited<ReturnType<typeof callImageModel>>;
-    try {
-      result = await callImageModel(resolved.model, { prompt, references, aspectRatio, seed, signal });
-    } catch (error) {
-      throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
-    }
-    const name = `${stem}.${IMAGE_EXTENSIONS_BY_TYPE[result.mediaType] ?? "png"}`;
-    await writeFileAtomic(path.join(folderPath, name), result.data);
-    return {
-      found: {
-        image: { mediaType: result.mediaType, data: Buffer.from(result.data).toString("base64") },
-        path: `${folder}/${name}`,
-        model,
-        reused: false,
-        warnings: [...warnings, ...result.warnings],
-        ...(result.notes.length ? { notes: result.notes } : {}),
-        ...(result.cost ? { cost: result.cost } : {}),
-      },
-    };
+    // One request for these inputs at a time, or two at once would both pay:
+    // the next waits, then finds the image. Keyed by the digest, not the
+    // name, since a new prefix on the same inputs copies rather than pays.
+    return withFileLock(path.join(folderPath, digest), async () => {
+      const reused = await reuse();
+      if (reused) return reused;
+      let result: Awaited<ReturnType<typeof callImageModel>>;
+      try {
+        result = await callImageModel(resolved.model, { prompt, references, aspectRatio, seed, signal });
+      } catch (error) {
+        throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
+      }
+      const name = `${stem}.${IMAGE_EXTENSIONS_BY_TYPE[result.mediaType] ?? "png"}`;
+      await writeFileAtomic(path.join(folderPath, name), result.data);
+      return {
+        found: {
+          image: { mediaType: result.mediaType, data: Buffer.from(result.data).toString("base64") },
+          path: `${folder}/${name}`,
+          model,
+          reused: false,
+          warnings: [...warnings, ...result.warnings],
+          ...(result.notes.length ? { notes: result.notes } : {}),
+          ...(result.cost ? { cost: result.cost } : {}),
+        },
+      };
+    });
   }
 
+  const reused = await reuse();
+  if (reused) return reused;
   const { job, resumed } = await beginOrJoin(
     runner,
     spaceRoot,
