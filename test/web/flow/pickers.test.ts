@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { RootedPath } from "../../../src/protocol/rootedPath.ts";
 import type { FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { ApiError, type SandboxReadResult, type SpaceTreeNode } from "../../../web/core/apiClient.ts";
-import { DRAGGED_ENTRY_TYPE, noteDragInFlight } from "../../../web/core/paths.ts";
+import { DRAGGED_ENTRY_TYPE } from "../../../web/core/paths.ts";
 import type { WritePathOptions } from "../../../web/core/spaceTree.ts";
 import { createPickers, type PickerDeps, type Pickers } from "../../../web/flow/pickers.ts";
-import { fakeDrag } from "../support/drag.ts";
+import { drop, fakeDrag } from "../support/drag.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
 // The folders the space's scopes open over, as the tree's listing has them.
@@ -68,17 +68,6 @@ function setup(overrides: Partial<PickerDeps> = {}) {
     ...overrides,
   };
   return { deps, pickers: createPickers(deps) };
-}
-
-// A drop of an entry dragged from Pragma's own tree, whose row notes the path
-// in flight until the drag ends. `foreign` drops the same text with no such
-// drag, as a link dragged out of a note or another app's drag does.
-function drop(zone: Element, path: string, foreign = false): void {
-  const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
-  Object.defineProperty(event, "dataTransfer", { value: { getData: () => path, files: [] } });
-  if (!foreign) noteDragInFlight(path);
-  zone.dispatchEvent(event);
-  noteDragInFlight(undefined);
 }
 
 const zoneOf = (el: HTMLElement) => el.querySelector(".flow-dropzone") as HTMLElement;

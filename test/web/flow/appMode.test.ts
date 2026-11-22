@@ -5,6 +5,7 @@ import type { FlowGraph, FlowNodeInstance } from "../../../src/protocol/types.ts
 import type { SandboxReadResult } from "../../../web/core/apiClient.ts";
 import { type AppModeDeps, createAppMode, placeExposedNode } from "../../../web/flow/appMode.ts";
 import type { MenuOpenOptions } from "../../../web/services/menus.ts";
+import { drop } from "../support/drag.ts";
 import { fakeModelFields } from "../support/fakeModelFields.ts";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -417,20 +418,41 @@ describe("appMode", () => {
     expect(bars).toEqual(["plate.png", "6 B"]);
   });
 
-  it("an exposed image picker takes a file dragged from the tree as its consent, with no prompt", async () => {
+  // Text another app drops reads as a path too, but nobody picked it from what
+  // Pragma shows: only Pragma's own drag skips the prompt, as on the card.
+  it("an exposed image picker takes a dropped file as consent only when Pragma's own drag brought it", async () => {
     const image: SandboxReadResult = { kind: "image", mediaType: "image/png", data: "AAAA" };
     const ensureCapability = vi.fn(async () => true);
     const loadImage = node("loadImage", {}, ["imagePath"]);
     const { appMode, elements } = setup([loadImage], { read: vi.fn(async () => image), ensureCapability });
     appMode.setActive(true);
     const zone = elements.appModePane.querySelector(".flow-node-image-picker .flow-dropzone") as HTMLElement;
-    const drop = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
-    Object.defineProperty(drop, "dataTransfer", { value: { getData: () => "refs/plate.png", files: [] } });
-    zone.dispatchEvent(drop);
-    await tick();
-    await tick();
+    const asked = { type: "readFile", path: "refs/plate.png" };
+    drop(zone, "refs/plate.png", true);
+    await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, false));
     expect(loadImage.config.imagePath).toBe("refs/plate.png");
-    expect(ensureCapability).toHaveBeenCalledWith({ type: "readFile", path: "refs/plate.png" }, true);
+    drop(zone, "refs/plate.png");
+    await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, true));
+  });
+
+  it("an exposed video picker takes a dropped clip as consent only when Pragma's own drag brought it", async () => {
+    // jsdom plays no media.
+    const media = [
+      vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {}),
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {}),
+    ];
+    const ensureCapability = vi.fn(async () => true);
+    const loadVideo = node("loadVideo", {}, ["videoPath"]);
+    const { appMode, elements } = setup([loadVideo], { ensureCapability });
+    appMode.setActive(true);
+    const zone = elements.appModePane.querySelector(".flow-app-video-zone") as HTMLElement;
+    const asked = { type: "readFile", path: "clips/take.mp4" };
+    drop(zone, "clips/take.mp4", true);
+    await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, false));
+    expect(loadVideo.config.videoPath).toBe("clips/take.mp4");
+    drop(zone, "clips/take.mp4");
+    await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, true));
+    for (const spy of media) spy.mockRestore();
   });
 
   it("an exposed image picker says a stored vector image is not a raster image, asking for nothing", async () => {

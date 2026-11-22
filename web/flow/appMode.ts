@@ -40,7 +40,7 @@ import {
 } from "../../src/protocol/types.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
-import { desktopFiles, readDraggedPath, stripExtension } from "../core/paths.ts";
+import { desktopFiles, isEntryDrop, readDraggedPath, stripExtension } from "../core/paths.ts";
 import { buildCopyButton, buildRunCount, setRunCount } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -132,7 +132,8 @@ export interface AppModeDeps {
   graph(): FlowGraph;
   persistGraph(): void;
   saveGraphNow(): Promise<boolean>;
-  // `consented` as the node card's pickers take it: a drag is the consent.
+  // `consented` as the node card's pickers take it: only a drag from Pragma's
+  // own tree is consent, never the same text dropped from another app.
   ensureCapability(capability: FlowCapabilityDeclaration, consented?: boolean): Promise<boolean>;
   read(targetPath: string): Promise<SandboxReadResult | undefined>;
   pickedImages: Map<string, { mediaType: string; data: string; name: string }>;
@@ -671,7 +672,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       }
     }
 
-    function pickStoredPath(storedPath: string): void {
+    function pickStoredPath(storedPath: string, consented: boolean): void {
       node.config.imagePath = storedPath;
       persistAppModeEdit(node.id);
       void (async () => {
@@ -679,8 +680,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
           zone.textContent = "Couldn't save before requesting permission.";
           return;
         }
-        // Only a tree drag reaches here, and that drag named this exact file.
-        await loadFromPath(storedPath, true);
+        await loadFromPath(storedPath, consented);
       })();
     }
 
@@ -708,7 +708,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
         zone.textContent = `Not a raster image: ${formatRootedPath(dragged)}`;
         return;
       }
-      pickStoredPath(flowStoredPath(deps.flowPath(), dragged));
+      pickStoredPath(flowStoredPath(deps.flowPath(), dragged), isEntryDrop(event));
     });
 
     if (typeof node.config.imagePath === "string" && node.config.imagePath) void loadFromPath(node.config.imagePath);
@@ -769,6 +769,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
         zone.textContent = notAVideo(formatRootedPath(dragged));
         return;
       }
+      const consented = isEntryDrop(event);
       const storedPath = flowStoredPath(deps.flowPath(), dragged);
       node.config.videoPath = storedPath;
       persistAppModeEdit(node.id);
@@ -778,8 +779,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
           zone.textContent = "Couldn't save before requesting permission.";
           return;
         }
-        // Only a tree drag reaches here, and that drag named this exact file.
-        await deps.ensureCapability({ type: "readFile", path: storedPath }, true);
+        await deps.ensureCapability({ type: "readFile", path: storedPath }, consented);
       })();
     });
 

@@ -1,3 +1,5 @@
+import { noteDragInFlight } from "../../../web/core/paths.ts";
+
 // jsdom has no DataTransfer, so a drag is faked as a browser fires one: what
 // its source wrote, any files the browser added, and "Files" among its types
 // whenever it carries some.
@@ -26,4 +28,16 @@ export function fireDrag(target: EventTarget, type: "dragstart" | "dragend", cla
   if (claimed) event.preventDefault();
   target.dispatchEvent(event);
   return written;
+}
+
+/** Drops `path` on `target` as an entry dragged from Pragma's own tree, whose
+ * row notes the path in flight until the drag ends. `foreign` drops the same
+ * text with no such drag, as a link dragged out of a note or another app's
+ * drag does. */
+export function drop(target: EventTarget, path: string, foreign = false): void {
+  const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
+  Object.defineProperty(event, "dataTransfer", { value: { getData: () => path, files: [] } });
+  if (!foreign) noteDragInFlight(path);
+  target.dispatchEvent(event);
+  noteDragInFlight(undefined);
 }
