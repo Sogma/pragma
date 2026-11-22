@@ -1384,7 +1384,7 @@ const generateOptions: FlowNodeTypeDefinition = {
   contextPort: CONTEXT_PORT,
 };
 
-export const FLOW_NODE_REGISTRY: Record<string, FlowNodeTypeDefinition> = {
+const REGISTERED = {
   loadRow,
   loadRandomRow,
   loadTableRows,
@@ -1420,7 +1420,14 @@ export const FLOW_NODE_REGISTRY: Record<string, FlowNodeTypeDefinition> = {
   generateImage,
   generateVideo,
   applet,
-};
+} satisfies Record<string, FlowNodeTypeDefinition>;
+
+/** A node type the registry holds, each of which the executors' table names
+ * once (flowExecutors.ts). */
+export type FlowNodeType = keyof typeof REGISTERED;
+
+// Looked up by any stored type, which may name none.
+export const FLOW_NODE_REGISTRY: Record<string, FlowNodeTypeDefinition> = REGISTERED;
 
 /** Where a node with an affix menu puts its text: its stored `affixMode`, or
  * its type's fallback for a blank or unknown one. */

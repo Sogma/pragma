@@ -36,6 +36,7 @@ import {
   choiceOptions,
   EFFORT_KEY,
   FLOW_NODE_REGISTRY,
+  type FlowNodeType,
   GET_FIELD_MAX,
   IMAGE_REFERENCE_SLOTS,
   IMAGE_REFERENCES_MAX,
@@ -1292,6 +1293,8 @@ const openToSide: NodeExecutor = async (node, inputs, context) => {
   return {};
 };
 
+// Every registered type and only those, so a type the registry gains without
+// an executor fails to compile here rather than at its first run.
 export const NODE_EXECUTORS: Record<string, NodeExecutor> = {
   loadRow,
   loadRandomRow,
@@ -1328,4 +1331,4 @@ export const NODE_EXECUTORS: Record<string, NodeExecutor> = {
   generateImage,
   generateVideo,
   applet,
-};
+} satisfies Record<FlowNodeType, NodeExecutor>;
