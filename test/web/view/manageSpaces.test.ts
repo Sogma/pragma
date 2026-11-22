@@ -178,6 +178,20 @@ describe("manageSpaces row actions", () => {
     vi.unstubAllGlobals();
   });
 
+  it("clears a failed action's message as the next action starts", async () => {
+    const { commands, content } = managerSetup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Not a known space", { status: 400 })),
+    );
+    await commands.run("space.resetGrants", context, target);
+    const row = content.querySelector<HTMLElement>(".manage-spaces-error");
+    expect(row?.hidden).toBe(false);
+    await commands.run("space.trust", context, { ...target, trusted: false } as ListItemTarget);
+    expect(row?.hidden).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
   it("shows a failed rename in the dialog rather than dropping it", async () => {
     const { commands, content, onRenamed } = managerSetup();
     vi.stubGlobal(

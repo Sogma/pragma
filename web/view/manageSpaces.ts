@@ -43,6 +43,9 @@ export interface ManageSpacesContent {
   // are registered outside this module but have nowhere else to report: they
   // run from a context menu, which is gone by the time the call settles.
   showError(thrown: unknown, fallback: string): void;
+  // Empties that row as the next action starts, so a failure never outlasts
+  // a later success.
+  clearError(): void;
   dispose(): void;
 }
 
@@ -128,7 +131,17 @@ export function createManageSpacesContent(deps: ManageSpacesDeps): ManageSpacesC
   }
 
   void renderList();
-  return { element, initialFocus: form?.initialFocus, refresh: renderList, showError, dispose: () => store.dispose() };
+  const clearError = () => {
+    error.hidden = true;
+  };
+  return {
+    element,
+    initialFocus: form?.initialFocus,
+    refresh: renderList,
+    showError,
+    clearError,
+    dispose: () => store.dispose(),
+  };
 }
 
 export interface SpaceManagerDeps extends ManageSpacesDeps {
@@ -159,11 +172,13 @@ export interface SpaceManager {
 export function createSpaceManager(deps: SpaceManagerDeps): SpaceManager {
   let refresh: (() => Promise<void>) | undefined;
   let showError: ManageSpacesContent["showError"] | undefined;
+  let clearError: ManageSpacesContent["clearError"] | undefined;
 
   // Each ⋮ action reports into the open dialog rather than letting the
   // rejection escape: these run through `commands.run`, which its callers
   // invoke with `void`, so an uncaught failure is a silent no-op.
   async function runSpaceAction(action: () => Promise<void>, fallback: string): Promise<void> {
+    clearError?.();
     try {
       await action();
     } catch (thrown) {
@@ -177,6 +192,7 @@ export function createSpaceManager(deps: SpaceManagerDeps): SpaceManager {
     const content = createManageSpacesContent(deps);
     refresh = content.refresh;
     showError = content.showError;
+    clearError = content.clearError;
     const handle = deps.dialog.open({
       title: "Manage Spaces",
       icon: "space",
@@ -187,6 +203,7 @@ export function createSpaceManager(deps: SpaceManagerDeps): SpaceManager {
     void handle.closed.then(() => {
       refresh = undefined;
       showError = undefined;
+      clearError = undefined;
       content.dispose();
       deps.onClosed?.();
     });

@@ -165,11 +165,14 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
   async function save(body: Parameters<typeof postApiSettings>[0]): Promise<void> {
     try {
       await postApiSettings(body);
-      await load();
     } catch (thrown) {
-      showError(thrown);
+      // Read back first, so the switch and the port show what the endpoint
+      // kept: the read clears the line, and the failure shows after it.
       await load();
+      showError(thrown);
+      return;
     }
+    await load();
   }
 
   // The codebase's toggle is a role="switch" button, not a checkbox — its
