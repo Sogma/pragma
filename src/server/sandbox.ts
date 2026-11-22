@@ -81,7 +81,7 @@ import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
 import { findResult, IMAGE_EXTENSIONS_BY_TYPE } from "./generatedResults.ts";
 import { type GrantSubject, grantPath, isCapabilityGranted } from "./grants.ts";
 import { writeDocument } from "./history.ts";
-import { type JobOutcome, type JobRunner, jobRunner } from "./jobRunner.ts";
+import { type JobOutcome, type JobRunner, jobRunner, type NewJob } from "./jobRunner.ts";
 import type { JobRecord } from "./jobs.ts";
 import { type ResolvedImageModel, type ResolvedVideoModel, resolveImageModel } from "./mediaModels.ts";
 import { type ModelSupport, modelSupport, supportWith } from "./modelSupport.ts";
@@ -899,40 +899,27 @@ export async function startSandboxGenerateImage(
     };
   }
 
-  const spaceId = findSpaceId(loadGlobalConfig(), spaceRoot);
-  if (spaceId === undefined) throw new Error(`${spaceRoot} is not a registered space`);
-  let job = await runner.live(key);
-  let resumed = job !== undefined;
-  if (!job) {
-    try {
-      // Never stopped by a request's abort, as a clip's start isn't.
-      const begun = await runner.begin(
-        {
-          kind: "image",
-          digest: key,
-          spaceId,
-          document: doc.path,
-          ...(body.startId !== undefined ? { startId: body.startId } : {}),
-          folder: rooted,
-          folderName: folder,
-          stem,
-          prefix: named,
-          model,
-          summary: summaryOf(body.prompt),
-          settings: jobSettings({ aspectRatio: body.aspectRatio }),
-        },
-        async () => {
-          const started = await jobs.start({ prompt, references, aspectRatio, seed });
-          return { ...started, warnings: [...warnings, ...started.warnings] };
-        },
-      );
-      job = begun.job;
-      resumed = begun.joined;
-    } catch (error) {
-      throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
-    }
-  }
-  runner.follow(job);
+  const { job, resumed } = await beginOrJoin(
+    runner,
+    spaceRoot,
+    {
+      kind: "image",
+      digest: key,
+      document: doc.path,
+      ...(body.startId !== undefined ? { startId: body.startId } : {}),
+      folder: rooted,
+      folderName: folder,
+      stem,
+      prefix: named,
+      model,
+      summary: summaryOf(body.prompt),
+      settings: jobSettings({ aspectRatio: body.aspectRatio }),
+    },
+    async () => {
+      const started = await jobs.start({ prompt, references, aspectRatio, seed });
+      return { ...started, warnings: [...warnings, ...started.warnings] };
+    },
+  );
   return { job, resumed, folder, model };
 }
 
@@ -973,6 +960,50 @@ export async function performSandboxGenerateImage(
 ): Promise<GenerateImageResponse> {
   const started = await startSandboxGenerateImage(spaceRoot, doc, body, signal, resolve, runner);
   if ("found" in started) return started.found;
+  return imageResponse(spaceRoot, started, await collectJob(runner, started, signal, "image"));
+}
+
+// The prompt as the lists that show a job name it: one line, cut short.
+function summaryOf(prompt: string): string {
+  const line = prompt.replace(/\s+/g, " ").trim();
+  return line.length > 120 ? `${line.slice(0, 119)}…` : line;
+}
+
+// The job `record`'s digest names: joined while one runs, else begun with
+// `start`, and followed by this host from here whether the caller waits or
+// not. Never stopped by a request's abort: a start stopped midway could
+// submit a job and never record it, paid for and lost.
+async function beginOrJoin(
+  runner: JobRunner,
+  spaceRoot: string,
+  record: Omit<NewJob, "spaceId">,
+  start: Parameters<JobRunner["begin"]>[1],
+): Promise<{ job: JobRecord; resumed: boolean }> {
+  const spaceId = findSpaceId(loadGlobalConfig(), spaceRoot);
+  if (spaceId === undefined) throw new Error(`${spaceRoot} is not a registered space`);
+  let job = await runner.live(record.digest);
+  let resumed = job !== undefined;
+  if (!job) {
+    try {
+      const begun = await runner.begin({ ...record, spaceId }, start);
+      job = begun.job;
+      resumed = begun.joined;
+    } catch (error) {
+      throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
+    }
+  }
+  runner.follow(job);
+  return { job, resumed };
+}
+
+// Waits in-process for a started job, as a headless run does, and answers
+// with the file it saved. A stopped wait says the `noun` is still being made.
+async function collectJob(
+  runner: JobRunner,
+  started: { job: JobRecord; folder: string },
+  signal: AbortSignal | undefined,
+  noun: string,
+): Promise<string> {
   let outcome: JobOutcome;
   try {
     outcome = await runner.collect(started.job, signal);
@@ -981,19 +1012,13 @@ export async function performSandboxGenerateImage(
       const reason = signal.reason instanceof Error ? signal.reason.message : "the request stopped";
       throw new SandboxRequestError(
         502,
-        `Stopped waiting for the image: ${reason}. It is still being made, and Pragma saves it into ${started.folder}/ when it's done.`,
+        `Stopped waiting for the ${noun}: ${reason}. It is still being made, and Pragma saves it into ${started.folder}/ when it's done.`,
       );
     }
     throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
   }
   if (outcome.file === undefined) throw new SandboxRequestError(502, outcome.error);
-  return imageResponse(spaceRoot, started, outcome.file);
-}
-
-// The prompt as the lists that show a job name it: one line, cut short.
-function summaryOf(prompt: string): string {
-  const line = prompt.replace(/\s+/g, " ").trim();
-  return line.length > 120 ? `${line.slice(0, 119)}…` : line;
+  return outcome.file;
 }
 
 /** A clip already in the folder for a request's inputs, or the job recorded
@@ -1099,51 +1124,36 @@ export async function startSandboxGenerateVideo(
     return { found: { path: `${folder}/${kept}`, model, reused: true, resumed: false, warnings: [] } };
   }
 
-  const spaceId = findSpaceId(loadGlobalConfig(), spaceRoot);
-  if (spaceId === undefined) throw new Error(`${spaceRoot} is not a registered space`);
-  let job = await runner.live(key);
-  let resumed = job !== undefined;
-  if (!job) {
-    try {
-      // Never stopped by a request's abort: a start stopped midway could
-      // submit a job and never record it, paid for and lost.
-      const begun = await runner.begin(
-        {
-          kind: "video",
-          digest: key,
-          spaceId,
-          document: doc.path,
-          ...(body.startId !== undefined ? { startId: body.startId } : {}),
-          folder: rooted,
-          folderName: folder,
-          stem,
-          prefix: named,
-          model,
-          summary: summaryOf(body.prompt),
-          settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),
-        },
-        async () => {
-          const started = await startVideoJob(resolved.model, {
-            prompt,
-            startFrame: frames.start,
-            endFrame: frames.end,
-            references,
-            aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
-            resolution: shortSide ? resolutionSize(shortSide) : undefined,
-            duration,
-            modelSettings,
-          });
-          return { ...started, warnings: [...warnings, ...started.warnings] };
-        },
-      );
-      job = begun.job;
-      resumed = begun.joined;
-    } catch (error) {
-      throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
-    }
-  }
-  // This host waits on the job from here, whether the caller does or not.
-  runner.follow(job);
+  const { job, resumed } = await beginOrJoin(
+    runner,
+    spaceRoot,
+    {
+      kind: "video",
+      digest: key,
+      document: doc.path,
+      ...(body.startId !== undefined ? { startId: body.startId } : {}),
+      folder: rooted,
+      folderName: folder,
+      stem,
+      prefix: named,
+      model,
+      summary: summaryOf(body.prompt),
+      settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),
+    },
+    async () => {
+      const started = await startVideoJob(resolved.model, {
+        prompt,
+        startFrame: frames.start,
+        endFrame: frames.end,
+        references,
+        aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
+        resolution: shortSide ? resolutionSize(shortSide) : undefined,
+        duration,
+        modelSettings,
+      });
+      return { ...started, warnings: [...warnings, ...started.warnings] };
+    },
+  );
   return { job, resumed, folder, model };
 }
 
@@ -1178,20 +1188,5 @@ export async function performSandboxGenerateVideo(
 ): Promise<GenerateVideoResponse> {
   const started = await startSandboxGenerateVideo(spaceRoot, doc, body, runner);
   if ("found" in started) return started.found;
-  const { job, folder } = started;
-  let outcome: JobOutcome;
-  try {
-    outcome = await runner.collect(job, signal);
-  } catch (error) {
-    if (signal?.aborted) {
-      const reason = signal.reason instanceof Error ? signal.reason.message : "the request stopped";
-      throw new SandboxRequestError(
-        502,
-        `Stopped waiting for the clip: ${reason}. It is still being made, and Pragma saves it into ${folder}/ when it's done.`,
-      );
-    }
-    throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
-  }
-  if (outcome.file === undefined) throw new SandboxRequestError(502, outcome.error);
-  return videoResponse(started, outcome.file);
+  return videoResponse(started, await collectJob(runner, started, signal, "clip"));
 }

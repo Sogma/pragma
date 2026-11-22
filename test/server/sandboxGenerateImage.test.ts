@@ -303,8 +303,9 @@ describe("performSandboxGenerateImage", () => {
 });
 
 describe("an image a provider makes as a job", () => {
-  // A provider whose images are jobs: started at once, done at the second check.
-  function jobProvider() {
+  // A provider whose images are jobs: started at once, done once `ready`
+  // says so, at the second check unless a test says otherwise.
+  function jobProvider(ready: (checks: number) => boolean = (checks) => checks >= 2) {
     const records = new Map<string, JobRecord>();
     const store: JobStore = {
       list: async () => [...records.values()],
@@ -333,7 +334,7 @@ describe("an image a provider makes as a job", () => {
         };
       },
       check: async () =>
-        ++checks < 2
+        !ready(++checks)
           ? { status: "running" }
           : {
               status: "completed",
@@ -351,7 +352,7 @@ describe("an image a provider makes as a job", () => {
       now: Date.now,
       spaceRoot: (spaceId) => loadGlobalConfig().spaces?.[spaceId]?.path,
     });
-    return { records, starts, resolveJobs, runner };
+    return { records, starts, resolveJobs, runner, checks: () => checks };
   }
 
   it("records the job and saves its image with nobody waiting, never making it within the request", async () => {
@@ -407,5 +408,21 @@ describe("an image a provider makes as a job", () => {
       cost: { amount: 2, unit: "credits" },
     });
     expect(result.path).toMatch(/^art\/image-[0-9a-f]{12}\.png$/);
+  });
+
+  it("saves the image of a headless run that stopped waiting, with no request left", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    let finished = false;
+    const { records, resolveJobs, runner, checks } = jobProvider(() => finished);
+    const stop = new AbortController();
+    const waiting = performSandboxGenerateImage(space, flow, body(), stop.signal, resolveJobs, runner);
+    await vi.waitFor(() => expect(checks()).toBeGreaterThan(0));
+    stop.abort(new Error("the run passed its 5m time limit"));
+    await expect(waiting).rejects.toThrow(
+      "Stopped waiting for the image: the run passed its 5m time limit. It is still being made, and Pragma saves it into art/ when it's done.",
+    );
+
+    finished = true;
+    await vi.waitFor(() => expect([...records.values()][0]?.stage).toBe("saved"));
   });
 });
