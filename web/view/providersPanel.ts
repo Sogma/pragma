@@ -17,6 +17,7 @@ import {
 } from "../core/apiClient.ts";
 import { defaultModels, PROVIDER_PRESETS as PRESETS, PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
 import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
+import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import { type PickerChoice, wireChoicePicker } from "../lib/picker.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -274,10 +275,8 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   const text = (value: string): Node => document.createTextNode(value);
 
   function link(label: string, href: string): HTMLAnchorElement {
-    const anchor = document.createElement("a");
+    const anchor = markExternalLink(document.createElement("a"));
     anchor.href = href;
-    anchor.target = "_blank";
-    anchor.rel = "noopener";
     anchor.textContent = label;
     return anchor;
   }
@@ -394,8 +393,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     }
     const url = await postProviderSignIn(formProviderId, { planUsage });
     authorizationUrl = url;
-    // The desktop app hands the page to the system browser (electron/main.ts).
-    window.open(url, "_blank", "noopener");
+    openExternalLink(url);
     signIn = { state: "pending" };
     renderSignIn();
     pollSignIn(formProviderId, firstTime);

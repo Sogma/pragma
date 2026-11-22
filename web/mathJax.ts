@@ -52,6 +52,7 @@ import "@mathjax/src/js/input/tex/textmacros/TextMacrosConfiguration.js";
 import "@mathjax/src/js/input/tex/unicode/UnicodeConfiguration.js";
 import "@mathjax/src/js/input/tex/upgreek/UpgreekConfiguration.js";
 import "@mathjax/src/js/input/tex/verb/VerbConfiguration.js";
+import { markExternalLink } from "./lib/externalLinks.ts";
 
 const PACKAGES = [
   "base",
@@ -164,10 +165,7 @@ function createEngine(): MathEngine {
     },
     render(source, display) {
       const node = html.convert(source, { display }) as HTMLElement;
-      for (const link of node.querySelectorAll("a[href]")) {
-        link.setAttribute("target", "_blank");
-        link.setAttribute("rel", "noopener noreferrer");
-      }
+      for (const link of node.querySelectorAll("a[href]")) markExternalLink(link);
       // An error's message, or a `\texttip`, shows as the app's own hover
       // hint (web/lib/tooltip.ts), never the browser's on top of it.
       for (const hinted of node.querySelectorAll<HTMLElement>("[title]")) {

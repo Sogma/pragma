@@ -12,6 +12,7 @@
 import type { AppletInfoResponse, UpdateStatus } from "../../src/protocol/api.ts";
 import { fetchUpdateCheck } from "../core/apiClient.ts";
 import { must } from "../lib/dom.ts";
+import { openExternalLink } from "../lib/externalLinks.ts";
 import type { bindToggle } from "../lib/toggleRow.ts";
 import type { CommandRegistry } from "../services/commands.ts";
 import type { ModelConsole } from "../services/modelConsole.ts";
@@ -73,11 +74,9 @@ export function wireUpdateControl(page: HTMLElement, deps: UpdateControlDeps): V
   const releaseNotesLine = must<HTMLElement>("#setting-release-notes-line", page);
   const releaseNotes = must<HTMLButtonElement>("#setting-release-notes", page);
 
-  // A page, not a window: Electron hands any web address a window asks for to
-  // the system's browser (electron/main.ts).
   let releaseNotesUrl: string | undefined;
   releaseNotes.addEventListener("click", () => {
-    if (releaseNotesUrl) window.open(releaseNotesUrl, "_blank", "noopener");
+    if (releaseNotesUrl) openExternalLink(releaseNotesUrl);
   });
   const row: VersionRow = {
     show(info) {

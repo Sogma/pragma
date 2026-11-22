@@ -262,7 +262,11 @@ describe("Settings → AI Models' ChatGPT plan", () => {
 
     await vi.waitFor(() => expect(postProviderSignIn).toHaveBeenCalledWith("chatgpt", { planUsage: false }));
     expect(postSaveProvider).toHaveBeenCalledWith({ id: "chatgpt", kind: "chatgpt", label: "ChatGPT plan" });
-    expect(open).toHaveBeenCalledWith("https://auth.openai.com/api/accounts/authorize?state=s", "_blank", "noopener");
+    expect(open).toHaveBeenCalledWith(
+      "https://auth.openai.com/api/accounts/authorize?state=s",
+      "_blank",
+      "noopener,noreferrer",
+    );
     expect(text("providers-form-sign-in-status")).toContain("Finish signing in in your browser.");
 
     await vi.waitFor(() => expect(text("providers-form-account")).toBe("writer@example.com"), { timeout: 4000 });

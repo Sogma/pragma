@@ -12,6 +12,7 @@ import {
 } from "../core/apiClient.ts";
 import { PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
 import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
+import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface McpServersPanelDeps {
@@ -133,10 +134,8 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
 
   function signInLink(): Node[] {
     if (!authorizationUrl) return [];
-    const link = document.createElement("a");
+    const link = markExternalLink(document.createElement("a"));
     link.href = authorizationUrl;
-    link.target = "_blank";
-    link.rel = "noopener";
     link.textContent = "Open the sign-in page again";
     return [text(" "), link];
   }
@@ -251,8 +250,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   function beginSignIn(url: string, verb: string): void {
     authorizationUrl = url;
     finishVerb = verb;
-    // The desktop app hands the page to the system browser (electron/main.ts).
-    window.open(url, "_blank", "noopener");
+    openExternalLink(url);
     signIn = { state: "pending" };
     setStatus([text("Finish signing in in your browser."), ...signInLink()]);
     render();

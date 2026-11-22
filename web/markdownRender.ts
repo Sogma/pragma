@@ -18,6 +18,7 @@ import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
 import { splitWikilinkLabel, wikilinkPattern } from "../src/protocol/wikilink.ts";
+import { markExternalLink } from "./lib/externalLinks.ts";
 import { propertyIcon } from "./lib/propertyIcon.ts";
 import { createPill, createTagPill } from "./lib/tagPill.ts";
 import { typesetMath } from "./mathTypeset.ts";
@@ -660,8 +661,7 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
           el.dataset.spacePath = spacePath;
         } else {
           el.href = href;
-          el.target = "_blank";
-          el.rel = "noopener noreferrer";
+          markExternalLink(el);
         }
       }
       appendLinkLabel(node, doc, el, resolvers);
@@ -708,8 +708,7 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
       const el = SAFE_URL.test(href) ? document.createElement("a") : document.createElement("span");
       if (el instanceof HTMLAnchorElement) {
         el.href = href;
-        el.target = "_blank";
-        el.rel = "noopener noreferrer";
+        markExternalLink(el);
       }
       el.textContent = text;
       container.appendChild(el);
@@ -725,10 +724,8 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
         container.appendChild(document.createTextNode(text));
         return;
       }
-      const el = document.createElement("a");
+      const el = markExternalLink(document.createElement("a"));
       el.href = href;
-      el.target = "_blank";
-      el.rel = "noopener noreferrer";
       el.textContent = text;
       container.appendChild(el);
       return;

@@ -8,6 +8,7 @@ import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewU
 import type { SyntaxNode } from "@lezer/common";
 import { Autolink, type MarkdownConfig } from "@lezer/markdown";
 import { destinationText } from "../src/protocol/markdownLinks.ts";
+import { openExternalLink } from "./lib/externalLinks.ts";
 
 const WEB_URL = /^https?:/i;
 
@@ -130,7 +131,7 @@ export const webLinks = ViewPlugin.fromClass(WebLinks, {
       this.press = undefined;
       if (!press || !view.state.selection.main.empty) return false;
       view.dispatch({ selection: press.selection });
-      window.open(press.href, "_blank", "noopener,noreferrer");
+      openExternalLink(press.href);
       return true;
     },
   },

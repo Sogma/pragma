@@ -321,6 +321,25 @@ describe("ratchet: icon-button tooltips", () => {
   });
 });
 
+describe("ratchet: links out", () => {
+  it("opens every link out of Pragma through web/lib/externalLinks.ts", () => {
+    const helper = path.join(root, "web", "lib", "externalLinks.ts");
+    const found: string[] = [];
+    for (const file of walk(path.join(root, "web"), ".ts")) {
+      if (file === helper) continue;
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          if (/window\.open\(|["']_blank["']/.test(line)) found.push(`${path.relative(root, file)}:${index + 1}`);
+        });
+    }
+    expect(
+      found,
+      "A link out of Pragma sends no referrer and gets no opener: web/lib/externalLinks.ts sets both.",
+    ).toEqual([]);
+  });
+});
+
 describe("ratchet: layering", () => {
   it("no file under web/view/ imports another file under web/view/", () => {
     const viewDir = path.join(root, "web/view");

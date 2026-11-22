@@ -10,6 +10,7 @@ import { fetchFileRaw } from "../../core/apiClient.ts";
 import { createPaneFind, type FindCount, type Finder, seedText, slideIn, slideOut } from "../../findCard.ts";
 import { DisposableStore, toDisposable } from "../../lib/disposable.ts";
 import { appendMetaRow, createInspectorSection, el } from "../../lib/dom.ts";
+import { openExternalLink } from "../../lib/externalLinks.ts";
 import { zoomMenu, zoomMenuItems } from "../../lib/zoomPicker.ts";
 import { dispatchFrameRequests, type FrameRequest } from "../../services/capabilityBroker.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
@@ -165,7 +166,7 @@ export function pdfPane(
     loadRuntime: loadPdfRuntime,
     binaryAsset: pdfBinaryAsset,
     fetchFile: fetchFileRaw,
-    openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+    openLink: openExternalLink,
   };
   return {
     kind: "pdf",

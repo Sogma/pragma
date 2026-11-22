@@ -67,7 +67,7 @@ describe("Release notes", () => {
     expect(releaseNotesLine.hidden).toBe(false);
 
     releaseNotes.click();
-    expect(open).toHaveBeenCalledWith(RELEASE, "_blank", "noopener");
+    expect(open).toHaveBeenCalledWith(RELEASE, "_blank", "noopener,noreferrer");
   });
 
   it("stays hidden when the server sends no link", () => {

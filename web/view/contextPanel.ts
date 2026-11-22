@@ -11,6 +11,7 @@ import type { PublishDocumentResponse } from "../../src/protocol/api.ts";
 import { isPrivate } from "../../src/protocol/frontmatter.ts";
 import { PublishDocumentError } from "../core/apiClient.ts";
 import type { SiteRoot } from "../core/spaceTree.ts";
+import { markExternalLink } from "../lib/externalLinks.ts";
 import { createOutcomeLine, type OutcomeLine } from "../lib/outcomeLine.ts";
 import type { FileNotices } from "../services/fileNotices.ts";
 
@@ -107,10 +108,8 @@ export function createContextPanel(deps: ContextPanelDeps): ContextPanel {
       reveal: deps.reveal,
     });
     if (existingUrl) {
-      const link = document.createElement("a");
+      const link = markExternalLink(document.createElement("a"));
       link.href = existingUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
       link.textContent = existingUrl;
       status.show("Published: ", link);
     }
