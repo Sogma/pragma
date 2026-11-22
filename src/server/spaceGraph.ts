@@ -36,17 +36,7 @@ import {
 import { isAgentsFile, sameScope, scopeOf } from "../protocol/scopes.ts";
 import { parseTableFile } from "../protocol/tableFile.ts";
 import { type TagDefinition, tagDefinition, tagKey } from "../protocol/tags.ts";
-import {
-  holdsPath,
-  isAppletFile,
-  isClassFile,
-  isFlowFile,
-  isFountainFile,
-  isMarkdownFile,
-  isTableFile,
-  mediaTypeForPath,
-  splitDocumentName,
-} from "../protocol/types.ts";
+import { fileKindForPath, holdsPath, splitDocumentName } from "../protocol/types.ts";
 import { classRows } from "./classRows.ts";
 import { documentIndex } from "./documentIndex.ts";
 import { readLibraries } from "./libraries.ts";
@@ -71,18 +61,10 @@ interface Listing {
   folders: string[];
 }
 
+// The graph has no LUT kind, so a LUT is a plain file there.
 function fileKind(file: string): GraphNodeKind {
-  if (isMarkdownFile(file)) return "note";
-  if (isFountainFile(file)) return "screenplay";
-  if (isTableFile(file)) return "table";
-  if (isClassFile(file)) return "class";
-  if (isFlowFile(file)) return "flow";
-  if (isAppletFile(file)) return "applet";
-  const media = mediaTypeForPath(file);
-  if (media?.startsWith("image/")) return "image";
-  if (media?.startsWith("video/")) return "video";
-  if (media === "application/pdf") return "pdf";
-  return "file";
+  const kind = fileKindForPath(file);
+  return kind === undefined || kind === "lut" ? "file" : kind;
 }
 
 export async function buildSpaceGraph(spaceRoot: string): Promise<SpaceGraphResponse> {

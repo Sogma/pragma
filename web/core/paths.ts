@@ -14,12 +14,9 @@ import {
 import { isAgentsFile, isReadme } from "../../src/protocol/scopes.ts";
 import {
   documentTypeFor,
+  fileKindForPath,
   hasKnownKind,
   imageMediaTypeForPath,
-  isAppletFile,
-  isClassFile,
-  isFlowFile,
-  isFountainFile,
   isLutFile,
   isMarkdownFile,
   isTableFile,
@@ -212,18 +209,12 @@ export type FileType =
 // colours instead, which only the tree knows: a surface holding a tree node
 // asks below, any other through core/spaceTree.ts.
 export function fileTypeClass(path: string): FileType | undefined {
-  const raw = rawTabKind(path);
-  if (raw) return raw;
   if (isAgentsFile(path)) return "agents";
   if (isReadme(path)) return "readme";
-  if (isMarkdownFile(path)) return "markdown";
-  if (isFountainFile(path)) return "fountain";
-  if (isTableFile(path)) return "table";
-  if (isClassFile(path)) return "class";
-  if (isFlowFile(path)) return "flow";
-  if (isAppletFile(path)) return "applet";
-  if (isJsonFile(path)) return "json";
-  return undefined;
+  const kind = fileKindForPath(path);
+  if (kind === "note") return "markdown";
+  if (kind === "screenplay") return "fountain";
+  return kind ?? (isJsonFile(path) ? "json" : undefined);
 }
 
 /** Whether `path` names a JSON file, which Pragma lists with every file type

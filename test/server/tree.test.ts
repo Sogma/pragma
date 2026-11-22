@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
-import { buildTree, listFolder, listRootPaths, scopesOnDisk } from "../../src/server/tree.ts";
+import { buildTree, listFolder, listRootPaths, scopesOnDisk, searchableFiles } from "../../src/server/tree.ts";
 
 let library: string;
 
@@ -167,6 +167,28 @@ describe("buildTree — every file type", () => {
 
   it("keeps a library to the kinds its panes render, whatever is asked", async () => {
     expect((await listFolder(path.join(library, "scripts"), "library", { allFileTypes: true })).length).toBe(1);
+  });
+});
+
+describe("buildTree — a kind's extension in any case", () => {
+  beforeEach(() => {
+    writeFileSync(path.join(library, "scripts", "Draft.MD"), "Snow falls.");
+    writeFileSync(path.join(library, "scripts", "Cut.FOUNTAIN"), "INT. EDIT BAY - NIGHT");
+  });
+
+  it("lists the file in a library as in the space", async () => {
+    const names = async (root: "space" | "library") =>
+      (await listFolder(path.join(library, "scripts"), root)).map((entry) => entry.name);
+    expect(await names("space")).toEqual(["Cut.FOUNTAIN", "Draft.MD", "notes.md"]);
+    expect(await names("library")).toEqual(["Cut.FOUNTAIN", "Draft.MD", "notes.md"]);
+  });
+
+  it("searches it as text", async () => {
+    expect(await searchableFiles(library, "scripts")).toEqual([
+      "scripts/Cut.FOUNTAIN",
+      "scripts/Draft.MD",
+      "scripts/notes.md",
+    ]);
   });
 });
 

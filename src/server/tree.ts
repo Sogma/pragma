@@ -13,15 +13,7 @@ import { pragmaFileRole, SITE_FILENAME } from "../protocol/pragmaFiles.ts";
 import { isPrivateContent } from "../protocol/privacy.ts";
 import { isSettingsBlock, settingFolder, settingValue, WORLD_SETTING } from "../protocol/scopeSettings.ts";
 import { isAgentsFile, opensScope, type ScopeFolders } from "../protocol/scopes.ts";
-import {
-  hasKnownKind,
-  isAppletFile,
-  isClassFile,
-  isFlowFile,
-  isMarkdownFile,
-  isTableFile,
-  rawFileTypeForPath,
-} from "../protocol/types.ts";
+import { type FileKind, fileKindForPath, hasKnownKind, isMarkdownFile } from "../protocol/types.ts";
 import { entryDescription } from "./descriptions.ts";
 import { documentIndex } from "./documentIndex.ts";
 import { orderByFolder } from "./folderOrder.ts";
@@ -30,25 +22,15 @@ import { namedEntryPath } from "./rootedFiles.ts";
 import { readSiteManifest } from "./sites.ts";
 import { readStructure } from "./structure.ts";
 
-// .table.html is deliberately not in this set — it's a compound extension,
-// so a plain path.extname() membership check would only ever see ".html".
-// Every OPENABLE_EXTENSIONS check below is paired with a table-file check
-// for that reason.
-export const OPENABLE_EXTENSIONS = new Set([".md", ".fountain"]);
+// Flows and applets are out because their panes have no reading view.
+const LIBRARY_KINDS = new Set<FileKind>(["note", "screenplay", "table", "class", "image", "video", "pdf", "lut"]);
 
 /** What a library tree lists, which is narrower than what a space tree
  * does: only kinds whose pane can render the document non-editably, since a
- * read-only library can't host a pane that autosaves.
- *
- * Flows and applets are out because their panes have no reading view. */
+ * read-only library can't host a pane that autosaves. */
 export function isLibraryVisibleFile(name: string): boolean {
-  if (isHiddenName(name)) return false;
-  return (
-    rawFileTypeForPath(name) !== undefined ||
-    OPENABLE_EXTENSIONS.has(path.extname(name)) ||
-    isTableFile(name) ||
-    isClassFile(name)
-  );
+  const kind = fileKindForPath(name);
+  return !isHiddenName(name) && kind !== undefined && LIBRARY_KINDS.has(kind);
 }
 
 export function isTreeVisibleFile(name: string): boolean {
@@ -362,18 +344,13 @@ const MAX_SEARCH_MATCHES = 50;
 // images: a substring scan reads every returned path as utf8 text (below),
 // which would just decode binary image bytes into garbage. So this stays
 // scoped to genuinely text files rather than "whatever the tree shows."
+const SEARCHED_KINDS = new Set<FileKind>(["note", "screenplay", "table", "class", "flow", "applet"]);
+
 function flattenFilePaths(nodes: SpaceTreeNode[]): string[] {
   const paths: string[] = [];
   for (const node of nodes) {
-    if (
-      node.type === "file" &&
-      (OPENABLE_EXTENSIONS.has(path.extname(node.path)) ||
-        isTableFile(node.path) ||
-        isClassFile(node.path) ||
-        isFlowFile(node.path) ||
-        isAppletFile(node.path))
-    )
-      paths.push(node.path);
+    const kind = node.type === "file" ? fileKindForPath(node.path) : undefined;
+    if (kind !== undefined && SEARCHED_KINDS.has(kind)) paths.push(node.path);
     else if (node.children) paths.push(...flattenFilePaths(node.children));
   }
   return paths;

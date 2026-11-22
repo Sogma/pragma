@@ -391,19 +391,40 @@ export function documentTypeFor(filePath: string): DocumentType {
   return isFountainFile(filePath) ? "screenplay" : "note";
 }
 
-/** Whether a file is of a kind the protocol defines: text, one of Pragma's
- * own kinds, media or a LUT. Where a name is looked up, a file of no kind never
- * matches one, so listing it never makes a name ambiguous. */
+export type FileKind =
+  | "note"
+  | "screenplay"
+  | "table"
+  | "class"
+  | "flow"
+  | "applet"
+  | "image"
+  | "video"
+  | "pdf"
+  | "lut";
+
+/** A file's kind by its path, its extension in any case: text, one of
+ * Pragma's own kinds, media or a LUT; undefined for a file of no kind. Every
+ * surface that sorts files by kind narrows this one answer, so none reads an
+ * extension its own way. */
+export function fileKindForPath(filePath: string): FileKind | undefined {
+  if (isMarkdownFile(filePath)) return "note";
+  if (isFountainFile(filePath)) return "screenplay";
+  if (isTableFile(filePath)) return "table";
+  if (isClassFile(filePath)) return "class";
+  if (isFlowFile(filePath)) return "flow";
+  if (isAppletFile(filePath)) return "applet";
+  if (imageMediaTypeForPath(filePath)) return "image";
+  if (videoMediaTypeForPath(filePath)) return "video";
+  if (pdfMediaTypeForPath(filePath)) return "pdf";
+  return isLutFile(filePath) ? "lut" : undefined;
+}
+
+/** Whether a file is of a kind the protocol defines. Where a name is looked
+ * up, a file of no kind never matches one, so listing it never makes a name
+ * ambiguous. */
 export function hasKnownKind(filePath: string): boolean {
-  return (
-    isMarkdownFile(filePath) ||
-    isFountainFile(filePath) ||
-    isTableFile(filePath) ||
-    isClassFile(filePath) ||
-    isFlowFile(filePath) ||
-    isAppletFile(filePath) ||
-    rawFileTypeForPath(filePath) !== undefined
-  );
+  return fileKindForPath(filePath) !== undefined;
 }
 
 // The four raster image types, which every supported vision model accepts
@@ -427,10 +448,9 @@ export function isInlineImage(mediaType: unknown, data: unknown): boolean {
   );
 }
 
-// Space-tree image files (as opposed to the applet-picker upload case above) — deliberately
-// case-insensitive, unlike OPENABLE_EXTENSIONS' case-sensitive Set.has in
-// tree.ts: phone/camera exports are routinely `.JPG`/`.PNG`, and there's no
-// equivalent real-world case for an uppercase `.MD`. Don't "fix" that asymmetry away.
+// Space-tree image files (as opposed to the applet-picker upload case above),
+// matched in any case as every kind's extension is: phone and camera exports
+// are routinely `.JPG` and `.PNG`.
 export const RASTER_IMAGE_EXTENSIONS: Record<string, RasterImageMediaType> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",

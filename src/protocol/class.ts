@@ -12,17 +12,14 @@ import {
   type ClassView,
   FIELD_VALUE_TYPE_OPTIONS,
   type FieldValueType,
-  imageMediaTypeForPath,
+  fileKindForPath,
   isFlowFile,
-  isFountainFile,
   isMarkdownFile,
   newRowValue,
   normalizeHexColor,
   parseTimestamp,
-  pdfMediaTypeForPath,
   splitDocumentName,
   type TableColumn,
-  videoMediaTypeForPath,
 } from "./types.ts";
 
 export type RowKind = "note" | "screenplay" | "image" | "video" | "pdf";
@@ -193,13 +190,9 @@ export function viewFields(fields: readonly TableColumn[], view: Pick<ClassView,
  * and its `AGENTS.md` instructs agents, rather than belong to it; a Table,
  * Flow, Applet or Class is never a row. */
 export function rowKindOf(name: string): RowKind | undefined {
-  if (isMarkdownFile(name)) {
-    return isNamed(name, "index.md") || isReadme(name) || isAgentsFile(name) ? undefined : "note";
-  }
-  if (isFountainFile(name)) return "screenplay";
-  if (imageMediaTypeForPath(name)) return "image";
-  if (videoMediaTypeForPath(name)) return "video";
-  return pdfMediaTypeForPath(name) ? "pdf" : undefined;
+  const kind = fileKindForPath(name);
+  if (kind === "note") return isNamed(name, "index.md") || isReadme(name) || isAgentsFile(name) ? undefined : "note";
+  return kind === "screenplay" || kind === "image" || kind === "video" || kind === "pdf" ? kind : undefined;
 }
 
 /** Whether a folder's entry is one of a Class's rows: a file of a row's

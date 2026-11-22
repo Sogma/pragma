@@ -4,6 +4,7 @@ import {
   emptyFieldValue,
   extensionForMediaType,
   FIELD_VALUE_TYPES,
+  fileKindForPath,
   formatTimestamp,
   hasKnownKind,
   imageMediaTypeForPath,
@@ -36,6 +37,39 @@ describe("document kinds", () => {
     expect(isFlowFile("Grade.FLOW.html")).toBe(true);
     expect(hasKnownKind("Notes.MD")).toBe(true);
     expect(isMarkdownFile("Notes.mdx")).toBe(false);
+  });
+
+  it("names the kind a path is, its extension in any case, and none for a file of no kind", () => {
+    const paths = [
+      "Notes.MD",
+      "Pilot.Fountain",
+      "Budget.Table.HTML",
+      "Cast.CLASS.html",
+      "Grade.FLOW.html",
+      "Clock.Applet.html",
+      "Still.JPG",
+      "Logo.SVG",
+      "Take.MOV",
+      "Script.PDF",
+      "Print.CUBE",
+      "archive.zip",
+      "page.html",
+    ];
+    expect(paths.map((path) => fileKindForPath(path))).toEqual([
+      "note",
+      "screenplay",
+      "table",
+      "class",
+      "flow",
+      "applet",
+      "image",
+      "image",
+      "video",
+      "pdf",
+      "lut",
+      undefined,
+      undefined,
+    ]);
   });
 
   it("splits a compound extension whatever its case, keeping it as written", () => {
