@@ -86,7 +86,7 @@ import {
   startLabelRename,
   valueCells,
 } from "../../lib/dataGrid.ts";
-import { buildLockNotice, onLinkClick } from "../../lib/dom.ts";
+import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
 import { createFieldValue } from "../../lib/fieldValue.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
@@ -230,10 +230,6 @@ export function classPane({ menus, tabs, ...deps }: ClassPaneWiring): EditorPane
 
 function viewLabel(view: ClassView, index: number): string {
   return view.name || `View ${index + 1}`;
-}
-
-function countLabel(count: number): string {
-  return count === 1 ? "1 item" : `${count} items`;
 }
 
 function findField(file: ClassFile, id: string): TableColumn | undefined {
@@ -1260,7 +1256,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     }
     const counter = document.createElement("span");
     counter.className = "class-count";
-    counter.textContent = countLabel(count);
+    counter.textContent = countText(count, "item");
     bar.append(tabs, counter);
     return bar;
   }

@@ -39,7 +39,7 @@ import {
   tableContentsLabel,
 } from "../core/paths.ts";
 import { pathNames } from "../core/spaceTree.ts";
-import { formatFrameRate } from "../lib/dom.ts";
+import { countText, formatFrameRate } from "../lib/dom.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 import { appendSelectOptions, createSelectControl, fillPickSelect, regenerateHint } from "./controls.ts";
@@ -499,10 +499,6 @@ function isMissingFile(error: unknown): error is ApiError {
   return error instanceof ApiError && error.status === 404;
 }
 
-function count(amount: number, noun: string): string {
-  return `${amount.toLocaleString()} ${amount === 1 ? noun : `${noun}s`}`;
-}
-
 /** "1,972 words · 14,042 chars" for a note's raw content — raw on purpose,
  * frontmatter included, because that is exactly the string loadNote's `raw`
  * output sends downstream. "chars" rather than "characters" so the line
@@ -510,7 +506,7 @@ function count(amount: number, noun: string): string {
 function describeNoteContent(content: string): string {
   const trimmed = content.trim();
   const words = trimmed === "" ? 0 : trimmed.split(/\s+/).length;
-  return `${count(words, "word")} · ${content.length.toLocaleString()} chars`;
+  return `${countText(words, "word")} · ${content.length.toLocaleString()} chars`;
 }
 
 export function createPickers(deps: PickerDeps): Pickers {
@@ -1361,7 +1357,7 @@ export function createPickers(deps: PickerDeps): Pickers {
       const children = deps.directoryChildren(shown(folderPath));
       if (!children) return;
       const files = children.filter((child) => child.type === "file" && pick.takes(child.path));
-      chip?.setDetail(count(files.length, pick.noun));
+      chip?.setDetail(countText(files.length, pick.noun));
       if (files.length === 0) return;
       const held = node.config[pick.key];
       const stored = typeof held === "string" ? held : "";

@@ -60,6 +60,12 @@ export function renderTreeIcon(icon: EntryIcon, title: string | undefined): HTML
   return element;
 }
 
+/** `count` with its noun, `1 file` or `1,234 files`: every count the app
+ * writes out, so none skips the thousands separator or the plural. */
+export function countText(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 // A byte count for a Size row: one decimal below 10 of a unit, none above.
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

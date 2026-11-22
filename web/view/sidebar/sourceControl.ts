@@ -7,7 +7,7 @@
 // in an open note after a pull reverts the pulled edit locally, and the next
 // Sync commits and pushes that reversion.
 import { type GitStatus, postGitCommit, postGitPull, postGitPush, postGitSync } from "../../core/apiClient.ts";
-import { must } from "../../lib/dom.ts";
+import { countText, must } from "../../lib/dom.ts";
 import { createGitActions } from "../../services/gitActions.ts";
 import { type GitStatusState, gitStatusStore } from "../../services/gitStatus.ts";
 import type { SaveQueueState } from "../../services/saveQueue.ts";
@@ -36,7 +36,7 @@ export function railStatusOf(state: GitStatusState): RailStatus {
   }
   const count = status.files.length;
   const summary = [`On ${status.branch ?? "detached HEAD"}`];
-  if (count) summary.push(`${count} uncommitted change${count === 1 ? "" : "s"}`);
+  if (count) summary.push(countText(count, "uncommitted change"));
   if (status.behind) summary.push(`${status.behind} to pull`);
   if (status.ahead) summary.push(`${status.ahead} to push`);
   if (summary.length === 1) summary.push("working tree clean, in sync");

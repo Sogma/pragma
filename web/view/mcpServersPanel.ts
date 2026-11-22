@@ -11,7 +11,7 @@ import {
   type SaveMcpServerRequestBody,
 } from "../core/apiClient.ts";
 import { PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
-import { buildOpenRow, replaceRows } from "../lib/dom.ts";
+import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface McpServersPanelDeps {
@@ -208,14 +208,14 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
 
   function toolCount(tools: string[]): string {
     if (tools.length === 0) return "connected, no tools";
-    return `connected, ${tools.length} tool${tools.length === 1 ? "" : "s"}`;
+    return `connected, ${countText(tools.length, "tool")}`;
   }
 
   function toolSummary(tools: string[]): string {
     if (tools.length === 0) return "Connected. The server offers no tools.";
     const shown = tools.slice(0, 8).join(", ");
     const more = tools.length > 8 ? `, and ${tools.length - 8} more` : "";
-    return `Connected. ${tools.length} tool${tools.length === 1 ? "" : "s"}: ${shown}${more}.`;
+    return `Connected. ${countText(tools.length, "tool")}: ${shown}${more}.`;
   }
 
   // The browser finishes the sign-in out of the page's sight, so the form asks

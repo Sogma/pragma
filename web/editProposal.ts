@@ -8,6 +8,7 @@
 // own edit runs into is dropped, never applied over what they typed.
 import { ChangeSet, type EditorState, type Extension, StateEffect, StateField, type Text } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
+import { countText } from "./lib/dom.ts";
 import { diffWords, type TextHunk } from "./lineDiff.ts";
 
 export interface ProposalOutcome {
@@ -380,7 +381,7 @@ function summarize(proposal: Proposal): string {
   const parts = choice
     ? [`Alternative ${choice.index + 1} of ${choice.texts.length}`]
     : count
-      ? [`${count} proposed ${count === 1 ? "change" : "changes"}`]
+      ? [countText(count, "proposed change")]
       : [];
   return [...parts, ...proposal.extras.map((extra) => extra.label)].join(" · ");
 }

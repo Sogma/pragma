@@ -24,7 +24,7 @@ import {
 } from "../core/paths.ts";
 import { cursorRing } from "../lib/cursorRing.ts";
 import { DisposableStore, listen } from "../lib/disposable.ts";
-import { renderTreeIcon, renderTreeLoading } from "../lib/dom.ts";
+import { countText, renderTreeIcon, renderTreeLoading } from "../lib/dom.ts";
 import { attachEditInputHandlers, createPlaceholder, type PendingCreate } from "../lib/inlineEdit.ts";
 import { describeSort } from "../services/folderSorts.ts";
 import { currentPlatform } from "../services/keybindings.ts";
@@ -1156,7 +1156,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     const badge = document.createElement("span");
     badge.className = "count-badge tree-drag-count";
     const text = document.createElement("span");
-    text.textContent = `${count.toLocaleString()} item${count === 1 ? "" : "s"}`;
+    text.textContent = countText(count, "item");
     badge.appendChild(text);
     document.body.appendChild(badge);
     event.dataTransfer.setDragImage(badge, -10, -10);

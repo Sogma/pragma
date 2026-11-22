@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { formatDimensions, formatDuration, formatFileSize, formatFrameRate } from "../../../web/lib/dom.ts";
+import { countText, formatDimensions, formatDuration, formatFileSize, formatFrameRate } from "../../../web/lib/dom.ts";
 
 // The DOM helpers are trivial glue around querySelector/createElement and
 // stay untested; the formatters are pure and have real boundary logic.
+// One rule for every count the app writes out: a Class's rows and the tree's
+// drag badge once read 1234 and 1,234.
+describe("countText", () => {
+  it("writes a count with its noun, plural but for one, the thousands separated", () => {
+    expect([countText(1, "file"), countText(0, "file"), countText(1234, "item")]).toEqual([
+      "1 file",
+      "0 files",
+      "1,234 items",
+    ]);
+  });
+});
+
 describe("formatFileSize", () => {
   it("shows bytes below 1024 with no unit conversion", () => {
     expect(formatFileSize(0)).toBe("0 B");

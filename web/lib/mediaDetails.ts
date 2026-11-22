@@ -2,6 +2,7 @@
 // the Info rows of the video tab, the image tab and a gallery's selection,
 // and the overlays' color mode. A fact the header doesn't give gets no row.
 import type { ClipDetails, PictureDetails, PixelFormat } from "../../src/protocol/api.ts";
+import { countText } from "./dom.ts";
 
 export interface DetailRow {
   label: string;
@@ -10,7 +11,7 @@ export interface DetailRow {
 
 /** `8 bits per channel`; a palette's depth is its index's, one per pixel. */
 export function bitDepthText(bitDepth: number, per: "channel" | "pixel" = "channel"): string {
-  return `${bitDepth} bit${bitDepth === 1 ? "" : "s"} per ${per}`;
+  return `${countText(bitDepth, "bit")} per ${per}`;
 }
 
 const COLOR_MODEL_NAMES: Record<PixelFormat["colorModel"], string> = {
@@ -64,7 +65,7 @@ export function sourceTypeText(sourceType: string): string {
 
 function audioText(audio: NonNullable<ClipDetails["audio"]>): string {
   if (audio.channels === null) return audio.codec;
-  return `${audio.codec}, ${audio.channels} channel${audio.channels === 1 ? "" : "s"}`;
+  return `${audio.codec}, ${countText(audio.channels, "channel")}`;
 }
 
 /** A clip's rows past its frame rate and codec, which its surfaces show beside its size. */

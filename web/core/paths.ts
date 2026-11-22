@@ -27,6 +27,7 @@ import {
   splitDocumentName,
   videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
+import { countText } from "../lib/dom.ts";
 import type { PendingCreate } from "../lib/inlineEdit.ts";
 import type { SpaceTreeNode } from "./apiClient.ts";
 import { isWritableRoot, libraryName } from "./libraries.ts";
@@ -99,20 +100,22 @@ export function folderTitle(dirPath: string): string {
 export function folderContentsLabel(entries: readonly { type: "file" | "directory" }[]): string {
   const folders = entries.filter((entry) => entry.type === "directory").length;
   const files = entries.length - folders;
-  return [folders > 0 && counted(folders, "folder"), files > 0 && counted(files, "file")].filter(Boolean).join(" · ");
+  return [folders > 0 && countText(folders, "folder"), files > 0 && countText(files, "file")]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** A Table's size, wherever one is said: "3 columns · 12 rows", its shape
  * before its length, an empty one's "0 rows" included. */
 export function tableContentsLabel(columns: number, rows: number): string {
-  return `${counted(columns, "column")} · ${counted(rows, "row")}`;
+  return `${countText(columns, "column")} · ${countText(rows, "row")}`;
 }
 
 /** Everything listed under `entries`, all the way down, as a folder's tree
  * row counts it in its tooltip: "3 files, 2 folders". */
 export function treeTotalsLabel(entries: readonly SpaceTreeNode[]): string {
   const { files, folders } = treeTotals(entries);
-  return `${counted(files, "file")}, ${counted(folders, "folder")}`;
+  return `${countText(files, "file")}, ${countText(folders, "folder")}`;
 }
 
 // Kept per entries array: a refresh brings new ones, and a redraw against
@@ -134,10 +137,6 @@ function treeTotals(entries: readonly SpaceTreeNode[]): { files: number; folders
   }
   totalsOf.set(entries, totals);
   return totals;
-}
-
-function counted(count: number, noun: string): string {
-  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 // Flattens a space tree into every file's space-relative path, in tree order.

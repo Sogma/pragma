@@ -10,6 +10,7 @@ import {
 import { splitNoteTitle } from "../../src/protocol/markdownTitle.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { DocumentType } from "../../src/protocol/types.ts";
+import { countText } from "../lib/dom.ts";
 import { splitLeadingHeading } from "../markdownRender.ts";
 import type { ActiveTitle, FileResponse, TextFileResponse } from "./apiClient.ts";
 import { stripExtension } from "./paths.ts";
@@ -236,6 +237,6 @@ export function countWordsAndChars(text: string): { words: number; chars: number
 /** A count in the status bar's words, which a previewed note's bar repeats
  * so the two never disagree. `wordsOnly` for a bar too narrow for both. */
 export function formatWordCount({ words, chars }: { words: number; chars: number }, wordsOnly = false): string {
-  const counted = `${words.toLocaleString()} word${words === 1 ? "" : "s"}`;
-  return wordsOnly ? counted : `${counted} · ${chars.toLocaleString()} character${chars === 1 ? "" : "s"}`;
+  const counted = countText(words, "word");
+  return wordsOnly ? counted : `${counted} · ${countText(chars, "character")}`;
 }

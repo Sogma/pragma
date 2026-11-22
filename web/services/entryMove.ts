@@ -5,6 +5,7 @@
 // the two halves overwrite each other.
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import { type MoveEntryResponse, postMoveEntry } from "../core/apiClient.ts";
+import { countText } from "../lib/dom.ts";
 import type { DocumentsService } from "./documents.ts";
 import type { ModelConsole } from "./modelConsole.ts";
 import { describeUnsaved, type SaveQueueState } from "./saveQueue.ts";
@@ -118,7 +119,7 @@ export async function moveSpaceEntries(
       deps.modelConsole.logEntry(
         "info",
         "MOVE",
-        `Moved ${from} → ${moved.path} and updated ${count} document${count === 1 ? "" : "s"}`,
+        `Moved ${from} → ${moved.path} and updated ${countText(count, "document")}`,
         moved.rewritten.join("\n"),
       );
     }

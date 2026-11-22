@@ -13,7 +13,7 @@ import { readSearchQuery } from "../../../src/protocol/searchQuery.ts";
 import type { SpaceSearchFile, SpaceSearchHit, SpaceSearchResponse, SpaceTreeNode } from "../../core/apiClient.ts";
 import { stripExtension } from "../../core/paths.ts";
 import { entryIconAt } from "../../core/spaceTree.ts";
-import { el, setEntryIcon } from "../../lib/dom.ts";
+import { countText, el, setEntryIcon } from "../../lib/dom.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
 import type { EditorPane } from "../../services/editorPanes.ts";
 import type { KeybindingRegistry } from "../../services/keybindings.ts";
@@ -143,7 +143,7 @@ export function createSearchView(deps: SearchViewDeps): SidebarView {
 
   function render(response: SpaceSearchResponse): void {
     const count = response.files.reduce((total, file) => total + file.matches.length, 0);
-    const tally = `${count.toLocaleString()} result${count === 1 ? "" : "s"}`;
+    const tally = countText(count, "result");
     if (count === 0) summary.textContent = "No results.";
     else if (response.truncated) summary.textContent = `The first ${tally}. Narrow the search for the rest.`;
     else summary.textContent = tally;

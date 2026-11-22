@@ -16,7 +16,7 @@ import {
   type SaveProviderRequestBody,
 } from "../core/apiClient.ts";
 import { defaultModels, PROVIDER_PRESETS as PRESETS, PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
-import { buildOpenRow, replaceRows } from "../lib/dom.ts";
+import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
 import { type PickerChoice, wireChoicePicker } from "../lib/picker.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -69,7 +69,7 @@ function setConfirmation(label: string, found: DiscoverModelsResponse, keyed: bo
   ] as const;
   const offered = counts
     .filter(([n]) => n > 0)
-    .map(([n, noun]) => `${n.toLocaleString()} ${noun}${n === 1 ? "" : "s"}`)
+    .map(([n, noun]) => countText(n, noun))
     .join(" and ");
   if (!offered) return `${lead}, but ${label} lists no models. Add one by id below.`;
   return ticked > 0
@@ -602,7 +602,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
           sub.className = "providers-row-sub";
           // What the provider contributes, and nothing of its connection:
           // the key's state and the endpoint are its subpage's to show.
-          const count = (n: number, noun: string): string[] => (n ? [`${n} ${noun}${n === 1 ? "" : "s"}`] : []);
+          const count = (n: number, noun: string): string[] => (n ? [countText(n, noun)] : []);
           const offered = [
             ...count(row.textModels.length, "text model"),
             ...count(row.imageModels.length, "image model"),

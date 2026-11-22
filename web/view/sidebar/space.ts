@@ -89,7 +89,7 @@ import {
 } from "../../core/paths.ts";
 import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
-import { must, renderTreeIcon } from "../../lib/dom.ts";
+import { countText, must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
 import { flash } from "../../lib/flash.ts";
 import type { CreateKind, NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
@@ -1293,7 +1293,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     const count = trashEntries.length;
     return deps.dialog().confirm({
       title: "Empty Trash?",
-      message: `This permanently deletes the ${count.toLocaleString()} item${count === 1 ? "" : "s"} in the trash. This cannot be undone.`,
+      message: `This permanently deletes the ${countText(count, "item")} in the trash. This cannot be undone.`,
       confirmLabel: "Empty Trash",
       busyLabel: "Emptying…",
       danger: true,
@@ -1526,7 +1526,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       command: "tree.delete",
       label: (_, arg) => {
         const count = (arg as TreeTarget).selection?.length ?? 0;
-        const items = `${count.toLocaleString()} Item${count === 1 ? "" : "s"}`;
+        const items = countText(count, "Item");
         return deps.moveToTrash.get() ? `Move ${items} to Trash` : `Delete ${items}`;
       },
       danger: true,
@@ -1660,7 +1660,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       const fileCount = folders.reduce((sum, folder) => sum + flattenTreeFilePaths(folder.children ?? []).length, 0);
       if (fileCount > 0) {
         const holds = folders.length === 1 ? "The folder among them holds" : "The folders among them hold";
-        const files = `${fileCount.toLocaleString()} file${fileCount === 1 ? "" : "s"}`;
+        const files = countText(fileCount, "file");
         warnings.push(`${holds} ${files}, which will be ${trash ? "moved to the Trash" : "deleted"} too.`);
       }
     } else if (node.type === "directory") {
@@ -1669,10 +1669,8 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       if (fileCount > 0) {
         warnings.push(
           trash
-            ? `This folder is not empty. If you continue, the ${fileCount.toLocaleString()} ` +
-                `file${fileCount === 1 ? "" : "s"} inside this folder will be moved to the Trash too.`
-            : `This folder is not empty. If you continue, the ${fileCount.toLocaleString()} ` +
-                `file${fileCount === 1 ? "" : "s"} inside this folder will be deleted.`,
+            ? `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be moved to the Trash too.`
+            : `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be deleted.`,
         );
       }
     } else {

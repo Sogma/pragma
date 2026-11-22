@@ -22,7 +22,7 @@ import { type ChatScreen, chatScopeFor, switchScopeFor } from "../core/chatConte
 import { folderTitle, joinSpacePath, linkedEntry } from "../core/paths.ts";
 import { entryIconAt, pathNames, readingResolvers, readingResolversIn } from "../core/spaceTree.ts";
 import type { ProposalOutcome } from "../editProposal.ts";
-import { addCodeBlockCopyButtons, must, setEntryIcon } from "../lib/dom.ts";
+import { addCodeBlockCopyButtons, countText, must, setEntryIcon } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import { settingLinks } from "../lib/settingLink.ts";
@@ -517,7 +517,7 @@ export function wireChat(deps: ChatDeps): Chat {
   }
 
   function proposedChanges(shown: number, path: string): Sentence {
-    return [`${shown} proposed ${shown === 1 ? "change" : "changes"} to `, named(path, ","), " shown in the editor."];
+    return [`${countText(shown, "proposed change")} to `, named(path, ","), " shown in the editor."];
   }
 
   // A card with no decision left in it: what happened, said once. Its words
