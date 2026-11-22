@@ -28,21 +28,6 @@
   height: 20px;
 }
 
-.inspector-link-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  border-radius: var(--control-radius);
-  background: none;
-  cursor: pointer;
-}
-
-.inspector-link-toggle:hover {
-  background: var(--bg-hover);
-}
-
 .inspector-link-toggle > .disclosure {
   width: 12px;
   height: 12px;

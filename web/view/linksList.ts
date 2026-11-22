@@ -139,7 +139,7 @@ export function createLinksList(deps: LinksListDeps): LinksList {
   function foundRow(path: string, count: number | undefined, folder?: string): HTMLElement {
     const toggle = document.createElement("button");
     toggle.type = "button";
-    toggle.className = "inspector-link-toggle";
+    toggle.className = "icon-button inspector-link-toggle";
     toggle.setAttribute("aria-label", "Description");
     toggle.append(span("disclosure"));
     const row = document.createElement("button");
@@ -187,7 +187,7 @@ export function createLinksList(deps: LinksListDeps): LinksList {
   function linkingRow({ path, mentions }: Backlink, folder?: string): HTMLElement {
     const toggle = document.createElement("button");
     toggle.type = "button";
-    toggle.className = "inspector-link-toggle";
+    toggle.className = "icon-button inspector-link-toggle";
     toggle.setAttribute("aria-label", "Mentions");
     toggle.append(span("disclosure"));
     const row = document.createElement("button");

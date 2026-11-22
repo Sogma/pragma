@@ -141,6 +141,8 @@ describe("the Links tab's list", () => {
     const toggle = (name: string) =>
       description(name)?.parentElement?.querySelector<HTMLElement>(".inspector-link-toggle");
 
+    // An icon button, so its name shows as its tooltip (web/lib/tooltip.ts).
+    expect(toggle("Lina")?.matches(".icon-button[aria-label='Description']")).toBe(true);
     expect(description("Lina")?.hidden).toBe(true);
     expect(deps.describe).not.toHaveBeenCalled();
 
@@ -223,8 +225,10 @@ describe("Backlinks", () => {
     list.render({ found: [], missing: [] }, [], backlinks);
     const item = list.element.querySelector(".inspector-link-item");
     const lines = item?.querySelector<HTMLElement>(".inspector-link-mentions");
+    const toggle = item?.querySelector<HTMLElement>(".inspector-link-toggle");
+    expect(toggle?.matches(".icon-button[aria-label='Mentions']")).toBe(true);
     expect(lines?.hidden).toBe(true);
-    item?.querySelector<HTMLElement>(".inspector-link-toggle")?.click();
+    toggle?.click();
     expect(lines?.hidden).toBe(false);
     const buttons = [...(lines?.querySelectorAll<HTMLElement>(".inspector-link-mention") ?? [])];
     expect(buttons.map((button) => button.textContent)).toEqual([plan, "Then [[plan]] again."]);
