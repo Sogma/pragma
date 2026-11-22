@@ -16,14 +16,14 @@ import {
   isWithin,
   parseRootedPath,
 } from "../../src/protocol/rootedPath.ts";
-import { hasKnownKind } from "../../src/protocol/types.ts";
 import { type LinkOffer, linkOffers } from "../core/linkOffers.ts";
-import { DRAGGED_ENTRY_TYPE, readDraggedPath, stripExtension } from "../core/paths.ts";
+import { DRAGGED_ENTRY_TYPE, displayName, readDraggedPath } from "../core/paths.ts";
 import { entryIconAt, libraryFiles, linkScope, resolvePathFrom, writePathFrom } from "../core/spaceTree.ts";
 import { onLinkClick, setEntryIcon } from "../lib/dom.ts";
 import { type InheritedSetting, settingFolderLabel } from "./contextSettings.ts";
 import { openFolderChooser } from "./folderChooser.ts";
 import type { ContextMenuService, MenuItem } from "./menus.ts";
+import { showExtensions } from "./settings.ts";
 
 export interface PathFieldSpec {
   /** The document the value is written in, rooted. */
@@ -76,11 +76,9 @@ function valueFor(docPath: string, offer: LinkOffer): string | undefined {
   return writePathFrom(dirnameOf(docPath), parseRootedPath(offer.path), { folder: offer.folder });
 }
 
-// A file by its name as Quick Open shows it, a known kind's extension left
-// to its icon.
+// A file by its name as the tree shows it.
 function entryName(path: string, folder: boolean): string {
-  const name = basenameOf(path);
-  return folder || !hasKnownKind(name) ? name : stripExtension(name);
+  return displayName({ name: basenameOf(path), type: folder ? "directory" : "file" }, showExtensions.get());
 }
 
 export function createPathField(spec: PathFieldSpec): HTMLElement {

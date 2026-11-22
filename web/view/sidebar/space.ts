@@ -74,6 +74,7 @@ import { isLibraryLocated, libraryIds, libraryName } from "../../core/libraries.
 import {
   carriesDesktopFiles,
   desktopFiles,
+  displayName,
   type EntryIcon,
   entryIcon,
   fileTypeClass,
@@ -82,7 +83,6 @@ import {
   hasScope,
   joinSpacePath,
   removalLabel,
-  stripExtension,
   TRASH_DRAG_TYPE,
   treeTakesDrag,
   treeTotalsLabel,
@@ -1245,7 +1245,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       );
       const entryName = document.createElement("span");
       entryName.className = "node-name";
-      entryName.textContent = showExtensions || entry.type === "directory" ? entry.name : stripExtension(entry.name);
+      entryName.textContent = displayName(entry, showExtensions);
       entryLabel.appendChild(entryName);
       entryLabel.draggable = true;
       entryLabel.addEventListener("dragstart", (event) => {

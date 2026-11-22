@@ -10,7 +10,7 @@ import {
   type HistoryFile,
   type HistoryVersion,
 } from "../../core/apiClient.ts";
-import { fileTypeClass, fileTypeLabel, stripExtension } from "../../core/paths.ts";
+import { displayName, fileTypeClass, fileTypeLabel } from "../../core/paths.ts";
 import { replacedBy } from "../../core/versionText.ts";
 import { dateTimeLabel, shortWhen, versionWhen } from "../../lib/dateText.ts";
 import { el, renderTreeIcon } from "../../lib/dom.ts";
@@ -101,7 +101,7 @@ export function createHistorySection(deps: HistorySectionDeps): HistorySection {
     const type = fileTypeClass(file.path);
     label.append(
       renderTreeIcon({ glyph: type }, fileTypeLabel(type)),
-      el("span", "node-name", deps.showExtensions() ? name : stripExtension(name)),
+      el("span", "node-name", displayName({ name, type: "file" }, deps.showExtensions())),
     );
     const folder = dirnameOf(file.path);
     if (folder !== "") label.append(el("span", "caption history-folder", basenameOf(folder)));

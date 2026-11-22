@@ -11,13 +11,14 @@
 import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
 import { readSearchQuery } from "../../../src/protocol/searchQuery.ts";
 import type { SpaceSearchFile, SpaceSearchHit, SpaceSearchResponse, SpaceTreeNode } from "../../core/apiClient.ts";
-import { stripExtension } from "../../core/paths.ts";
+import { displayName } from "../../core/paths.ts";
 import { entryIconAt } from "../../core/spaceTree.ts";
 import { countText, el, setEntryIcon } from "../../lib/dom.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
 import type { EditorPane } from "../../services/editorPanes.ts";
 import type { KeybindingRegistry } from "../../services/keybindings.ts";
 import { COMMAND_PALETTE, type MenuRegistry } from "../../services/menus.ts";
+import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import type { Tabs } from "../../services/tabs.ts";
 
@@ -42,6 +43,8 @@ export interface SearchViewDeps {
   show: () => void;
   tabs: () => Pick<Tabs, "openSpacePath" | "activePath">;
   activePane: () => EditorPane | undefined;
+  // The app's setting for names, unless a test hands in another.
+  showExtensions?(): boolean;
 }
 
 /** `text` with every case-insensitive occurrence of `needle` in a <mark>,
@@ -105,7 +108,7 @@ export function createSearchView(deps: SearchViewDeps): SidebarView {
 
   // `ambiguous`: another file in these results shares this one's name, so
   // the header names its folder too — otherwise the name alone says enough.
-  function renderFile(file: SpaceSearchFile, ambiguous: boolean): HTMLElement {
+  function renderFile(file: SpaceSearchFile, name: string, ambiguous: boolean): HTMLElement {
     const group = el("div", "search-file");
     group.classList.toggle("folded", folded.has(file.path));
     const header = el("button", "search-file-header");
@@ -115,7 +118,7 @@ export function createSearchView(deps: SearchViewDeps): SidebarView {
     const icon = el("span", "search-file-icon");
     setEntryIcon(icon, entryIconAt(file.path, "file"));
     header.append(el("span", "disclosure"), icon);
-    header.append(el("span", "search-file-name", stripExtension(basenameOf(file.path))));
+    header.append(el("span", "search-file-name", name));
     if (ambiguous) header.append(el("span", "caption search-file-folder", dirnameOf(file.path)));
     header.append(el("span", "caption search-file-count", String(file.matches.length)));
     header.addEventListener("click", () => {
@@ -147,10 +150,13 @@ export function createSearchView(deps: SearchViewDeps): SidebarView {
     if (count === 0) summary.textContent = "No results.";
     else if (response.truncated) summary.textContent = `The first ${tally}. Narrow the search for the rest.`;
     else summary.textContent = tally;
-    const shownName = (file: SpaceSearchFile) => stripExtension(basenameOf(file.path)).toLowerCase();
+    const show = (deps.showExtensions ?? (() => settings.showExtensions.get()))();
+    const names = response.files.map((file) => displayName({ name: basenameOf(file.path), type: "file" }, show));
     const sharing = new Map<string, number>();
-    for (const file of response.files) sharing.set(shownName(file), (sharing.get(shownName(file)) ?? 0) + 1);
-    results.replaceChildren(...response.files.map((file) => renderFile(file, (sharing.get(shownName(file)) ?? 0) > 1)));
+    for (const name of names) sharing.set(name.toLowerCase(), (sharing.get(name.toLowerCase()) ?? 0) + 1);
+    results.replaceChildren(
+      ...response.files.map((file, at) => renderFile(file, names[at], (sharing.get(names[at].toLowerCase()) ?? 0) > 1)),
+    );
   }
 
   async function run(): Promise<void> {

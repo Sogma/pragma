@@ -8,12 +8,13 @@
 // the tree has none either, and "+" is how a tab is added.
 import { basenameOf, dirnameOf } from "../../src/protocol/rootedPath.ts";
 import { hasKnownKind } from "../../src/protocol/types.ts";
-import { stripExtension } from "../core/paths.ts";
+import { displayName } from "../core/paths.ts";
 import { rankPaths, scoreLabel } from "../core/quickOpenMatch.ts";
 import { entryIconAt } from "../core/spaceTree.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
 import type { KeybindingRegistry } from "../services/keybindings.ts";
 import { COMMAND_PALETTE, type ContextMenuService, type MenuItem, type MenuRegistry } from "../services/menus.ts";
+import * as settings from "../services/settings.ts";
 
 export interface QuickOpenDeps {
   commands: CommandRegistry;
@@ -26,6 +27,8 @@ export interface QuickOpenDeps {
   // Newest first; may name paths that have since moved or gone.
   recentPaths: () => readonly string[];
   openPath: (path: string) => void;
+  // The app's setting for names, unless a test hands in another.
+  showExtensions?(): boolean;
 }
 
 const COMMAND_PREFIX = ">";
@@ -33,11 +36,13 @@ const MAX_FILES = 50;
 const MAX_RECENT = 20;
 
 export function createQuickOpen(deps: QuickOpenDeps): void {
+  const showExtensions = deps.showExtensions ?? (() => settings.showExtensions.get());
+
   function fileItem(path: string): MenuItem {
     const name = basenameOf(path);
     const known = hasKnownKind(name);
     return {
-      label: known ? stripExtension(name) : name,
+      label: displayName({ name, type: "file" }, showExtensions()),
       ...(known ? {} : { className: "cant-open" }),
       detail: dirnameOf(path) || undefined,
       icon: true,

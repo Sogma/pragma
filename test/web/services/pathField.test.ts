@@ -7,6 +7,7 @@ import { DRAGGED_ENTRY_TYPE } from "../../../web/core/paths.ts";
 import type { WritePathOptions } from "../../../web/core/spaceTree.ts";
 import type { ContextMenuService, MenuItem, MenuOpenOptions } from "../../../web/services/menus.ts";
 import { createPathField, type PathFieldSpec } from "../../../web/services/pathField.ts";
+import { showExtensions } from "../../../web/services/settings.ts";
 
 // The entries the space's listing holds, by rooted path, and the folders its
 // scopes open over.
@@ -83,12 +84,22 @@ function drop(target: HTMLElement, path: string, type = "file"): void {
 }
 
 describe("a path field", () => {
-  it("names a file as Quick Open does and opens it with a click, as a link opens", () => {
+  it("names a file as the tree does and opens it with a click, as a link opens", () => {
     const { spec, part } = setup("../notes/a.md");
     expect(part("name").textContent).toBe("a");
     expect(part("entry").dataset.tooltip).toBe("notes/a.md");
     part("entry").click();
     expect(spec.openPath).toHaveBeenCalledWith("notes/a.md");
+  });
+
+  it("shows a file's extension when the setting does, and always for a file of no kind", () => {
+    expect(setup("../refs/data.csv", {}, [["refs/data.csv", "file"]]).part("name").textContent).toBe("data.csv");
+    showExtensions.set(true);
+    try {
+      expect(setup("../notes/a.md").part("name").textContent).toBe("a.md");
+    } finally {
+      showExtensions.set(false);
+    }
   });
 
   it("opens a folder as its folder", () => {

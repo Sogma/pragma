@@ -11,7 +11,7 @@ import type { SpaceBookmark, SpaceBookmarkChangeRequestBody } from "../../../src
 import { sameBookmark } from "../../../src/protocol/bookmarks.ts";
 import { entryNameKey } from "../../../src/protocol/entryName.ts";
 import { basenameOf, dirnameOf, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
-import { fileTypeLabel, noteDragInFlight, stripExtension, writeEntryDrag } from "../../core/paths.ts";
+import { displayName, fileTypeLabel, noteDragInFlight, writeEntryDrag } from "../../core/paths.ts";
 import { entryIconAt, fileTypeAt } from "../../core/spaceTree.ts";
 import { el, renderTreeIcon } from "../../lib/dom.ts";
 import { type Bookmarks, bookmarkTargetOf, bookmarks as spaceBookmarks } from "../../services/bookmarks.ts";
@@ -137,8 +137,7 @@ export function createBookmarksView(deps: BookmarksViewDeps): SidebarView {
   }
 
   function nameOf(bookmark: SpaceBookmark): string {
-    const name = basenameOf(bookmark.path);
-    return bookmark.type === "directory" || showExtensions() ? name : stripExtension(name);
+    return displayName({ name: basenameOf(bookmark.path), type: bookmark.type ?? "file" }, showExtensions());
   }
 
   function row(bookmark: SpaceBookmark, name: string, showFolder: boolean): HTMLLIElement {

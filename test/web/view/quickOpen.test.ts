@@ -19,7 +19,7 @@ afterEach(() => {
   detach?.();
 });
 
-function setup(options: { tab?: Tab; recent?: string[] } = {}) {
+function setup(options: { tab?: Tab; recent?: string[]; showExtensions?: boolean } = {}) {
   const context: CommandContext = { tab: options.tab ?? { kind: "empty" }, pane: undefined };
   const commands = createCommands();
   const keybindings = createKeybindings(commands, { mac: false });
@@ -42,6 +42,7 @@ function setup(options: { tab?: Tab; recent?: string[] } = {}) {
     files: () => ["notes/draft.md", "cast.table.html", "songs/verse.md"],
     recentPaths: () => options.recent ?? [],
     openPath: (path) => void opened.push(path),
+    showExtensions: () => options.showExtensions ?? false,
   });
   return { opened, ran };
 }
@@ -98,6 +99,13 @@ describe("quick open", () => {
     await tick();
     expect(opened).toEqual(["cast.table.html"]);
     expect(menu()).toBeNull();
+  });
+
+  it("names a file as the tree does, its extension shown when the setting shows it", () => {
+    setup({ showExtensions: true });
+    press({ key: "p", ctrlKey: true });
+    type("vers");
+    expect(rows(".context-menu-results")[0].textContent).toBe("verse.mdsongs");
   });
 
   it("reports no match rather than an empty box", () => {

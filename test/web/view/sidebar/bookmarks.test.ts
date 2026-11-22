@@ -108,10 +108,15 @@ describe("the Bookmarks view", () => {
 
   it("draws a row per bookmark as the tree names its entry", () => {
     const { rows, settle } = setup({
-      bookmarks: [file("notes/Plan.md"), folder("projects"), { path: "notes/gone.md" }],
+      bookmarks: [file("notes/Plan.md"), folder("projects"), { path: "notes/gone.md" }, file("refs/archive.zip")],
     });
     settle();
-    expect(rows().map((row) => row.querySelector(".node-name")?.textContent)).toEqual(["Plan", "projects", "gone"]);
+    expect(rows().map((row) => row.querySelector(".node-name")?.textContent)).toEqual([
+      "Plan",
+      "projects",
+      "gone",
+      "archive.zip",
+    ]);
     expect(rows()[0].dataset.tooltip).toBe("notes/Plan.md");
     expect(rows()[2].dataset.tooltip).toBe("Not found: notes/gone.md");
     expect(rows()[2].parentElement?.classList.contains("missing")).toBe(true);

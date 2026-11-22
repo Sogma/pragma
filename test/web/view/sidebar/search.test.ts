@@ -35,7 +35,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function setup(response: SpaceSearchResponse = RESPONSE) {
+function setup(response: SpaceSearchResponse = RESPONSE, { showExtensions = false } = {}) {
   const commands = createCommands();
   const keybindings = createKeybindings(commands, { mac: false });
   const listener = keybindings.attach(document, () => context);
@@ -56,6 +56,7 @@ function setup(response: SpaceSearchResponse = RESPONSE) {
     show,
     tabs: () => ({ openSpacePath: openPath, activePath: () => activePath }),
     activePane: () => ({ revealLine }) as unknown as EditorPane,
+    showExtensions: () => showExtensions,
   });
   document.body.append(view.panel);
   view.panel.hidden = false;
@@ -118,6 +119,26 @@ describe("search view", () => {
       "b",
       undefined,
     ]);
+  });
+
+  it("names a file as the tree does, so a shown extension tells two of one name apart", async () => {
+    const { type } = setup(
+      {
+        files: [
+          { path: "a/cast.md", matches: [{ line: 1, text: "fox" }] },
+          { path: "b/cast.table.html", matches: [{ label: "Name", text: "fox" }] },
+        ],
+        truncated: false,
+      },
+      { showExtensions: true },
+    );
+    await type("fox");
+    const headers = q(".search-file-header");
+    expect(headers.map((header) => header.querySelector(".search-file-name")?.textContent)).toEqual([
+      "cast.md",
+      "cast.table.html",
+    ]);
+    expect(headers.map((header) => header.querySelector(".search-file-folder"))).toEqual([null, null]);
   });
 
   it("folds a file's matches from its header", async () => {
