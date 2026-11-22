@@ -5,6 +5,7 @@
 // timestamp shows as the text it is and stays on disk until a time is picked.
 import { formatTimestamp, parseTimestamp } from "../../src/protocol/types.ts";
 import { dateTimeLabel } from "./dateText.ts";
+import { positionPopover } from "./flyout.ts";
 
 export interface TimestampFieldSpec {
   value: string;
@@ -126,20 +127,4 @@ function openTimestampPicker(anchor: HTMLElement, value: string, onPick: (value:
     if (restore) anchor.focus();
     teardown = null;
   };
-}
-
-// Below the anchor, flipped above or clamped sideways when it wouldn't fit —
-// the color and date pickers' placement, copied rather than shared, as they
-// copy it from each other.
-function positionPopover(popover: HTMLElement, anchor: HTMLElement): void {
-  const rect = anchor.getBoundingClientRect();
-  const margin = 4;
-  let left = rect.left;
-  if (left + popover.offsetWidth > window.innerWidth - margin) left = window.innerWidth - margin - popover.offsetWidth;
-  if (left < margin) left = margin;
-  let top = rect.bottom + margin;
-  if (top + popover.offsetHeight > window.innerHeight - margin) top = rect.top - margin - popover.offsetHeight;
-  if (top < margin) top = margin;
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
 }

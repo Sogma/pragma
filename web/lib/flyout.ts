@@ -1,9 +1,9 @@
 // A popover anchored to the control that opened it: where it sits, and what
 // dismisses it.
 
-// Below-anchor by default, flipped above / clamped horizontally when it
-// wouldn't fit — the same placement as colorPicker.ts's, copied rather than
-// imported because that module's shapes are otherwise unrelated.
+// Below the anchor, flipped above or clamped sideways when it wouldn't fit,
+// in viewport coordinates for a `position: fixed` popover. It measures the
+// popover, so append the popover to the document first.
 export function positionPopover(popover: HTMLElement, anchor: HTMLElement): void {
   const rect = anchor.getBoundingClientRect();
   const margin = 4;

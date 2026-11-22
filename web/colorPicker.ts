@@ -5,6 +5,7 @@
 // a call site adds no markup of its own.
 
 import { normalizeHexColor } from "../src/protocol/types.ts";
+import { positionPopover } from "./lib/flyout.ts";
 import { LOGO_COLORS } from "./lib/logoColors.ts";
 import type { CommandRegistry } from "./services/commands.ts";
 import type { KeybindingRegistry } from "./services/keybindings.ts";
@@ -232,25 +233,4 @@ export function registerColorPickerEscape(commands: CommandRegistry, keybindings
     run: closeColorPicker,
   });
   keybindings.register({ key: "Escape", command: "colorPicker.close", weight: 60 });
-}
-
-// Below-anchor by default; flips above when the popover would overflow the
-// viewport bottom, and clamps horizontally. Same hand-rolled placement as
-// showContextMenu (main.ts) — no floating-ui-style dependency.
-function positionPopover(popover: HTMLElement, anchor: HTMLElement): void {
-  const rect = anchor.getBoundingClientRect();
-  const margin = 4;
-  const width = popover.offsetWidth;
-  const height = popover.offsetHeight;
-
-  let left = rect.left;
-  if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
-  if (left < margin) left = margin;
-
-  let top = rect.bottom + margin;
-  if (top + height > window.innerHeight - margin) top = rect.top - margin - height;
-  if (top < margin) top = margin;
-
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
 }

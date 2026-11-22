@@ -7,6 +7,7 @@
 // resolved in the calendar the grid shows, so no time zone can shift it by
 // one on the way in or out.
 
+import { positionPopover } from "./lib/flyout.ts";
 import type { CommandRegistry } from "./services/commands.ts";
 import type { KeybindingRegistry } from "./services/keybindings.ts";
 
@@ -259,24 +260,4 @@ function navButton(className: string, label: string): HTMLButtonElement {
   button.className = `icon-button date-picker-nav ${className}`;
   button.setAttribute("aria-label", label);
   return button;
-}
-
-// Below-anchor by default; flips above when the popover would overflow the
-// viewport bottom, and clamps horizontally. Same placement as colorPicker.ts.
-function positionPopover(popover: HTMLElement, anchor: HTMLElement): void {
-  const rect = anchor.getBoundingClientRect();
-  const margin = 4;
-  const width = popover.offsetWidth;
-  const height = popover.offsetHeight;
-
-  let left = rect.left;
-  if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
-  if (left < margin) left = margin;
-
-  let top = rect.bottom + margin;
-  if (top + height > window.innerHeight - margin) top = rect.top - margin - height;
-  if (top < margin) top = margin;
-
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
 }
