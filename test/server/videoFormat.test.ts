@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ByteReader } from "../../src/server/pixelFormat.ts";
 import { frameRateOf, readClipHeader, timecodeText } from "../../src/server/videoFormat.ts";
+import { countingReader } from "../support/countingReader.ts";
 import {
   box,
   element,
@@ -12,21 +12,8 @@ import {
   webmVideo,
 } from "../support/videoFixtures.ts";
 
-// A reader over bytes in memory that counts what it was asked for, so a test
-// can say how much of a file the walk touched.
-function reader(bytes: Buffer): ByteReader & { requested: number } {
-  const read = Object.assign(
-    async (offset: number, length: number) => {
-      read.requested += Math.max(0, Math.min(length, bytes.length - offset));
-      return bytes.subarray(offset, offset + length);
-    },
-    { requested: 0 },
-  );
-  return read;
-}
-
-const readMp4 = (bytes: Buffer) => readClipHeader("video/mp4", reader(bytes), bytes.length);
-const readWebm = (bytes: Buffer) => readClipHeader("video/webm", reader(bytes), bytes.length);
+const readMp4 = (bytes: Buffer) => readClipHeader("video/mp4", countingReader(bytes), bytes.length);
+const readWebm = (bytes: Buffer) => readClipHeader("video/webm", countingReader(bytes), bytes.length);
 
 describe("frameRateOf", () => {
   it("takes a constant rate from the one frame duration", () => {
@@ -70,7 +57,7 @@ describe("readVideoFormat", () => {
 
   it("names QuickTime's ProRes flavors, and shows an unlisted code as itself", async () => {
     const readMov = (codec: string) =>
-      readClipHeader("video/quicktime", reader(isoVideo({ codec })), isoVideo({ codec }).length);
+      readClipHeader("video/quicktime", countingReader(isoVideo({ codec })), isoVideo({ codec }).length);
     expect((await readMov("apch")).codec).toBe("ProRes 422 HQ");
     expect((await readMov("ap4h")).codec).toBe("ProRes 4444");
     expect((await readMov("hvc1")).codec).toBe("HEVC");
@@ -82,7 +69,7 @@ describe("readVideoFormat", () => {
   it("finds an index behind the picture data without reading the data", async () => {
     for (const largeData of [false, true]) {
       const bytes = isoVideo({ dataBefore: 2_000_000, largeData });
-      const read = reader(bytes);
+      const read = countingReader(bytes);
       expect(await readClipHeader("video/mp4", read, bytes.length), `largeData ${largeData}`).toMatchObject({
         codec: "H.264",
         frameRate: 25,
@@ -117,7 +104,8 @@ describe("readVideoFormat", () => {
   });
 });
 
-const readHeader = (bytes: Buffer, mediaType = "video/mp4") => readClipHeader(mediaType, reader(bytes), bytes.length);
+const readHeader = (bytes: Buffer, mediaType = "video/mp4") =>
+  readClipHeader(mediaType, countingReader(bytes), bytes.length);
 
 // A colour box of the nclx kind: primaries, transfer, matrix and range.
 function colr(transfer: number, primaries = 1) {

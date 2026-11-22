@@ -20,7 +20,7 @@ import type { GenerateVideoRequestBody } from "../../src/protocol/api.ts";
 import type { VideoCallOptions, VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
 import { grantCapability } from "../../src/server/grants.ts";
 import { createJobRunner, type JobRunner } from "../../src/server/jobRunner.ts";
-import type { JobRecord, JobStore } from "../../src/server/jobs.ts";
+import type { JobRecord } from "../../src/server/jobs.ts";
 import type { ResolvedVideoModel } from "../../src/server/mediaModels.ts";
 import {
   performSandboxGenerateVideo,
@@ -29,6 +29,7 @@ import {
   SandboxRequestError,
   startSandboxGenerateVideo,
 } from "../../src/server/sandbox.ts";
+import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Video node: the grant, the folder, reuse by
 // input digest, and a job recorded as it starts, whose clip the host saves
@@ -53,7 +54,7 @@ let starts: VideoCallOptions[];
 // What the mock provider says a job makes; undefined when it says nothing.
 let reported: { aspectRatio?: string; resolution?: string; duration?: number } | undefined;
 let checked: unknown[];
-let records: Map<string, JobRecord>;
+const records = new Map<string, JobRecord>();
 let runner: JobRunner;
 let status: (signal?: AbortSignal) => Promise<VideoStatusResult>;
 
@@ -90,19 +91,7 @@ const resolve = (): ResolvedVideoModel => ({
   modelId: "m",
 });
 
-const store: JobStore = {
-  list: async () => [...records.values()],
-  get: async (id) => records.get(id),
-  add: async (job) => void records.set(job.id, job),
-  update: async (id, change) => {
-    const job = records.get(id);
-    if (!job) return undefined;
-    const next = change(job);
-    records.set(id, next);
-    return next;
-  },
-  remove: async (id) => void records.delete(id),
-};
+const store = memoryJobStore(records);
 
 const only = () => {
   expect(records.size).toBe(1);
@@ -140,7 +129,7 @@ beforeEach(async () => {
   starts = [];
   reported = undefined;
   checked = [];
-  records = new Map();
+  records.clear();
   status = done;
   runner = createJobRunner({
     store: () => store,

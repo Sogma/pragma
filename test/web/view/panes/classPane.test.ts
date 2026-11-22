@@ -9,14 +9,13 @@ import { setPresets } from "../../../../web/core/presets.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
-import { createKeybindings } from "../../../../web/services/keybindings.ts";
 import { createMenus } from "../../../../web/services/menus.ts";
-import { createContextMenu } from "../../../../web/view/contextMenu.ts";
 import { classPane, createClassPane } from "../../../../web/view/panes/classPane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
 import { testFormats } from "../../support/formats.ts";
 import { testMetadataProperties } from "../../support/metadataProperties.ts";
 import { testPreviewSources } from "../../support/previewSources.ts";
+import { testContextMenu } from "../../support/testContextMenu.ts";
 
 // The space lists `_templates/` for templates, for this test alone.
 function listTemplates(): void {
@@ -33,18 +32,6 @@ afterEach(() => {
   for (const pane of opened.splice(0)) pane.dispose();
   document.body.replaceChildren();
 });
-
-// The shared menu component, over registries of its own.
-function testContextMenu() {
-  const commands = createCommands();
-  const keybindings = createKeybindings(commands);
-  return createContextMenu({
-    commands,
-    menus: createMenus(commands),
-    keybindings,
-    context: () => ({ tab: { kind: "empty" }, pane: undefined }),
-  });
-}
 
 function menuItem(label: string): HTMLButtonElement {
   const item = [...document.querySelectorAll<HTMLButtonElement>(".context-menu button")].find(

@@ -5,8 +5,9 @@ import { MockVideoModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { VideoJob, VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
 import { checkPause, createJobRunner, type JobRunner } from "../../src/server/jobRunner.ts";
-import type { JobRecord, JobStore } from "../../src/server/jobs.ts";
+import type { JobRecord } from "../../src/server/jobs.ts";
 import type { ResolvedVideoModel } from "../../src/server/mediaModels.ts";
+import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The host's half of a paid job: checking it on its own schedule, saving its
 // clip with or without a run waiting, picking unfinished jobs up at startup,
@@ -18,7 +19,7 @@ const MP4 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
 const response = { timestamp: new Date(), modelId: "m", headers: undefined };
 
 let space: string;
-let records: Map<string, JobRecord>;
+const records = new Map<string, JobRecord>();
 let clock: number;
 let status: () => Promise<VideoStatusResult>;
 let resolve: () => ResolvedVideoModel;
@@ -42,19 +43,7 @@ const model = (): ResolvedVideoModel => ({
   modelId: "m",
 });
 
-const store: JobStore = {
-  list: async () => [...records.values()],
-  get: async (id) => records.get(id),
-  add: async (job) => void records.set(job.id, job),
-  update: async (id, change) => {
-    const job = records.get(id);
-    if (!job) return undefined;
-    const next = change(job);
-    records.set(id, next);
-    return next;
-  },
-  remove: async (id) => void records.delete(id),
-};
+const store = memoryJobStore(records);
 
 const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({
   id,
@@ -82,7 +71,7 @@ const add = (record: JobRecord) => {
 beforeEach(() => {
   space = mkdtempSync(path.join(tmpdir(), "pragma-job-runner-"));
   mkdirSync(path.join(space, "clips"));
-  records = new Map();
+  records.clear();
   clock = Date.UTC(2026, 10, 10, 12);
   status = done;
   resolve = model;

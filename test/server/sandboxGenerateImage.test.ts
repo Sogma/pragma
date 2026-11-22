@@ -18,7 +18,7 @@ import type { GenerateImageRequestBody } from "../../src/protocol/api.ts";
 import type { ImageCallOptions, ProviderImageJobs } from "../../src/protocol/imageGeneration.ts";
 import { grantCapability } from "../../src/server/grants.ts";
 import { createJobRunner } from "../../src/server/jobRunner.ts";
-import type { JobRecord, JobStore } from "../../src/server/jobs.ts";
+import type { JobRecord } from "../../src/server/jobs.ts";
 import type { ResolvedImageModel } from "../../src/server/mediaModels.ts";
 import {
   performSandboxGenerateImage,
@@ -27,6 +27,7 @@ import {
   SandboxRequestError,
   startSandboxGenerateImage,
 } from "../../src/server/sandbox.ts";
+import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Image node: the grant, the folder, and reuse
 // by input digest. A mock model stands in for the configured providers.
@@ -367,19 +368,7 @@ describe("an image a provider makes as a job", () => {
   // says so, at the second check unless a test says otherwise.
   function jobProvider(ready: (checks: number) => boolean = (checks) => checks >= 2) {
     const records = new Map<string, JobRecord>();
-    const store: JobStore = {
-      list: async () => [...records.values()],
-      get: async (id) => records.get(id),
-      add: async (job) => void records.set(job.id, job),
-      update: async (id, change) => {
-        const job = records.get(id);
-        if (!job) return undefined;
-        const next = change(job);
-        records.set(id, next);
-        return next;
-      },
-      remove: async (id) => void records.delete(id),
-    };
+    const store = memoryJobStore(records);
     const starts: unknown[] = [];
     let checks = 0;
     const jobs: ProviderImageJobs = {

@@ -1,18 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type ByteReader, readPixelFormat } from "../../src/server/pixelFormat.ts";
-
-// A reader over bytes in memory that records every range asked of it, so a
-// test can say how much of a file the walk touched.
-function reader(bytes: Buffer): ByteReader & { requested: number } {
-  const read = Object.assign(
-    async (offset: number, length: number) => {
-      read.requested += Math.max(0, Math.min(length, bytes.length - offset));
-      return bytes.subarray(offset, offset + length);
-    },
-    { requested: 0 },
-  );
-  return read;
-}
+import { readPixelFormat } from "../../src/server/pixelFormat.ts";
+import { countingReader } from "../support/countingReader.ts";
 
 // A real 2x2 RGBA PNG, so the common path runs against encoder output.
 const PNG_RGBA_2X2 = Buffer.from(
@@ -71,7 +59,7 @@ function gif(globalTableBits?: number): Buffer {
 
 describe("readPixelFormat", () => {
   it("reads a real PNG's color type and depth", async () => {
-    expect(await readPixelFormat("image/png", reader(PNG_RGBA_2X2))).toEqual({
+    expect(await readPixelFormat("image/png", countingReader(PNG_RGBA_2X2))).toEqual({
       colorModel: "rgb",
       alpha: true,
       bitDepth: 8,
@@ -79,7 +67,7 @@ describe("readPixelFormat", () => {
   });
 
   it("names every PNG color type", async () => {
-    const read = async (depth: number, type: number) => readPixelFormat("image/png", reader(png(depth, type)));
+    const read = async (depth: number, type: number) => readPixelFormat("image/png", countingReader(png(depth, type)));
     expect(await read(16, 0)).toEqual({ colorModel: "grayscale", alpha: false, bitDepth: 16 });
     expect(await read(8, 2)).toEqual({ colorModel: "rgb", alpha: false, bitDepth: 8 });
     expect(await read(4, 3)).toEqual({ colorModel: "indexed", alpha: false, bitDepth: 4 });
@@ -88,7 +76,7 @@ describe("readPixelFormat", () => {
   });
 
   it("reads a JPEG's model from its component count", async () => {
-    const read = async (bytes: Buffer) => readPixelFormat("image/jpeg", reader(bytes));
+    const read = async (bytes: Buffer) => readPixelFormat("image/jpeg", countingReader(bytes));
     expect(await read(jpeg(3, 8))).toEqual({ colorModel: "rgb", alpha: false, bitDepth: 8 });
     expect(await read(jpeg(1, 12))).toEqual({ colorModel: "grayscale", alpha: false, bitDepth: 12 });
     expect(await read(jpeg(4, 8))).toEqual({ colorModel: "cmyk", alpha: false, bitDepth: 8 });
@@ -98,7 +86,7 @@ describe("readPixelFormat", () => {
   // header, often more than half a megabyte of it. The walk jumps over it.
   it("finds a JPEG's frame header behind a large profile without reading it", async () => {
     const bytes = jpeg(4, 8, 600_000);
-    const read = reader(bytes);
+    const read = countingReader(bytes);
     expect(await readPixelFormat("image/jpeg", read)).toMatchObject({ colorModel: "cmyk" });
     expect(bytes.length).toBeGreaterThan(600_000);
     expect(read.requested).toBeLessThan(200);
@@ -106,12 +94,12 @@ describe("readPixelFormat", () => {
 
   it("refuses a JPEG whose scan starts before any frame header", async () => {
     const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00]);
-    await expect(readPixelFormat("image/jpeg", reader(bytes))).rejects.toThrow(/no frame header/);
+    await expect(readPixelFormat("image/jpeg", countingReader(bytes))).rejects.toThrow(/no frame header/);
   });
 
   it("reads alpha from each WebP container", async () => {
     const read = async (container: "VP8X" | "VP8L" | "VP8 ", alpha: boolean) =>
-      (await readPixelFormat("image/webp", reader(webp(container, alpha)))).alpha;
+      (await readPixelFormat("image/webp", countingReader(webp(container, alpha)))).alpha;
     expect(await read("VP8X", true)).toBe(true);
     expect(await read("VP8X", false)).toBe(false);
     expect(await read("VP8L", true)).toBe(true);
@@ -120,16 +108,16 @@ describe("readPixelFormat", () => {
   });
 
   it("reads a GIF's palette depth from its global table", async () => {
-    expect(await readPixelFormat("image/gif", reader(gif(4)))).toEqual({
+    expect(await readPixelFormat("image/gif", countingReader(gif(4)))).toEqual({
       colorModel: "indexed",
       alpha: false,
       bitDepth: 4,
     });
-    expect((await readPixelFormat("image/gif", reader(gif()))).bitDepth).toBe(8);
+    expect((await readPixelFormat("image/gif", countingReader(gif()))).bitDepth).toBe(8);
   });
 
   it("refuses an SVG and a truncated header rather than guessing", async () => {
-    await expect(readPixelFormat("image/svg+xml", reader(Buffer.from("<svg/>")))).rejects.toThrow(/raster/);
-    await expect(readPixelFormat("image/png", reader(PNG_RGBA_2X2.subarray(0, 20)))).rejects.toThrow(/IHDR/);
+    await expect(readPixelFormat("image/svg+xml", countingReader(Buffer.from("<svg/>")))).rejects.toThrow(/raster/);
+    await expect(readPixelFormat("image/png", countingReader(PNG_RGBA_2X2.subarray(0, 20)))).rejects.toThrow(/IHDR/);
   });
 });

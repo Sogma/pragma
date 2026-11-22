@@ -1,24 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableFileResponse } from "../../../../web/core/apiClient.ts";
-import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
-import { createKeybindings } from "../../../../web/services/keybindings.ts";
-import { createMenus } from "../../../../web/services/menus.ts";
-import { createContextMenu } from "../../../../web/view/contextMenu.ts";
 import { createTableView } from "../../../../web/view/panes/tablePane.ts";
-
-// The shared menu component, over registries of its own.
-function testContextMenu() {
-  const commands = createCommands();
-  const keybindings = createKeybindings(commands);
-  return createContextMenu({
-    commands,
-    menus: createMenus(commands),
-    keybindings,
-    context: () => ({ tab: { kind: "empty" }, pane: undefined }),
-  });
-}
+import { testContextMenu } from "../../support/testContextMenu.ts";
 
 // Each test opens its own dialog through the service; none of them closes the
 // previous test's, so the body starts clean.

@@ -1,20 +1,7 @@
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { readDigitalSourceType, sourceTypeIn } from "../../src/server/digitalSourceType.ts";
-import type { ByteReader } from "../../src/server/pixelFormat.ts";
-
-// A reader over bytes in memory that counts what it was asked for, so a test
-// can say the picture data went unread.
-function reader(bytes: Buffer): ByteReader & { requested: number } {
-  const read = Object.assign(
-    async (offset: number, length: number) => {
-      read.requested += Math.max(0, Math.min(length, bytes.length - offset));
-      return bytes.subarray(offset, offset + length);
-    },
-    { requested: 0 },
-  );
-  return read;
-}
+import { countingReader } from "../support/countingReader.ts";
 
 const AI = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 
@@ -71,7 +58,8 @@ function webp(packet: string | undefined): Buffer {
   return Buffer.concat([head, body]);
 }
 
-const read = (mediaType: string, bytes: Buffer) => readDigitalSourceType(mediaType, reader(bytes), bytes.length);
+const read = (mediaType: string, bytes: Buffer) =>
+  readDigitalSourceType(mediaType, countingReader(bytes), bytes.length);
 
 describe("sourceTypeIn", () => {
   it("finds the code as an attribute, an element, or an element's resource, by any prefix", () => {
@@ -100,7 +88,7 @@ describe("readDigitalSourceType", () => {
     ).toBe("trainedAlgorithmicMedia");
     expect(await read("image/png", png(ihdr, itxt(xmp("digitalCapture"), true), idat, iend))).toBe("digitalCapture");
     const bytes = png(ihdr, itxt(xmp()), idat, iend);
-    const counted = reader(bytes);
+    const counted = countingReader(bytes);
     expect(await readDigitalSourceType("image/png", counted, bytes.length)).toBe("trainedAlgorithmicMedia");
     expect(counted.requested).toBeLessThan(2_000);
   });
