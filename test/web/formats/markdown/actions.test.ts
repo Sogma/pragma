@@ -52,6 +52,15 @@ function run(editor: EditorView, id: string): string {
   return shown(editor);
 }
 
+// A selection made with Shift+Left, its head at its start.
+function backward(editor: EditorView): EditorView {
+  const { from, to } = editor.state.selection.main;
+  editor.dispatch({ selection: EditorSelection.single(to, from) });
+  return editor;
+}
+
+const headAtStart = (editor: EditorView) => editor.state.selection.main.head === editor.state.selection.main.from;
+
 function on(editor: EditorView, id: string): boolean {
   ensureSyntaxTree(editor.state, editor.state.doc.length);
   const action = [...actions.lines, ...actions.marks].find((each) => each.id === id);
@@ -105,6 +114,16 @@ describe("Markdown format actions: marks", () => {
     expect(run(edit("**bo«ld** te»xt"), "clearFormatting")).toBe("bo«ld te»xt");
     expect(run(edit("***bo|ld*** plain"), "clearFormatting")).toBe("bo|ld plain");
     expect(run(edit("«a ==b== c»"), "clearFormatting")).toBe("«a b c»");
+  });
+
+  it("keeps a backward selection's head at its start as a mark or a comment goes on and off", () => {
+    for (const id of ["bold", "htmlComment"]) {
+      const editor = backward(edit("Snow «falls» hard."));
+      run(editor, id);
+      expect(headAtStart(editor)).toBe(true);
+      expect(run(editor, id)).toBe("Snow «falls» hard.");
+      expect(headAtStart(editor)).toBe(true);
+    }
   });
 });
 

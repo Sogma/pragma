@@ -4,7 +4,6 @@
 // the text allows it and a forcing mark only where it doesn't, reading every
 // line as the editor draws it.
 import {
-  type ChangeSet,
   type ChangeSpec,
   EditorSelection,
   type EditorState,
@@ -14,8 +13,10 @@ import {
 } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { fountainToken, isForcedSceneHeading } from "../../../src/protocol/fountainElements.ts";
+import { carried, FORMAT_EVENT, holds, selectWrapped, touchedLines, trimmed, wrapping } from "../../formatEdits.ts";
 import { openedMarks, toggleAtCaret } from "../../hiddenSyntax.ts";
 import type { FormatAction, FormatActions } from "../../services/formats.ts";
+import type { Span } from "../../shownSyntax.ts";
 import {
   findInlineRanges,
   fountainLine,
@@ -26,13 +27,6 @@ import {
   multiLineNotes,
   NOTE_CLASS,
 } from "./language.ts";
-
-const FORMAT_EVENT = "input.format";
-
-interface Span {
-  from: number;
-  to: number;
-}
 
 type Mark = "bold" | "italic" | "underline";
 
@@ -46,11 +40,6 @@ function writable(state: EditorState): boolean {
   const { kind } = fountainLine(state, state.doc.lineAt(state.selection.main.head));
   return kind === undefined || !FIXED.has(kind);
 }
-
-// A caret counts only strictly inside a span, so one just past its closing
-// mark has left it; a selection counts inside it or on its edges.
-const holds = (span: Span, from: number, to: number) =>
-  from === to ? span.from < from && from < span.to : span.from <= from && to <= span.to;
 
 // Where a line's text runs between the marks that force its kind. A mark or
 // a comment goes only there: around a forcing mark, it would leave the mark
@@ -104,15 +93,6 @@ function linkAround(state: EditorState, range: Span) {
   return inlineOn(state.doc.lineAt(range.from)).find((each) => each.link && holds(each, range.from, range.to));
 }
 
-// A range carried through `changes`, kept on the text it covered: its
-// start after anything inserted there, its end before.
-function carried(range: SelectionRange, changes: ChangeSet): SelectionRange {
-  if (range.empty) return EditorSelection.cursor(changes.mapPos(range.head, 1));
-  const from = changes.mapPos(range.from, 1);
-  const to = changes.mapPos(range.to, -1);
-  return range.head === range.from ? EditorSelection.range(to, from) : EditorSelection.range(from, to);
-}
-
 const isWordChar = (c: string | undefined) => c !== undefined && /[\p{L}\p{N}'’]/u.test(c);
 
 // The word a caret is in, from letters, digits and apostrophes, so a mark's
@@ -140,11 +120,8 @@ function markTargets(state: EditorState, range: SelectionRange, mark: Mark): Spa
   for (let number = state.doc.lineAt(range.from).number; number <= state.doc.lineAt(range.to).number; number++) {
     const each = state.doc.line(number);
     const text = textOf(state, each);
-    let from = Math.max(range.from, text.from);
-    let to = Math.min(range.to, text.to);
-    while (from < to && /\s/.test(state.doc.sliceString(from, from + 1))) from++;
-    while (to > from && /\s/.test(state.doc.sliceString(to - 1, to))) to--;
-    if (from < to) targets.push(widenToStarRun(each, { from, to }, mark));
+    const target = trimmed(state.doc, { from: Math.max(range.from, text.from), to: Math.min(range.to, text.to) });
+    if (target.from < target.to) targets.push(widenToStarRun(each, target, mark));
   }
   return targets;
 }
@@ -186,12 +163,7 @@ function toggleMark(mark: Mark): (view: EditorView) => void {
       const targets = markTargets(state, range, mark);
       if (!targets.length) return { range };
       const delimiter = DELIMITER[mark];
-      const changes = state.changes(
-        targets.flatMap(({ from, to }) => [
-          { from, insert: delimiter },
-          { from: to, insert: delimiter },
-        ]),
-      );
+      const changes = state.changes(wrapping(targets, delimiter));
       const [first] = targets;
       // A caret between new delimiters goes between them, to type into; one
       // in a word keeps its place in it, at the word's end too.
@@ -200,11 +172,9 @@ function toggleMark(mark: Mark): (view: EditorView) => void {
         const at = first.from === first.to ? head + delimiter.length : changes.mapPos(head, head === first.to ? -1 : 1);
         return { changes, range: EditorSelection.cursor(at) };
       }
-      const from = changes.mapPos(first.from, 1);
-      const to = changes.mapPos(targets[targets.length - 1].to, -1);
       return {
         changes,
-        range: range.head === range.from ? EditorSelection.range(to, from) : EditorSelection.range(from, to),
+        range: selectWrapped(range, changes, { from: first.from, to: targets[targets.length - 1].to }),
       };
     });
     view.dispatch(spec, { userEvent: FORMAT_EVENT, scrollIntoView: true });
@@ -284,23 +254,13 @@ function toggleComment(view: EditorView): void {
       run = { from, to };
       runs.push(run);
     }
-    const targets = runs
-      .map((run) => {
-        const { from, to } = offForcing(state, run);
-        const text = state.doc.sliceString(from, to);
-        return { from: from + (text.length - text.trimStart().length), to: to - (text.length - text.trimEnd().length) };
-      })
-      .filter(({ from, to }) => from < to);
+    const targets = runs.map((run) => trimmed(state.doc, offForcing(state, run))).filter(({ from, to }) => from < to);
     if (!targets.length) return { range };
-    const changes = state.changes(
-      targets.flatMap(({ from, to }) => [
-        { from, insert: "[[" },
-        { from: to, insert: "]]" },
-      ]),
-    );
-    const from = changes.mapPos(targets[0].from, 1);
-    const to = changes.mapPos(targets[targets.length - 1].to, -1);
-    return { changes, range: EditorSelection.range(from, to) };
+    const changes = state.changes(wrapping(targets, "[[", "]]"));
+    return {
+      changes,
+      range: selectWrapped(range, changes, { from: targets[0].from, to: targets[targets.length - 1].to }),
+    };
   });
   view.dispatch(spec, { userEvent: FORMAT_EVENT, scrollIntoView: true });
 }
@@ -465,26 +425,16 @@ function lineEdit(state: EditorState, line: Line, kind: Kind): LineEdit | undefi
   };
 }
 
-// The lines the selection touches, in order. A selection dragged through a
-// line's end stops at the next line's start, a line it doesn't touch, and
-// empty lines among several stay as they are.
-function touchedLines(state: EditorState): Line[] {
-  const numbers = new Set<number>();
-  for (const range of state.selection.ranges) {
-    const end = range.to > range.from && state.doc.lineAt(range.to).from === range.to ? range.to - 1 : range.to;
-    const last = state.doc.lineAt(end).number;
-    for (let number = state.doc.lineAt(range.from).number; number <= last; number++) numbers.add(number);
-  }
-  const lines = [...numbers].sort((a, b) => a - b).map((number) => state.doc.line(number));
-  return lines.length > 1 ? lines.filter((line) => line.text !== "") : lines;
-}
-
 // Turns every line the selection touches into `kind`. A caret keeps its
 // place in its line's text, or goes to the line opened under a name.
 function setKind(kind: Kind): (view: EditorView) => void {
   return (view) => {
     const { state } = view;
-    const edits = touchedLines(state).flatMap((line) => {
+    // Empty lines among several stay as they are. Only empty ones: a line of
+    // spaces is content (src/protocol/fountainLines.ts).
+    const touched = touchedLines(state);
+    const lines = touched.length > 1 ? touched.filter((line) => line.text !== "") : touched;
+    const edits = lines.flatMap((line) => {
       const edit = lineEdit(state, line, kind);
       return edit ? [{ line, edit }] : [];
     });

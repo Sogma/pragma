@@ -52,6 +52,15 @@ function run(editor: EditorView, id: string): string {
   return shown(editor);
 }
 
+// A selection made with Shift+Left, its head at its start.
+function backward(editor: EditorView): EditorView {
+  const { from, to } = editor.state.selection.main;
+  editor.dispatch({ selection: EditorSelection.single(to, from) });
+  return editor;
+}
+
+const headAtStart = (editor: EditorView) => editor.state.selection.main.head === editor.state.selection.main.from;
+
 const action = (id: string) => [...actions.lines, ...actions.marks].find((each) => each.id === id);
 const on = (editor: EditorView, id: string) => action(id)?.isOn?.(editor.state) ?? false;
 const applies = (editor: EditorView, id: string) => action(id)?.applies?.(editor.state) ?? true;
@@ -148,6 +157,16 @@ describe("a screenplay's comments", () => {
     const editor = edit("«> [[Smash cut.]]»");
     expect(on(editor, "comment")).toBe(true);
     expect(run(editor, "comment")).toBe("«> Smash cut.»");
+  });
+
+  it("keeps a backward selection's head at its start as a mark or a comment goes on and off", () => {
+    for (const id of ["bold", "comment"]) {
+      const editor = backward(edit("Snow «falls» hard."));
+      run(editor, id);
+      expect(headAtStart(editor)).toBe(true);
+      expect(run(editor, id)).toBe("Snow «falls» hard.");
+      expect(headAtStart(editor)).toBe(true);
+    }
   });
 });
 

@@ -5,7 +5,6 @@
 // formats the note.
 import { syntaxTree } from "@codemirror/language";
 import {
-  type ChangeSet,
   type ChangeSpec,
   EditorSelection,
   type EditorState,
@@ -16,6 +15,7 @@ import {
 import type { EditorView } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import { type CommentSpan, commentsOf } from "../../../src/protocol/markdownComments.ts";
+import { carried, FORMAT_EVENT, holds, selectWrapped, touchedLines, trimmed, wrapping } from "../../formatEdits.ts";
 import { openedMarks, toggleAtCaret } from "../../hiddenSyntax.ts";
 import type { FormatAction, FormatActions } from "../../services/formats.ts";
 import type { Span } from "../../shownSyntax.ts";
@@ -37,28 +37,12 @@ const SUPERSCRIPT: Mark = { node: "Superscript", delimiter: "^" };
 const SUBSCRIPT: Mark = { node: "Subscript", delimiter: "~" };
 const MARKS = [BOLD, ITALIC, CODE, STRIKETHROUGH, HIGHLIGHT, SUPERSCRIPT, SUBSCRIPT];
 
-const FORMAT_EVENT = "input.format";
-
-// The innermost node named `name` holding `range`. A caret counts only
-// strictly inside, so one just past a closing delimiter has left the mark.
+// The innermost node named `name` holding `range`.
 function around(state: EditorState, range: SelectionRange, name: string): SyntaxNode | null {
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(range.from, 1); node; node = node.parent) {
-    if (node.name !== name) continue;
-    const holds = range.empty
-      ? node.from < range.from && range.from < node.to
-      : node.from <= range.from && range.to <= node.to;
-    if (holds) return node;
+    if (node.name === name && holds(node, range.from, range.to)) return node;
   }
   return null;
-}
-
-// A range carried through `changes`, kept on the text it covered: its
-// start after anything inserted there, its end before.
-function carried(range: SelectionRange, changes: ChangeSet): SelectionRange {
-  if (range.empty) return EditorSelection.cursor(changes.mapPos(range.head, 1));
-  const from = changes.mapPos(range.from, 1);
-  const to = changes.mapPos(range.to, -1);
-  return range.head === range.from ? EditorSelection.range(to, from) : EditorSelection.range(from, to);
 }
 
 // A line's own markers after its indent: quote markers, then a heading's,
@@ -74,22 +58,20 @@ function prefixOf(text: string): RegExpExecArray {
 // The text a mark goes around: for a caret, the word it is in; else the
 // selection without its outer spaces, split at line ends and kept off each
 // line's markers, which no mark may hold.
-function markTargets(state: EditorState, range: SelectionRange): { from: number; to: number }[] {
+function markTargets(state: EditorState, range: SelectionRange): Span[] {
   if (range.empty) {
     const word = state.wordAt(range.head);
     return [word ? { from: word.from, to: word.to } : { from: range.head, to: range.head }];
   }
-  const targets: { from: number; to: number }[] = [];
+  const targets: Span[] = [];
   const last = state.doc.lineAt(range.to).number;
   for (let number = state.doc.lineAt(range.from).number; number <= last; number++) {
     const line = state.doc.line(number);
-    let from = Math.max(range.from, line.from + prefixOf(line.text)[0].length);
-    let to = Math.min(range.to, line.to);
-    if (from >= to) continue;
-    const text = state.sliceDoc(from, to);
-    from += text.length - text.trimStart().length;
-    to -= text.length - text.trimEnd().length;
-    if (from < to) targets.push({ from, to });
+    const target = trimmed(state.doc, {
+      from: Math.max(range.from, line.from + prefixOf(line.text)[0].length),
+      to: Math.min(range.to, line.to),
+    });
+    if (target.from < target.to) targets.push(target);
   }
   return targets;
 }
@@ -111,12 +93,7 @@ function toggleMark(mark: Mark): (view: EditorView) => void {
       }
       const targets = markTargets(state, range);
       if (!targets.length) return { range };
-      const changes = state.changes(
-        targets.flatMap(({ from, to }) => [
-          { from, insert: mark.delimiter },
-          { from: to, insert: mark.delimiter },
-        ]),
-      );
+      const changes = state.changes(wrapping(targets, mark.delimiter));
       const [first] = targets;
       // A caret between new delimiters goes between them, to type into; one
       // in a word keeps its place in it, at the word's end too.
@@ -127,11 +104,9 @@ function toggleMark(mark: Mark): (view: EditorView) => void {
             : changes.mapPos(range.head, range.head === first.to ? -1 : 1);
         return { changes, range: EditorSelection.cursor(at) };
       }
-      const from = changes.mapPos(first.from, 1);
-      const to = changes.mapPos(targets[targets.length - 1].to, -1);
       return {
         changes,
-        range: range.head === range.from ? EditorSelection.range(to, from) : EditorSelection.range(from, to),
+        range: selectWrapped(range, changes, { from: first.from, to: targets[targets.length - 1].to }),
       };
     });
     view.dispatch(spec, { userEvent: FORMAT_EVENT, scrollIntoView: true });
@@ -228,16 +203,13 @@ function commentTarget(state: EditorState, range: SelectionRange): Span {
   let first = doc.lineAt(range.from);
   let last = doc.lineAt(end);
   if (!range.empty && first.number === last.number) {
-    const text = state.sliceDoc(range.from, end);
-    const from = range.from + (text.length - text.trimStart().length);
-    const to = end - (text.length - text.trimEnd().length);
-    if (from < to) return { from, to };
+    const text = trimmed(doc, { from: range.from, to: end });
+    if (text.from < text.to) return text;
   }
   while (first.number < last.number && !first.text.trim()) first = doc.line(first.number + 1);
   while (last.number > first.number && !last.text.trim()) last = doc.line(last.number - 1);
-  const from = first.from + (first.text.length - first.text.trimStart().length);
-  const to = last.to - (last.text.length - last.text.trimEnd().length);
-  return from < to ? { from, to } : { from: range.head, to: range.head };
+  const lines = trimmed(doc, { from: first.from, to: last.to });
+  return lines.from < lines.to ? lines : { from: range.head, to: range.head };
 }
 
 // The comments `span` overlaps, a caret on a blank line counting only inside one.
@@ -317,9 +289,7 @@ function toggleComment(view: EditorView): void {
       return EditorSelection.cursor(set.mapPos(target.from, -1) + COMMENT_OPEN.length);
     }
     if (range.empty) return EditorSelection.cursor(set.mapPos(range.head, range.head === target.to ? -1 : 1));
-    const from = set.mapPos(target.from, 1);
-    const to = set.mapPos(target.to, -1);
-    return range.head === range.from ? EditorSelection.range(to, from) : EditorSelection.range(from, to);
+    return selectWrapped(range, set, target);
   });
   view.dispatch({
     changes: set,
@@ -361,18 +331,6 @@ function kindOf(state: EditorState, line: Line): LineKind {
   if (marker && /^[-*+]/.test(marker)) return "bullet";
   if (marker) return "numbered";
   return quote ? "quote" : "p";
-}
-
-// The lines the selection touches, in order. A selection dragged through a
-// line's end stops at the next line's start, a line it doesn't touch.
-function touchedLines(state: EditorState): Line[] {
-  const numbers = new Set<number>();
-  for (const range of state.selection.ranges) {
-    const end = range.to > range.from && state.doc.lineAt(range.to).from === range.to ? range.to - 1 : range.to;
-    const last = state.doc.lineAt(end).number;
-    for (let number = state.doc.lineAt(range.from).number; number <= last; number++) numbers.add(number);
-  }
-  return [...numbers].sort((a, b) => a - b).map((number) => state.doc.line(number));
 }
 
 function fencedBlocks(state: EditorState, from: number, to: number): SyntaxNode[] {
