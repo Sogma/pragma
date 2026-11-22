@@ -60,6 +60,7 @@ import {
   type ContextFile,
   type ContextMessage,
   type ContextSent,
+  extensionForMediaType,
   flowCapabilityKey,
   holdsPath,
   isFlowFile,
@@ -70,6 +71,7 @@ import {
   newRowValue,
   noFileAt,
   notAVideo,
+  RASTER_IMAGE_EXTENSIONS,
   rasterImageMediaTypeForPath,
   videoMediaTypeForPath,
 } from "../protocol/types.ts";
@@ -77,7 +79,7 @@ import { type DeclaredVideoInputs, jobSettings, startVideoJob } from "../protoco
 import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol/videoResolution.ts";
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
-import { findResult, IMAGE_EXTENSIONS_BY_TYPE, resultStart, saveResult } from "./generatedResults.ts";
+import { findResult, resultStart, saveResult } from "./generatedResults.ts";
 import { type GrantSubject, grantPath, isCapabilityGranted } from "./grants.ts";
 import { writeDocument } from "./history.ts";
 import { type JobOutcome, type JobRunner, jobRunner, type NewJob } from "./jobRunner.ts";
@@ -895,7 +897,7 @@ export async function startSandboxGenerateImage(
       } catch (error) {
         throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
       }
-      const extension = IMAGE_EXTENSIONS_BY_TYPE[result.mediaType] ?? "png";
+      const extension = extensionForMediaType(result.mediaType, RASTER_IMAGE_EXTENSIONS) ?? "png";
       const written = await saveResult(folderPath, start, digest, async (base) => {
         await writeFileAtomic(`${base}.${extension}`, result.data);
         return `${base}.${extension}`;

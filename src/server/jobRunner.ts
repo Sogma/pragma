@@ -10,9 +10,10 @@ import { createReadStream } from "node:fs";
 import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadGlobalConfig } from "../config/loadConfig.ts";
+import { extensionForMediaType, RASTER_IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "../protocol/types.ts";
 import { checkVideoJob, type VideoData, type VideoJob, type VideoOperation } from "../protocol/videoGeneration.ts";
 import { fetchPublicToFile } from "./fetchPublic.ts";
-import { findResult, IMAGE_EXTENSIONS_BY_TYPE, saveResult, VIDEO_EXTENSIONS_BY_TYPE } from "./generatedResults.ts";
+import { findResult, saveResult } from "./generatedResults.ts";
 import { type JobRecord, type JobStore, jobStore } from "./jobs.ts";
 import {
   type ResolvedImageModel,
@@ -51,8 +52,8 @@ const SAVE_RETRIES_MS = [MINUTE, 5 * MINUTE, 30 * MINUTE];
 // runs to a few hundred MB, a 4K PNG to tens; the download streams into its
 // file, so it is never held whole.
 const KINDS = {
-  video: { noun: "clip", extensions: VIDEO_EXTENSIONS_BY_TYPE, fallback: "mp4", maxBytes: 1024 * 1024 * 1024 },
-  image: { noun: "image", extensions: IMAGE_EXTENSIONS_BY_TYPE, fallback: "png", maxBytes: 100 * 1024 * 1024 },
+  video: { noun: "clip", extensions: VIDEO_EXTENSIONS, fallback: "mp4", maxBytes: 1024 * 1024 * 1024 },
+  image: { noun: "image", extensions: RASTER_IMAGE_EXTENSIONS, fallback: "png", maxBytes: 100 * 1024 * 1024 },
 } as const;
 
 // What one check of a job found, whatever its kind.
@@ -193,8 +194,9 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
           await writeFileAtomic(copy, createReadStream(path.join(folderPath, existing.found)));
           return copy;
         }
+        const extensionOf = (mediaType: string) => extensionForMediaType(mediaType, kind.extensions);
         const nameFor = (mediaType: string) =>
-          `${base}.${kind.extensions[mediaType] ?? kind.extensions[result.mediaType] ?? kind.fallback}`;
+          `${base}.${extensionOf(mediaType) ?? extensionOf(result.mediaType) ?? kind.fallback}`;
         if (result.type === "url") return fetchPublicToFile(result.url, { maxBytes: kind.maxBytes }, nameFor);
         const filePath = nameFor(result.mediaType);
         await writeFileAtomic(filePath, result.type === "base64" ? Buffer.from(result.data, "base64") : result.data);

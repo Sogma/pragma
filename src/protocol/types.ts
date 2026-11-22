@@ -514,15 +514,19 @@ export function videoMediaTypeForPath(filePath: string): SpaceVideoMediaType | u
   return extensionMediaType(VIDEO_EXTENSIONS, filePath);
 }
 
+const MEDIA_EXTENSIONS: Record<string, string> = { ...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS };
+
 /** The extension a file of `mediaType` is written with, without its dot: the
- * first one the tables above list for it, so `jpg` and `mp4` rather than
- * `jpeg` and `m4v`; undefined for a type none of them names. */
-export function extensionForMediaType(mediaType: string): string | undefined {
-  for (const table of [RASTER_IMAGE_EXTENSIONS, VECTOR_IMAGE_EXTENSIONS, VIDEO_EXTENSIONS]) {
-    const extension = Object.keys(table).find((key) => table[key] === mediaType);
-    if (extension) return extension.slice(1);
-  }
-  return undefined;
+ * first one `table` lists for it, every image and video table above unless
+ * given one, so `jpg` and `mp4` rather than `jpeg` and `m4v`; undefined for a
+ * type the table doesn't name. */
+export function extensionForMediaType(
+  mediaType: string,
+  table: Record<string, string> = MEDIA_EXTENSIONS,
+): string | undefined {
+  return Object.keys(table)
+    .find((key) => table[key] === mediaType)
+    ?.slice(1);
 }
 
 export function notAVideo(rootedPath: string): string {

@@ -5,20 +5,6 @@ import { fileStemFor, isHiddenName } from "../protocol/entryName.ts";
 import { refuseLink } from "./rootedFiles.ts";
 import { withFileLock } from "./spaceFiles.ts";
 
-/** The extension a generated result of each type is saved under. */
-export const IMAGE_EXTENSIONS_BY_TYPE: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-
-export const VIDEO_EXTENSIONS_BY_TYPE: Record<string, string> = {
-  "video/mp4": "mp4",
-  "video/webm": "webm",
-  "video/quicktime": "mov",
-};
-
 /** How a result's name begins, before `_` and its digest: the prefix as its
  * run filled the dates in, `{{$number}}` still to come, and as typed,
  * placeholders and all, which a result already made is matched against.

@@ -131,6 +131,23 @@ describe("createJobRunner", () => {
     expect(records.get("waited")?.delivered).toBe(true);
   });
 
+  it("names a clip for its type, and a clip whatever else its provider calls it", async () => {
+    const sent = (mediaType: string) => async (): Promise<VideoStatusResult> => ({
+      status: "completed",
+      videos: [{ type: "binary", data: MP4, mediaType }],
+      warnings: [],
+      response,
+    });
+    status = sent("video/quicktime");
+    add(job("mov"));
+    expect(await runner.collect(job("mov"))).toEqual({ file: `_${"b".repeat(12)}.mov` });
+
+    status = sent("image/png");
+    const png = job("png", { digest: "c".repeat(64) });
+    add(png);
+    expect(await runner.collect(png)).toEqual({ file: `_${"c".repeat(12)}.mp4` });
+  });
+
   it("counts an outcome delivered and owed while a window's run waits on it", async () => {
     add(job("watched"));
     await runner.watched(["watched"]);

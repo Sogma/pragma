@@ -23,6 +23,7 @@ import {
   rawFileTypeForPath,
   splitDocumentName,
   thumbnailKindForPath,
+  VIDEO_EXTENSIONS,
   vectorImageMediaTypeForPath,
   videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
@@ -85,7 +86,22 @@ describe("extensionForMediaType", () => {
       "video/mp4",
       "video/quicktime",
     ];
-    expect(types.map(extensionForMediaType)).toEqual(["jpg", "png", "gif", "webp", "svg", "mp4", "mov"]);
+    expect(types.map((type) => extensionForMediaType(type))).toEqual([
+      "jpg",
+      "png",
+      "gif",
+      "webp",
+      "svg",
+      "mp4",
+      "mov",
+    ]);
+  });
+
+  it("names a type only from the table it is given", () => {
+    expect([
+      extensionForMediaType("video/quicktime", VIDEO_EXTENSIONS),
+      extensionForMediaType("image/png", VIDEO_EXTENSIONS),
+    ]).toEqual(["mov", undefined]);
   });
 
   it("names nothing for a type no table lists", () => {
