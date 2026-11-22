@@ -2,13 +2,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FLOW_NODE_REGISTRY } from "../../../src/protocol/flowNodes.ts";
 import type { FlowGraph, FlowNodeInstance } from "../../../src/protocol/types.ts";
-import type { SandboxReadResult } from "../../../web/core/apiClient.ts";
+import { ApiError, type SandboxReadResult } from "../../../web/core/apiClient.ts";
 import { type AppModeDeps, createAppMode, placeExposedNode } from "../../../web/flow/appMode.ts";
 import type { MenuOpenOptions } from "../../../web/services/menus.ts";
 import { drop } from "../support/drag.ts";
 import { fakeModelFields } from "../support/fakeModelFields.ts";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+// A Load Image field's picture zone, beside its chip, which is a drop
+// target too.
+const pictureZone = (pane: HTMLElement) =>
+  pane.querySelector(".flow-node-image-picker > .flow-dropzone:not(.flow-space-drop)") as HTMLElement;
 // jsdom lays nothing out, so there is no resize to observe.
 globalThis.ResizeObserver ??= class {
   observe() {}
@@ -44,6 +48,7 @@ function setup(nodes: FlowNodeInstance[], overrides: Partial<AppModeDeps> = {}) 
     flowPath: () => "story.flow.html",
     modelFields: fakeModelFields(),
     contextMenu: { open: (options) => void opened.push(options), close() {}, isOpen: () => false },
+    openChipMenu: vi.fn(),
     regenerate: vi.fn(),
     run: vi.fn(async () => undefined),
     showRuns: vi.fn(),
@@ -426,7 +431,7 @@ describe("appMode", () => {
     const loadImage = node("loadImage", {}, ["imagePath"]);
     const { appMode, elements } = setup([loadImage], { read: vi.fn(async () => image), ensureCapability });
     appMode.setActive(true);
-    const zone = elements.appModePane.querySelector(".flow-node-image-picker .flow-dropzone") as HTMLElement;
+    const zone = pictureZone(elements.appModePane);
     const asked = { type: "readFile", path: "refs/plate.png" };
     drop(zone, "refs/plate.png", true);
     await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, false));
@@ -445,7 +450,7 @@ describe("appMode", () => {
     const loadVideo = node("loadVideo", {}, ["videoPath"]);
     const { appMode, elements } = setup([loadVideo], { ensureCapability });
     appMode.setActive(true);
-    const zone = elements.appModePane.querySelector(".flow-app-video-zone") as HTMLElement;
+    const zone = elements.appModePane.querySelector(".flow-space-drop") as HTMLElement;
     const asked = { type: "readFile", path: "clips/take.mp4" };
     drop(zone, "clips/take.mp4", true);
     await vi.waitFor(() => expect(ensureCapability).toHaveBeenLastCalledWith(asked, false));
@@ -462,10 +467,64 @@ describe("appMode", () => {
     const { appMode, elements } = setup([loadImage], { read, ensureCapability });
     appMode.setActive(true);
     await tick();
-    const zone = elements.appModePane.querySelector(".flow-node-image-picker .flow-dropzone") as HTMLElement;
+    const zone = pictureZone(elements.appModePane);
     expect(zone.textContent).toBe('"refs/logo.svg" is a vector image, not a raster image');
     expect(ensureCapability).not.toHaveBeenCalled();
     expect(read).not.toHaveBeenCalled();
+  });
+
+  // The chip and its states are the card's: a stored image whose file is gone
+  // reads as missing, and the picture's place goes back to its prompt.
+  it("an exposed image picker shows a stored file that is gone as a missing chip", async () => {
+    const read = vi.fn(async () => Promise.reject(new ApiError('No file at "refs/gone.png"', 404)));
+    const loadImage = node("loadImage", { imagePath: "refs/gone.png" }, ["imagePath"]);
+    const { appMode, elements } = setup([loadImage], { read });
+    appMode.setActive(true);
+    const chip = elements.appModePane.querySelector(".flow-node-image-picker > .flow-space-drop") as HTMLElement;
+    await vi.waitFor(() => expect(chip.classList.contains("missing")).toBe(true));
+    expect(pictureZone(elements.appModePane).textContent).toBe("Click or drop an image");
+  });
+
+  // Expose is the canvas's, and every field here is exposed already, so a
+  // right-click offers only the picture's own actions.
+  it("an exposed image picker's right-click offers Choose image and Clear, and no Expose", async () => {
+    const image: SandboxReadResult = { kind: "image", mediaType: "image/png", data: "AAAA" };
+    const loadImage = node("loadImage", { imagePath: "refs/plate.png" }, ["imagePath"]);
+    const { appMode, elements, opened } = setup([loadImage], { read: vi.fn(async () => image) });
+    appMode.setActive(true);
+    const zone = pictureZone(elements.appModePane);
+    await vi.waitFor(() => expect(zone.querySelector(".flow-picture")).not.toBeNull());
+    zone.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    const items = opened.at(-1)?.items ?? [];
+    expect(items.map((item) => item.label)).toEqual(["Choose image…", "Clear"]);
+    void items[1].run?.({ tab: { kind: "empty" }, pane: undefined }, undefined);
+    expect([loadImage.config.imagePath, zone.textContent]).toEqual([undefined, "Click or drop an image"]);
+  });
+
+  // A Clear draws the card again; here it draws the picker again, in its
+  // place, and the card still remounts on leaving.
+  it("an exposed video picker's Clear draws the picker again in its place", () => {
+    // jsdom plays no media.
+    const media = [
+      vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {}),
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {}),
+    ];
+    const loadVideo = node("loadVideo", { videoPath: "clips/take.mp4" }, ["videoPath"]);
+    const { appMode, elements, deps } = setup([loadVideo]);
+    appMode.setActive(true);
+    const field = elements.appModePane.querySelector('[data-node-id="loadVideo-1"] .flow-app-field') as HTMLElement;
+    const chip = field.querySelector(".flow-space-drop") as HTMLElement;
+    chip.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 5, clientY: 6 }));
+    expect(deps.openChipMenu).toHaveBeenLastCalledWith(5, 6, { file: "clips/take.mp4" }, expect.any(Function));
+
+    vi.mocked(deps.openChipMenu).mock.calls.at(-1)?.[3]?.();
+    expect(loadVideo.config.videoPath).toBeUndefined();
+    const redrawn = field.querySelector(".flow-space-drop") as HTMLElement;
+    expect(redrawn).not.toBe(chip);
+    expect(redrawn.textContent).toBe("Drag a clip from your space here");
+    appMode.setActive(false);
+    expect(deps.remountNodes).toHaveBeenCalledWith(["loadVideo-1"]);
+    for (const spy of media) spy.mockRestore();
   });
 
   it("shows no card for an unregistered node type or for a node none of whose exposed fields builds", () => {

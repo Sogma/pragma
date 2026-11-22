@@ -17,6 +17,7 @@ import {
   CHART_TYPES,
   chartSpecFrom,
   type FlowCapabilityDeclaration,
+  type FlowGraph,
   type FlowNodeInstance,
   type FlowPortType,
   isAppletFile,
@@ -98,6 +99,18 @@ export interface PickerDeps {
   // What a loader's output dots show on hover: the facts of the file it read,
   // by output port; a port left out shows nothing.
   showPinValues(node: FlowNodeInstance, values: Record<string, string | undefined>): void;
+}
+
+/** The node and output port wired into `nodeId`'s input `portId`, as every
+ * surface that builds pickers answers PickerDeps' `sourceOf`. */
+export function sourceIn(
+  graph: FlowGraph,
+  nodeId: string,
+  portId: string,
+): { node: FlowNodeInstance; portId: string } | undefined {
+  const edge = graph.edges.find((e) => e.target === nodeId && e.targetPort === portId);
+  const node = edge && graph.nodes.find((n) => n.id === edge.source);
+  return edge && node ? { node, portId: edge.sourcePort } : undefined;
 }
 
 export interface Pickers {

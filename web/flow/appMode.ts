@@ -2,10 +2,11 @@
 // Mode section) — a plain form of exactly the exposed fields plus a
 // draggable Run item.
 //
-// It reuses the graph card's field CSS and markup but never its
-// DOM-building helpers: those register elements in the view's per-node maps
-// keyed by node id alone, so an App Mode copy would silently overwrite the
-// card's entry and break its widget visibility on the next edge change.
+// It reuses the graph card's field CSS and markup, and its pickers through an
+// instance over App Mode's own deps, but never the card's DOM-building
+// helpers: those register elements in the view's per-node maps keyed by node
+// id alone, so an App Mode copy would silently overwrite the card's entry and
+// break its widget visibility on the next edge change.
 
 import { APPLET_NODE_TYPE } from "../../src/protocol/appletNode.ts";
 import type { PortValue } from "../../src/protocol/flowExecutors.ts";
@@ -19,7 +20,7 @@ import {
   nodePorts,
   nodesLeftOut,
 } from "../../src/protocol/flowNodes.ts";
-import { basenameOf, formatRootedPath } from "../../src/protocol/rootedPath.ts";
+import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 import type {
   FlowCapabilityDeclaration,
@@ -32,15 +33,11 @@ import {
   type AppletManifest,
   chartSpecFrom,
   isMarkdownFile,
-  notARasterImage,
-  notAVideo,
-  RASTER_IMAGE_MEDIA_TYPES,
   rasterImageMediaTypeForPath,
-  videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
-import { desktopFiles, isEntryDrop, readDraggedPath, stripExtension } from "../core/paths.ts";
+import { stripExtension } from "../core/paths.ts";
 import { buildCopyButton, buildRunCount, setRunCount } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -55,9 +52,9 @@ import {
   regenerateHint,
 } from "./controls.ts";
 import type { FlowElements } from "./flowElements.ts";
-import { flowPickPath, flowStoredPath, flowTreePath } from "./flowPaths.ts";
+import { flowPickPath, flowTreePath } from "./flowPaths.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
-import { createPickedPicture, type PickedFile, storedFile } from "./pickerHud.ts";
+import { createPickers, type PathPicker, type PickerDeps, type Pickers, sourceIn } from "./pickers.ts";
 import { createResultClip, type ResultClip } from "./resultClip.ts";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -143,6 +140,8 @@ export interface AppModeDeps {
   modelFields: ModelFields;
   // The menu a select widget's picker opens.
   contextMenu: ContextMenuService;
+  // A loaded chip's right-click, the card's own menu.
+  openChipMenu: PickerDeps["openChipMenu"];
   run(): Promise<void>;
   // Regenerate: the node alone, with a new seed, on its last inputs.
   regenerate(nodeId: string): void;
@@ -208,8 +207,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   // app receives while the clip is how it reads here.
   const appModeClipViews = new Map<string, { value: HTMLElement; clip: ResultClip; port: string }>();
   const appModeAppletFrames = new Map<string, AppletFrame>();
-  // Each Load Video picker's clip, let go of with the form.
-  const appModePickerClips = new Set<ResultClip>();
+  // Each Load picker's clean-up, a clip's player among them, run with the
+  // form's.
+  const appModePickers = new Set<() => void>();
   // Each reusing node's Regenerate, by node id. It shows only beside a result
   // its field shows, since it asks for another, and on a node that holds on
   // request only while it holds, so a switch edit here updates it in place.
@@ -385,8 +385,8 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     appModeClipViews.clear();
     for (const frame of appModeAppletFrames.values()) frame.dispose();
     appModeAppletFrames.clear();
-    for (const clip of appModePickerClips) clip.dispose();
-    appModePickerClips.clear();
+    for (const dispose of appModePickers) dispose();
+    appModePickers.clear();
   }
 
   // The Applet itself, a second instance over the same node: what it reports
@@ -580,214 +580,61 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
-  // loadImage's dropzone, built independently of the graph card's — same
-  // OS-file/tree-drag/preview behavior, writing the same shared pickedImages
-  // map (the run reads it directly) and node.config.imagePath. A library
-  // image is accepted as in Graph Mode: a path the node can hold in one view
-  // it must hold in the other, or the views disagree about its config.
-  function buildAppModeImageField(node: FlowNodeInstance): HTMLDivElement {
-    const wrap = document.createElement("div");
-    wrap.className = "flow-app-field";
-    const label = document.createElement("label");
-    label.className = "flow-config-label";
-    label.textContent = "Image";
-
-    const picker = document.createElement("div");
-    picker.className = "flow-node-image-picker";
-
-    const zone = document.createElement("div");
-    zone.className = "flow-dropzone nodrag";
-    zone.textContent = "Click or drop an image";
-
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = RASTER_IMAGE_MEDIA_TYPES.join(",");
-    input.hidden = true;
-    zone.appendChild(input);
-
-    const chooseButton = document.createElement("button");
-    chooseButton.type = "button";
-    chooseButton.className = "nodrag flow-node-image-choose";
-    chooseButton.textContent = "Choose image";
-    chooseButton.addEventListener("click", () => input.click());
-
-    // As on the card: only while something is picked.
-    const clearButton = document.createElement("button");
-    clearButton.type = "button";
-    clearButton.className = "nodrag flow-node-image-choose";
-    clearButton.textContent = "Clear";
-    clearButton.hidden = true;
-    clearButton.addEventListener("click", () => {
-      deps.pickedImages.delete(node.id);
-      zone.replaceChildren("Click or drop an image", input);
-      clearButton.hidden = true;
-      if (node.config.imagePath !== undefined) {
-        node.config.imagePath = undefined;
-        persistAppModeEdit(node.id);
-      }
+  // The card's own pickers over App Mode's deps, so they register in none of
+  // the card's maps. An edit through one marks its card for a remount on
+  // leaving. A right-click offers the field's own actions, never Expose,
+  // which is the canvas's: every field here is exposed already.
+  function pickersFor(node: FlowNodeInstance, remount: () => void): Pickers {
+    return createPickers({
+      persistGraph: () => persistAppModeEdit(node.id),
+      saveGraphNow: deps.saveGraphNow,
+      ensureCapability: deps.ensureCapability,
+      read: deps.read,
+      pickedImages: deps.pickedImages,
+      directoryChildren: deps.directoryChildren,
+      flowPath: deps.flowPath,
+      bindExposeToggle: (_node, _id, _portType, labelEl, contextTarget = labelEl, actions = () => []) =>
+        contextTarget.addEventListener("contextmenu", (event) => {
+          const items = actions();
+          if (items.length === 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          deps.contextMenu.open({ at: { x: event.clientX, y: event.clientY }, ariaLabel: "Field", items });
+        }),
+      sourceOf: (nodeId, portId) => sourceIn(deps.graph(), nodeId, portId),
+      sourceLoaded: () => {},
+      openChipMenu: deps.openChipMenu,
+      remount,
+      // The chip says so, and the card counts it.
+      fileMissing: () => {},
+      layoutChanged: () => {},
+      previewResult: deps.previewResult,
+      contextMenu: deps.contextMenu,
+      showPinValues: () => {},
     });
-
-    function showPreview(dataUrl: string, file: PickedFile): void {
-      zone.replaceChildren(createPickedPicture(dataUrl, file).el, input);
-      clearButton.hidden = false;
-    }
-
-    function handleFile(file: File): void {
-      if (!(RASTER_IMAGE_MEDIA_TYPES as readonly string[]).includes(file.type)) {
-        zone.textContent = `Unsupported type: ${file.type || "unknown"}`;
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === "string" ? reader.result : "";
-        const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-        deps.pickedImages.set(node.id, { mediaType: file.type, data: base64, name: file.name });
-        showPreview(dataUrl, { name: file.name, size: file.size });
-        if (node.config.imagePath !== undefined) {
-          node.config.imagePath = undefined;
-          persistAppModeEdit(node.id);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // The shared declaration helper, as in pickers.ts, so the key requested
-    // here is the one the saved graph derives.
-    async function loadFromPath(storedPath: string, consented = false): Promise<void> {
-      // Shown before any run, in the words the run fails with.
-      if (!rasterImageMediaTypeForPath(storedPath)) {
-        zone.textContent = notARasterImage(storedPath);
-        return;
-      }
-      const granted = await deps.ensureCapability({ type: "readFile", path: storedPath }, consented);
-      if (!granted) return;
-      try {
-        const result = await deps.read(storedPath);
-        if (result?.kind !== "image") return;
-        deps.pickedImages.delete(node.id);
-        const shown = flowTreePath(deps.flowPath(), storedPath);
-        showPreview(`data:${result.mediaType};base64,${result.data}`, storedFile(shown, result.data));
-      } catch (error) {
-        zone.textContent = error instanceof Error ? error.message : "Couldn't load that image.";
-      }
-    }
-
-    function pickStoredPath(storedPath: string, consented: boolean): void {
-      node.config.imagePath = storedPath;
-      persistAppModeEdit(node.id);
-      void (async () => {
-        if (!(await deps.saveGraphNow())) {
-          zone.textContent = "Couldn't save before requesting permission.";
-          return;
-        }
-        await loadFromPath(storedPath, consented);
-      })();
-    }
-
-    zone.addEventListener("click", () => input.click());
-    input.addEventListener("change", () => {
-      const file = input.files?.[0];
-      if (file) handleFile(file);
-    });
-    zone.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      zone.classList.add("drag-over");
-    });
-    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-    zone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      zone.classList.remove("drag-over");
-      const [file] = desktopFiles(event);
-      if (file) {
-        handleFile(file);
-        return;
-      }
-      const dragged = readDraggedPath(event);
-      if (!dragged) return;
-      if (!rasterImageMediaTypeForPath(dragged.path)) {
-        zone.textContent = `Not a raster image: ${formatRootedPath(dragged)}`;
-        return;
-      }
-      pickStoredPath(flowStoredPath(deps.flowPath(), dragged), isEntryDrop(event));
-    });
-
-    if (typeof node.config.imagePath === "string" && node.config.imagePath) void loadFromPath(node.config.imagePath);
-
-    const buttons = document.createElement("div");
-    buttons.className = "flow-node-image-buttons";
-    buttons.append(chooseButton, clearButton);
-    picker.append(zone, buttons);
-    wrap.append(label, picker);
-    return wrap;
   }
 
-  // loadVideo's pick, built apart from the card's as the image field is: a
-  // drag from the tree, a library's included, writes the same
-  // config.videoPath, and the clip plays where it was dropped.
-  function buildAppModeVideoField(node: FlowNodeInstance): HTMLDivElement {
+  // A Load node's file pick: the card's picker under the field's label. A
+  // Clear that draws the card again draws the picker again, in place.
+  function buildAppModePickerField(
+    node: FlowNodeInstance,
+    label: string,
+    build: (pickers: Pickers) => PathPicker & { dispose?(): void },
+  ): HTMLDivElement {
     const wrap = document.createElement("div");
     wrap.className = "flow-app-field";
-    const label = document.createElement("label");
-    label.className = "flow-config-label";
-    label.textContent = "Video";
-    const prompt = "Drop a clip from your space";
-    const zone = document.createElement("div");
-    zone.className = "flow-dropzone flow-app-video-zone nodrag";
-    const clip = createResultClip("flow-app-clip", deps.previewResult, deps.contextMenu);
-    appModePickerClips.add(clip);
-
-    const clearButton = document.createElement("button");
-    clearButton.type = "button";
-    clearButton.className = "nodrag flow-node-image-choose";
-    clearButton.textContent = "Clear";
-
-    function show(path: string): void {
-      clip.show(path ? flowTreePath(deps.flowPath(), path) : undefined);
-      zone.replaceChildren(path ? clip.el : prompt);
-      clearButton.hidden = !path;
+    const labelEl = document.createElement("label");
+    labelEl.className = "flow-config-label";
+    labelEl.textContent = label;
+    let picker = build(pickersFor(node, redraw));
+    function redraw(): void {
+      const next = build(pickersFor(node, redraw));
+      picker.el.replaceWith(next.el);
+      picker.dispose?.();
+      picker = next;
     }
-
-    clearButton.addEventListener("click", () => {
-      delete node.config.videoPath;
-      persistAppModeEdit(node.id);
-      show("");
-    });
-    zone.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      zone.classList.add("drag-over");
-    });
-    zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-    zone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      zone.classList.remove("drag-over");
-      const dragged = readDraggedPath(event);
-      if (!dragged) {
-        if (desktopFiles(event).length > 0) zone.textContent = "Add the clip to your space first, then drag it in";
-        return;
-      }
-      if (!videoMediaTypeForPath(dragged.path)) {
-        zone.textContent = notAVideo(formatRootedPath(dragged));
-        return;
-      }
-      const consented = isEntryDrop(event);
-      const storedPath = flowStoredPath(deps.flowPath(), dragged);
-      node.config.videoPath = storedPath;
-      persistAppModeEdit(node.id);
-      show(storedPath);
-      void (async () => {
-        if (!(await deps.saveGraphNow())) {
-          zone.textContent = "Couldn't save before requesting permission.";
-          return;
-        }
-        await deps.ensureCapability({ type: "readFile", path: storedPath }, consented);
-      })();
-    });
-
-    show(typeof node.config.videoPath === "string" ? node.config.videoPath : "");
-    const buttons = document.createElement("div");
-    buttons.className = "flow-node-image-buttons";
-    buttons.append(clearButton);
-    wrap.append(label, zone, buttons);
+    appModePickers.add(() => picker.dispose?.());
+    wrap.append(labelEl, picker.el);
     return wrap;
   }
 
@@ -923,8 +770,18 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       return field(buildAppModeConfigField(node, configField), kind);
     }
 
-    if (node.type === "loadImage" && id === "imagePath") return field(buildAppModeImageField(node), "imagePicker");
-    if (node.type === "loadVideo" && id === "videoPath") return field(buildAppModeVideoField(node), "videoResult");
+    if (node.type === "loadImage" && id === "imagePath") {
+      return field(
+        buildAppModePickerField(node, "Image", (pickers) => pickers.createDropzone(node)),
+        "imagePicker",
+      );
+    }
+    if (node.type === "loadVideo" && id === "videoPath") {
+      return field(
+        buildAppModePickerField(node, "Video", (pickers) => pickers.createVideoPicker(node)),
+        "videoResult",
+      );
+    }
     if (node.type === "loadRow" && id === "selectedValue") return field(buildAppModeTableRowField(node), "line");
     if (node.type === "loadFolderNote" && id === "notePath") {
       return field(buildAppModeFolderChildField(node, "Selected note", "notePath", isMarkdownFile), "line");

@@ -93,16 +93,6 @@
   }
 }
 
-.flow-node-image-choose {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border: 1px solid var(--border-input);
-  border-radius: var(--control-radius);
-  padding: 4px 8px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
 /* One muted line describing what the node has loaded (a table's rows and
    columns, a note's word count). Shared so every picker's stat line reads
    alike. */
@@ -151,22 +141,6 @@
    would indent the drop target past the fields below it. */
 .flow-node-config > .flow-dropzone {
   margin: 0;
-}
-
-/* Choose, and Clear while something is picked, side by side. */
-.flow-node-image-buttons {
-  display: flex;
-  gap: 6px;
-  margin: 0 10px 8px;
-}
-
-.flow-node-image-buttons > .flow-node-image-choose {
-  flex: 1;
-}
-
-.flow-node-image-choose:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
 }
 
 .flow-node-result {

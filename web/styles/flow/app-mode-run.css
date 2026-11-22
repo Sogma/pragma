@@ -1,0 +1,50 @@
+/* App Mode's Run tile (appMode.ts), the form's one action. */
+
+/* Run is an action tile: the primary fill, its icon beside its label, and
+   the count of runs going over its foot. Run fills the tile, so the whole
+   tile is the button and hovers as one. Placed after .flow-run-button, so
+   these win by source order. */
+.flow-app-run-item {
+  --tile-drop: 0 0 transparent;
+  position: relative;
+  display: flex;
+  border-radius: var(--panel-radius);
+  box-shadow: var(--tile-drop);
+  cursor: grab;
+}
+
+.flow-app-run-item:active {
+  cursor: grabbing;
+}
+
+.flow-app-run-button {
+  flex: 1 1 auto;
+  height: auto;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: inherit;
+  font-size: 18px;
+  cursor: inherit;
+}
+
+.flow-app-run-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* The label rises clear of the count while it shows. */
+.flow-app-run-item:has(> .flow-run-count:not([hidden])) > .flow-app-run-button {
+  padding-bottom: 28px;
+}
+
+.flow-app-run-item > .flow-run-count {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  translate: -50% 0;
+  height: 24px;
+  background: var(--bg-primary);
+  font-size: var(--small-font-size);
+  white-space: nowrap;
+}

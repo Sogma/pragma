@@ -90,6 +90,7 @@ import {
   type FieldPicker,
   type GenerationView,
   type PathPicker,
+  sourceIn,
 } from "./pickers.ts";
 import {
   attachPlaceholderSuggestions,
@@ -436,12 +437,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     directoryChildren: deps.directoryChildren,
     flowPath: deps.flowPath,
     bindExposeToggle,
-    sourceOf: (nodeId, portId) => {
-      const graph = deps.graph();
-      const edge = graph.edges.find((e) => e.target === nodeId && e.targetPort === portId);
-      const node = edge && graph.nodes.find((n) => n.id === edge.source);
-      return edge && node ? { node, portId: edge.sourcePort } : undefined;
-    },
+    sourceOf: (nodeId, portId) => sourceIn(deps.graph(), nodeId, portId),
     sourceLoaded: (nodeId) => {
       for (const edge of deps.graph().edges) if (edge.source === nodeId) sourceRefreshers.get(edge.target)?.();
     },

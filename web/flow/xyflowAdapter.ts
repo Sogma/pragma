@@ -451,13 +451,14 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
   });
 
   // The published-form counterpart to the canvas (appMode.ts), over the
-  // same, plus the graph run and a card remount.
+  // same, plus the graph run, a card remount and the chips' menu.
   const appMode = createAppMode({
     ...nodeDeps,
     elements,
     run: () => canvasRun.run(),
     showRuns: deps.showRuns,
     remountNodes,
+    openChipMenu: menus.openChipMenu,
   });
 
   // Run (canvasRun.ts), over the open Flow, its cards and form, and its saves.

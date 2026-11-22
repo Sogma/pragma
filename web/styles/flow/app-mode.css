@@ -145,18 +145,24 @@
   line-height: 1.4;
 }
 
-/* The picture fills the tile whole, as the gallery shows one: a reference's
-   edges matter. The graph's chip names the file, and so do the hover bars
-   here. */
+/* The picture fills the tile under its chip, as the gallery shows one: a
+   reference's edges matter. */
 .flow-app-field .flow-node-image-picker {
   gap: 6px;
 }
 
-.flow-app-field .flow-dropzone {
+/* The picture's zone, never the chip, which is a drop target too: sized as
+   a container, the chip would shrink to nothing. */
+.flow-app-field .flow-dropzone:not(.flow-space-drop) {
   margin: 0;
   padding: 0;
   overflow: hidden;
   container-type: size;
+}
+
+/* Flush with the field's label, as the zone is. */
+.flow-app-field .flow-space-drop {
+  margin: 0;
 }
 
 /* As on a gallery tile, the hover bars run along the frame's edges, not the
@@ -188,15 +194,15 @@
   }
 }
 
-.flow-app-field .flow-node-image-buttons {
-  flex: none;
-  margin: 0;
-}
-
-/* A Load Video's clip fills its pick's zone, whole under the player. */
-.flow-app-video-zone > .flow-app-clip {
+/* A Load Video's pick fills its field, and its clip the rest under the chip,
+   whole under the player, as a result's clip does below. */
+.flow-app-field > .flow-node-config,
+.flow-app-field .flow-node-video-result {
   flex: 1;
-  align-self: stretch;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 0;
 }
 
 .flow-app-output-header {
@@ -255,7 +261,8 @@
    tile sizes the frame, never the clip: an auto row would grow to the
    video's own height and push its bottom, and the controls, out of view. */
 .flow-app-output-value.has-clip,
-.flow-app-clip {
+.flow-app-clip,
+.flow-app-field .flow-node-video-result {
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
 }
@@ -266,7 +273,8 @@
   background: var(--bg-inset);
 }
 
-.flow-app-clip > video {
+.flow-app-clip > video,
+.flow-app-field .flow-node-video-result > video {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -347,53 +355,4 @@
 
 .flow-app-toggle .toggle-switch {
   margin-left: auto;
-}
-
-/* Run is an action tile: the primary fill, its icon beside its label, and
-   the count of runs going over its foot. Run fills the tile, so the whole
-   tile is the button and hovers as one. Placed after .flow-run-button, so
-   these win by source order. */
-.flow-app-run-item {
-  --tile-drop: 0 0 transparent;
-  position: relative;
-  display: flex;
-  border-radius: var(--panel-radius);
-  box-shadow: var(--tile-drop);
-  cursor: grab;
-}
-
-.flow-app-run-item:active {
-  cursor: grabbing;
-}
-
-.flow-app-run-button {
-  flex: 1 1 auto;
-  height: auto;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 8px;
-  border-radius: inherit;
-  font-size: 18px;
-  cursor: inherit;
-}
-
-.flow-app-run-button svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* The label rises clear of the count while it shows. */
-.flow-app-run-item:has(> .flow-run-count:not([hidden])) > .flow-app-run-button {
-  padding-bottom: 28px;
-}
-
-.flow-app-run-item > .flow-run-count {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  translate: -50% 0;
-  height: 24px;
-  background: var(--bg-primary);
-  font-size: var(--small-font-size);
-  white-space: nowrap;
 }
