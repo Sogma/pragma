@@ -1,8 +1,6 @@
 // The space's `_tags.json` (docs/protocol.md's Tags): read whole, changed one
 // tag at a time against the file as it stands, so a change made from another
 // window, or by hand, survives the next one made here.
-import { existsSync, readFileSync } from "node:fs";
-import { unlink } from "node:fs/promises";
 import type { SpaceTagsResponse } from "../protocol/api.ts";
 import {
   serializeTagsFile,
@@ -14,54 +12,29 @@ import {
   withTagChange,
 } from "../protocol/tags.ts";
 import { documentIndex } from "./documentIndex.ts";
+import { type EntryListFileKind, readEntryListFile } from "./entryListFile.ts";
 import { presetPaths } from "./presets.ts";
-import { linkBelow, namedEntryPath, refuseLink } from "./rootedFiles.ts";
-import { writeFileAtomic } from "./spaceFiles.ts";
+import { namedEntryPath } from "./rootedFiles.ts";
+import { changeEntryListFile } from "./spaceFiles.ts";
 
-/** A `_tags.json` that exists but can't be read. Never written over: the
- * write would replace whatever someone wrote by hand with one tag. */
-export class TagsFileError extends Error {}
-
-// A file whose tags read as none, and why, when it exists but doesn't read.
-function readTagsFile(spaceRoot: string): { file: Record<string, unknown> | undefined; problem?: string } {
-  const filePath = namedEntryPath(spaceRoot, TAGS_FILENAME);
-  // A link reads as absent, as every file Pragma names itself does.
-  if (!existsSync(filePath) || linkBelow(spaceRoot, filePath) !== undefined) return { file: undefined };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(filePath, "utf8"));
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { file: undefined, problem: `${TAGS_FILENAME} doesn't parse: ${reason}` };
-  }
-  const isObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
-  const file = isObject ? (parsed as Record<string, unknown>) : undefined;
-  if (!file || (file.tags !== undefined && !Array.isArray(file.tags))) {
-    return { file: undefined, problem: `${TAGS_FILENAME} holds no list of tags` };
-  }
-  return { file };
-}
+const TAGS_FILE: EntryListFileKind = {
+  name: TAGS_FILENAME,
+  at: (spaceRoot) => namedEntryPath(spaceRoot, TAGS_FILENAME),
+  lists: ["tags"],
+  serialize: serializeTagsFile,
+  noList: `${TAGS_FILENAME} holds no list of tags`,
+};
 
 /** The declared tags, in file order. Missing reads as none declared. */
 export function readSpaceTags(spaceRoot: string): SpaceTagsResponse {
-  const { file, problem } = readTagsFile(spaceRoot);
+  const { file, problem } = readEntryListFile(spaceRoot, TAGS_FILE);
   return problem === undefined ? { tags: tagDefinitions(file) } : { tags: [], problem };
 }
 
 /** Applies one tag's change and answers with the tags as they now are. No
  * tags and nothing else in it leaves no file. */
 export async function changeSpaceTag(spaceRoot: string, change: TagChange): Promise<SpaceTagsResponse> {
-  const filePath = namedEntryPath(spaceRoot, TAGS_FILENAME);
-  refuseLink(spaceRoot, filePath);
-  const { file, problem } = readTagsFile(spaceRoot);
-  if (problem !== undefined) throw new TagsFileError(`${problem}. Fix the file, then try again.`);
-  const next = withTagChange(file, change);
-  const tags = next.tags as unknown[];
-  if (tags.length === 0 && Object.keys(next).length === 1) {
-    if (existsSync(filePath)) await unlink(filePath);
-  } else {
-    await writeFileAtomic(filePath, serializeTagsFile(next));
-  }
+  const next = await changeEntryListFile(spaceRoot, TAGS_FILE, (file) => withTagChange(file, change));
   return { tags: tagDefinitions(next) };
 }
 

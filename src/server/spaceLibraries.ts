@@ -6,7 +6,7 @@
 // host located for another space, never from a request (docs/architecture.md's
 // Document writes and reference integrity).
 import { type Dirent, existsSync } from "node:fs";
-import { readdir, readFile, unlink } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   findSpaceId,
@@ -18,51 +18,33 @@ import {
 import type { LibraryEntry, LibraryOffer, LibraryRow } from "../protocol/api.ts";
 import { BOOKMARKS_FILENAME, BOOKMARKS_FOLDER } from "../protocol/bookmarks.ts";
 import { isHiddenName } from "../protocol/entryName.ts";
-import {
-  LIBRARIES_FILENAME,
-  type LibraryChange,
-  libraryDeclarations,
-  serializeLibrariesFile,
-  withLibraryChange,
-} from "../protocol/libraries.ts";
+import { type LibraryChange, libraryDeclarations, withLibraryChange } from "../protocol/libraries.ts";
 import { isLibraryId } from "../protocol/rootedPath.ts";
+import { EntryListFileError } from "./entryListFile.ts";
 import {
   isAccess,
+  LIBRARIES_FILE,
   libraryLocations,
   libraryRows,
   mintLibraryId,
   readLibraries,
   readLibrariesFile,
 } from "./libraries.ts";
-import { namedEntryPath, refuseLink } from "./rootedFiles.ts";
-import { writeFileAtomic } from "./spaceFiles.ts";
-
-/** A `_libraries.json` that exists but can't be read. Never written over: the
- * write would replace whatever someone wrote by hand with one library. */
-export class LibrariesFileError extends Error {}
+import { changeEntryListFile } from "./spaceFiles.ts";
 
 /** A library id the space doesn't declare. */
 export class UnknownLibraryError extends Error {}
 
 function declaredLibraries(spaceRoot: string) {
   const { file, problem } = readLibrariesFile(spaceRoot);
-  if (problem !== undefined) throw new LibrariesFileError(`${problem}. Fix the file, then try again.`);
+  if (problem !== undefined) throw new EntryListFileError(problem);
   return libraryDeclarations(file);
 }
 
 /** Applies one library's change to the space's `_libraries.json`. A file left
  * declaring none and holding nothing else is removed. */
 export async function changeSpaceLibrary(spaceRoot: string, change: LibraryChange): Promise<void> {
-  const filePath = namedEntryPath(spaceRoot, LIBRARIES_FILENAME);
-  refuseLink(spaceRoot, filePath);
-  const { file, problem } = readLibrariesFile(spaceRoot);
-  if (problem !== undefined) throw new LibrariesFileError(`${problem}. Fix the file, then try again.`);
-  const next = withLibraryChange(file, change);
-  if ((next.libraries as unknown[]).length === 0 && Object.keys(next).length === 1) {
-    if (existsSync(filePath)) await unlink(filePath);
-  } else {
-    await writeFileAtomic(filePath, serializeLibrariesFile(next));
-  }
+  await changeEntryListFile(spaceRoot, LIBRARIES_FILE, (file) => withLibraryChange(file, change));
 }
 
 // `config` with the space's location for `id` set, or taken off.
@@ -92,7 +74,7 @@ function saveLocation(spaceRoot: string, id: string, location: LibraryLocation |
  * doesn't read. */
 export function spaceLibrary(spaceRoot: string, id: string): LibraryRow {
   const { libraries, problem } = libraryRows(spaceRoot);
-  if (problem !== undefined) throw new LibrariesFileError(`${problem}. Fix the file, then try again.`);
+  if (problem !== undefined) throw new EntryListFileError(problem);
   const row = libraries.find((library) => library.id === id);
   if (row === undefined) throw new UnknownLibraryError("Not one of this space's libraries");
   return row;

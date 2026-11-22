@@ -3,12 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { bookmarksAfterMove } from "../../src/protocol/bookmarks.ts";
-import {
-  BookmarksFileError,
-  changeSpaceBookmark,
-  keepSpaceBookmarks,
-  readSpaceBookmarks,
-} from "../../src/server/spaceBookmarks.ts";
+import { EntryListFileError } from "../../src/server/entryListFile.ts";
+import { changeSpaceBookmark, keepSpaceBookmarks, readSpaceBookmarks } from "../../src/server/spaceBookmarks.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 
 let space: string;
@@ -101,7 +97,7 @@ describe("the space's bookmarks", () => {
     const read = readSpaceBookmarks(space);
     expect(read.bookmarks).toEqual([]);
     expect(read.problem).toMatch(/^\.pragma\/bookmarks\.json doesn't parse: /);
-    await expect(changeSpaceBookmark(space, { add: "notes/a.md" })).rejects.toBeInstanceOf(BookmarksFileError);
+    await expect(changeSpaceBookmark(space, { add: "notes/a.md" })).rejects.toBeInstanceOf(EntryListFileError);
     await keepSpaceBookmarks(space, (file) => bookmarksAfterMove(file, "notes", "archive"));
     expect(readFileSync(bookmarksFile(), "utf8")).toBe('{ "bookmarks": [ { "path": "notes/a.md" }, ] }');
   });

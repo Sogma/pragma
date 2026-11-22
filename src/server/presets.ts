@@ -2,13 +2,11 @@
 // listed folder holds as this host finds it, changed one folder at a time
 // against the file as it stands, as `_tags.json` is, and kept on its folders
 // through a move or delete.
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
 import type { PresetFolderView, SpacePresetsResponse, SpaceTreeNode } from "../protocol/api.ts";
 import { libraryDeclarations } from "../protocol/libraries.ts";
 import {
   formatPresetFolder,
-  isPresetKind,
   isPresetPath,
   PRESET_KINDS,
   PRESETS_FILENAME,
@@ -24,37 +22,28 @@ import {
 } from "../protocol/presets.ts";
 import { formatRootedPath, isLibraryRoot, type PathRoot } from "../protocol/rootedPath.ts";
 import { readTemplates, type TemplateSource } from "../protocol/templates.ts";
+import { type EntryListFileKind, readEntryListFile } from "./entryListFile.ts";
 import { readLibraries, readLibrariesFile } from "./libraries.ts";
-import { linkBelow, namedEntryPath, PathAccessError, refuseLink, resolveHeldPath } from "./rootedFiles.ts";
-import { writeFileAtomic } from "./spaceFiles.ts";
+import { namedEntryPath, PathAccessError, resolveHeldPath } from "./rootedFiles.ts";
+import { changeEntryListFile } from "./spaceFiles.ts";
 import { buildTree, spaceListing } from "./tree.ts";
-
-/** A `_presets.json` that exists but can't be read. Never written over: the
- * write would replace whatever someone wrote by hand with one folder. */
-export class PresetsFileError extends Error {}
 
 /** A folder the list can't take as asked, in the person's words. */
 export class PresetRefusal extends Error {}
 
+const PRESETS_FILE: EntryListFileKind = {
+  name: PRESETS_FILENAME,
+  at: (spaceRoot) => namedEntryPath(spaceRoot, PRESETS_FILENAME),
+  lists: PRESET_KINDS,
+  serialize: serializePresetsFile,
+  noList: `${PRESETS_FILENAME} holds no lists of folders`,
+  notList: (kind) => `${PRESETS_FILENAME}'s "${kind}" is no list of folders`,
+};
+
 /** The space's `_presets.json`, or why it lists nothing when it exists but
  * doesn't read. Missing lists nothing. */
 export function readPresetsFile(spaceRoot: string): { file: Record<string, unknown> | undefined; problem?: string } {
-  const filePath = namedEntryPath(spaceRoot, PRESETS_FILENAME);
-  // A link reads as absent, as every file Pragma names itself does.
-  if (!existsSync(filePath) || linkBelow(spaceRoot, filePath) !== undefined) return { file: undefined };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(filePath, "utf8"));
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { file: undefined, problem: `${PRESETS_FILENAME} doesn't parse: ${reason}` };
-  }
-  const isObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
-  const file = isObject ? (parsed as Record<string, unknown>) : undefined;
-  if (!file) return { file: undefined, problem: `${PRESETS_FILENAME} holds no lists of folders` };
-  const notList = PRESET_KINDS.find((kind) => file[kind] !== undefined && !Array.isArray(file[kind]));
-  if (notList) return { file: undefined, problem: `${PRESETS_FILENAME}'s "${notList}" is no list of folders` };
-  return { file };
+  return readEntryListFile(spaceRoot, PRESETS_FILE);
 }
 
 // Every search and index walk asks, so the file is read again only when its
@@ -138,30 +127,11 @@ export async function readSpacePresets(spaceRoot: string): Promise<SpacePresetsR
   return { folders: await Promise.all(folders.map((preset) => presetFolderView(spaceRoot, preset))) };
 }
 
-// A file left listing no folder and holding nothing else is removed, so a
-// space with no presets keeps no trace of them.
-async function write(spaceRoot: string, next: Record<string, unknown>): Promise<void> {
-  const filePath = namedEntryPath(spaceRoot, PRESETS_FILENAME);
-  refuseLink(spaceRoot, filePath);
-  listed.delete(spaceRoot);
-  const empty = Object.entries(next).every(
-    ([key, value]) => isPresetKind(key) && Array.isArray(value) && value.length === 0,
-  );
-  if (empty) {
-    if (existsSync(filePath)) await unlink(filePath);
-    return;
-  }
-  await writeFileAtomic(filePath, serializePresetsFile(next));
-}
-
 async function changeFile(
   spaceRoot: string,
   change: (file: Record<string, unknown> | undefined) => Record<string, unknown> | undefined,
 ): Promise<void> {
-  const { file, problem } = readPresetsFile(spaceRoot);
-  if (problem !== undefined) throw new PresetsFileError(`${problem}. Fix the file, then try again.`);
-  const next = change(file);
-  if (next !== undefined) await write(spaceRoot, next);
+  await changeEntryListFile(spaceRoot, PRESETS_FILE, change, () => listed.delete(spaceRoot));
 }
 
 /** Applies one folder's change and answers with every listed folder as it

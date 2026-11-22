@@ -3,32 +3,26 @@
 // entry keeps (docs/architecture.md's Space identity and state ownership). Reads
 // only: the write doorway, rootedFiles.ts, resolves `lib:` paths through
 // here, so the writers are in spaceLibraries.ts.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { findSpaceId, type LibraryLocation, loadGlobalConfig } from "../config/loadConfig.ts";
 import type { Access, LibraryEntry, LibraryRow, SpaceLibrariesResponse } from "../protocol/api.ts";
-import { LIBRARIES_FILENAME, libraryDeclarations } from "../protocol/libraries.ts";
+import { LIBRARIES_FILENAME, libraryDeclarations, serializeLibrariesFile } from "../protocol/libraries.ts";
 import { isLibraryId } from "../protocol/rootedPath.ts";
-import { linkBelow, namedEntryPath } from "./entryOnDisk.ts";
+import { type EntryListFileKind, readEntryListFile } from "./entryListFile.ts";
+import { namedEntryPath } from "./entryOnDisk.ts";
+
+export const LIBRARIES_FILE: EntryListFileKind = {
+  name: LIBRARIES_FILENAME,
+  at: (spaceRoot) => namedEntryPath(spaceRoot, LIBRARIES_FILENAME),
+  lists: ["libraries"],
+  serialize: serializeLibrariesFile,
+  noList: `${LIBRARIES_FILENAME} holds no list of libraries`,
+};
 
 /** The space's `_libraries.json`, or why it declares nothing when it exists
  * but doesn't read. Missing declares nothing. */
 export function readLibrariesFile(spaceRoot: string): { file: Record<string, unknown> | undefined; problem?: string } {
-  const filePath = namedEntryPath(spaceRoot, LIBRARIES_FILENAME);
-  // A link reads as absent, as every file Pragma names itself does.
-  if (!existsSync(filePath) || linkBelow(spaceRoot, filePath) !== undefined) return { file: undefined };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(filePath, "utf8"));
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { file: undefined, problem: `${LIBRARIES_FILENAME} doesn't parse: ${reason}` };
-  }
-  const isObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
-  const file = isObject ? (parsed as Record<string, unknown>) : undefined;
-  if (!file || (file.libraries !== undefined && !Array.isArray(file.libraries))) {
-    return { file: undefined, problem: `${LIBRARIES_FILENAME} holds no list of libraries` };
-  }
-  return { file };
+  return readEntryListFile(spaceRoot, LIBRARIES_FILE);
 }
 
 /** Where this host keeps each of the space's libraries, by id: none at all

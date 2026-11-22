@@ -3,7 +3,7 @@
 // through, the trash, and the nearest project README.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
-import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, rm, rmdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { TrashEntry } from "../protocol/api.ts";
 import { entryNameKey, isHiddenName, sanitizeEntryName } from "../protocol/entryName.ts";
@@ -20,6 +20,7 @@ import {
   splitDocumentName,
   videoMediaTypeForPath,
 } from "../protocol/types.ts";
+import { EntryListFileError, type EntryListFileKind, readEntryListFile } from "./entryListFile.ts";
 import { aliasedOnWindows, hiddenBelow, pathOnDisk } from "./entryOnDisk.ts";
 import {
   absent,
@@ -92,6 +93,37 @@ export async function writeFileAtomic(
     await rm(tempPath, { force: true }).catch(() => {});
     throw error;
   }
+}
+
+/** Changes `kind`'s file in `spaceRoot` to what `change` makes of the file as
+ * it stands, or leaves it for undefined, and answers with the file as it now
+ * is. One left holding only empty lists is removed, and its own folder with
+ * it once that is empty. `onWrite` runs just before the file changes. */
+export async function changeEntryListFile(
+  spaceRoot: string,
+  kind: EntryListFileKind,
+  change: (file: Record<string, unknown> | undefined) => Record<string, unknown> | undefined,
+  onWrite?: () => void,
+): Promise<Record<string, unknown> | undefined> {
+  const { file, problem } = readEntryListFile(spaceRoot, kind);
+  if (problem !== undefined) throw new EntryListFileError(problem);
+  const next = change(file);
+  if (next === undefined) return file;
+  const filePath = kind.at(spaceRoot);
+  refuseLink(spaceRoot, filePath);
+  onWrite?.();
+  const folder = kind.folder?.(spaceRoot);
+  const empty = Object.entries(next).every(
+    ([key, value]) => kind.lists.includes(key) && Array.isArray(value) && value.length === 0,
+  );
+  if (empty) {
+    if (existsSync(filePath)) await unlink(filePath);
+    if (folder !== undefined) await rmdir(folder).catch(() => undefined);
+  } else {
+    if (folder !== undefined) await mkdir(folder, { recursive: true });
+    await writeFileAtomic(filePath, kind.serialize(next));
+  }
+  return next;
 }
 
 /** A file's revision: an opaque token for its exact bytes, which a save

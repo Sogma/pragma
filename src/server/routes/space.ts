@@ -48,6 +48,7 @@ import { parseTableFile } from "../../protocol/tableFile.ts";
 import { isFlowFile, isTableFile, isTableLayout, thumbnailKindForPath } from "../../protocol/types.ts";
 import { classRows, folderRows, scopeFolderOf } from "../classRows.ts";
 import { entryDescription, entryExcerpt } from "../descriptions.ts";
+import { EntryListFileError } from "../entryListFile.ts";
 import { clearSpaceGrants } from "../grants.ts";
 import { noticeRevision } from "../history.ts";
 import {
@@ -65,7 +66,6 @@ import { listSites } from "../sites.ts";
 import { currentRevision } from "../spaceFiles.ts";
 import {
   describeSpaceLibrary,
-  LibrariesFileError,
   relabelSpaceLibrary,
   removeSpaceLibrary,
   setSpaceLibraryAccess,
@@ -509,7 +509,7 @@ export function mountSpaceRoutes(
   const libraryRefusal = (c: Context, error: unknown) => {
     const message = error instanceof Error ? error.message : "Internal error";
     if (error instanceof UnknownLibraryError) return c.text(message, 404);
-    if (error instanceof LibrariesFileError) return c.text(message, 409);
+    if (error instanceof EntryListFileError) return c.text(message, 409);
     return c.text(message, 500);
   };
 
