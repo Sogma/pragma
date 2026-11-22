@@ -1,6 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
 import {
   auth,
   type OAuthClientProvider,
@@ -29,6 +27,7 @@ import {
   TOKENS_PART,
 } from "../config/credentials.ts";
 import type { McpSignInStatus } from "../protocol/api.ts";
+import { type CallbackOutcome, createLoopbackCallbacks } from "./loopbackCallback.ts";
 
 /**
  * OAuth sign-in for an HTTP MCP connection. The person approves in their own
@@ -82,7 +81,6 @@ interface Session {
 interface Pending {
   target: SignInTarget;
   session: Session;
-  timer: NodeJS.Timeout;
 }
 
 // What a sign-in keeps in the open: enough to show it, refresh it and revoke
@@ -112,7 +110,6 @@ const REGISTRATION = "registration";
 const CALLBACK_PORT = 47913;
 // Early enough that a token can't lapse between the check and its request.
 const REFRESH_MARGIN_MS = 60_000;
-const PENDING_TIMEOUT_MS = 10 * 60_000;
 
 const slotOf = (target: SignInTarget): CredentialSlot => ({ kind: "mcp-sign-ins", id: target.id });
 const endpointOf = (target: SignInTarget): string | undefined => canonicalEndpointOrUndefined(target.url);
@@ -294,13 +291,13 @@ export async function saveMcpSignIn(
 
 export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
   const now = options.now ?? Date.now;
-  const pending = new Map<string, Pending>();
-  const failures = new Map<string, string>();
   const refreshes = new Map<string, Promise<string>>();
-  let listening: Promise<{ server: Server; redirectUrl: string }> | undefined;
-  let starting = 0;
-
-  const sameTarget = (a: SignInTarget, b: SignInTarget): boolean => a.id === b.id;
+  const callbacks = createLoopbackCallbacks<Pending>({
+    port: options.port ?? CALLBACK_PORT,
+    anyPortIfTaken: true,
+    path: "/callback",
+    answer,
+  });
 
   const expiryOf = (tokens: OAuthTokens): number | undefined =>
     tokens.expires_in === undefined ? undefined : now() + tokens.expires_in * 1000;
@@ -416,79 +413,23 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
     return session;
   }
 
-  function listen(server: Server, port: number): Promise<number> {
-    return new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(port, "127.0.0.1", () => {
-        server.off("error", reject);
-        resolve((server.address() as AddressInfo).port);
-      });
-    });
-  }
-
-  function openListener(): Promise<{ server: Server; redirectUrl: string }> {
-    listening ??= (async () => {
-      const server = createServer((req, res) => void onCallback(req, res));
-      let port: number;
-      try {
-        port = await listen(server, options.port ?? CALLBACK_PORT);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
-        port = await listen(server, 0);
-      }
-      return { server, redirectUrl: `http://127.0.0.1:${port}/callback` };
-    })();
-    return listening;
-  }
-
-  function closeListenerIfIdle(): void {
-    if (pending.size > 0 || starting > 0 || !listening) return;
-    const closing = listening;
-    listening = undefined;
-    void closing.then(({ server }) => server.close()).catch(() => {});
-  }
-
-  function finish(state: string, failure?: string): void {
-    const entry = pending.get(state);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    pending.delete(state);
-    if (failure) failures.set(entry.target.id, failure);
-    closeListenerIfIdle();
-  }
-
-  function dropPending(target: SignInTarget): void {
-    for (const [state, entry] of pending) {
-      if (!sameTarget(entry.target, target)) continue;
-      clearTimeout(entry.timer);
-      pending.delete(state);
-    }
-  }
-
-  async function onCallback(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    if (req.method !== "GET" || url.pathname !== "/callback") return void res.writeHead(404).end();
-    const state = url.searchParams.get("state") ?? "";
-    const entry = pending.get(state);
-    if (!entry) {
-      return page(res, 400, "This sign-in link has expired or was already used. Start signing in again from Pragma.");
-    }
-    const { target, session } = entry;
+  async function answer({ target, session }: Pending, url: URL): Promise<CallbackOutcome> {
     const code = url.searchParams.get("code");
     if (!code) {
       const reason = url.searchParams.get("error_description") ?? url.searchParams.get("error") ?? "no code came back";
-      finish(state, `${target.label} refused the sign-in: ${reason}`);
-      return page(res, 400, `Signing in to ${target.label} failed: ${reason}`);
+      return {
+        status: 400,
+        page: `Signing in to ${target.label} failed: ${reason}`,
+        failure: `${target.label} refused the sign-in: ${reason}`,
+      };
     }
     try {
       await auth(session.provider, { serverUrl: target.url, authorizationCode: code });
-      finish(state);
-      page(res, 200, `Signed in to ${target.label}. You can close this tab and go back to Pragma.`);
     } catch (error) {
       const message = `Signing in to ${target.label} failed: ${error instanceof Error ? error.message : String(error)}`;
-      finish(state, message);
-      page(res, 502, message);
+      return { status: 502, page: message, failure: message };
     }
+    return { status: 200, page: `Signed in to ${target.label}. You can close this tab and go back to Pragma.` };
   }
 
   // Ends a sign-in whose refresh token was refused, keeping its registration.
@@ -500,7 +441,7 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
       secrets: {},
       keep: [REGISTRATION],
     });
-    failures.set(target.id, "The sign-in expired.");
+    callbacks.fail(target, "The sign-in expired.");
     throw new SignInRequiredError(target.label);
   }
 
@@ -577,11 +518,8 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
   }
 
   return {
-    async start(target) {
-      dropPending(target);
-      failures.delete(target.id);
-      starting += 1;
-      try {
+    start(target) {
+      return callbacks.starting(target, async () => {
         const endpoint = endpointOf(target);
         if (!endpoint) throw new Error(`${target.label} needs an http or https URL.`);
         const slot = slotOf(target);
@@ -597,31 +535,26 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
             : { secrets: {} },
         );
         if (!claimed.ok) throw new Error(claimed.refused.message);
-        const { redirectUrl } = await openListener();
+        const redirectUrl = await callbacks.redirectUri();
         const state = randomBytes(16).toString("base64url");
         const session = sessionFor(target, endpoint, claimed.attempt, redirectUrl, state);
         await auth(session.provider, { serverUrl: target.url });
         if (!session.authorizationUrl) throw new Error(`${target.label} didn't ask for a browser sign-in.`);
         // A sign-out or a newer attempt during discovery wins.
         if (!(await claimed.attempt.current())) throw new Error("The sign-in was cancelled.");
-        const timer = setTimeout(() => finish(state, "The sign-in timed out. Start it again."), PENDING_TIMEOUT_MS);
-        timer.unref();
-        pending.set(state, { target, session, timer });
+        callbacks.add(state, { target, session });
         return session.authorizationUrl.href;
-      } finally {
-        starting -= 1;
-        closeListenerIfIdle();
-      }
+      });
     },
 
     async status(target) {
-      if ([...pending.values()].some((entry) => sameTarget(entry.target, target))) return { state: "pending" };
+      if (callbacks.isPending(target)) return { state: "pending" };
       const record = await credentialStore().inspect(slotOf(target));
       const problem = signInProblem(record);
       if (problem) return { state: "signed-out", message: problem };
       const signedIn =
         record.state === "live" && record.endpoint === endpointOf(target) && record.parts.includes(TOKENS_PART);
-      const message = failures.get(target.id) ?? (signedIn ? signInWarning(record) : undefined);
+      const message = callbacks.failure(target) ?? (signedIn ? signInWarning(record) : undefined);
       return { state: signedIn ? "signed-in" : "signed-out", ...(message ? { message } : {}) };
     },
 
@@ -657,9 +590,7 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
     },
 
     async signOut(target) {
-      dropPending(target);
-      closeListenerIfIdle();
-      failures.delete(target.id);
+      callbacks.forget(target);
       const endpoint = endpointOf(target);
       // Taken out of use first, so no request starts on a session being
       // ended. Matching URL or not: revocation goes to the server that issued
@@ -684,25 +615,10 @@ export function createMcpSignIns(options: McpSignInOptions = {}): McpSignIns {
       if (tokens) await revoke(detailsOf(ended.details), tokens);
     },
 
-    async close() {
-      for (const entry of pending.values()) clearTimeout(entry.timer);
-      pending.clear();
-      const closing = listening;
-      listening = undefined;
-      if (!closing) return;
-      const { server } = await closing;
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+    close() {
+      return callbacks.close();
     },
   };
-}
-
-function page(res: ServerResponse, status: number, text: string): void {
-  const escaped = text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
-  res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
-  res.end(
-    `<!doctype html><meta charset="utf-8"><title>Pragma</title>` +
-      `<body style="font: 16px/1.5 system-ui, sans-serif; margin: 3rem"><p>${escaped}</p></body>`,
-  );
 }
 
 export const mcpSignIns = createMcpSignIns();

@@ -1,6 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
 import type { SlotState } from "../config/credentialStore.ts";
 import {
   type AttemptWrite,
@@ -32,6 +30,7 @@ import {
   verifyChatGptIdToken,
   withoutTokens,
 } from "../protocol/chatgptAuth.ts";
+import { type CallbackOutcome, createLoopbackCallbacks } from "./loopbackCallback.ts";
 
 /**
  * Signing a `chatgpt` provider in with the person's ChatGPT account. They
@@ -69,7 +68,6 @@ export interface ChatGptSignInOptions {
 }
 
 const CALLBACK_PATH = "/auth/callback";
-const PENDING_TIMEOUT_MS = 10 * 60_000;
 // The name a first registration proposes, the same on every installation.
 const AGENT_NAME = "Pragma";
 const DYNAMIC_CLIENT = "dynamic_agent_client";
@@ -86,7 +84,6 @@ interface Pending {
   // The account the provider already uses: a sign-in as another is refused.
   subject?: string;
   email?: string;
-  timer: NodeJS.Timeout;
 }
 
 const random = (): string => randomBytes(32).toString("base64url");
@@ -108,51 +105,7 @@ function attemptFailure(result: Exclude<AttemptWrite, { ok: true }>): ChatGptPla
 export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGptSignIns {
   const now = options.now ?? Date.now;
   const hostId = options.hostId ?? chatGptHostId;
-  const pending = new Map<string, Pending>();
-  const failures = new Map<string, string>();
-  let listening: Promise<{ server: Server; port: number }> | undefined;
-  let starting = 0;
-
-  const sameTarget = (a: ChatGptSignInTarget, b: ChatGptSignInTarget): boolean => a.id === b.id;
-
-  function openListener(): Promise<{ server: Server; port: number }> {
-    listening ??= new Promise((resolve, reject) => {
-      const server = createServer((req, res) => void onCallback(req, res));
-      server.once("error", reject);
-      server.listen(options.port ?? 0, "127.0.0.1", () => {
-        server.off("error", reject);
-        resolve({ server, port: (server.address() as AddressInfo).port });
-      });
-    });
-    return listening.catch((error: unknown) => {
-      listening = undefined;
-      throw error;
-    });
-  }
-
-  function closeListenerIfIdle(): void {
-    if (pending.size > 0 || starting > 0 || !listening) return;
-    const closing = listening;
-    listening = undefined;
-    void closing.then(({ server }) => server.close()).catch(() => {});
-  }
-
-  function finish(state: string, failure?: string): void {
-    const entry = pending.get(state);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    pending.delete(state);
-    if (failure) failures.set(entry.target.id, failure);
-    closeListenerIfIdle();
-  }
-
-  function dropPending(target: ChatGptSignInTarget): void {
-    for (const [state, entry] of pending) {
-      if (!sameTarget(entry.target, target)) continue;
-      clearTimeout(entry.timer);
-      pending.delete(state);
-    }
-  }
+  const callbacks = createLoopbackCallbacks<Pending>({ port: options.port ?? 0, path: CALLBACK_PATH, answer });
 
   // The browser's return, with the code and, on a first registration, the
   // client id ChatGPT issued for Pragma on this account.
@@ -219,43 +172,19 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
       : "Signed in to ChatGPT, without permission to use your plan. Go back to Pragma to allow it.";
   }
 
-  async function onCallback(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const port = req.socket.localPort;
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
-    // Only this exact origin: a rebound DNS name reaches 127.0.0.1 too.
-    if (req.method !== "GET" || url.pathname !== CALLBACK_PATH || req.headers.host !== `127.0.0.1:${port}`) {
-      return void res.writeHead(404).end();
-    }
-    const states = url.searchParams.getAll("state");
-    const entry = states.length === 1 ? pending.get(states[0]) : undefined;
-    if (!entry) {
-      return page(res, 400, "This sign-in link has expired or was already used. Start signing in again from Pragma.");
-    }
-    const state = states[0];
+  async function answer(entry: Pending, url: URL, stillPending: () => boolean): Promise<CallbackOutcome> {
     const error = url.searchParams.get("error");
     if (error) {
       const reason =
         error === "access_denied" ? "The ChatGPT sign-in was declined." : `ChatGPT refused the sign-in: ${error}.`;
-      finish(state, reason);
-      return page(res, 400, reason);
+      return { status: 400, page: reason, failure: reason };
     }
-    try {
-      const done = await complete(entry, url, () => pending.get(state) === entry);
-      finish(state);
-      page(res, 200, done);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      finish(state, message);
-      page(res, 502, message);
-    }
+    return { status: 200, page: await complete(entry, url, stillPending) };
   }
 
   return {
-    async start(target, startOptions = {}) {
-      dropPending(target);
-      failures.delete(target.id);
-      starting += 1;
-      try {
+    start(target, startOptions = {}) {
+      return callbacks.starting(target, async () => {
         const slot = chatGptSignInSlot(target.id);
         // Checked before the browser opens: tokens that can't be saved would
         // be lost after the person approved.
@@ -265,8 +194,7 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
         if (!claimed.ok) throw new ChatGptPlanError("sign_in_unsaved", claimed.refused.message);
         const saved = chatGptDetails(claimed.details);
         const { authorization_endpoint } = await chatGptDiscovery();
-        const { port } = await openListener();
-        const redirectUri = `http://127.0.0.1:${port}${CALLBACK_PATH}`;
+        const redirectUri = await callbacks.redirectUri();
         const state = random();
         const nonce = random();
         const verifier = random();
@@ -290,9 +218,7 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
         }).toString();
         // A sign-out or a newer attempt while ChatGPT's settings were read wins.
         if (!(await claimed.attempt.current())) throw new ChatGptPlanError("cancelled", "The sign-in was cancelled.");
-        const timer = setTimeout(() => finish(state, "The sign-in timed out. Start it again."), PENDING_TIMEOUT_MS);
-        timer.unref();
-        pending.set(state, {
+        callbacks.add(state, {
           target,
           attempt: claimed.attempt,
           nonce,
@@ -301,21 +227,17 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
           clientId: saved.clientId,
           subject: saved.subject,
           email: saved.email,
-          timer,
         });
         return url.href;
-      } finally {
-        starting -= 1;
-        closeListenerIfIdle();
-      }
+      });
     },
 
     async status(target) {
-      if ([...pending.values()].some((entry) => sameTarget(entry.target, target))) return { state: "pending" };
+      if (callbacks.isPending(target)) return { state: "pending" };
       const record = await credentialStore().inspect(chatGptSignInSlot(target.id));
       const problem = signInProblem(record);
       if (problem) return { state: "signed-out", message: problem };
-      const message = failures.get(target.id);
+      const message = callbacks.failure(target);
       const extra = message ? { message } : {};
       if (record.state !== "live" || !record.parts.includes(TOKENS_PART)) return { state: "signed-out", ...extra };
       const saved = chatGptDetails(record.metadata);
@@ -329,9 +251,7 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
     },
 
     async signOut(target) {
-      dropPending(target);
-      closeListenerIfIdle();
-      failures.delete(target.id);
+      callbacks.forget(target);
       // Taken out of use first, so no request starts on a session being
       // ended; the tokens come back still protected, to revoke them.
       const ended = await endSignIn(chatGptSignInSlot(target.id), [TOKENS_PART], (current) =>
@@ -349,30 +269,10 @@ export function createChatGptSignIns(options: ChatGptSignInOptions = {}): ChatGp
       return { revoked: await revokeChatGptSignIn(signIn) };
     },
 
-    async close() {
-      for (const entry of pending.values()) clearTimeout(entry.timer);
-      pending.clear();
-      const closing = listening;
-      listening = undefined;
-      if (!closing) return;
-      const { server } = await closing;
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+    close() {
+      return callbacks.close();
     },
   };
-}
-
-function page(res: ServerResponse, status: number, text: string): void {
-  const escaped = text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
-  res.writeHead(status, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-    "referrer-policy": "no-referrer",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
-  });
-  res.end(
-    `<!doctype html><meta charset="utf-8"><title>Pragma</title>` +
-      `<body style="font: 16px/1.5 system-ui, sans-serif; margin: 3rem"><p>${escaped}</p></body>`,
-  );
 }
 
 /** The sign-in target for a `chatgpt` provider entry. */
