@@ -172,18 +172,13 @@ describe("createGuidesOverlay", () => {
     const choice = memorySetting(guides);
     const overlay = createGuidesOverlay(choice);
     const svg = overlay.element.querySelector(".video-guides-lines") as SVGSVGElement;
-    const markers = overlay.element.querySelector(".video-guides-markers") as SVGSVGElement;
-    // The shapes drawn, in their order, the guides' then the frame markers': each outline in the frames'
-    // group, and the level's marks while it shows.
+    // The shapes drawn, in their order: each outline in the frames' group, and the level's marks while it shows.
     const shown = () =>
-      [...svg.children, ...markers.children]
+      [...svg.children]
         .flatMap((node) =>
           node.tagName !== "g" ? [node] : node.getAttribute("display") === "none" ? [] : [...node.children],
         )
-        .filter(
-          (node) =>
-            (node.parentNode !== svg && node.parentNode !== markers) || node.getAttribute("display") === "inline",
-        )
+        .filter((node) => node.parentNode !== svg || node.getAttribute("display") === "inline")
         .map((node) => node.getAttribute("class"));
     // Where each name sits, as a share of the picture to a hundredth.
     const at = (share: string) => Math.round(Number.parseFloat(share) * 100) / 100;
@@ -194,18 +189,8 @@ describe("createGuidesOverlay", () => {
         at(name.style.top),
       ]);
     const box = (rect: Element) => ["x", "y", "width", "height"].map((name) => rect.getAttribute(name));
-    return { choice, overlay, svg, markers, shown, names, box };
+    return { choice, overlay, svg, shown, names, box };
   }
-
-  // The markers add their light to the picture's, which they could not do inside the halo's layer.
-  it("draws the frame markers in a layer of their own, beside the guides' haloed one", () => {
-    const { overlay, svg, markers } = draw({ ...NO_GUIDES, cross: true, level: true });
-    overlay.setSize(1920, 1080);
-    const shaded = overlay.element.querySelector(".video-guides-shaded");
-    expect([...overlay.element.children]).toEqual([shaded, markers]);
-    expect(svg.parentNode).toBe(shaded);
-    expect([svg.getAttribute("viewBox"), markers.getAttribute("viewBox")]).toEqual(["0 0 1920 1080", "0 0 1920 1080"]);
-  });
 
   it("stays hidden until the media's size is known, and while nothing is picked", () => {
     const { choice, overlay } = draw({ ...NO_GUIDES, title: true });
@@ -287,16 +272,16 @@ describe("createGuidesOverlay", () => {
 
   // On a 1920 by 1080 picture, the measured mark exactly: 7px bars from 4.5px off the middle out to 32.5px.
   it("draws the cross through the frame's middle, its lines out to the edges and stopping at its bars", () => {
-    const { choice, overlay, markers, shown } = draw({ ...NO_GUIDES, cross: true });
+    const { choice, overlay, svg, shown } = draw({ ...NO_GUIDES, cross: true });
     overlay.setSize(1920, 1080);
     expect(shown()).toEqual(["video-guides-line is-cross", "video-guides-cross-bars"]);
-    const [lines, bars, keep, cut] = [...markers.querySelectorAll("path")];
+    const [, , lines, bars, keep, cut] = [...svg.querySelectorAll("path")];
     expect(lines.getAttribute("d")).toBe("M960 0V507.5M960 572.5V1080M0 540H927.5M992.5 540H1920");
     expect(bars.getAttribute("d")).toBe(
       "M956.5 507.5H963.5V535.5H956.5Z M956.5 544.5H963.5V572.5H956.5Z M927.5 536.5H955.5V543.5H927.5Z M964.5 536.5H992.5V543.5H964.5Z",
     );
     // The bars' mask keeps the picture but where the lines run on through them.
-    const mask = markers.querySelector("mask") as SVGMaskElement;
+    const mask = svg.querySelector("mask") as SVGMaskElement;
     expect(bars.getAttribute("mask")).toBe(`url(#${mask.id})`);
     expect([keep.parentNode, cut.parentNode]).toEqual([mask, mask]);
     expect(keep.getAttribute("d")).toBe("M0 0H1920V1080H0Z");
@@ -416,10 +401,10 @@ describe("createGuidesOverlay", () => {
 
   // On a 1920 by 1080 picture the display draws in its own pixels from the middle, unscaled.
   it("draws the level display over the whole picture, its horizon out to both edges", () => {
-    const { choice, overlay, markers, shown } = draw({ ...NO_GUIDES, level: true });
+    const { choice, overlay, svg, shown } = draw({ ...NO_GUIDES, level: true });
     overlay.setSize(1920, 1080);
-    const level = markers.querySelector(".video-guides-level") as SVGGElement;
-    const horizon = markers.querySelector(".video-guides-level-horizon") as SVGPathElement;
+    const level = svg.querySelector(".video-guides-level") as SVGGElement;
+    const horizon = svg.querySelector(".video-guides-level-horizon") as SVGPathElement;
     expect(shown()).toEqual([
       "video-guides-level-horizon",
       "video-guides-level-ends",
@@ -456,9 +441,7 @@ describe("createGuidesOverlay", () => {
 
   // Ids are page-wide: a shared one would hand every player's bars the first player's mask.
   it("gives each overlay's cross a mask of its own", () => {
-    const masks = [draw(NO_GUIDES), draw(NO_GUIDES)].map(
-      ({ markers }) => markers.querySelector("mask") as SVGMaskElement,
-    );
+    const masks = [draw(NO_GUIDES), draw(NO_GUIDES)].map(({ svg }) => svg.querySelector("mask") as SVGMaskElement);
     expect(masks[0].id).not.toBe(masks[1].id);
   });
 

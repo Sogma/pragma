@@ -208,10 +208,8 @@
   --media-guide-line: rgba(255, 255, 255, 0.75);
   --media-guide-matte: rgba(0, 0, 0, 0.25);
   --media-guide-halo: rgba(0, 0, 0, 0.9);
-  /* The cross guide keeps a camera monitor's green, lines and bars alike, where the other guides are white. */
-  --media-guide-cross: #8cff8c;
-  /* The level guide keeps a camera display's colors too: its green horizon, and white marks. */
-  --media-guide-level: #a8f07a;
+  /* The frame markers' green, where the other guides are white: the cross whole, the level's horizon and indicator. The level's other marks are white. */
+  --media-guide-marker: #b0ffa8;
   --media-guide-level-mark: #fff;
   /* One dark grey for both themes, behind what must look the same in either:
      a previewed picture's mat, and a screenplay's link glyph, whose lime is

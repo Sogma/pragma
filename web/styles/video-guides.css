@@ -4,37 +4,23 @@
    picture fits; the frames' names lie in a box of the picture's shape fitted
    the same way, so in full screen both letterbox with it.
 
-   It takes no pointer, so a click on the picture still plays or zooms it. */
+   It takes no pointer, so a click on the picture still plays or zooms it. A
+   line stays one pixel at any size, and a dark halo keeps the lines, marks
+   and names readable on bright footage. */
 .video-guides {
   position: absolute;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
-}
-
-/* A line stays one pixel at any size, and a dark halo keeps the lines and
-   names readable on bright footage. */
-.video-guides-shaded {
-  position: absolute;
-  inset: 0;
   filter: drop-shadow(0 0 1px var(--media-guide-halo));
   container-type: size;
 }
 
-.video-guides-lines,
-.video-guides-markers {
+.video-guides-lines {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-}
-
-/* Frame markers add their light to the picture's, so they take no halo.
-   They add to what shares their isolated group alone: the media frame
-   isolates (media-panes.css), and nothing between it and here may, or they
-   add to nothing: no z-index, isolation, filter or opacity on .video-guides,
-   the player's box or a still's layers. */
-.video-guides-markers {
-  mix-blend-mode: plus-lighter;
 }
 
 .video-guides-matte {
@@ -61,7 +47,7 @@
 /* Snapped to whole pixels: a 1px line astride two of them draws at half
    strength, darker than the solid bars it meets. */
 .video-guides-line.is-cross {
-  stroke: var(--media-guide-cross);
+  stroke: var(--media-guide-marker);
   shape-rendering: crispEdges;
 }
 
@@ -71,7 +57,7 @@
    Bars, line and the line's cut through the bars all snap to whole pixels:
    snapped one way and not another, the slit sits off the bars' middle. */
 .video-guides-cross-bars {
-  fill: var(--media-guide-cross);
+  fill: var(--media-guide-marker);
   shape-rendering: crispEdges;
 }
 
@@ -102,7 +88,7 @@
 /* The horizon is a line as the cross's are: one pixel at any size, snapped
    whole so it draws at full strength. */
 .video-guides-level-horizon {
-  stroke: var(--media-guide-level);
+  stroke: var(--media-guide-marker);
   stroke-width: 1px;
   stroke-linecap: butt;
   vector-effect: non-scaling-stroke;
@@ -119,7 +105,7 @@
 }
 
 .video-guides-level-indicator {
-  stroke: var(--media-guide-level);
+  stroke: var(--media-guide-marker);
 }
 
 .video-guides-level-roll {

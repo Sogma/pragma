@@ -318,18 +318,11 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   const element = document.createElement("div");
   element.className = "video-guides";
   element.setAttribute("aria-hidden", "true");
-  // The guides under a dark halo, then the frame markers in a layer of their
-  // own, which adds its light to the picture's (web/styles/video-guides.css).
-  const shaded = document.createElement("div");
-  shaded.className = "video-guides-shaded";
   const lines = document.createElementNS(SVG, "svg");
   lines.setAttribute("class", "video-guides-lines");
   const names = document.createElement("div");
   names.className = "video-guides-names";
-  shaded.append(lines, names);
-  const markers = document.createElementNS(SVG, "svg");
-  markers.setAttribute("class", "video-guides-markers");
-  element.append(shaded, markers);
+  element.append(lines, names);
   const shape = (tag: string, className: string, parent: Element = lines) => {
     const node = document.createElementNS(SVG, tag);
     node.setAttribute("class", className);
@@ -343,16 +336,16 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   const title = shape("rect", "video-guides-line");
   const center = shape("path", "video-guides-line");
   const social = shape("rect", "video-guides-line");
-  const crossLines = shape("path", "video-guides-line is-cross", markers);
-  const crossBars = shape("path", "video-guides-cross-bars", markers);
+  const crossLines = shape("path", "video-guides-line is-cross");
+  const crossBars = shape("path", "video-guides-cross-bars");
   // The cross's line runs on through its bars as a see-through slit: their
   // mask keeps them all but where the line passes.
-  const crossMask = shape("mask", "video-guides-cross-mask", shape("defs", "video-guides-defs", markers));
+  const crossMask = shape("mask", "video-guides-cross-mask", shape("defs", "video-guides-defs"));
   crossMask.id = `video-guides-cross-mask-${++overlayCount}`;
   const crossKeep = shape("path", "video-guides-cross-keep", crossMask);
   const crossCut = shape("path", "video-guides-cross-cut", crossMask);
   crossBars.setAttribute("mask", `url(#${crossMask.id})`);
-  const level = shape("g", "video-guides-level", markers);
+  const level = shape("g", "video-guides-level");
   const [levelHorizon] = LEVEL_MARKS.map((mark) => {
     const node = shape("path", mark.className, level);
     if (mark.d) node.setAttribute("d", mark.d);
@@ -384,7 +377,7 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
     const visible = current.shown && any && width > 0 && height > 0;
     element.toggleAttribute("hidden", !visible);
     if (!visible) return;
-    for (const layer of [lines, markers]) layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    lines.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const boxes = current.frames.map((id) => ({ id, ...frameBox(width, height, frameAspect(id)) }));
     // With no frame lit, the picture is the frame. Each frame's framing is
     // outlined and named, and the matte shades what no framing holds.
