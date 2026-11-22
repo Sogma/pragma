@@ -12,12 +12,13 @@ import { GFM, parser, Subscript, Superscript } from "@lezer/markdown";
 import { documentBody } from "./frontmatter.ts";
 import { highlightSyntax } from "./highlightSyntax.ts";
 import { leadingCommentsEnd, withoutComments } from "./markdownComments.ts";
-import { isWikilinkNode, referenceLabel, wikilinkRawLabel } from "./markdownLinks.ts";
+import { referenceLabel } from "./markdownLinks.ts";
 import { mathSyntax } from "./mathSyntax.ts";
-import { splitWikilinkLabel, wikilinkPattern } from "./wikilink.ts";
+import { splitWikilinkLabel } from "./wikilink.ts";
+import { wikilinkLabel, wikilinkSyntax } from "./wikilinkSyntax.ts";
 
-// The editor's grammar, minus Emoji: an emoji shortcode is plain text either way.
-const markdownParser = parser.configure([GFM, Subscript, Superscript, highlightSyntax, mathSyntax]);
+// Reading view's grammar, minus Emoji: an emoji shortcode is plain text either way.
+const markdownParser = parser.configure([GFM, Subscript, Superscript, highlightSyntax, mathSyntax, wikilinkSyntax]);
 
 const MARK_TYPES = [
   "HeaderMark",
@@ -57,10 +58,6 @@ function decodeEntity(raw: string): string {
   return NAMED_ENTITIES[raw.slice(1, -1)] ?? raw;
 }
 
-function gapText(text: string): string {
-  return text.replace(wikilinkPattern(), (_match, raw: string) => splitWikilinkLabel(raw).display);
-}
-
 // A link or image contributes only its label: the walk stops at the label's
 // closing `]`, as the renderer's does, so a URL written inside the label
 // is text rather than taken for the destination.
@@ -69,18 +66,12 @@ function inlineText(node: SyntaxNode, doc: string, skip: ReadonlySet<string>, la
   let pos = node.from;
   let marks = 0;
   for (let child = node.firstChild; child; child = child.nextSibling) {
-    if (isWikilinkNode(child, doc, pos)) {
-      if (child.from - 1 > pos) text += gapText(doc.slice(pos, child.from - 1));
-      text += splitWikilinkLabel(wikilinkRawLabel(child, doc)).display;
-      pos = child.to + 1;
-      continue;
-    }
-    if (child.from > pos) text += gapText(doc.slice(pos, child.from));
+    if (child.from > pos) text += doc.slice(pos, child.from);
     if (labelOnly && child.name === "LinkMark" && ++marks === 2) return text;
     text += childText(child, doc, skip);
     pos = child.to;
   }
-  if (pos < node.to) text += gapText(doc.slice(pos, node.to));
+  if (pos < node.to) text += doc.slice(pos, node.to);
   return text;
 }
 
@@ -92,11 +83,11 @@ function referenceText(node: SyntaxNode, doc: string, skip: ReadonlySet<string>)
   let pos = node.from;
   for (let child = node.firstChild; child; child = child.nextSibling) {
     if (child.name === "LinkMark" || child.name === "LinkLabel") continue;
-    if (child.from > pos) text += gapText(doc.slice(pos, child.from));
+    if (child.from > pos) text += doc.slice(pos, child.from);
     text += childText(child, doc, skip);
     pos = child.to;
   }
-  if (pos < node.to) text += gapText(doc.slice(pos, node.to));
+  if (pos < node.to) text += doc.slice(pos, node.to);
   return text;
 }
 
@@ -113,6 +104,8 @@ function childText(node: SyntaxNode, doc: string, skip: ReadonlySet<string>): st
     // strip, and a title edited back keeps the formula.
     case "InlineMath":
       return doc.slice(node.from, node.to);
+    case "Wikilink":
+      return splitWikilinkLabel(wikilinkLabel(node, doc)).display;
     case "Autolink": {
       const url = node.getChild("URL");
       return url ? doc.slice(url.from, url.to) : "";

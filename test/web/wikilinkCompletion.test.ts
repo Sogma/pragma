@@ -4,10 +4,10 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { wikilinkSyntax } from "../../src/protocol/wikilinkSyntax.ts";
 import type { FileResponse } from "../../web/core/apiClient.ts";
 import { setPresets } from "../../web/core/presets.ts";
 import { wikilinkCompletion, wikilinkSource } from "../../web/wikilinkCompletion.ts";
-import { wikilinkSyntax } from "../../web/wikilinkSyntax.ts";
 import { polyfillRangeRects } from "./support/codemirrorJsdom.ts";
 
 polyfillRangeRects();

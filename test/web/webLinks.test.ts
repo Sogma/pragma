@@ -4,8 +4,8 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { wikilinkSyntax } from "../../src/protocol/wikilinkSyntax.ts";
 import { webAutolink, webLinks, webLinksIn } from "../../web/webLinks.ts";
-import { wikilinkSyntax } from "../../web/wikilinkSyntax.ts";
 
 // The note editor's own language, so the tree is the one it marks links in.
 const language = markdown({ extensions: [wikilinkSyntax, webAutolink] });

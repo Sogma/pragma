@@ -1,18 +1,11 @@
-// docs/protocol.md's Links section: what a wikilink looks like, what it shows
-// and how a host writes one. A wikilink's target is a path, read by the same
-// grammar as any other (relativeReference.ts, pathIndex.ts), never a name.
+// docs/protocol.md's Links section: what a wikilink shows and how a host
+// writes one; wikilinkSyntax.ts reads one. A wikilink's target is a path, read
+// by the same grammar as any other (relativeReference.ts, pathIndex.ts), never
+// a name.
 import { formatWrittenPath } from "./relativeReference.ts";
 import { basenameOf, hasPathScheme, type RootedPath } from "./rootedPath.ts";
 import type { ScopeFolders } from "./scopes.ts";
 import { hasKnownKind, splitDocumentName } from "./types.ts";
-
-/** A fresh `[[target]]` / `[[target|display]]` matcher. A factory rather
- * than a shared constant because the pattern is global: one instance carries
- * `lastIndex` between unrelated scans, so whichever caller ran second would
- * start mid-string and miss matches. */
-export function wikilinkPattern(): RegExp {
-  return /\[\[([^[\]]+)\]\]/g;
-}
 
 /** Splits a wikilink's raw inner text at the first `|` — everything before
  * is the target, everything after is what the reader sees. An unpiped link,

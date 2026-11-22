@@ -4,40 +4,17 @@
 // reference. Markdown only — Fountain spells its Notes `[[...]]` too, and a
 // screenplay's "[[cut this?]]" is prose, not a link.
 import type { SyntaxNode, Tree } from "@lezer/common";
-import { parser } from "@lezer/markdown";
+import { parser, Table } from "@lezer/markdown";
 import { documentBody } from "./frontmatter.ts";
 import { type InlineTag, tagsInTree } from "./inlineTags.ts";
 import { mathSyntax } from "./mathSyntax.ts";
 import type { PathForm } from "./relativeReference.ts";
+import { wikilinkLabel, wikilinkSyntax } from "./wikilinkSyntax.ts";
 
-// Math holds no reference: `$[[0,1]]$` is an interval, never a link.
-const markdownParser = parser.configure([mathSyntax]);
-
-/** True when `child` is the inner `[target]` of a `[[target]]` /
- * `[[target|display]]` wikilink: a bare shortcut-reference Link (no URL)
- * wrapped in one extra `[` before and `]` after. `pos` is the caller's
- * cursor — the extra `[` must be *unclaimed*, so a preceding sibling ending
- * exactly at `child.from` makes this decline.
- *
- * Shared with the reading-view renderer so the two never disagree about what
- * counts as a wikilink. */
-export function isWikilinkNode(child: SyntaxNode, doc: string, pos: number): boolean {
-  const url = child.getChild("URL");
-  return (
-    child.name === "Link" &&
-    url === null &&
-    child.from > pos &&
-    doc.charAt(child.from - 1) === "[" &&
-    doc.charAt(child.to) === "]"
-  );
-}
-
-/** The label span of a wikilink's Link node — `child.from`/`child.to` minus
- * the one-character `[`/`]` the Link node itself owns; the *outer* wikilink
- * brackets sit one further out again. */
-export function wikilinkRawLabel(child: SyntaxNode, doc: string): string {
-  return doc.slice(child.from + 1, child.to - 1);
-}
+// Math holds no reference: `$[[0,1]]$` is an interval, never a link. A table
+// splits its cells at each `|` before a link is read, as the page does, so a
+// piped wikilink across two cells is none.
+const markdownParser = parser.configure([Table, mathSyntax, wikilinkSyntax]);
 
 /** A reference-style Link or Image node's label, folded as
  * `foldReferenceLabel` folds a definition's: the second bracket pair's, else
@@ -135,17 +112,12 @@ function referencesIn({ body, offset, tree }: ParsedBody): MarkdownReference[] {
         return false;
       }
 
-      if (ref.name !== "Link") return true;
-
-      const node = ref.node;
-      const previous = node.prevSibling;
-      const pos = previous ? previous.to : (node.parent?.from ?? 0);
-      if (!isWikilinkNode(node, body, pos)) return true;
+      if (ref.name !== "Wikilink") return true;
 
       // The target is everything before the first `|`; the display half
       // after it is the author's and is left untouched by a rewrite.
-      const labelFrom = node.from + 1;
-      const label = wikilinkRawLabel(node, body);
+      const labelFrom = ref.from + 2;
+      const label = wikilinkLabel(ref, body);
       const pipe = label.indexOf("|");
       const to = labelFrom + (pipe === -1 ? label.length : pipe);
       references.push({

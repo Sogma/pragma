@@ -1,10 +1,14 @@
-// `[[target]]` / `[[target|display]]` as one Markdown node, so the editor
-// colors the whole wikilink. CommonMark has none: left alone, Lezer reads the
-// inner `[target]` as a shortcut-reference Link and the outer brackets as
-// text. The span matched is wikilinkPattern's — at least one character, no
-// brackets inside — so the editor marks what the reading view links.
+// `[[target]]` / `[[target|display]]` as one Markdown node, which every reader
+// parses with: the editor, reading view, backlinks, renames and titles, so
+// none takes for a link what another takes for text.
+//
+// CommonMark has none: left alone, Lezer reads the inner `[target]` as a
+// shortcut-reference Link, the outer brackets as text, and an address inside
+// as a web link. A wikilink holds no bracket, and names a target: `[[ ]]` and
+// `[[|shown]]` are text.
 import { tags } from "@lezer/highlight";
 import type { MarkdownConfig } from "@lezer/markdown";
+import { splitWikilinkLabel } from "./wikilink.ts";
 
 const OPEN = 91; // "["
 const CLOSE = 93; // "]"
@@ -21,7 +25,8 @@ export const wikilinkSyntax: MarkdownConfig = {
         if (next !== OPEN || cx.char(pos + 1) !== OPEN) return -1;
         let end = pos + 2;
         while (end < cx.end && cx.char(end) !== OPEN && cx.char(end) !== CLOSE) end++;
-        if (end === pos + 2 || cx.char(end) !== CLOSE || cx.char(end + 1) !== CLOSE) return -1;
+        if (cx.char(end) !== CLOSE || cx.char(end + 1) !== CLOSE) return -1;
+        if (!splitWikilinkLabel(cx.slice(pos + 2, end)).target) return -1;
         return cx.addElement(
           cx.elt("Wikilink", pos, end + 2, [
             cx.elt("WikilinkMark", pos, pos + 2),
@@ -34,3 +39,8 @@ export const wikilinkSyntax: MarkdownConfig = {
     },
   ],
 };
+
+/** A Wikilink node's text between its brackets. */
+export function wikilinkLabel(node: { from: number; to: number }, doc: string): string {
+  return doc.slice(node.from + 2, node.to - 2);
+}

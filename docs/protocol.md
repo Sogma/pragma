@@ -1011,7 +1011,7 @@ The source map below is the only part of this document that names implementation
 | Sandbox broker, client half (first-use prompt, permissions, frame dispatch); the toolkit broker on it | `web/services/capabilityBroker.ts`, `web/view/toolkitRunner.ts` |
 | Flow editor, App Mode | `web/flow/xyflowAdapter.ts`, `web/flow/appMode.ts`, `web/flow/appModeGrid.ts` |
 | Math | `src/protocol/mathSyntax.ts` |
-| Wikilink syntax, resolution and writing | `src/protocol/wikilink.ts`, `web/core/spaceTree.ts`, `web/wikilinkCompletion.ts` |
+| Wikilink syntax, resolution and writing | `src/protocol/wikilinkSyntax.ts`, `src/protocol/wikilink.ts`, `web/core/spaceTree.ts`, `web/wikilinkCompletion.ts` |
 | What a note links to, and the backlinks a host keeps | `src/protocol/markdownLinks.ts`, `src/server/documentIndex.ts` |
 | Scope settings | `src/protocol/scopeSettings.ts` |
 | World names, and the Fountain elements they are read from | `src/protocol/worldNames.ts`, `src/protocol/fountainElements.ts`, `src/protocol/fountainSceneNumber.ts`, `web/formats/screenplay/language.ts` |

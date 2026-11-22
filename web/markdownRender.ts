@@ -6,18 +6,13 @@ import { documentBody, isListFrontmatterKey } from "../src/protocol/frontmatter.
 import { highlightSyntax } from "../src/protocol/highlightSyntax.ts";
 import { holdsProse, tagsInProse } from "../src/protocol/inlineTags.ts";
 import { withoutComments } from "../src/protocol/markdownComments.ts";
-import {
-  destinationText,
-  foldReferenceLabel,
-  isWikilinkNode,
-  referenceLabel,
-  wikilinkRawLabel,
-} from "../src/protocol/markdownLinks.ts";
+import { destinationText, foldReferenceLabel, referenceLabel } from "../src/protocol/markdownLinks.ts";
 import { titleHeadingNode } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
-import { splitWikilinkLabel, wikilinkPattern } from "../src/protocol/wikilink.ts";
+import { splitWikilinkLabel } from "../src/protocol/wikilink.ts";
+import { wikilinkLabel, wikilinkSyntax } from "../src/protocol/wikilinkSyntax.ts";
 import { markExternalLink } from "./lib/externalLinks.ts";
 import { propertyIcon } from "./lib/propertyIcon.ts";
 import { createPill, createTagPill } from "./lib/tagPill.ts";
@@ -44,9 +39,13 @@ const SKIP_TYPES = new Set([
   "TableDelimiter",
 ]);
 
-// With highlights and math, as the editor and the title rule parse them. The
-// language's parser is a MarkdownParser, typed as Lezer's base Parser.
-const markdownParser = (markdownLanguage.parser as MarkdownParser).configure([highlightSyntax, mathSyntax]);
+// With highlights, math and wikilinks, as the editor and the title rule parse
+// them. The language's parser is a MarkdownParser, typed as Lezer's base Parser.
+const markdownParser = (markdownLanguage.parser as MarkdownParser).configure([
+  highlightSyntax,
+  mathSyntax,
+  wikilinkSyntax,
+]);
 const replyParser = markdownParser.configure([texMathSyntax]);
 
 const HEADING_TAGS: Record<string, keyof HTMLElementTagNameMap> = {
@@ -243,11 +242,6 @@ function blockElement<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
-// A wikilink isn't CommonMark, but Lezer still builds a Link node for
-// `[[target]]`'s inner `[target]`, a shortcut-reference shape with an empty
-// href. Left to the ordinary "Link" case it renders as a broken anchor flanked
-// by literal `[`/`]`, so the inline walker below consumes that shape. The
-// text scan below is the fallback when no such node exists (an empty `[[]]`).
 function appendWikilinkElement(raw: string, container: Node, resolvers: MarkdownResolvers): void {
   const { target, display } = splitWikilinkLabel(raw);
   const spacePath = resolvers.wikilink(target);
@@ -271,19 +265,6 @@ function addLinkHint(el: HTMLElement, lead: LinkLead, resolvers: MarkdownResolve
   if (hint) el.dataset.tooltip = hint;
 }
 
-function appendTextWithWikilinks(text: string, container: Node, resolvers: MarkdownResolvers): void {
-  const re = wikilinkPattern();
-  let pos = 0;
-  let match: RegExpExecArray | null;
-  // biome-ignore lint/suspicious/noAssignInExpressions: the standard regex-exec-loop idiom; the extra parens are the intentional-assignment signal.
-  while ((match = re.exec(text))) {
-    if (match.index > pos) container.appendChild(document.createTextNode(text.slice(pos, match.index)));
-    appendWikilinkElement(match[1], container, resolvers);
-    pos = match.index + match[0].length;
-  }
-  if (pos < text.length) container.appendChild(document.createTextNode(text.slice(pos)));
-}
-
 // A run of prose from `from` to `to`: on a note's page its tags as pills,
 // each carrying its name for the pane to color and open, and the text
 // between them as above.
@@ -291,7 +272,7 @@ function appendProse(doc: string, from: number, to: number, container: Node, res
   let pos = from;
   if (resolvers.tags) {
     for (const tag of tagsInProse(doc.slice(from, to), from, from === 0 ? "" : doc[from - 1])) {
-      appendTextWithWikilinks(doc.slice(pos, tag.from), container, resolvers);
+      if (tag.from > pos) container.appendChild(document.createTextNode(doc.slice(pos, tag.from)));
       const pill = document.createElement("span");
       pill.className = "inline-tag";
       pill.dataset.tag = tag.name;
@@ -300,7 +281,7 @@ function appendProse(doc: string, from: number, to: number, container: Node, res
       pos = tag.to;
     }
   }
-  appendTextWithWikilinks(doc.slice(pos, to), container, resolvers);
+  if (to > pos) container.appendChild(document.createTextNode(doc.slice(pos, to)));
 }
 
 // Walks `node`'s children, rendering the ones with dedicated handling and
@@ -312,15 +293,6 @@ function appendInlineChildren(node: SyntaxNode, doc: string, container: Node, re
   let pos = node.from;
   let child = node.firstChild;
   while (child) {
-    if (isWikilinkNode(child, doc, pos)) {
-      // The gap up to but excluding the wikilink's leading "[" (that
-      // character belongs to the wikilink, not to plain surrounding text).
-      if (child.from - 1 > pos) appendProse(doc, pos, child.from - 1, container, resolvers);
-      appendWikilinkElement(wikilinkRawLabel(child, doc), container, resolvers);
-      pos = child.to + 1; // also claims the trailing "]"
-      child = child.nextSibling;
-      continue;
-    }
     if (child.from > pos) appendProse(doc, pos, child.from, container, resolvers);
     if (!SKIP_TYPES.has(child.name)) renderNode(child, doc, container, resolvers);
     pos = child.to;
@@ -417,6 +389,10 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
   }
 
   switch (node.name) {
+    case "Wikilink":
+      appendWikilinkElement(wikilinkLabel(node, doc), container, resolvers);
+      return;
+
     case "Document":
       appendInlineChildren(node, doc, container, resolvers);
       return;

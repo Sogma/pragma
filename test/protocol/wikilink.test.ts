@@ -7,28 +7,13 @@ import {
   splitWikilinkLabel,
   wikilinkFromRoot,
   wikilinkName,
-  wikilinkPattern,
 } from "../../src/protocol/wikilink.ts";
 
-// Conformance tests for docs/protocol.md's Links section: the syntax, and a
-// wikilink read as a path by the one grammar every path shares, independent
-// of who supplies the listing.
-describe("wikilink syntax", () => {
-  it("matches every `[[...]]` in a line, including a piped one", () => {
-    const found = [..."see [[a]] and [[b/c|C]] here".matchAll(wikilinkPattern())].map((m) => m[1]);
-    expect(found).toEqual(["a", "b/c|C"]);
-  });
-
-  it("does not match an unclosed or empty target", () => {
-    expect([..."[[unclosed and [[]] here".matchAll(wikilinkPattern())].map((m) => m[1])).toEqual([]);
-  });
-
-  it("hands out a fresh matcher each call, so two scans can't skip each other's matches", () => {
-    const text = "[[a]] [[b]]";
-    expect([...text.matchAll(wikilinkPattern())].length).toBe(2);
-    expect([...text.matchAll(wikilinkPattern())].length).toBe(2);
-  });
-
+// Conformance tests for docs/protocol.md's Links section: a wikilink's label,
+// and a wikilink read as a path by the one grammar every path shares,
+// independent of who supplies the listing. What counts as a wikilink is
+// wikilinkSyntax.test.ts's.
+describe("wikilink labels", () => {
   it("splits at the first pipe and trims both halves", () => {
     expect(splitWikilinkLabel(" notes/plan | The plan ")).toEqual({ target: "notes/plan", display: "The plan" });
   });
@@ -240,8 +225,7 @@ describe("a wikilink from the space root", () => {
 
   it("reads back from the root as the entry it was written for", () => {
     for (const [path, folder, written] of cases) {
-      const [inner] = [...written.matchAll(wikilinkPattern())].map((match) => match[1]);
-      const found = resolveWrittenPath("", splitWikilinkLabel(inner).target, "wikilink", indexOf);
+      const found = resolveWrittenPath("", splitWikilinkLabel(written.slice(2, -2)).target, "wikilink", indexOf);
       expect(found, written).toEqual({ path, type: folder ? "directory" : "file" });
     }
   });
