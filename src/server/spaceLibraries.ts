@@ -5,8 +5,8 @@
 // A folder comes only from Electron's main process, picked there or one this
 // host located for another space, never from a request (docs/architecture.md's
 // Document writes and reference integrity).
-import { type Dirent, existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   findSpaceId,
@@ -17,7 +17,6 @@ import {
 } from "../config/loadConfig.ts";
 import type { LibraryEntry, LibraryOffer, LibraryRow } from "../protocol/api.ts";
 import { BOOKMARKS_FILENAME, BOOKMARKS_FOLDER } from "../protocol/bookmarks.ts";
-import { isHiddenName } from "../protocol/entryName.ts";
 import { type LibraryChange, libraryDeclarations, withLibraryChange } from "../protocol/libraries.ts";
 import { isLibraryId } from "../protocol/rootedPath.ts";
 import { EntryListFileError } from "./entryListFile.ts";
@@ -31,6 +30,7 @@ import {
   readLibrariesFile,
 } from "./libraries.ts";
 import { changeEntryListFile } from "./spaceFiles.ts";
+import { walkSpace } from "./spaceWalk.ts";
 
 /** A library id the space doesn't declare. */
 export class UnknownLibraryError extends Error {}
@@ -214,21 +214,9 @@ async function libraryIdsNamedIn(spaceRoot: string): Promise<Set<string>> {
     const text = await readFile(file, "utf8").catch(() => "");
     for (const match of text.matchAll(NAMED_LIBRARY)) named.add(match[1]);
   };
-  const walk = async (dir: string): Promise<void> => {
-    let entries: Dirent[];
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (isHiddenName(entry.name) || entry.isSymbolicLink()) continue;
-      const absolute = path.join(dir, entry.name);
-      if (entry.isDirectory()) await walk(absolute);
-      else if (entry.isFile() && HOLDS_PATHS.test(entry.name)) await readNames(absolute);
-    }
-  };
-  await walk(spaceRoot);
+  for (const file of (await walkSpace(spaceRoot, "skip")).files) {
+    if (HOLDS_PATHS.test(file)) await readNames(path.join(spaceRoot, ...file.split("/")));
+  }
   await readNames(path.join(spaceRoot, BOOKMARKS_FOLDER, BOOKMARKS_FILENAME));
   return named;
 }

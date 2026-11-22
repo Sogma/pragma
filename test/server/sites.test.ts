@@ -8,10 +8,12 @@ import {
   movePendingPaths,
   normalizeAssetsFolder,
   parentIndexPath,
+  queuePendingDeletes,
   readSiteFile,
   resolveSiteForPath,
   updateSiteFile,
 } from "../../src/server/sites.ts";
+import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 // Site resolution over a real directory, since both resolvers read
 // `_site.json` and ancestor `index.md` frontmatter off disk.
@@ -256,6 +258,23 @@ describe("a queued path following a move", () => {
     await move(root, "s/a.md", "s/b.md");
 
     expect(await queueIn(root, "s")).toEqual([{ op: "publish", path: "s/b.md" }]);
+  });
+});
+
+describe("unpublishing a deleted folder's notes", () => {
+  // Queueing never blocks a delete, so a folder it can't read costs only the
+  // notes inside it.
+  it.skipIf(!canLockFolders)("queues every note it can read, passing over a folder it can't", async () => {
+    const root = await space({
+      "s/_site.json": siteFile("s"),
+      "s/posts/a.md": "---\nid: doc_a\n---\n# A\n",
+      "s/posts/locked/b.md": "---\nid: doc_b\n---\n# B\n",
+    });
+    const queued = await lockedFolder(path.join(root, "s/posts/locked"), () =>
+      queuePendingDeletes(root, path.join(root, "s/posts")),
+    );
+    expect(queued).toEqual([{ siteDir: "s", id: "doc_a", publisherId: undefined }]);
+    expect(await queueIn(root, "s")).toEqual([{ op: "delete", id: "doc_a" }]);
   });
 });
 

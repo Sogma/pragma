@@ -12,6 +12,7 @@ import { isHiddenPath } from "../protocol/relativeReference.ts";
 import { isWithin } from "../protocol/rootedPath.ts";
 import { isMarkdownFile } from "../protocol/types.ts";
 import { namedEntryPath, refuseLink } from "./rootedFiles.ts";
+import { walkSpace } from "./spaceWalk.ts";
 
 /** Reads `<dir>/_site.json`'s tree-facing fields — a missing or malformed
  * manifest just reads as "not a site root" rather than throwing. New Site
@@ -190,18 +191,18 @@ export interface QueuedPendingDelete {
   publisherId?: string;
 }
 
+// A folder that can't be read is passed over: queueing never blocks a
+// delete, so it queues the notes in every folder it can read.
 async function queuePendingDeleteFrom(spaceRoot: string, absolutePath: string): Promise<QueuedPendingDelete[]> {
-  const stats = await stat(absolutePath);
-  if (stats.isDirectory()) {
-    const entries = await readdir(absolutePath, { withFileTypes: true });
-    const queued: QueuedPendingDelete[] = [];
-    for (const entry of entries) {
-      if (isHiddenName(entry.name) || entry.isSymbolicLink()) continue;
-      queued.push(...(await queuePendingDeleteFrom(spaceRoot, path.join(absolutePath, entry.name))));
-    }
-    return queued;
+  if (!(await stat(absolutePath)).isDirectory()) return queuePendingDeleteOf(spaceRoot, absolutePath);
+  const queued: QueuedPendingDelete[] = [];
+  for (const file of (await walkSpace(absolutePath, "skip")).files) {
+    queued.push(...(await queuePendingDeleteOf(spaceRoot, path.join(absolutePath, ...file.split("/")))));
   }
+  return queued;
+}
 
+async function queuePendingDeleteOf(spaceRoot: string, absolutePath: string): Promise<QueuedPendingDelete[]> {
   if (!isMarkdownFile(absolutePath)) return []; // not a note — nothing Sogma ever received
 
   const relativeFilePath = path.relative(spaceRoot, absolutePath).split(path.sep).join("/");

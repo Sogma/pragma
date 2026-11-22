@@ -31,6 +31,7 @@ import {
   resolveContentPath,
   resolveRootedPath,
 } from "./rootedFiles.ts";
+import { walkSpace } from "./spaceWalk.ts";
 
 export function resolveWithinSpace(spaceRoot: string, relativePath: string): string {
   return resolveContentPath(spaceRoot, relativePath, "Path escapes the space");
@@ -294,19 +295,20 @@ export async function moveFromTrash(rootDir: string, name: unknown, destinationD
 /** Drops `id` and `pushed` from every Markdown file at or under `entryPath`,
  * passing over dot entries and links as the tree does. The delete that sent
  * it to the trash took its pages down, or queued that, so an `id` kept would
- * aim the next publish at a page that is gone. */
+ * aim the next publish at a page that is gone. Everything is listed first, so
+ * a folder that can't be read stops the move before any note is edited. */
 async function dropPublishState(entryPath: string): Promise<void> {
   const stats = await lstat(entryPath);
-  if (stats.isDirectory()) {
-    for (const entry of await readdir(entryPath, { withFileTypes: true })) {
-      if (isHiddenName(entry.name) || entry.isSymbolicLink()) continue;
-      await dropPublishState(path.join(entryPath, entry.name));
-    }
-    return;
+  const files = stats.isDirectory()
+    ? (await walkSpace(entryPath, "fail")).files.map((file) => path.join(entryPath, ...file.split("/")))
+    : stats.isFile()
+      ? [entryPath]
+      : [];
+  for (const file of files) {
+    if (!isMarkdownFile(file)) continue;
+    const unpublished = withoutPublishState(await readFile(file, "utf8"));
+    if (unpublished !== undefined) await writeFileAtomic(file, unpublished);
   }
-  if (!stats.isFile() || !isMarkdownFile(entryPath)) return;
-  const unpublished = withoutPublishState(await readFile(entryPath, "utf8"));
-  if (unpublished !== undefined) await writeFileAtomic(entryPath, unpublished);
 }
 
 /** Removes everything in `.trash/`, the hidden entries included. */

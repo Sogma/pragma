@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
 import { buildTree, listFolder, listRootPaths, scopesOnDisk, searchableFiles } from "../../src/server/tree.ts";
+import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 let library: string;
 
@@ -205,6 +206,14 @@ describe("buildTree — LUTs", () => {
 });
 
 describe("listRootPaths", () => {
+  // What every written path is checked against: a list missing a folder
+  // would pass a path it never saw.
+  it.skipIf(!canLockFolders)("fails on a folder it can't list rather than leave it out", async () => {
+    await lockedFolder(path.join(library, "scripts"), async () => {
+      await expect(listRootPaths(library, "space")).rejects.toThrow(/EACCES/);
+    });
+  });
+
   beforeEach(() => {
     writeFileSync(path.join(library, "scripts/budget.csv"), "");
     writeFileSync(path.join(library, "scripts/_tags.json"), "{}");

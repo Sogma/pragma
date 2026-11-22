@@ -11,13 +11,13 @@
 // A note's links are kept as written and filed by the path each names. Only
 // an answer resolves them, against the listing its check just read, since
 // whether a link lands on a file depends on which files exist then.
-import { closeSync, type Dirent, lstatSync, openSync, readFileSync, readSync, type Stats } from "node:fs";
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { closeSync, lstatSync, openSync, readFileSync, readSync, type Stats } from "node:fs";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "node-html-parser";
 import type { Backlink } from "../protocol/api.ts";
 import { parseClassFile } from "../protocol/classFile.ts";
-import { entryNameKey, isHiddenName } from "../protocol/entryName.ts";
+import { entryNameKey } from "../protocol/entryName.ts";
 import { opensFrontmatter, readFrontmatterYaml, splitFrontmatter } from "../protocol/frontmatter.ts";
 import { leadingCommentsEnd } from "../protocol/markdownComments.ts";
 import { noteLinksAndTags } from "../protocol/markdownLinks.ts";
@@ -36,6 +36,7 @@ import {
 import { readMetadataBlock } from "../protocol/tableFile.ts";
 import { tagsOf } from "../protocol/tags.ts";
 import { type ClassFile, isClassFile, isMarkdownFile } from "../protocol/types.ts";
+import { walkSpace } from "./spaceWalk.ts";
 
 /** A note's frontmatter and its display title, the plain text of a leading
  * heading (docs/protocol.md's Display titles section). The title is
@@ -280,37 +281,6 @@ function linkKey(target: RootedPath): string {
 const sameStats = (entry: Entry, stats: Stats) =>
   entry.mtimeMs === stats.mtimeMs && entry.size === stats.size && entry.ino === stats.ino;
 
-// Every file and folder under `dir` a path can name, relative to it: no dot
-// entry, and nothing reached through a link. Siblings are listed in parallel,
-// since on a slow mount every listing is a round trip. A folder that can't be
-// listed holds nothing.
-async function listRoot(dir: string): Promise<{ files: string[]; folders: string[] }> {
-  const files: string[] = [];
-  const folders: string[] = [];
-  const walk = async (absolute: string, relative: string): Promise<void> => {
-    let listed: Dirent[];
-    try {
-      listed = await readdir(absolute, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    await Promise.all(
-      listed.map(async (entry) => {
-        if (isHiddenName(entry.name) || entry.isSymbolicLink()) return;
-        const child = relative === "" ? entry.name : `${relative}/${entry.name}`;
-        if (entry.isDirectory()) {
-          folders.push(child);
-          await walk(path.join(absolute, entry.name), child);
-        } else if (entry.isFile()) {
-          files.push(child);
-        }
-      }),
-    );
-  };
-  await walk(dir, "");
-  return { files, folders };
-}
-
 /** How many files a check reads at once. Enough to keep a slow mount busy;
  * other requests run between one batch and the next. */
 const CHECK_BATCH = 64;
@@ -422,7 +392,7 @@ export function createDocumentIndex(): MemoryDocumentIndex {
   }
 
   async function checkRoot(state: RootState): Promise<RootState> {
-    const listing = await listRoot(state.dir);
+    const listing = await walkSpace(state.dir, "skip");
     state.files = listing.files;
     state.paths = createPathIndex(listing);
     const listed = new Set(listing.files.map((relative) => path.join(state.dir, ...relative.split("/"))));

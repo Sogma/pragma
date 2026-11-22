@@ -11,6 +11,7 @@ import { compareEntryNames, parseFolderSort } from "../protocol/folderSort.ts";
 import { hasMetadataBlock } from "../protocol/metadata.ts";
 import { pragmaFileRole, SITE_FILENAME } from "../protocol/pragmaFiles.ts";
 import { isPrivateContent } from "../protocol/privacy.ts";
+import { dirnameOf } from "../protocol/rootedPath.ts";
 import { isSettingsBlock, settingFolder, settingValue, WORLD_SETTING } from "../protocol/scopeSettings.ts";
 import { isAgentsFile, opensScope, type ScopeFolders } from "../protocol/scopes.ts";
 import { type FileKind, fileKindForPath, hasKnownKind, isMarkdownFile } from "../protocol/types.ts";
@@ -20,6 +21,7 @@ import { orderByFolder } from "./folderOrder.ts";
 import { readFolderProperties } from "./folderProperties.ts";
 import { namedEntryPath } from "./rootedFiles.ts";
 import { readSiteManifest } from "./sites.ts";
+import { walkSpace } from "./spaceWalk.ts";
 import { readStructure } from "./structure.ts";
 
 // Flows and applets are out because their panes have no reading view.
@@ -194,34 +196,19 @@ export async function buildTree(
  * with nothing left out for its kind: what a written path is read against.
  * A space's scopes come with it, read from each AGENTS.md's frontmatter. */
 export async function listRootPaths(rootDir: string, treeRoot: TreeRoot): Promise<RootPathsResponse> {
-  const files: string[] = [];
-  const folders: string[] = [];
+  const { files, folders } = await walkSpace(rootDir, "fail");
   const scopes: string[] = [];
   const settings: Record<string, Record<string, unknown>> = {};
-  async function walk(dir: string, relativeDir: string): Promise<void> {
-    const entries = await readdir(dir, { withFileTypes: true });
-    await Promise.all(
-      entries.map(async (entry) => {
-        if (isHiddenName(entry.name) || entry.isSymbolicLink()) return;
-        const relative = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
-        const absolute = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          folders.push(relative);
-          await walk(absolute, relative);
-        } else if (entry.isFile()) {
-          files.push(relative);
-          if (treeRoot !== "space" || !isAgentsFile(entry.name)) return;
-          const frontmatter = documentIndex().frontmatter(absolute);
-          if (!Object.hasOwn(frontmatter, "pragma")) return;
-          // The space is a scope whatever its own AGENTS.md says, so only its
-          // settings are listed, never its folder.
-          if (relativeDir !== "") scopes.push(relativeDir);
-          if (isSettingsBlock(frontmatter.pragma)) settings[relativeDir] = frontmatter.pragma;
-        }
-      }),
-    );
+  for (const file of treeRoot === "space" ? files : []) {
+    if (!isAgentsFile(file)) continue;
+    const frontmatter = documentIndex().frontmatter(path.join(rootDir, ...file.split("/")));
+    if (!Object.hasOwn(frontmatter, "pragma")) continue;
+    // The space is a scope whatever its own AGENTS.md says, so only its
+    // settings are listed, never its folder.
+    const folder = dirnameOf(file);
+    if (folder !== "") scopes.push(folder);
+    if (isSettingsBlock(frontmatter.pragma)) settings[folder] = frontmatter.pragma;
   }
-  await walk(rootDir, "");
   const listed = { files: files.sort(), folders: folders.sort(), scopes: scopes.sort() };
   return treeRoot === "space" ? { ...listed, settings } : listed;
 }
