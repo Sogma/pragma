@@ -535,6 +535,17 @@ describe("higgsfieldImageJobs", () => {
     });
     expect(await jobs.check({})).toEqual({ status: "failed", error: "This job names no Higgsfield job id." });
   });
+
+  // A result's type is read from its file name as a space file's is, so the
+  // file it is saved as keeps its own format.
+  it("takes a GIF result for a GIF", async () => {
+    standIn.resultImageName = "result.gif";
+    const jobs = higgsfieldImageJobs(server, "soul_2", { mediaCache: memoryCache(), videoCheckMs: 50 });
+    expect(await jobs.check({ jobId: JOB_ID })).toEqual({
+      status: "completed",
+      image: { type: "url", url: `${new URL(standIn.url).origin}/result.gif`, mediaType: "image/gif" },
+    });
+  });
 });
 
 describe("higgsfieldModels", () => {

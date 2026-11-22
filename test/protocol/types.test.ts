@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DOCUMENT_FORMAT_MAJOR,
   emptyFieldValue,
+  extensionForMediaType,
   FIELD_VALUE_TYPES,
   formatTimestamp,
   hasKnownKind,
@@ -68,6 +69,27 @@ describe("videoMediaTypeForPath", () => {
   it("only reads an extension that comes after the last slash", () => {
     expect(videoMediaTypeForPath("shots.mp4/take")).toBeUndefined();
     expect(videoMediaTypeForPath("shots.v2/take.mp4")).toBe("video/mp4");
+  });
+});
+
+// What a generated or pasted file is named with is the first extension a
+// table lists for its type, which the tables' order decides.
+describe("extensionForMediaType", () => {
+  it("names each type by the first extension listed for it", () => {
+    const types = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
+      "video/mp4",
+      "video/quicktime",
+    ];
+    expect(types.map(extensionForMediaType)).toEqual(["jpg", "png", "gif", "webp", "svg", "mp4", "mov"]);
+  });
+
+  it("names nothing for a type no table lists", () => {
+    expect([extensionForMediaType("audio/mpeg"), extensionForMediaType("image/avif")]).toEqual([undefined, undefined]);
   });
 });
 

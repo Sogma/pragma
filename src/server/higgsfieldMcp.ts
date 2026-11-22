@@ -11,6 +11,7 @@ import type {
   ProviderImageJobs,
   ProviderImageModel,
 } from "../protocol/imageGeneration.ts";
+import { extensionForMediaType, rasterImageMediaTypeForPath, videoMediaTypeForPath } from "../protocol/types.ts";
 import {
   type DeclaredVideoInputs,
   jobSettings,
@@ -37,10 +38,6 @@ export interface MediaCache {
   set(digest: string, mediaId: string): Promise<void>;
   drop(digest: string): Promise<void>;
 }
-
-// The extension `media_upload` reads a file's kind from, where a media type's
-// subtype isn't one; any other type goes as its subtype.
-const UPLOAD_EXTENSIONS: Record<string, string> = { "image/jpeg": "jpg", "video/quicktime": "mov" };
 
 // The kinds `media_confirm` takes for a generation's input.
 const CONFIRM_TYPES = new Set(["image", "video", "audio"]);
@@ -119,8 +116,10 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   }
 
   async function upload(client: Client, mediaType: string, bytes: Uint8Array, signal?: AbortSignal): Promise<string> {
+    // `media_upload` reads a file's kind from its extension; a type the
+    // space doesn't hold goes as its subtype.
     const [kind, subtype] = mediaType.split("/");
-    const extension = UPLOAD_EXTENSIONS[mediaType] ?? (subtype || "png");
+    const extension = extensionForMediaType(mediaType) ?? (subtype || "png");
     const answer = await call(
       client,
       "media_upload",
@@ -442,10 +441,10 @@ export function higgsfieldImageJobs(
   };
 }
 
+// A result's type, read from its URL's file name as a space file's is; a
+// name that says none is taken for a PNG.
 function imageTypeOf(url: string): string {
-  const extension = new URL(url).pathname.split(".").pop()?.toLowerCase();
-  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
-  return extension === "webp" ? "image/webp" : "image/png";
+  return rasterImageMediaTypeForPath(new URL(url).pathname) ?? "image/png";
 }
 
 // The role each of the SDK's frames goes in, and the node input it came from.
@@ -732,9 +731,9 @@ export function higgsfieldVideoModel(
   };
 }
 
+// As a picture's is, an MP4 where the name says none.
 function videoTypeOf(url: string): string {
-  const extension = new URL(url).pathname.split(".").pop()?.toLowerCase();
-  return extension === "webm" ? "video/webm" : extension === "mov" ? "video/quicktime" : "video/mp4";
+  return videoMediaTypeForPath(new URL(url).pathname) ?? "video/mp4";
 }
 
 // Higgsfield's ratios are whole numbers, so 1.85:1 goes as 37:20, the same

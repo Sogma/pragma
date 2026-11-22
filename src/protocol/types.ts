@@ -514,6 +514,17 @@ export function videoMediaTypeForPath(filePath: string): SpaceVideoMediaType | u
   return extensionMediaType(VIDEO_EXTENSIONS, filePath);
 }
 
+/** The extension a file of `mediaType` is written with, without its dot: the
+ * first one the tables above list for it, so `jpg` and `mp4` rather than
+ * `jpeg` and `m4v`; undefined for a type none of them names. */
+export function extensionForMediaType(mediaType: string): string | undefined {
+  for (const table of [RASTER_IMAGE_EXTENSIONS, VECTOR_IMAGE_EXTENSIONS, VIDEO_EXTENSIONS]) {
+    const extension = Object.keys(table).find((key) => table[key] === mediaType);
+    if (extension) return extension.slice(1);
+  }
+  return undefined;
+}
+
 export function notAVideo(rootedPath: string): string {
   return `"${rootedPath}" is not a video clip: an MP4, M4V, MOV or WebM file`;
 }

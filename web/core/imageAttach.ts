@@ -3,7 +3,7 @@
 // is written by the one writing rule a move rewrites with, so it survives the
 // note moving; a library file is named outright as `lib:<id>/…`.
 import { basenameOf, dirnameOf, parseRootedPath, type RootedPath } from "../../src/protocol/rootedPath.ts";
-import { IMAGE_EXTENSIONS, imageMediaTypeForPath } from "../../src/protocol/types.ts";
+import { extensionForMediaType, IMAGE_EXTENSIONS, imageMediaTypeForPath } from "../../src/protocol/types.ts";
 import { formatWikilink, wikilinkName } from "../../src/protocol/wikilink.ts";
 import { postUploadFile } from "./apiClient.ts";
 import { stripExtension } from "./paths.ts";
@@ -54,8 +54,7 @@ export function pastedImageName(mediaType: string): string {
   const stamp =
     `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
     `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const extension = Object.keys(IMAGE_EXTENSIONS).find((key) => IMAGE_EXTENSIONS[key] === mediaType) ?? ".png";
-  return `Pasted image ${stamp}${extension}`;
+  return `Pasted image ${stamp}.${extensionForMediaType(mediaType) ?? "png"}`;
 }
 
 /** Whether a media type is one the space can hold and reading view can show.

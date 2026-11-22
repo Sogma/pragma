@@ -35,6 +35,8 @@ export interface HiggsfieldStandIn {
   // A media id the server refuses, as for an upload made by another account.
   refusedMediaId?: string;
   jobRunning: boolean;
+  // The file name a finished image job's result URL ends in.
+  resultImageName: string;
   // How long jobs_wait holds its answer, as the real long poll does, and how
   // long it tells the client to pause before the next.
   pollDelayMs: number;
@@ -147,7 +149,7 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
         content.all_terminal = false;
         Object.assign(content, { poll_after_seconds: standIn.pollAfterSeconds });
       } else {
-        content.jobs[0].result_url = `${base}/${video ? "result.mp4" : "result.png"}`;
+        content.jobs[0].result_url = `${base}/${video ? "result.mp4" : standIn.resultImageName}`;
       }
       return result;
     }
@@ -165,6 +167,7 @@ export async function startHiggsfieldStandIn(): Promise<HiggsfieldStandIn> {
     creditsExact: 0.12,
     authorizations: [],
     jobRunning: false,
+    resultImageName: "result.png",
     pollDelayMs: 0,
     pollAfterSeconds: 0.02,
     offSchema: false,
