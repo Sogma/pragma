@@ -36,6 +36,17 @@ describe("a note's outline", () => {
     expect(outlineOf("# One\nA\n# Two\nB\n").sections.map((section) => section.title)).toEqual(["One", "Two"]);
   });
 
+  // Frontmatter and the title are read as every reader of a note reads them.
+  it("opens frontmatter only on a first line of exactly ---", () => {
+    expect(outlineOf("--- \n## One\n---\n## Two").sections.map((section) => section.title)).toEqual(["One", "Two"]);
+  });
+
+  it("leaves out only a heading that is the note's title, never a lone # after the note's first block", () => {
+    const titles = (markdown: string) => outlineOf(markdown).sections.map((section) => section.title);
+    expect(titles("Intro.\n\n# Heading\nText")).toEqual(["Heading"]);
+    expect(titles("Title\n=====\n\n# Part\nText")).toEqual(["Part"]);
+  });
+
   it("finds a section by its title or anchor, holding its subsections up to the next heading of its level", () => {
     const outline = outlineOf(NOTE);
     const lighting = findSection(outline, "Lighting");

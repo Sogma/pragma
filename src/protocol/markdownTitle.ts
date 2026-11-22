@@ -148,11 +148,20 @@ export function titleHeadingNode(body: string, parse: (text: string) => Tree): S
  * `rest`. */
 export function splitTitleHeading(body: string): { title: string | undefined; rest: string } {
   const heading = titleHeadingNode(body, (text) => markdownParser.parse(text));
-  if (!heading) return { title: undefined, rest: body };
-  const title = inlineText(heading, body, TITLE_SKIPS).replace(BLANKS, " ").trim();
-  if (!title) return { title: undefined, rest: body };
+  const title = heading ? headingText(heading, body) : "";
+  if (!heading || !title) return { title: undefined, rest: body };
   return { title, rest: body.slice(heading.to).replace(/^\n+/, "") };
 }
+
+/** Where a body's title heading lies, by the rule `splitTitleHeading` reads a
+ * title by; undefined when the body has none. */
+export function titleHeadingSpan(body: string): { from: number; to: number } | undefined {
+  const heading = titleHeadingNode(body, (text) => markdownParser.parse(text));
+  return heading && headingText(heading, body) ? { from: heading.from, to: heading.to } : undefined;
+}
+
+const headingText = (heading: SyntaxNode, body: string): string =>
+  inlineText(heading, body, TITLE_SKIPS).replace(BLANKS, " ").trim();
 
 /** A whole note's title heading and the prose after it, frontmatter skipped.
  * The frontmatter is cut without parsing it, so malformed YAML never costs a

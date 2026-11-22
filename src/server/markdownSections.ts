@@ -2,6 +2,8 @@
 // at a time: Pragma's spec through the copilot, a long note through a
 // generation's look. A section runs from its heading to the next heading of
 // its level or above, so it holds its subsections.
+import { documentBody } from "../protocol/frontmatter.ts";
+import { titleHeadingSpan } from "../protocol/markdownTitle.ts";
 
 /** One heading and the lines it heads, `start` to before `end`. */
 export interface MarkdownSection {
@@ -28,14 +30,19 @@ export function anchorKey(text: string): string {
     .join("-");
 }
 
-/** The document's headings, outside its frontmatter and code fences. A
- * lone `#` heading is its title, the whole document, so it heads no section
- * of its own. */
+/** The document's headings, outside its frontmatter and code fences, each
+ * read by the protocol's rule. The title heading heads the whole document,
+ * so no section of its own, unless the note has several `#` headings: then
+ * each heads a part, and keeps its section. */
 export function outlineOf(markdown: string): MarkdownOutline {
   const lines = markdown.split("\n");
   const found: Omit<MarkdownSection, "anchor" | "end">[] = [];
   let fence: string | undefined;
-  let index = lines[0]?.trim() === "---" ? lines.findIndex((line, at) => at > 0 && line.trim() === "---") + 1 : 0;
+  const lineAt = (offset: number): number => markdown.slice(0, offset).split("\n").length - 1;
+  const bodyStart = markdown.length - documentBody(markdown).length;
+  const title = titleHeadingSpan(markdown.slice(bodyStart));
+  const titleLine = title === undefined ? undefined : lineAt(bodyStart + title.from);
+  let index = lineAt(bodyStart);
   for (; index < lines.length; index++) {
     const line = lines[index];
     const marker = /^(`{3,}|~{3,})/.exec(line)?.[1];
@@ -46,8 +53,8 @@ export function outlineOf(markdown: string): MarkdownOutline {
     const match = fence === undefined ? /^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/.exec(line) : null;
     if (match) found.push({ level: match[1].length, title: match[2], start: index });
   }
-  const titles = found.filter((heading) => heading.level === 1);
-  const headings = titles.length === 1 ? found.filter((heading) => heading !== titles[0]) : found;
+  const lone = found.filter((heading) => heading.level === 1).length === 1;
+  const headings = lone ? found.filter((heading) => heading.start !== titleLine) : found;
   // A repeated title takes GitHub's -1, -2 suffix, so an anchor never names
   // two headings.
   const seen = new Map<string, number>();

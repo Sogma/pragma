@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addTextToNote, noteExcerpt, splitNoteTitle, splitTitleHeading } from "../../src/protocol/markdownTitle.ts";
+import {
+  addTextToNote,
+  noteExcerpt,
+  splitNoteTitle,
+  splitTitleHeading,
+  titleHeadingSpan,
+} from "../../src/protocol/markdownTitle.ts";
 
 describe("splitTitleHeading", () => {
   it("lifts an ATX heading and the blank lines after it", () => {
@@ -64,6 +70,16 @@ describe("splitTitleHeading", () => {
   it("reads no title past a comment block holding more, or one left open", () => {
     for (const body of ["<!-- a --> <b>b</b>\n# Title", "<!-- open\n\n# Title\n", "Intro <!-- a -->\n\n# Title"]) {
       expect(splitTitleHeading(body)).toEqual({ title: undefined, rest: body });
+    }
+  });
+});
+
+describe("titleHeadingSpan", () => {
+  it("says where the heading splitTitleHeading reads a title from lies, and nothing where it reads none", () => {
+    expect(titleHeadingSpan("<!-- draft -->\n# Chapter One\n\nIt begins.")).toEqual({ from: 15, to: 28 });
+    expect(titleHeadingSpan("Chapter One\n===\n\nIt begins.")).toEqual({ from: 0, to: 15 });
+    for (const body of ["Intro.\n\n# Chapter One", "# <!-- only -->\n\nbody", "## Chapter One"]) {
+      expect(titleHeadingSpan(body), body).toBeUndefined();
     }
   });
 });
