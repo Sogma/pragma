@@ -126,15 +126,11 @@ export function mountPublishingRoutes(app: Hono, { spaceRoot }: RouteContext): v
   // Removes a publisher entry and its stored key.
   app.all("/api/publishers/delete", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { id } = (await c.req.json()) as Partial<PublisherIdRequestBody>;
-      if (!id) return c.text("Missing id", 400);
-      await credentialStore().clear({ kind: "publisher-keys", id });
-      await withConfigMutationLock(async () => removePublisherConfig(id));
-      return c.body(null, 204);
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const { id } = (await c.req.json()) as Partial<PublisherIdRequestBody>;
+    if (!id) return c.text("Missing id", 400);
+    await credentialStore().clear({ kind: "publisher-keys", id });
+    await withConfigMutationLock(async () => removePublisherConfig(id));
+    return c.body(null, 204);
   });
 
   // New Site (docs/publishing.md's Creating a site). Holds the publisher

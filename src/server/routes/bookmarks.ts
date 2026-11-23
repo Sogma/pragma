@@ -4,8 +4,6 @@
 import type { Hono } from "hono";
 import type { SpaceBookmarkChangeRequestBody, SpaceBookmarksResponse } from "../../protocol/api.ts";
 import { type BookmarkChange, bookmarkPath } from "../../protocol/bookmarks.ts";
-import { EntryListFileError } from "../entryListFile.ts";
-import { PathAccessError } from "../rootedFiles.ts";
 import { changeSpaceBookmark, readSpaceBookmarks } from "../spaceBookmarks.ts";
 import type { Incoming, RouteContext } from "./shared.ts";
 
@@ -31,14 +29,8 @@ export function mountBookmarkRoutes(app: Hono, { spaceRoot }: RouteContext): voi
     if (c.req.method === "GET") return c.json<SpaceBookmarksResponse>(readSpaceBookmarks(spaceRoot));
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const change = readChange((await c.req.json()) as Incoming<SpaceBookmarkChangeRequestBody>);
-      if (typeof change === "string") return c.text(change, 400);
-      return c.json<SpaceBookmarksResponse>(await changeSpaceBookmark(spaceRoot, change));
-    } catch (error) {
-      if (error instanceof EntryListFileError) return c.text(error.message, 409);
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const change = readChange((await c.req.json()) as Incoming<SpaceBookmarkChangeRequestBody>);
+    if (typeof change === "string") return c.text(change, 400);
+    return c.json<SpaceBookmarksResponse>(await changeSpaceBookmark(spaceRoot, change));
   });
 }

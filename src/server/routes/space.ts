@@ -61,7 +61,7 @@ import {
 } from "../layout.ts";
 import { isAccess, libraryRows, readLibraries } from "../libraries.ts";
 import { folderSortState, saveFlowAppMode, saveFolderLayout, saveLocalSort, saveTableLayout } from "../localSorts.ts";
-import { formatWithinRoot, isSpaceTarget, PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
+import { formatWithinRoot, isSpaceTarget, resolveRootedPath } from "../rootedFiles.ts";
 import { listSites } from "../sites.ts";
 import { currentRevision } from "../spaceFiles.ts";
 import {
@@ -156,27 +156,23 @@ export function mountSpaceRoutes(
     if (c.req.method !== "POST") return c.body(null, 405);
     if (!spaceSwitcher || !ownMachine) return c.text("Space switching is not available in this mode", 501);
 
-    try {
-      const body = (await c.req.json()) as SwitchSpaceRequestBody;
+    const body = (await c.req.json()) as SwitchSpaceRequestBody;
 
-      // Validated against the permanent registry, not the capped recents: a
-      // space that aged off recents is still known, and narrowing this would
-      // break switching to it — with "loosen the guard" as the tempting fix.
-      // See docs/architecture.md's Space identity and state ownership section.
-      //
-      // The registry call *is* the guard: it refuses to register a path it
-      // doesn't already know, so this route cannot mint an id for whatever a
-      // request names.
-      const registered = rememberKnownSpace(loadGlobalConfig(), body.path);
-      if (!registered) return c.text("Not a known space", 400);
+    // Validated against the permanent registry, not the capped recents: a
+    // space that aged off recents is still known, and narrowing this would
+    // break switching to it — with "loosen the guard" as the tempting fix.
+    // See docs/architecture.md's Space identity and state ownership section.
+    //
+    // The registry call *is* the guard: it refuses to register a path it
+    // doesn't already know, so this route cannot mint an id for whatever a
+    // request names.
+    const registered = rememberKnownSpace(loadGlobalConfig(), body.path);
+    if (!registered) return c.text("Not a known space", 400);
 
-      saveGlobalConfig(registered);
-      const response = c.body(null, 204);
-      spaceSwitcher.switchTo(body.path);
-      return response;
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    saveGlobalConfig(registered);
+    const response = c.body(null, 204);
+    spaceSwitcher.switchTo(body.path);
+    return response;
   });
 
   // Renames a space's display label. Never touches its id — approvals are
@@ -185,23 +181,19 @@ export function mountSpaceRoutes(
   app.all("/api/space/label", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as SpaceLabelRequestBody;
-      const config = loadGlobalConfig();
-      const record = knownSpace(config, body.id);
-      if (!record) return c.text("Not a known space", 400);
+    const body = (await c.req.json()) as SpaceLabelRequestBody;
+    const config = loadGlobalConfig();
+    const record = knownSpace(config, body.id);
+    if (!record) return c.text("Not a known space", 400);
 
-      const label = body.label.trim();
-      saveGlobalConfig({
-        ...config,
-        // An empty label clears it, falling back to the folder name, rather
-        // than storing "" as a name nothing would render.
-        spaces: { ...config.spaces, [body.id]: { ...record, label: label || undefined } },
-      });
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const label = body.label.trim();
+    saveGlobalConfig({
+      ...config,
+      // An empty label clears it, falling back to the folder name, rather
+      // than storing "" as a name nothing would render.
+      spaces: { ...config.spaces, [body.id]: { ...record, label: label || undefined } },
+    });
+    return c.body(null, 204);
   });
 
   // Records whether git may run in a space. Takes an id and a boolean, never
@@ -210,20 +202,16 @@ export function mountSpaceRoutes(
   app.all("/api/space/trust", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<SpaceTrustRequestBody>;
-      if (typeof body.id !== "string" || typeof body.trusted !== "boolean") {
-        return c.text("Expected a space id and a boolean", 400);
-      }
-      const config = loadGlobalConfig();
-      const record = knownSpace(config, body.id);
-      if (!record) return c.text("Not a known space", 400);
-
-      saveGlobalConfig({ ...config, spaces: { ...config.spaces, [body.id]: { ...record, trusted: body.trusted } } });
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+    const body = (await c.req.json()) as Incoming<SpaceTrustRequestBody>;
+    if (typeof body.id !== "string" || typeof body.trusted !== "boolean") {
+      return c.text("Expected a space id and a boolean", 400);
     }
+    const config = loadGlobalConfig();
+    const record = knownSpace(config, body.id);
+    if (!record) return c.text("Not a known space", 400);
+
+    saveGlobalConfig({ ...config, spaces: { ...config.spaces, [body.id]: { ...record, trusted: body.trusted } } });
+    return c.body(null, 204);
   });
 
   // Clears every approval recorded for a space. The only way to revoke a
@@ -232,14 +220,10 @@ export function mountSpaceRoutes(
   app.all("/api/space/grants/reset", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as SpaceIdRequestBody;
-      if (!knownSpace(loadGlobalConfig(), body.id)) return c.text("Not a known space", 400);
-      await clearSpaceGrants(body.id);
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const body = (await c.req.json()) as SpaceIdRequestBody;
+    if (!knownSpace(loadGlobalConfig(), body.id)) return c.text("Not a known space", 400);
+    await clearSpaceGrants(body.id);
+    return c.body(null, 204);
   });
 
   // Drops a space from the registry. Never touches the folder — only what
@@ -252,24 +236,20 @@ export function mountSpaceRoutes(
   app.all("/api/space/forget", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as SpaceIdRequestBody;
-      const config = loadGlobalConfig();
-      if (!knownSpace(config, body.id)) return c.text("Not a known space", 400);
-      if (body.id === findSpaceId(config, spaceRoot)) return c.text("Cannot forget the current space", 400);
+    const body = (await c.req.json()) as SpaceIdRequestBody;
+    const config = loadGlobalConfig();
+    if (!knownSpace(config, body.id)) return c.text("Not a known space", 400);
+    if (body.id === findSpaceId(config, spaceRoot)) return c.text("Cannot forget the current space", 400);
 
-      const spaces = { ...config.spaces };
-      delete spaces[body.id];
-      saveGlobalConfig({
-        ...config,
-        spaces,
-        recentSpaceIds: (config.recentSpaceIds ?? []).filter((entry) => entry !== body.id),
-      });
-      await clearSpaceGrants(body.id);
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const spaces = { ...config.spaces };
+    delete spaces[body.id];
+    saveGlobalConfig({
+      ...config,
+      spaces,
+      recentSpaceIds: (config.recentSpaceIds ?? []).filter((entry) => entry !== body.id),
+    });
+    await clearSpaceGrants(body.id);
+    return c.body(null, 204);
   });
 
   // Install-global, not per space, like the trash setting: every browser on
@@ -279,58 +259,38 @@ export function mountSpaceRoutes(
       return c.json<FileTypeSettings>({ showAllFileTypes: showsAllFileTypes(loadGlobalConfig()) });
     }
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { showAllFileTypes } = (await c.req.json()) as Partial<FileTypeSettings>;
-      if (typeof showAllFileTypes !== "boolean") return c.text("showAllFileTypes must be true or false", 400);
-      saveGlobalConfig({ ...loadGlobalConfig(), showAllFileTypes: showAllFileTypes ? true : undefined });
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const { showAllFileTypes } = (await c.req.json()) as Partial<FileTypeSettings>;
+    if (typeof showAllFileTypes !== "boolean") return c.text("showAllFileTypes must be true or false", 400);
+    saveGlobalConfig({ ...loadGlobalConfig(), showAllFileTypes: showAllFileTypes ? true : undefined });
+    return c.body(null, 204);
   });
 
   // Each folder in its own order. A sort picked on this install is its
   // gallery's alone: the tree follows it once Set as default makes it the
   // folder's own.
   app.all("/api/space/tree", async (c) => {
-    try {
-      c.header(CHANGES_HEADER, changes.version(spaceRoot));
-      return c.json(await buildTree(spaceRoot, spaceRoot, "space", spaceListing()));
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    c.header(CHANGES_HEADER, changes.version(spaceRoot));
+    return c.json(await buildTree(spaceRoot, spaceRoot, "space", spaceListing()));
   });
 
   app.all("/api/space/paths", async (c) => {
     if (c.req.method !== "GET") return c.body(null, 405);
-    try {
-      c.header(CHANGES_HEADER, changes.version(spaceRoot));
-      return c.json<RootPathsResponse>(await listRootPaths(spaceRoot, "space"));
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    c.header(CHANGES_HEADER, changes.version(spaceRoot));
+    return c.json<RootPathsResponse>(await listRootPaths(spaceRoot, "space"));
   });
 
   app.all("/api/space/search", async (c) => {
-    try {
-      const response = await searchSpaceContent(spaceRoot, c.req.query("q") ?? "", {
-        dir: c.req.query("dir") || undefined,
-        maxMatches: MAX_UI_SEARCH_MATCHES,
-      });
-      return c.json<SpaceSearchResponse>(response);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const response = await searchSpaceContent(spaceRoot, c.req.query("q") ?? "", {
+      dir: c.req.query("dir") || undefined,
+      maxMatches: MAX_UI_SEARCH_MATCHES,
+    });
+    return c.json<SpaceSearchResponse>(response);
   });
 
   app.all("/api/space/sites", async (c) => {
     if (c.req.method !== "GET") return c.body(null, 405);
-    try {
-      const sites = await listSites(spaceRoot, spaceRoot);
-      return c.json<SpaceSiteEntry[]>(sites);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const sites = await listSites(spaceRoot, spaceRoot);
+    return c.json<SpaceSiteEntry[]>(sites);
   });
 
   // The Libraries panel's list. No route here adds or locates a library:
@@ -342,13 +302,9 @@ export function mountSpaceRoutes(
     // outright rather than silently answered with it.
     if (c.req.method !== "GET") return c.body(null, 405);
 
-    try {
-      // An unreachable root is a state, not an error: the row still lists,
-      // so its ⋮ menu and Locate stay reachable.
-      return c.json<SpaceLibrariesResponse>(libraryRows(spaceRoot));
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    // An unreachable root is a state, not an error: the row still lists,
+    // so its ⋮ menu and Locate stay reachable.
+    return c.json<SpaceLibrariesResponse>(libraryRows(spaceRoot));
   });
 
   // One library's tree. `:id` is looked up among the space's libraries
@@ -383,25 +339,17 @@ export function mountSpaceRoutes(
       // gallery's alone.
       return c.json(await buildTree(folder, library.path, "library", { keepEmpty, depth }));
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return c.text("Not found", 404);
-      if (code === "ENOTDIR") return c.text("Not a folder", 400);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return c.text("Not a folder", 400);
+      throw error;
     }
   });
 
   app.all("/api/space/libraries/:id/paths", async (c) => {
     if (c.req.method !== "GET") return c.body(null, 405);
-    try {
-      const library = readLibraries(spaceRoot).find((entry) => entry.id === c.req.param("id"));
-      if (!library) return c.text("Unknown library", 404);
-      c.header(CHANGES_HEADER, changes.version(library.path));
-      return c.json<RootPathsResponse>(await listRootPaths(library.path, "library"));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const library = readLibraries(spaceRoot).find((entry) => entry.id === c.req.param("id"));
+    if (!library) return c.text("Unknown library", 404);
+    c.header(CHANGES_HEADER, changes.version(library.path));
+    return c.json<RootPathsResponse>(await listRootPaths(library.path, "library"));
   });
 
   // Each tree's version (changeFeeds.ts): the space's always, a library's
@@ -410,20 +358,16 @@ export function mountSpaceRoutes(
   app.all("/api/space/changes", async (c) => {
     if (c.req.method !== "GET") return c.body(null, 405);
 
-    try {
-      const response: SpaceChangesResponse = { space: changes.version(spaceRoot) };
-      const id = c.req.query("library");
-      if (id !== undefined) {
-        const library = readLibraries(spaceRoot).find((entry) => entry.id === id);
-        if (!library) return c.text("Unknown library", 404);
-        response.library = changes.version(library.path);
-      }
-      const files = c.req.queries("file");
-      if (files) response.files = await fileRevisions(spaceRoot, files);
-      return c.json(response);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+    const response: SpaceChangesResponse = { space: changes.version(spaceRoot) };
+    const id = c.req.query("library");
+    if (id !== undefined) {
+      const library = readLibraries(spaceRoot).find((entry) => entry.id === id);
+      if (!library) return c.text("Unknown library", 404);
+      response.library = changes.version(library.path);
     }
+    const files = c.req.queries("file");
+    if (files) response.files = await fileRevisions(spaceRoot, files);
+    return c.json(response);
   });
 
   // A Class's rows, for its view: a read, in any root. With `dir` instead,
@@ -431,23 +375,17 @@ export function mountSpaceRoutes(
   app.all("/api/space/class", async (c) => {
     if (c.req.method !== "GET") return c.body(null, 405);
 
-    try {
-      const dir = c.req.query("dir");
-      if (dir !== undefined) {
-        const folder = resolveRootedPath(spaceRoot, dir, "read");
-        if (!(await stat(folder.filePath)).isDirectory()) return c.text("Not a folder", 400);
-        const own = formatRootedPath(folder.rooted);
-        const rows = await folderRows(spaceRoot, [{ folder: own, subfolders: false }], scopeFolderOf(spaceRoot, own));
-        return c.json<ClassRowsResponse>({ rows });
-      }
-      const target = c.req.query("path");
-      if (target === undefined) return c.text("Missing path query parameter", 400);
-      return c.json<ClassRowsResponse>({ rows: await classRows(spaceRoot, target) });
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+    const dir = c.req.query("dir");
+    if (dir !== undefined) {
+      const folder = resolveRootedPath(spaceRoot, dir, "read");
+      if (!(await stat(folder.filePath)).isDirectory()) return c.text("Not a folder", 400);
+      const own = formatRootedPath(folder.rooted);
+      const rows = await folderRows(spaceRoot, [{ folder: own, subfolders: false }], scopeFolderOf(spaceRoot, own));
+      return c.json<ClassRowsResponse>({ rows });
     }
+    const target = c.req.query("path");
+    if (target === undefined) return c.text("Missing path query parameter", 400);
+    return c.json<ClassRowsResponse>({ rows: await classRows(spaceRoot, target) });
   });
 
   // One folder's own entries, in the space or a library, for the gallery.
@@ -497,11 +435,8 @@ export function mountSpaceRoutes(
       const order = { default: state.fallback, ...(state.local ? { local: state.local } : {}) };
       return c.json<FolderListingResponse>({ entries, order, ...(cards ? { layout: "cards" } : {}) });
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return c.text("Not found", 404);
-      if (code === "ENOTDIR") return c.text("Not a folder", 400);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      if ((error as NodeJS.ErrnoException).code === "ENOTDIR") return c.text("Not a folder", 400);
+      throw error;
     }
   });
 
@@ -639,41 +574,37 @@ export function mountSpaceRoutes(
 
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<LayoutRequestBody>;
+    const body = (await c.req.json()) as Incoming<LayoutRequestBody>;
 
-      const folders: Partial<FolderState> = {};
-      for (const key of ["collapsedFolders", "expandedFolders"] as const) {
-        const value = body[key];
-        if (value === undefined) continue;
-        if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
-          return c.text(`${key} must be an array of strings`, 400);
-        }
-        folders[key] = value;
+    const folders: Partial<FolderState> = {};
+    for (const key of ["collapsedFolders", "expandedFolders"] as const) {
+      const value = body[key];
+      if (value === undefined) continue;
+      if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+        return c.text(`${key} must be an array of strings`, 400);
       }
-      if (Object.keys(folders).length > 0) await writeFolderState(spaceRoot, folders);
-
-      if (body.groups !== undefined) {
-        if (
-          !Array.isArray(body.groups) ||
-          !body.groups.every(isValidLayoutGroup) ||
-          (body.focusedGroup !== undefined && typeof body.focusedGroup !== "number")
-        ) {
-          return c.text(
-            "groups must be an array of {tabs, activeTabIndex, readingView?, sourceMode?}, each tab a {kind, path, place?}, readingView and sourceMode booleans, and focusedGroup a number",
-            400,
-          );
-        }
-        await writeLayoutGroups(spaceRoot, {
-          groups: body.groups,
-          focusedGroup: typeof body.focusedGroup === "number" ? body.focusedGroup : 0,
-        });
-      }
-
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      folders[key] = value;
     }
+    if (Object.keys(folders).length > 0) await writeFolderState(spaceRoot, folders);
+
+    if (body.groups !== undefined) {
+      if (
+        !Array.isArray(body.groups) ||
+        !body.groups.every(isValidLayoutGroup) ||
+        (body.focusedGroup !== undefined && typeof body.focusedGroup !== "number")
+      ) {
+        return c.text(
+          "groups must be an array of {tabs, activeTabIndex, readingView?, sourceMode?}, each tab a {kind, path, place?}, readingView and sourceMode booleans, and focusedGroup a number",
+          400,
+        );
+      }
+      await writeLayoutGroups(spaceRoot, {
+        groups: body.groups,
+        focusedGroup: typeof body.focusedGroup === "number" ? body.focusedGroup : 0,
+      });
+    }
+
+    return c.body(null, 204);
   });
 
   // One folder's sort on this install, in the space or any library: host
@@ -682,30 +613,24 @@ export function mountSpaceRoutes(
   app.all("/api/space/local-sort", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<LocalSortRequestBody>;
-      const sort = body.sort === null ? undefined : parseSortChoice(body.sort);
-      const arrangement =
-        body.arrangement === undefined || body.arrangement === null
-          ? body.arrangement
-          : Array.isArray(body.arrangement) && body.arrangement.every((name) => typeof name === "string")
-            ? (body.arrangement as string[])
-            : false;
-      if (typeof body.dir !== "string") return c.text("dir must be a folder path", 400);
-      if (body.sort !== null && !sort) return c.text("sort must be null or a sort", 400);
-      if (arrangement === false) return c.text("arrangement must be an array of names", 400);
-      const resolved = resolveRootedPath(spaceRoot, body.dir, "read");
-      if (!(await stat(resolved.filePath)).isDirectory()) return c.text("Not a folder", 400);
-      const key = formatWithinRoot(resolved, resolved.filePath);
-      const treeRoot = isSpaceTarget(resolved) ? "space" : "library";
-      const listing = treeRoot === "space" ? spaceListing() : {};
-      await saveLocalSort(spaceRoot, key, resolved.filePath, treeRoot, { sort, arrangement }, listing);
-      return c.body(null, 204);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const body = (await c.req.json()) as Incoming<LocalSortRequestBody>;
+    const sort = body.sort === null ? undefined : parseSortChoice(body.sort);
+    const arrangement =
+      body.arrangement === undefined || body.arrangement === null
+        ? body.arrangement
+        : Array.isArray(body.arrangement) && body.arrangement.every((name) => typeof name === "string")
+          ? (body.arrangement as string[])
+          : false;
+    if (typeof body.dir !== "string") return c.text("dir must be a folder path", 400);
+    if (body.sort !== null && !sort) return c.text("sort must be null or a sort", 400);
+    if (arrangement === false) return c.text("arrangement must be an array of names", 400);
+    const resolved = resolveRootedPath(spaceRoot, body.dir, "read");
+    if (!(await stat(resolved.filePath)).isDirectory()) return c.text("Not a folder", 400);
+    const key = formatWithinRoot(resolved, resolved.filePath);
+    const treeRoot = isSpaceTarget(resolved) ? "space" : "library";
+    const listing = treeRoot === "space" ? spaceListing() : {};
+    await saveLocalSort(spaceRoot, key, resolved.filePath, treeRoot, { sort, arrangement }, listing);
+    return c.body(null, 204);
   });
 
   // How a gallery draws one folder on this install, kept beside its sort:
@@ -713,19 +638,13 @@ export function mountSpaceRoutes(
   app.all("/api/space/folder-layout", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<FolderLayoutRequestBody>;
-      if (typeof body.dir !== "string") return c.text("dir must be a folder path", 400);
-      if (body.layout !== "tiles" && body.layout !== "cards") return c.text('layout must be "tiles" or "cards"', 400);
-      const resolved = resolveRootedPath(spaceRoot, body.dir, "read");
-      if (!(await stat(resolved.filePath)).isDirectory()) return c.text("Not a folder", 400);
-      await saveFolderLayout(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.layout);
-      return c.body(null, 204);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const body = (await c.req.json()) as Incoming<FolderLayoutRequestBody>;
+    if (typeof body.dir !== "string") return c.text("dir must be a folder path", 400);
+    if (body.layout !== "tiles" && body.layout !== "cards") return c.text('layout must be "tiles" or "cards"', 400);
+    const resolved = resolveRootedPath(spaceRoot, body.dir, "read");
+    if (!(await stat(resolved.filePath)).isDirectory()) return c.text("Not a folder", 400);
+    await saveFolderLayout(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.layout);
+    return c.body(null, 204);
   });
 
   // How a Table draws its rows on this install, the same host state, so a
@@ -734,20 +653,14 @@ export function mountSpaceRoutes(
   app.all("/api/space/table-layout", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<TableLayoutRequestBody>;
-      if (typeof body.path !== "string" || !isTableFile(body.path)) return c.text("path must be a Table", 400);
-      if (!isTableLayout(body.layout)) return c.text('layout must be "list" or "cards"', 400);
-      const resolved = resolveRootedPath(spaceRoot, body.path, "read");
-      if (!(await stat(resolved.filePath)).isFile()) return c.text("Not a Table", 400);
-      const own = parseTableFile(await readFile(resolved.filePath, "utf8"))?.layout ?? "list";
-      await saveTableLayout(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.layout, own);
-      return c.body(null, 204);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const body = (await c.req.json()) as Incoming<TableLayoutRequestBody>;
+    if (typeof body.path !== "string" || !isTableFile(body.path)) return c.text("path must be a Table", 400);
+    if (!isTableLayout(body.layout)) return c.text('layout must be "list" or "cards"', 400);
+    const resolved = resolveRootedPath(spaceRoot, body.path, "read");
+    if (!(await stat(resolved.filePath)).isFile()) return c.text("Not a Table", 400);
+    const own = parseTableFile(await readFile(resolved.filePath, "utf8"))?.layout ?? "list";
+    await saveTableLayout(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.layout, own);
+    return c.body(null, 204);
   });
 
   // Whether a Flow shows App Mode on this install, the same host state, so a
@@ -756,19 +669,13 @@ export function mountSpaceRoutes(
   app.all("/api/space/flow-app-mode", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as Incoming<FlowAppModeRequestBody>;
-      if (typeof body.path !== "string" || !isFlowFile(body.path)) return c.text("path must be a Flow", 400);
-      if (typeof body.appMode !== "boolean") return c.text("appMode must be true or false", 400);
-      const resolved = resolveRootedPath(spaceRoot, body.path, "read");
-      if (!(await stat(resolved.filePath)).isFile()) return c.text("Not a Flow", 400);
-      const own = parseFlowFile(await readFile(resolved.filePath, "utf8"))?.graph.appModeActive === true;
-      await saveFlowAppMode(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.appMode, own);
-      return c.body(null, 204);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const body = (await c.req.json()) as Incoming<FlowAppModeRequestBody>;
+    if (typeof body.path !== "string" || !isFlowFile(body.path)) return c.text("path must be a Flow", 400);
+    if (typeof body.appMode !== "boolean") return c.text("appMode must be true or false", 400);
+    const resolved = resolveRootedPath(spaceRoot, body.path, "read");
+    if (!(await stat(resolved.filePath)).isFile()) return c.text("Not a Flow", 400);
+    const own = parseFlowFile(await readFile(resolved.filePath, "utf8"))?.graph.appModeActive === true;
+    await saveFlowAppMode(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.appMode, own);
+    return c.body(null, 204);
   });
 }

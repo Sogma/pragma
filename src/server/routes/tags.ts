@@ -5,8 +5,6 @@ import type { Hono } from "hono";
 import type { SpaceTagChangeRequestBody, SpaceTagsResponse } from "../../protocol/api.ts";
 import { illegalTagNameReason, type TagChange, tagNameOf } from "../../protocol/tags.ts";
 import { normalizeHexColor } from "../../protocol/types.ts";
-import { EntryListFileError } from "../entryListFile.ts";
-import { PathAccessError } from "../rootedFiles.ts";
 import { changeSpaceTag, readSpaceTags, undeclaredTags } from "../spaceTags.ts";
 import type { Incoming, RouteContext } from "./shared.ts";
 
@@ -40,14 +38,8 @@ export function mountTagRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     if (c.req.method === "GET") return c.json<SpaceTagsResponse>(await withUsed(readSpaceTags(spaceRoot)));
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const change = readChange((await c.req.json()) as Incoming<SpaceTagChangeRequestBody>);
-      if (typeof change === "string") return c.text(change, 400);
-      return c.json<SpaceTagsResponse>(await withUsed(await changeSpaceTag(spaceRoot, change)));
-    } catch (error) {
-      if (error instanceof EntryListFileError) return c.text(error.message, 409);
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const change = readChange((await c.req.json()) as Incoming<SpaceTagChangeRequestBody>);
+    if (typeof change === "string") return c.text(change, 400);
+    return c.json<SpaceTagsResponse>(await withUsed(await changeSpaceTag(spaceRoot, change)));
   });
 }

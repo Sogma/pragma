@@ -59,7 +59,7 @@ import { readFlowAppModes, readTableLayouts } from "../layout.ts";
 import { presetPaths } from "../presets.ts";
 import { parseByteRange } from "../rangeRequest.ts";
 import { resolveToolkits } from "../resolveToolkits.ts";
-import { formatWithinRoot, isSpaceTarget, PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
+import { formatWithinRoot, isSpaceTarget, resolveRootedPath } from "../rootedFiles.ts";
 import { saveDocument } from "../saveDocument.ts";
 import { classesLinking, classLinkedFiles } from "../spaceClasses.ts";
 import { readRevision, revisionOf, withFileLock } from "../spaceFiles.ts";
@@ -138,56 +138,47 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
   // `path` may name the space (bare) or a library (`lib:<id>/…`); the
   // resolver, not this route, decides read access.
   app.all("/api/file/raw", async (c) => {
-    try {
-      const relativePath = c.req.query("path");
-      if (!relativePath) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
 
-      const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
-      const mediaType = rawFileTypeForPath(filePath);
-      if (!mediaType) return c.text("Not a recognized image, video, PDF or LUT file", 404);
+    const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
+    const mediaType = rawFileTypeForPath(filePath);
+    if (!mediaType) return c.text("Not a recognized image, video, PDF or LUT file", 404);
 
-      const { size } = await stat(filePath);
-      const range = parseByteRange(c.req.header("range"), size);
-      // Only a range that parsed and cannot be satisfied is refused; one
-      // this server does not understand already came back as "send it all".
-      if (range === null) {
-        return c.body(null, 416, { "content-range": `bytes */${size}`, "accept-ranges": "bytes" });
-      }
-
-      const start = range?.start ?? 0;
-      const end = range?.end ?? size - 1;
-      const headers: Record<string, string> = {
-        "content-type": mediaType,
-        // Set explicitly rather than relying on an automatic Content-Length:
-        // on HEAD the body is dropped before sending, which otherwise
-        // silently breaks a media pane's Size lookup (a HEAD request
-        // against this same route).
-        "content-length": String(size === 0 ? 0 : end - start + 1),
-        // Advertised on every answer, not only a partial one: it is how a
-        // player learns it may seek at all, before it has asked for a byte.
-        "accept-ranges": "bytes",
-        // A space SVG opened as a page (a link to this URL, "open image in
-        // new tab") would otherwise run its scripts on the app's own origin,
-        // with the whole API in reach. An <img> or <video> ignores the
-        // header, so embeds and the media panes are unaffected.
-        "content-security-policy": vectorImageMediaTypeForPath(filePath) ? VECTOR_IMAGE_PAGE_POLICY : "sandbox",
-      };
-      if (range) headers["content-range"] = `bytes ${start}-${end}/${size}`;
-
-      const status = range ? 206 : 200;
-      if (c.req.method === "HEAD" || size === 0) return c.body(null, status, headers);
-      // Streamed, never read whole, images included: a library take runs to
-      // gigabytes, and buffering one per request lets a handful of seeks
-      // take the server down.
-      return c.body(Readable.toWeb(createReadStream(filePath, { start, end })) as ReadableStream, status, headers);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      // A restored tab, or an embed, may name a file that has since gone.
-      // That is the file's state, not the server's failure, and the pane
-      // asking reads the status to say which.
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+    const { size } = await stat(filePath);
+    const range = parseByteRange(c.req.header("range"), size);
+    // Only a range that parsed and cannot be satisfied is refused; one
+    // this server does not understand already came back as "send it all".
+    if (range === null) {
+      return c.body(null, 416, { "content-range": `bytes */${size}`, "accept-ranges": "bytes" });
     }
+
+    const start = range?.start ?? 0;
+    const end = range?.end ?? size - 1;
+    const headers: Record<string, string> = {
+      "content-type": mediaType,
+      // Set explicitly rather than relying on an automatic Content-Length:
+      // on HEAD the body is dropped before sending, which otherwise
+      // silently breaks a media pane's Size lookup (a HEAD request
+      // against this same route).
+      "content-length": String(size === 0 ? 0 : end - start + 1),
+      // Advertised on every answer, not only a partial one: it is how a
+      // player learns it may seek at all, before it has asked for a byte.
+      "accept-ranges": "bytes",
+      // A space SVG opened as a page (a link to this URL, "open image in
+      // new tab") would otherwise run its scripts on the app's own origin,
+      // with the whole API in reach. An <img> or <video> ignores the
+      // header, so embeds and the media panes are unaffected.
+      "content-security-policy": vectorImageMediaTypeForPath(filePath) ? VECTOR_IMAGE_PAGE_POLICY : "sandbox",
+    };
+    if (range) headers["content-range"] = `bytes ${start}-${end}/${size}`;
+
+    const status = range ? 206 : 200;
+    if (c.req.method === "HEAD" || size === 0) return c.body(null, status, headers);
+    // Streamed, never read whole, images included: a library take runs to
+    // gigabytes, and buffering one per request lets a handful of seeks
+    // take the server down.
+    return c.body(Readable.toWeb(createReadStream(filePath, { start, end })) as ReadableStream, status, headers);
   });
 
   // A media file's thumbnail, from the host's cache. GET answers the one made
@@ -240,10 +231,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       await thumbnails.write(key, bytes, { ...decoded, ...(await headerDetails(resolved.filePath)) });
       return c.body(null, 204);
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
       if (error instanceof InvalidThumbnail) return c.text(error.message, 422);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 
@@ -261,10 +250,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       await pipeline(createReadStream(filePath), hash);
       return c.json<FileSha256Response>({ sha256: hash.digest("hex") });
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
       if ((error as NodeJS.ErrnoException).code === "EISDIR") return c.text("A folder has no bytes to hash", 400);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 
@@ -285,10 +272,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       }));
       return c.json<PixelFormatResponse>(format);
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
       if (error instanceof UnreadableImageHeader) return c.text(error.message, 422);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 
@@ -328,29 +313,19 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         clip: clip ?? NO_CLIP_DETAILS,
       });
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
       if (error instanceof UnreadableVideoFormat) return c.text(error.message, 422);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 
   // What the install's thumbnails take, for Settings, and clearing them all.
   app.get("/api/thumbnails", async (c) => {
-    try {
-      return c.json<ThumbnailUsageResponse>(await thumbnails.usage());
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    return c.json<ThumbnailUsageResponse>(await thumbnails.usage());
   });
   app.all("/api/thumbnails/clear", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      await thumbnails.clear();
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    await thumbnails.clear();
+    return c.body(null, 204);
   });
 
   // A clip's details for the video pane's Info, the same way — see videoFormat.ts.
@@ -367,10 +342,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         await withHeaderReader(filePath, (read, size) => readClipHeader(mediaType, read, size)),
       );
     } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
       if (error instanceof UnreadableVideoFormat) return c.text(error.message, 422);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 
@@ -378,250 +351,223 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
   // route of its own, like the hash, so /api/file/info stays stat-only, and so
   // a row never downloads a whole document, or an Applet's imports, for a line.
   app.get("/api/file/description", async (c) => {
-    try {
-      const relativePath = c.req.query("path");
-      if (!relativePath) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
 
-      const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
-      const type = (await stat(filePath)).isDirectory() ? "directory" : "file";
-      const description = entryDescription(path.dirname(filePath), path.basename(filePath), type);
-      return c.json<FileDescriptionResponse>(description ? { description } : {});
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
+    const type = (await stat(filePath)).isDirectory() ? "directory" : "file";
+    const description = entryDescription(path.dirname(filePath), path.basename(filePath), type);
+    return c.json<FileDescriptionResponse>(description ? { description } : {});
   });
 
   // The Links tab's Backlinks. A library document can be named from the space
   // as `lib:<id>/…` as well as from inside its library, so both are read.
   app.get("/api/file/backlinks", async (c) => {
-    try {
-      const relativePath = c.req.query("path");
-      if (!relativePath) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
 
-      const resolved = resolveRootedPath(spaceRoot, relativePath, "read");
-      const space: IndexRoot = { dir: spaceRoot, root: "space" };
-      const roots = isSpaceTarget(resolved) ? [space] : [{ dir: resolved.rootDir, root: resolved.rooted.root }, space];
-      const backlinks = await documentIndex().backlinks(
-        formatRootedPath(resolved.rooted),
-        roots,
-        presetPaths(spaceRoot),
-      );
-      return c.json<BacklinksResponse>({ backlinks });
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const resolved = resolveRootedPath(spaceRoot, relativePath, "read");
+    const space: IndexRoot = { dir: spaceRoot, root: "space" };
+    const roots = isSpaceTarget(resolved) ? [space] : [{ dir: resolved.rootDir, root: resolved.rooted.root }, space];
+    const backlinks = await documentIndex().backlinks(formatRootedPath(resolved.rooted), roots, presetPaths(spaceRoot));
+    return c.json<BacklinksResponse>({ backlinks });
   });
 
   // The assistant's Info tab: facts every entry has, for any kind. Stat only —
   // never a read — so it costs the same for a gigabyte take as for a note.
   // An empty path is the space's own folder, whose gallery asks too.
   app.get("/api/file/info", async (c) => {
-    try {
-      const relativePath = c.req.query("path");
-      if (relativePath === undefined) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (relativePath === undefined) return c.text("Missing path query parameter", 400);
 
-      const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
-      const info = await stat(filePath);
-      return c.json<FileInfoResponse>({
-        kind: info.isDirectory() ? "directory" : "file",
-        name: path.basename(filePath),
-        size: info.size,
-        modified: info.mtime.toISOString(),
-        systemFolder: path.dirname(filePath),
-      });
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
+    const info = await stat(filePath);
+    return c.json<FileInfoResponse>({
+      kind: info.isDirectory() ? "directory" : "file",
+      name: path.basename(filePath),
+      size: info.size,
+      modified: info.mtime.toISOString(),
+      systemFolder: path.dirname(filePath),
+    });
   });
 
   app.all("/api/file", async (c) => {
-    try {
-      const relativePath = c.req.query("path");
-      if (!relativePath) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
 
-      // Reads may name a library (`lib:<id>/…`); writes are resolved for
-      // write access, so a read-only root refuses here with a 403 rather
-      // than anywhere downstream having to know libraries exist.
-      const write = c.req.method === "PUT";
-      const resolved = resolveRootedPath(spaceRoot, relativePath, write ? "write" : "read");
-      const { filePath, rooted } = resolved;
-      const inSpace = !isLibraryRoot(rooted.root);
+    // Reads may name a library (`lib:<id>/…`); writes are resolved for
+    // write access, so a read-only root refuses here with a 403 rather
+    // than anywhere downstream having to know libraries exist.
+    const write = c.req.method === "PUT";
+    const resolved = resolveRootedPath(spaceRoot, relativePath, write ? "write" : "read");
+    const { filePath, rooted } = resolved;
+    const inSpace = !isLibraryRoot(rooted.root);
 
-      if (c.req.method === "GET") {
-        // Media never comes back through this route. An image or a PDF
-        // decoded as utf8 is mangled, and a video decoded as utf8 is a
-        // gigabyte-scale string built to be thrown away — each has a pane
-        // that reads /api/file/raw instead. Checked before anything below
-        // reads the file.
-        if (mediaTypeForPath(filePath)) {
-          return c.text("This is an image, video or PDF file. Its contents can't be read as text.", 400);
-        }
+    if (c.req.method === "GET") {
+      // Media never comes back through this route. An image or a PDF
+      // decoded as utf8 is mangled, and a video decoded as utf8 is a
+      // gigabyte-scale string built to be thrown away — each has a pane
+      // that reads /api/file/raw instead. Checked before anything below
+      // reads the file.
+      if (mediaTypeForPath(filePath)) {
+        return c.text("This is an image, video or PDF file. Its contents can't be read as text.", 400);
+      }
 
-        // Hashed before anything below reads the file again, never after: a
-        // write landing between the two then pairs newer content with an
-        // older revision, and costs one needless conflict. The other order
-        // would pair older content with the newer revision, and a save
-        // built from it would overwrite that write unrefused.
-        //
-        // A missing file hashes as empty, the way the parsers read one.
-        const bytes = await readFile(filePath).catch((error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") return undefined;
-          throw error;
-        });
-        const revision = revisionOf(bytes ?? "");
-        // Decoded once for the branches below, so their content and the
-        // revision come from one read; the applet's reader opens the file
-        // itself, hence the order above.
-        const text = bytes?.toString("utf8") ?? "";
-        // The text this window now holds, kept if something outside Pragma
-        // writes over it before the window next saves.
-        if (inSpace && bytes !== undefined) noteKnown(spaceRoot, filePath, text);
+      // Hashed before anything below reads the file again, never after: a
+      // write landing between the two then pairs newer content with an
+      // older revision, and costs one needless conflict. The other order
+      // would pair older content with the newer revision, and a save
+      // built from it would overwrite that write unrefused.
+      //
+      // A missing file hashes as empty, the way the parsers read one.
+      const bytes = await readFile(filePath).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      const revision = revisionOf(bytes ?? "");
+      // Decoded once for the branches below, so their content and the
+      // revision come from one read; the applet's reader opens the file
+      // itself, hence the order above.
+      const text = bytes?.toString("utf8") ?? "";
+      // The text this window now holds, kept if something outside Pragma
+      // writes over it before the window next saves.
+      if (inSpace && bytes !== undefined) noteKnown(spaceRoot, filePath, text);
 
-        // Tables: docs/protocol.md's Tables section. No dedicated write
-        // route — the client re-serializes the whole table to HTML and saves
-        // it through the PUT branch below like any other file.
-        if (isTableFile(filePath)) {
-          const parsed = parseTableFile(text);
-          const table = parsed ?? emptyTable();
-          const localLayout = (await readTableLayouts(spaceRoot))[formatWithinRoot(resolved, filePath)];
-          return c.json<TableFileResponse>({
-            kind: "table",
-            path: relativePath,
-            revision,
-            version: table.version,
-            name: table.name,
-            metadata: table.metadata,
-            columns: table.columns,
-            rows: table.rows,
-            layout: table.layout,
-            ...(localLayout ? { localLayout } : {}),
-            locked: lockFor(parsed),
-            ...(bytes === undefined ? { missing: true as const } : {}),
-          });
-        }
-
-        // Classes: the definition only. Its rows are its notes', read by
-        // /api/space/class as they change.
-        if (isClassFile(filePath)) {
-          const parsed = parseClassFile(text);
-          return c.json<ClassFileResponse>({
-            kind: "class",
-            path: relativePath,
-            revision,
-            ...(parsed ?? emptyClass()),
-            locked: lockFor(parsed),
-          });
-        }
-
-        // Applets: self-contained HTML carrying real logic, sandboxed
-        // client-side (docs/protocol.md's Applets section). `html` is the full
-        // raw file, script tags included, for a sandboxed iframe's srcdoc.
-        if (isAppletFile(filePath)) {
-          const { manifest, html } = await readAppletFile(filePath);
-          // From the resolved path, not the request's spelling: an Applet
-          // opened as `space:a/x.applet.html` imports from `a`.
-          const { imports, error: importError } = await readAppletImports(
-            spaceRoot,
-            dirnameOf(inSpace ? rooted.path : relativePath),
-            manifest,
-          );
-          return c.json<AppletFileResponse>({
-            kind: "applet",
-            path: relativePath,
-            revision,
-            manifest,
-            html,
-            contentHash: contentHashFor(
-              html,
-              imports.map((entry) => entry.source),
-            ),
-            imports,
-            ...(importError ? { importError } : {}),
-          });
-        }
-
-        // Flows: docs/protocol.md's Flows section. Unlike an applet's
-        // manifest, `capabilities` is never stored: a Flow graph is
-        // statically walkable, so it's derived from the graph on every read
-        // and can't drift from what the graph actually does.
-        if (isFlowFile(filePath)) {
-          const parsed = parseFlowFile(text);
-          const { version, name, metadata, graph } = parsed ?? emptyFlowFile(text);
-          const capabilities = computeFlowCapabilities(graph, relativePath);
-          const flowSubject = { path: grantPath(spaceRoot, filePath), contentHash: capabilityDigest(graph) };
-          const unattended = await unattendedStanding(spaceRoot, flowSubject);
-          const localAppMode = (await readFlowAppModes(spaceRoot))[formatWithinRoot(resolved, filePath)];
-          return c.json<FlowFileResponse>({
-            kind: "flow",
-            path: relativePath,
-            revision,
-            version,
-            name,
-            metadata,
-            graph,
-            ...(localAppMode === undefined ? {} : { localAppMode }),
-            capabilities,
-            grantedCapabilities: await grantedCapabilities(spaceRoot, flowSubject),
-            runsUnattended: unattended.allowed,
-            unattendedUntil: unattended.until,
-            locked: lockFor(parsed),
-          });
-        }
-
-        if (bytes === undefined) return c.text("Not found", 404);
-        const documentType = documentTypeFor(filePath);
-
-        // Toolkits come from the Classes holding the document as a row
-        // (docs/protocol.md's Toolkit resolution). Every candidate is sent
-        // down, in order, so the client can offer all of them. The other
-        // files those Classes link go to the Links tab.
-        //
-        // Toolkits are space machinery: resolution reads the space's own
-        // Classes, and a library document has none, nor any use for buttons
-        // that would write to a root it can't write to.
-        const classes = inSpace ? await classesLinking(spaceRoot, { path: rooted.path, filePath }) : [];
-        const toolkits = await Promise.all(
-          resolveToolkits(spaceRoot, classes).map(async ({ classPath, path: flowPath }): Promise<TextToolkitInfo> => {
-            const { name, graph } = await readFlowFile(path.join(spaceRoot, flowPath));
-            return { classPath, path: flowPath, name: name ?? "", actions: flowActions(graph) };
-          }),
-        );
-
-        return c.json<TextFileResponse>({
-          kind: "text",
+      // Tables: docs/protocol.md's Tables section. No dedicated write
+      // route — the client re-serializes the whole table to HTML and saves
+      // it through the PUT branch below like any other file.
+      if (isTableFile(filePath)) {
+        const parsed = parseTableFile(text);
+        const table = parsed ?? emptyTable();
+        const localLayout = (await readTableLayouts(spaceRoot))[formatWithinRoot(resolved, filePath)];
+        return c.json<TableFileResponse>({
+          kind: "table",
           path: relativePath,
           revision,
-          content: text,
-          documentType,
-          toolkits,
-          classLinks: classLinkedFiles(spaceRoot, classes, rooted.path),
+          version: table.version,
+          name: table.name,
+          metadata: table.metadata,
+          columns: table.columns,
+          rows: table.rows,
+          layout: table.layout,
+          ...(localLayout ? { localLayout } : {}),
+          locked: lockFor(parsed),
+          ...(bytes === undefined ? { missing: true as const } : {}),
         });
       }
 
-      if (c.req.method === "PUT") {
-        const body = (await c.req.json()) as PutFileRequestBody;
-        return await withFileLock(filePath, async () => {
-          if (body.baseRevision !== undefined && (await readRevision(filePath)) !== body.baseRevision) {
-            return c.text("The file changed since this copy of it was read", 409);
-          }
-          const source = body.source === "copilot" || body.source === "restored" ? body.source : "edit";
-          // A restore may bring back a deleted file, and the folder it was in.
-          if (source === "restored") await mkdir(path.dirname(filePath), { recursive: true });
-          const saved = await saveDocument(spaceRoot, { filePath, relativePath }, body.content, source);
-          return c.json<PutFileResponse>(saved);
+      // Classes: the definition only. Its rows are its notes', read by
+      // /api/space/class as they change.
+      if (isClassFile(filePath)) {
+        const parsed = parseClassFile(text);
+        return c.json<ClassFileResponse>({
+          kind: "class",
+          path: relativePath,
+          revision,
+          ...(parsed ?? emptyClass()),
+          locked: lockFor(parsed),
         });
       }
 
-      return c.body(null, 405);
-    } catch (error) {
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      // Applets: self-contained HTML carrying real logic, sandboxed
+      // client-side (docs/protocol.md's Applets section). `html` is the full
+      // raw file, script tags included, for a sandboxed iframe's srcdoc.
+      if (isAppletFile(filePath)) {
+        const { manifest, html } = await readAppletFile(filePath);
+        // From the resolved path, not the request's spelling: an Applet
+        // opened as `space:a/x.applet.html` imports from `a`.
+        const { imports, error: importError } = await readAppletImports(
+          spaceRoot,
+          dirnameOf(inSpace ? rooted.path : relativePath),
+          manifest,
+        );
+        return c.json<AppletFileResponse>({
+          kind: "applet",
+          path: relativePath,
+          revision,
+          manifest,
+          html,
+          contentHash: contentHashFor(
+            html,
+            imports.map((entry) => entry.source),
+          ),
+          imports,
+          ...(importError ? { importError } : {}),
+        });
+      }
+
+      // Flows: docs/protocol.md's Flows section. Unlike an applet's
+      // manifest, `capabilities` is never stored: a Flow graph is
+      // statically walkable, so it's derived from the graph on every read
+      // and can't drift from what the graph actually does.
+      if (isFlowFile(filePath)) {
+        const parsed = parseFlowFile(text);
+        const { version, name, metadata, graph } = parsed ?? emptyFlowFile(text);
+        const capabilities = computeFlowCapabilities(graph, relativePath);
+        const flowSubject = { path: grantPath(spaceRoot, filePath), contentHash: capabilityDigest(graph) };
+        const unattended = await unattendedStanding(spaceRoot, flowSubject);
+        const localAppMode = (await readFlowAppModes(spaceRoot))[formatWithinRoot(resolved, filePath)];
+        return c.json<FlowFileResponse>({
+          kind: "flow",
+          path: relativePath,
+          revision,
+          version,
+          name,
+          metadata,
+          graph,
+          ...(localAppMode === undefined ? {} : { localAppMode }),
+          capabilities,
+          grantedCapabilities: await grantedCapabilities(spaceRoot, flowSubject),
+          runsUnattended: unattended.allowed,
+          unattendedUntil: unattended.until,
+          locked: lockFor(parsed),
+        });
+      }
+
+      if (bytes === undefined) return c.text("Not found", 404);
+      const documentType = documentTypeFor(filePath);
+
+      // Toolkits come from the Classes holding the document as a row
+      // (docs/protocol.md's Toolkit resolution). Every candidate is sent
+      // down, in order, so the client can offer all of them. The other
+      // files those Classes link go to the Links tab.
+      //
+      // Toolkits are space machinery: resolution reads the space's own
+      // Classes, and a library document has none, nor any use for buttons
+      // that would write to a root it can't write to.
+      const classes = inSpace ? await classesLinking(spaceRoot, { path: rooted.path, filePath }) : [];
+      const toolkits = await Promise.all(
+        resolveToolkits(spaceRoot, classes).map(async ({ classPath, path: flowPath }): Promise<TextToolkitInfo> => {
+          const { name, graph } = await readFlowFile(path.join(spaceRoot, flowPath));
+          return { classPath, path: flowPath, name: name ?? "", actions: flowActions(graph) };
+        }),
+      );
+
+      return c.json<TextFileResponse>({
+        kind: "text",
+        path: relativePath,
+        revision,
+        content: text,
+        documentType,
+        toolkits,
+        classLinks: classLinkedFiles(spaceRoot, classes, rooted.path),
+      });
     }
+
+    if (c.req.method === "PUT") {
+      const body = (await c.req.json()) as PutFileRequestBody;
+      return await withFileLock(filePath, async () => {
+        if (body.baseRevision !== undefined && (await readRevision(filePath)) !== body.baseRevision) {
+          return c.text("The file changed since this copy of it was read", 409);
+        }
+        const source = body.source === "copilot" || body.source === "restored" ? body.source : "edit";
+        // A restore may bring back a deleted file, and the folder it was in.
+        if (source === "restored") await mkdir(path.dirname(filePath), { recursive: true });
+        const saved = await saveDocument(spaceRoot, { filePath, relativePath }, body.content, source);
+        return c.json<PutFileResponse>(saved);
+      });
+    }
+
+    return c.body(null, 405);
   });
 }

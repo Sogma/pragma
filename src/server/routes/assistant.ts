@@ -16,9 +16,9 @@ import { setupNeedOf } from "../../protocol/setupNeed.ts";
 import { rasterImageMediaTypeForPath } from "../../protocol/types.ts";
 import { type EditorContext, EffortLevelError, runChat, type SelectedFile } from "../chatHandler.ts";
 import { runFindContext } from "../findContextHandler.ts";
-import { PathAccessError, resolveRootedPath } from "../rootedFiles.ts";
+import { resolveRootedPath } from "../rootedFiles.ts";
 import { resolveWithinSpace } from "../spaceFiles.ts";
-import { type RouteContext, sendTextError } from "./shared.ts";
+import type { RouteContext } from "./shared.ts";
 
 // The range the writer has selected, when the editor sent one.
 // Dropped rather than rejected when it doesn't parse: the selection is a
@@ -102,16 +102,12 @@ export function mountAssistantRoutes(app: Hono, { spaceRoot, contextSources }: R
   app.all("/api/find-context", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const relativePath = c.req.query("path");
-      if (!relativePath) return c.text("Missing path query parameter", 400);
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
 
-      const body = (await c.req.json()) as FindContextRequestBody;
-      const result = await runFindContext(spaceRoot, relativePath, body.query);
-      return c.json<FindContextResponse>(result);
-    } catch (error) {
-      return sendTextError(c, error);
-    }
+    const body = (await c.req.json()) as FindContextRequestBody;
+    const result = await runFindContext(spaceRoot, relativePath, body.query);
+    return c.json<FindContextResponse>(result);
   });
 
   app.all("/api/chat", async (c) => {
@@ -143,8 +139,7 @@ export function mountAssistantRoutes(app: Hono, { spaceRoot, contextSources }: R
       }
       if (error instanceof UnresolvedModelError) return c.text(error.message, 400);
       if (error instanceof EffortLevelError) return c.text(error.message, 400);
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      throw error;
     }
   });
 }

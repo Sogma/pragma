@@ -28,7 +28,7 @@ import { mountPresetRoutes } from "./routes/presets.ts";
 import { mountProviderRoutes } from "./routes/providers.ts";
 import { mountPublishingRoutes } from "./routes/publishing.ts";
 import { mountSandboxRoutes } from "./routes/sandbox.ts";
-import type { RouteContext, RouteOptions, SpaceSwitcher } from "./routes/shared.ts";
+import { answerError, type RouteContext, type RouteOptions, type SpaceSwitcher } from "./routes/shared.ts";
 import { mountSpaceRoutes } from "./routes/space.ts";
 import { mountTagRoutes } from "./routes/tags.ts";
 import { mountTemplateRoutes } from "./routes/templates.ts";
@@ -72,6 +72,7 @@ export function createSpaceApiRoutes(
   const app = new Hono();
   // An empty body, so a miss says nothing beyond "no such route".
   app.notFound((c) => c.body(null, 404));
+  app.onError(answerError);
   const context: RouteContext = {
     spaceRoot,
     spaceSwitcher,

@@ -1,11 +1,13 @@
 // What every route family shares: the context a mount is built for, and
-// the two error shapes.
+// the error shapes.
 import type { Context } from "hono";
 import type { ErrorBody } from "../../protocol/api.ts";
 import { setupNeedOf } from "../../protocol/setupNeed.ts";
 import type { AgentEndpoint } from "../apiServer.ts";
 import type { ChangeFeeds } from "../changeFeeds.ts";
 import type { ContextSourceRegistry } from "../copilotContext.ts";
+import { EntryListFileError } from "../entryListFile.ts";
+import { PathAccessError } from "../rootedFiles.ts";
 import type { ThumbnailStore } from "../thumbnailStore.ts";
 
 // Lets a route hand "switch which space this process serves" to whoever owns
@@ -64,6 +66,18 @@ export function sendTextError(c: Context, error: unknown): Response {
   const message = error instanceof Error ? error.message : "Internal error";
   const need = setupNeedOf(error);
   return need ? c.json<ErrorBody>({ message, need }, 500) : c.text(message, 500);
+}
+
+/** What a route answers for whatever it throws: a refused path with the
+ * status that says which thing to fix, a file that isn't there as 404 (a
+ * pane reads it to say a file has gone, not failed), a list file that
+ * doesn't parse as 409, anything else as sendTextError does. A route
+ * catches only what has a status of its own. */
+export function answerError(error: unknown, c: Context): Response {
+  if (error instanceof PathAccessError) return c.text(error.message, error.status);
+  if (error instanceof EntryListFileError) return c.text(error.message, 409);
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return c.text("Not found", 404);
+  return sendTextError(c, error);
 }
 
 // A request body as it arrives, for a handler that validates before it

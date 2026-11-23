@@ -65,23 +65,19 @@ function mountDefaultRoute(
 ): void {
   app.all(route, async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { model } = (await c.req.json()) as Partial<DefaultModelRequestBody>;
-      if (typeof model !== "string") {
-        return c.json({ message: 'Name a model, as "<provider>/<model>", or "" for none.' }, 400);
-      }
-      const ref = model.trim();
-      const config = loadGlobalConfig();
-      try {
-        if (ref) check(ref, config);
-      } catch (error) {
-        return c.json({ message: error instanceof Error ? error.message : String(error) }, 400);
-      }
-      saveGlobalConfig({ ...config, [key]: ref || undefined });
-      return c.body(null, 204);
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
+    const { model } = (await c.req.json()) as Partial<DefaultModelRequestBody>;
+    if (typeof model !== "string") {
+      return c.json({ message: 'Name a model, as "<provider>/<model>", or "" for none.' }, 400);
     }
+    const ref = model.trim();
+    const config = loadGlobalConfig();
+    try {
+      if (ref) check(ref, config);
+    } catch (error) {
+      return c.json({ message: error instanceof Error ? error.message : String(error) }, 400);
+    }
+    saveGlobalConfig({ ...config, [key]: ref || undefined });
+    return c.body(null, 204);
   });
 }
 
@@ -185,20 +181,16 @@ export function mountProviderRoutes(app: Hono, { ownMachine }: RouteContext): vo
   // sign-in at ChatGPT first.
   app.all("/api/providers/delete", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { id } = (await c.req.json()) as Partial<ProviderIdRequestBody>;
-      if (!id) return c.text("Missing id", 400);
-      const entry = entryById(id);
-      if (entry && signsIn(entry.kind)) await chatGptSignIns.signOut(chatGptSignInTarget(entry));
-      // Withdrawn before the entry goes, so a removal cut short never leaves
-      // a connection that still sends them.
-      await credentialStore().clear({ kind: "provider-sign-ins", id });
-      await credentialStore().clear({ kind: "provider-keys", id });
-      await withConfigMutationLock(async () => removeProviderConfig(id));
-      return c.body(null, 204);
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const { id } = (await c.req.json()) as Partial<ProviderIdRequestBody>;
+    if (!id) return c.text("Missing id", 400);
+    const entry = entryById(id);
+    if (entry && signsIn(entry.kind)) await chatGptSignIns.signOut(chatGptSignInTarget(entry));
+    // Withdrawn before the entry goes, so a removal cut short never leaves
+    // a connection that still sends them.
+    await credentialStore().clear({ kind: "provider-sign-ins", id });
+    await credentialStore().clear({ kind: "provider-keys", id });
+    await withConfigMutationLock(async () => removeProviderConfig(id));
+    return c.body(null, 204);
   });
 
   // POST starts a ChatGPT sign-in and answers the page to approve it on; GET
@@ -237,80 +229,64 @@ export function mountProviderRoutes(app: Hono, { ownMachine }: RouteContext): vo
 
   app.all("/api/providers/sign-out", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { id } = (await c.req.json()) as Partial<ProviderIdRequestBody>;
-      const entry = entryById(id);
-      if (!entry || !signsIn(entry.kind))
-        return c.json({ message: `No ChatGPT provider "${id ?? ""}" in config.json` }, 404);
-      return c.json<ProviderSignOutResponse>(await chatGptSignIns.signOut(chatGptSignInTarget(entry)));
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const { id } = (await c.req.json()) as Partial<ProviderIdRequestBody>;
+    const entry = entryById(id);
+    if (!entry || !signsIn(entry.kind))
+      return c.json({ message: `No ChatGPT provider "${id ?? ""}" in config.json` }, 404);
+    return c.json<ProviderSignOutResponse>(await chatGptSignIns.signOut(chatGptSignInTarget(entry)));
   });
 
   // Every enabled model across every configured provider, as
   // "<providerId>/<model>" refs. Never returns baseURLs or keys.
   app.all("/api/models", (c) => {
-    try {
-      const config = loadGlobalConfig();
-      const resolved = resolveProviders(config);
-      const models = resolved.flatMap((provider) =>
-        provider.textModels.map((model) => {
-          const levels = effortLevels(provider, model);
-          return {
-            id: `${provider.id}/${model}`,
-            label: `${model} (${provider.label})`,
-            provider: provider.id,
-            model,
-            ...(levels.length > 0 && { effortLevels: levels }),
-          };
-        }),
-      );
-      const providers = resolved.map(
-        (provider): ModelProviderSummary => ({
-          id: provider.id,
-          label: provider.label,
-          ...vendorField(provider),
-        }),
-      );
-      return c.json<ModelsResponse>({ models, providers, defaultModel: config.defaultTextModel ?? null });
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const config = loadGlobalConfig();
+    const resolved = resolveProviders(config);
+    const models = resolved.flatMap((provider) =>
+      provider.textModels.map((model) => {
+        const levels = effortLevels(provider, model);
+        return {
+          id: `${provider.id}/${model}`,
+          label: `${model} (${provider.label})`,
+          provider: provider.id,
+          model,
+          ...(levels.length > 0 && { effortLevels: levels }),
+        };
+      }),
+    );
+    const providers = resolved.map(
+      (provider): ModelProviderSummary => ({
+        id: provider.id,
+        label: provider.label,
+        ...vendorField(provider),
+      }),
+    );
+    return c.json<ModelsResponse>({ models, providers, defaultModel: config.defaultTextModel ?? null });
   });
 
   // The image models a Generate Image node can pick from: the ones each
   // provider lists, and those each Flows-enabled server reports (cached
   // briefly in mediaModels.ts).
   app.all("/api/image-models", async (c) => {
-    try {
-      const config = loadGlobalConfig();
-      const { models, providers, failures } = await listImageModels(config);
-      return c.json<ImageModelsResponse>({
-        models,
-        providers,
-        defaultModel: config.defaultImageModel ?? null,
-        failures,
-      });
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const config = loadGlobalConfig();
+    const { models, providers, failures } = await listImageModels(config);
+    return c.json<ImageModelsResponse>({
+      models,
+      providers,
+      defaultModel: config.defaultImageModel ?? null,
+      failures,
+    });
   });
 
   // The video models a Generate Video node can pick from, the same way.
   app.all("/api/video-models", async (c) => {
-    try {
-      const config = loadGlobalConfig();
-      const { models, providers, failures } = await listVideoModels(config);
-      return c.json<VideoModelsResponse>({
-        models,
-        providers,
-        defaultModel: config.defaultVideoModel ?? null,
-        failures,
-      });
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const config = loadGlobalConfig();
+    const { models, providers, failures } = await listVideoModels(config);
+    return c.json<VideoModelsResponse>({
+      models,
+      providers,
+      defaultModel: config.defaultVideoModel ?? null,
+      failures,
+    });
   });
 
   mountDefaultRoute(app, "/api/models/default", "defaultTextModel", (ref) => resolveModel(ref));

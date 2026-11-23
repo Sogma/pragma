@@ -4,9 +4,7 @@
 import type { Hono } from "hono";
 import type { SpacePresetChangeRequestBody, SpacePresetsResponse } from "../../protocol/api.ts";
 import { isPresetKind, type PresetChange } from "../../protocol/presets.ts";
-import { EntryListFileError } from "../entryListFile.ts";
 import { changeSpacePresets, PresetRefusal, readSpacePresets } from "../presets.ts";
-import { PathAccessError } from "../rootedFiles.ts";
 import type { Incoming, RouteContext } from "./shared.ts";
 
 // The body as a change, or why it isn't one.
@@ -30,9 +28,8 @@ export function mountPresetRoutes(app: Hono, { spaceRoot }: RouteContext): void 
       if (typeof change === "string") return c.text(change, 400);
       return c.json<SpacePresetsResponse>(await changeSpacePresets(spaceRoot, change));
     } catch (error) {
-      if (error instanceof EntryListFileError || error instanceof PresetRefusal) return c.text(error.message, 409);
-      if (error instanceof PathAccessError) return c.text(error.message, error.status);
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+      if (error instanceof PresetRefusal) return c.text(error.message, 409);
+      throw error;
     }
   });
 }

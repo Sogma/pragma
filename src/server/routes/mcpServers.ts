@@ -98,18 +98,14 @@ export function mountMcpServerRoutes(app: Hono, { ownMachine }: RouteContext): v
 
   app.all("/api/mcp-servers/delete", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
-    try {
-      const { id } = (await c.req.json()) as Partial<McpServerIdRequestBody>;
-      if (!id) return c.text("Missing id", 400);
-      const entry = entryById(id);
-      if (entry) await mcpSignIns.signOut(mcpServerSignIn(entry));
-      await credentialStore().clear({ kind: "mcp-sign-ins", id });
-      await credentialStore().clear({ kind: "mcp-tokens", id });
-      await withConfigMutationLock(async () => removeMcpServerConfig(id));
-      return c.body(null, 204);
-    } catch (error) {
-      return c.json({ message: error instanceof Error ? error.message : "Internal error" }, 500);
-    }
+    const { id } = (await c.req.json()) as Partial<McpServerIdRequestBody>;
+    if (!id) return c.text("Missing id", 400);
+    const entry = entryById(id);
+    if (entry) await mcpSignIns.signOut(mcpServerSignIn(entry));
+    await credentialStore().clear({ kind: "mcp-sign-ins", id });
+    await credentialStore().clear({ kind: "mcp-tokens", id });
+    await withConfigMutationLock(async () => removeMcpServerConfig(id));
+    return c.body(null, 204);
   });
 
   // A real connect-and-list against one configured server, so the form can

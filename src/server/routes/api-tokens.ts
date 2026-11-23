@@ -53,33 +53,29 @@ export function mountApiTokenRoutes(app: Hono, { spaceRoot, agentEndpoint }: Rou
     }
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as ApiSettingsRequestBody;
-      if (body.port !== undefined && (!Number.isInteger(body.port) || body.port < 1 || body.port > 65535)) {
-        return c.text("Port must be between 1 and 65535", 400);
-      }
-      saveGlobalConfig({
-        ...config,
-        api: {
-          ...config.api,
-          ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
-          ...(body.port !== undefined ? { port: body.port } : {}),
-        },
-      });
-
-      // Ask the host to match the config it just wrote. The settings are saved
-      // either way — a port that turns out to be taken is a failure to *start*,
-      // not a failure to configure, and the panel reports the running state
-      // alongside the error rather than pretending the save was rejected.
-      try {
-        await agentEndpoint?.apply();
-      } catch (error) {
-        return c.text(error instanceof Error ? error.message : "The endpoint could not start", 409);
-      }
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
+    const body = (await c.req.json()) as ApiSettingsRequestBody;
+    if (body.port !== undefined && (!Number.isInteger(body.port) || body.port < 1 || body.port > 65535)) {
+      return c.text("Port must be between 1 and 65535", 400);
     }
+    saveGlobalConfig({
+      ...config,
+      api: {
+        ...config.api,
+        ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+        ...(body.port !== undefined ? { port: body.port } : {}),
+      },
+    });
+
+    // Ask the host to match the config it just wrote. The settings are saved
+    // either way — a port that turns out to be taken is a failure to *start*,
+    // not a failure to configure, and the panel reports the running state
+    // alongside the error rather than pretending the save was rejected.
+    try {
+      await agentEndpoint?.apply();
+    } catch (error) {
+      return c.text(error instanceof Error ? error.message : "The endpoint could not start", 409);
+    }
+    return c.body(null, 204);
   });
 
   // Mints a token for the space this process is serving. The secret comes back
@@ -88,25 +84,21 @@ export function mountApiTokenRoutes(app: Hono, { spaceRoot, agentEndpoint }: Rou
   app.all("/api/api-tokens", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const body = (await c.req.json()) as CreateApiTokenRequestBody;
-      const label = body.label.trim();
-      if (!label) return c.text("Give the token a name", 400);
+    const body = (await c.req.json()) as CreateApiTokenRequestBody;
+    const label = body.label.trim();
+    if (!label) return c.text("Give the token a name", 400);
 
-      const config = loadGlobalConfig();
-      const spaceId = findSpaceId(config, spaceRoot);
-      if (!spaceId) return c.text("This space is not registered", 400);
+    const config = loadGlobalConfig();
+    const spaceId = findSpaceId(config, spaceRoot);
+    if (!spaceId) return c.text("This space is not registered", 400);
 
-      const { secret, record } = createApiToken({
-        label,
-        spaceId,
-        access: body.access === "read-write" ? "read-write" : "read-only",
-      });
-      saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
-      return c.json<CreateApiTokenResponse>({ token: toRow(record, config.spaces), secret });
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const { secret, record } = createApiToken({
+      label,
+      spaceId,
+      access: body.access === "read-write" ? "read-write" : "read-only",
+    });
+    saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
+    return c.json<CreateApiTokenResponse>({ token: toRow(record, config.spaces), secret });
   });
 
   // Revoking one token is the whole point of storing them plurally: a client
@@ -114,16 +106,12 @@ export function mountApiTokenRoutes(app: Hono, { spaceRoot, agentEndpoint }: Rou
   app.all("/api/api-tokens/delete", async (c) => {
     if (c.req.method !== "POST") return c.body(null, 405);
 
-    try {
-      const { id } = (await c.req.json()) as SpaceIdRequestBody;
-      const config = loadGlobalConfig();
-      const remaining = (config.apiTokens ?? []).filter((token) => token.id !== id);
-      if (remaining.length === (config.apiTokens ?? []).length) return c.text("No such token", 400);
-      saveGlobalConfig({ ...config, apiTokens: remaining });
-      agentEndpoint?.dropToken(id);
-      return c.body(null, 204);
-    } catch (error) {
-      return c.text(error instanceof Error ? error.message : "Internal error", 500);
-    }
+    const { id } = (await c.req.json()) as SpaceIdRequestBody;
+    const config = loadGlobalConfig();
+    const remaining = (config.apiTokens ?? []).filter((token) => token.id !== id);
+    if (remaining.length === (config.apiTokens ?? []).length) return c.text("No such token", 400);
+    saveGlobalConfig({ ...config, apiTokens: remaining });
+    agentEndpoint?.dropToken(id);
+    return c.body(null, 204);
   });
 }
