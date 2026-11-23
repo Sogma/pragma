@@ -1,21 +1,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  createApiToken,
-  findApiToken,
-  findSpaceId,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { findApiToken, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
-import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
+import type { AgentEndpoint } from "../../src/server/apiServer.ts";
 import { type GrantSubject, grantCapability, setUnattended } from "../../src/server/grants.ts";
+import { mintApiToken, startAgentEndpoint } from "../support/agentEndpoint.ts";
 import { hungFlow } from "../support/hungFlow.ts";
-import { isolateConfig, tempDir, tempSpace } from "../support/isolation.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // Over real HTTP, like the MCP suite: the point of a second encoding is that a
 // caller can reach it with nothing but an HTTP client, so the test uses one.
@@ -39,20 +33,9 @@ async function call(
   return { status: res.status, body: text ? (JSON.parse(text) as Record<string, unknown>) : {} };
 }
 
-function mint(readOnly: boolean): string {
-  const config = loadGlobalConfig();
-  const { secret, record } = createApiToken({
-    label: readOnly ? "reader" : "writer",
-    spaceId: findSpaceId(config, space) as string,
-    access: readOnly ? "read-only" : "read-write",
-  });
-  saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
-  return secret;
-}
-
 beforeEach(async () => {
   isolateConfig();
-  space = tempDir("pragma-rest-space-");
+  space = tempSpace("pragma-rest-space-");
 
   writeFileSync(path.join(space, "hello.md"), "# Hello\n\nthe secret word is banana\n");
   writeFileSync(path.join(space, "secret.md"), "---\nvisibility: private\n---\nthe private word is durian\n");
@@ -81,20 +64,14 @@ beforeEach(async () => {
     }),
   );
 
-  saveGlobalConfig({ ...rememberSpace(loadGlobalConfig(), space), api: { enabled: true, port: 0 } });
-  readOnlyToken = mint(true);
-  writeToken = mint(false);
+  readOnlyToken = mintApiToken(space, { label: "reader" });
+  writeToken = mintApiToken(space, { label: "writer", access: "read-write" });
   const flowDigest = capabilityDigest((await readFlowFile(path.join(space, "run.flow.html"))).graph);
   flowSubject = { path: "run.flow.html", contentHash: flowDigest };
   await grantCapability(space, flowSubject, "readFile:space:note.md");
 
-  endpoint = createAgentEndpoint(() => space);
-  await endpoint.apply();
+  endpoint = await startAgentEndpoint(() => space);
   base = `http://127.0.0.1:${endpoint.port()}`;
-});
-
-afterEach(async () => {
-  await endpoint?.close();
 });
 
 describe("the REST surface", () => {
@@ -329,8 +306,7 @@ describe("a request held open", () => {
     const other = tempSpace("pragma-rest-other-");
     let served = space;
     await endpoint?.close();
-    endpoint = createAgentEndpoint(() => served);
-    await endpoint.apply();
+    endpoint = await startAgentEndpoint(() => served);
     const pending = heldOpen(readOnlyToken, endpoint.port());
     await headersTaken();
     served = other;

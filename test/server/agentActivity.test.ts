@@ -1,21 +1,13 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createApiToken,
-  findSpaceId,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
 import { activitySince, resetActivityLog } from "../../src/server/activityLog.ts";
-import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
-import { isolateConfig, tempDir } from "../support/isolation.ts";
+import { mintApiToken, startAgentEndpoint } from "../support/agentEndpoint.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // Over real HTTP, like the REST and MCP suites: what the Console reports is
 // what actually reached the listener, not what a unit test handed a function.
 let space: string;
-let endpoint: AgentEndpoint | undefined;
 let base: string;
 let token: string;
 
@@ -45,28 +37,14 @@ async function mcp(body: unknown, bearer = token): Promise<void> {
 
 beforeEach(async () => {
   isolateConfig();
-  space = tempDir("pragma-activity-space-");
+  space = tempSpace("pragma-activity-space-");
   writeFileSync(path.join(space, "hello.md"), "# Hello\n");
+  token = mintApiToken(space, { label: "Claude Desktop" });
 
-  saveGlobalConfig({ ...rememberSpace(loadGlobalConfig(), space), api: { enabled: true, port: 0 } });
-  const config = loadGlobalConfig();
-  const { secret, record } = createApiToken({
-    label: "Claude Desktop",
-    spaceId: findSpaceId(config, space) as string,
-    access: "read-only",
-  });
-  saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
-  token = secret;
-
-  endpoint = createAgentEndpoint(() => space);
-  await endpoint.apply();
+  const endpoint = await startAgentEndpoint(() => space);
   base = `http://127.0.0.1:${endpoint.port()}`;
   // After startup, so the log holds only what each test provoked.
   resetActivityLog();
-});
-
-afterEach(async () => {
-  await endpoint?.close();
 });
 
 describe("what the agent endpoint reports to the Console", () => {

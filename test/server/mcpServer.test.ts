@@ -3,20 +3,13 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type ApiToken,
-  createApiToken,
-  findSpaceId,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
 import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
-import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
+import type { AgentEndpoint } from "../../src/server/apiServer.ts";
 import { setUnattended } from "../../src/server/grants.ts";
+import { mintApiToken, startAgentEndpoint } from "../support/agentEndpoint.ts";
 import { hungFlow } from "../support/hungFlow.ts";
-import { isolateConfig, tempDir } from "../support/isolation.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // End-to-end over real HTTP with the SDK's own client, rather than calling the
 // tool callbacks directly: the point of taking the SDK was that the protocol
@@ -73,7 +66,7 @@ const callText = async (name: string, args: Record<string, unknown> = {}): Promi
 
 beforeEach(async () => {
   isolateConfig();
-  space = tempDir("pragma-mcp-space-");
+  space = tempSpace("pragma-mcp-space-");
 
   writeFileSync(path.join(space, "hello.md"), "# Hello\n\nthe secret word is banana\n");
   writeFileSync(path.join(space, "secret.md"), "---\nvisibility: private\n---\nthe private word is durian\n");
@@ -81,37 +74,15 @@ beforeEach(async () => {
   mkdirSync(path.join(space, ".pragma"), { recursive: true });
   writeFileSync(path.join(space, ".pragma", "grants.json"), '{"peek":true}');
 
-  const registered = rememberSpace(loadGlobalConfig(), space);
-  const { secret, record } = createApiToken({
-    label: "Test harness",
-    spaceId: findSpaceId(registered, space) as string,
-    access: "read-only",
-  });
-  const writer = createApiToken({
-    label: "Writer",
-    spaceId: findSpaceId(registered, space) as string,
-    access: "read-write",
-  });
-  writeSecret = writer.secret;
-  saveGlobalConfig({
-    ...registered,
-    api: { enabled: true, port: 0 },
-    apiTokens: [record satisfies ApiToken, writer.record],
-  });
+  const secret = mintApiToken(space, { label: "Test harness" });
+  writeSecret = mintApiToken(space, { label: "Writer", access: "read-write" });
 
-  endpoint = createAgentEndpoint(() => space);
-  await endpoint.apply();
-  client = new Client({ name: "test", version: "1" });
-  await client.connect(
-    new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${endpoint?.port()}/mcp`), {
-      requestInit: { headers: { authorization: `Bearer ${secret}` } },
-    }),
-  );
+  endpoint = await startAgentEndpoint(() => space);
+  client = await connect(secret);
 });
 
 afterEach(async () => {
   await client?.close();
-  await endpoint?.close();
 });
 
 describe("the space's MCP surface", () => {

@@ -1,7 +1,8 @@
 import type { IncomingMessage } from "node:http";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createApiToken, findSpaceId, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { loadGlobalConfig } from "../../src/config/loadConfig.ts";
 import { ApiAuthError, authorizeApiRequest, checkRequestOrigin } from "../../src/server/apiServer.ts";
+import { mintApiToken } from "../support/agentEndpoint.ts";
 import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 let space: string;
@@ -13,21 +14,10 @@ const request = (headers: Record<string, string>): IncomingMessage =>
 
 const bearer = (value: string) => request({ authorization: `Bearer ${value}` });
 
-function mintToken(options: { readOnly?: boolean; spaceId?: string } = {}): string {
-  const config = loadGlobalConfig();
-  const { secret: value, record } = createApiToken({
-    label: "Test client",
-    spaceId: options.spaceId ?? (findSpaceId(config, space) as string),
-    access: (options.readOnly ?? true) ? "read-only" : "read-write",
-  });
-  saveGlobalConfig({ ...config, apiTokens: [...(config.apiTokens ?? []), record] });
-  return value;
-}
-
 beforeEach(() => {
   isolateConfig();
   space = tempSpace("pragma-api-space-");
-  secret = mintToken();
+  secret = mintApiToken(space, { label: "Test client" });
 });
 
 describe("the agent endpoint's origin check", () => {
@@ -77,7 +67,7 @@ describe("the agent endpoint's authorization", () => {
   it("takes a token's access from the token itself", () => {
     expect(authorizeApiRequest(bearer(secret), space).canWrite).toBe(false);
 
-    const writable = mintToken({ readOnly: false });
+    const writable = mintApiToken(space, { access: "read-write" });
     expect(authorizeApiRequest(bearer(writable), space).canWrite).toBe(true);
     // Minting a second one does not disturb the first.
     expect(authorizeApiRequest(bearer(secret), space).canWrite).toBe(false);
@@ -86,7 +76,7 @@ describe("the agent endpoint's authorization", () => {
   // A token names one space, so it cannot read another just because this
   // process happens to be serving it.
   it("refuses a token minted for a different space", () => {
-    const other = mintToken({ spaceId: "spc_someother" });
+    const other = mintApiToken(tempSpace("pragma-api-other-"));
     expect(() => authorizeApiRequest(bearer(other), space)).toThrow(/different space/);
   });
 
