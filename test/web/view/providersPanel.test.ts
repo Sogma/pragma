@@ -62,7 +62,7 @@ beforeEach(() => {
       <button id="providers-add"></button>
       <h3 id="providers-form-title"></h3>
       <form id="providers-form">
-        <div class="settings-field"><button id="providers-form-preset"></button></div>
+        <div class="settings-field" id="providers-form-preset-row"><button id="providers-form-preset"></button></div>
         <input id="providers-form-name" /><p id="providers-form-name-hint"></p>
         <input id="providers-form-baseurl" />
         <div id="providers-form-key-row"><input id="providers-form-key" /><button id="providers-form-set"></button></div>

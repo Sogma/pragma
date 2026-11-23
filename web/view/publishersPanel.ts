@@ -5,7 +5,7 @@ import {
   postSavePublisher,
   type SavePublisherRequestBody,
 } from "../core/apiClient.ts";
-import { buildOpenRow, replaceRows } from "../lib/dom.ts";
+import { buildOpenRow, must, replaceRows } from "../lib/dom.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -38,27 +38,26 @@ export interface PublishersPanelDeps {
 // `root` is the whole `#settings-body`: queries span the list <section> and
 // the sibling form subpage.
 export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps): () => Promise<void> {
-  const q = <T extends HTMLElement>(sel: string): T => root.querySelector<T>(sel)!;
-  const note = q<HTMLParagraphElement>("#publishers-storage-note");
-  const list = q<HTMLDivElement>("#publishers-list");
-  const addButton = q<HTMLButtonElement>("#publishers-add");
-  const form = q<HTMLFormElement>("#publishers-form");
-  const presetButton = q<HTMLButtonElement>("#publishers-form-preset");
-  const presetRow = presetButton.closest<HTMLElement>(".settings-field")!;
+  const note = must<HTMLParagraphElement>("#publishers-storage-note", root);
+  const list = must<HTMLDivElement>("#publishers-list", root);
+  const addButton = must<HTMLButtonElement>("#publishers-add", root);
+  const form = must<HTMLFormElement>("#publishers-form", root);
+  const presetButton = must<HTMLButtonElement>("#publishers-form-preset", root);
+  const presetRow = must<HTMLElement>("#publishers-form-preset-row", root);
   // Name, Base URL and their note, for a Custom endpoint only. Hidden rather
   // than undisplayed, so the card's dividers skip them.
   const customOnly = Array.from(form.querySelectorAll<HTMLElement>(".settings-custom-only"));
   const showCustom = (on: boolean): void => {
     for (const el of customOnly) el.hidden = !on;
   };
-  const nameInput = q<HTMLInputElement>("#publishers-form-name");
-  const nameHint = q<HTMLParagraphElement>("#publishers-form-name-hint");
-  const baseUrlInput = q<HTMLInputElement>("#publishers-form-baseurl");
-  const keyInput = q<HTMLInputElement>("#publishers-form-key");
-  const setButton = q<HTMLButtonElement>("#publishers-form-set");
-  const messageLine = q<HTMLParagraphElement>("#publishers-form-message");
-  const formTitle = q<HTMLHeadingElement>("#publishers-form-title");
-  const removeButton = q<HTMLButtonElement>("#publishers-form-remove");
+  const nameInput = must<HTMLInputElement>("#publishers-form-name", root);
+  const nameHint = must<HTMLParagraphElement>("#publishers-form-name-hint", root);
+  const baseUrlInput = must<HTMLInputElement>("#publishers-form-baseurl", root);
+  const keyInput = must<HTMLInputElement>("#publishers-form-key", root);
+  const setButton = must<HTMLButtonElement>("#publishers-form-set", root);
+  const messageLine = must<HTMLParagraphElement>("#publishers-form-message", root);
+  const formTitle = must<HTMLHeadingElement>("#publishers-form-title", root);
+  const removeButton = must<HTMLButtonElement>("#publishers-form-remove", root);
 
   // `kind` names the protocol an endpoint speaks, not the company running
   // it (docs/publishing.md's Publisher configuration section), so both

@@ -16,7 +16,7 @@ import {
   type SaveProviderRequestBody,
 } from "../core/apiClient.ts";
 import { defaultModels, PROVIDER_PRESETS as PRESETS, PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
-import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
+import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import { type PickerChoice, wireChoicePicker } from "../lib/picker.ts";
 import type { DialogService } from "../services/dialog.ts";
@@ -79,13 +79,12 @@ function setConfirmation(label: string, found: DiscoverModelsResponse, keyed: bo
 }
 
 export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps): () => Promise<void> {
-  const q = <T extends HTMLElement>(sel: string): T => root.querySelector<T>(sel)!;
-  const note = q<HTMLParagraphElement>("#providers-storage-note");
-  const list = q<HTMLDivElement>("#providers-list");
-  const addButton = q<HTMLButtonElement>("#providers-add");
-  const form = q<HTMLFormElement>("#providers-form");
-  const presetButton = q<HTMLButtonElement>("#providers-form-preset");
-  const presetRow = presetButton.closest<HTMLElement>(".settings-field")!;
+  const note = must<HTMLParagraphElement>("#providers-storage-note", root);
+  const list = must<HTMLDivElement>("#providers-list", root);
+  const addButton = must<HTMLButtonElement>("#providers-add", root);
+  const form = must<HTMLFormElement>("#providers-form", root);
+  const presetButton = must<HTMLButtonElement>("#providers-form-preset", root);
+  const presetRow = must<HTMLElement>("#providers-form-preset-row", root);
   const presetPicker = wireChoicePicker(presetButton, PRESET_CHOICES, {
     role: "Provider",
     contextMenu: deps.contextMenu,
@@ -99,29 +98,29 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   const showCustom = (on: boolean): void => {
     for (const el of customOnly) el.hidden = !on;
   };
-  const nameInput = q<HTMLInputElement>("#providers-form-name");
-  const nameHint = q<HTMLParagraphElement>("#providers-form-name-hint");
-  const baseUrlInput = q<HTMLInputElement>("#providers-form-baseurl");
-  const keyInput = q<HTMLInputElement>("#providers-form-key");
-  const setButton = q<HTMLButtonElement>("#providers-form-set");
-  const modelsBlock = q<HTMLDivElement>("#providers-form-models");
-  const modelsList = q<HTMLDivElement>("#providers-form-models-list");
-  const modelAddInput = q<HTMLInputElement>("#providers-form-model-add");
-  const imageModelsBlock = q<HTMLDivElement>("#providers-form-image-models");
-  const imageModelsList = q<HTMLDivElement>("#providers-form-image-models-list");
-  const imageModelAddInput = q<HTMLInputElement>("#providers-form-image-model-add");
-  const refreshButton = q<HTMLButtonElement>("#providers-form-refresh");
-  const messageLine = q<HTMLParagraphElement>("#providers-form-message");
-  const formTitle = q<HTMLHeadingElement>("#providers-form-title");
-  const removeButton = q<HTMLButtonElement>("#providers-form-remove");
+  const nameInput = must<HTMLInputElement>("#providers-form-name", root);
+  const nameHint = must<HTMLParagraphElement>("#providers-form-name-hint", root);
+  const baseUrlInput = must<HTMLInputElement>("#providers-form-baseurl", root);
+  const keyInput = must<HTMLInputElement>("#providers-form-key", root);
+  const setButton = must<HTMLButtonElement>("#providers-form-set", root);
+  const modelsBlock = must<HTMLDivElement>("#providers-form-models", root);
+  const modelsList = must<HTMLDivElement>("#providers-form-models-list", root);
+  const modelAddInput = must<HTMLInputElement>("#providers-form-model-add", root);
+  const imageModelsBlock = must<HTMLDivElement>("#providers-form-image-models", root);
+  const imageModelsList = must<HTMLDivElement>("#providers-form-image-models-list", root);
+  const imageModelAddInput = must<HTMLInputElement>("#providers-form-image-model-add", root);
+  const refreshButton = must<HTMLButtonElement>("#providers-form-refresh", root);
+  const messageLine = must<HTMLParagraphElement>("#providers-form-message", root);
+  const formTitle = must<HTMLHeadingElement>("#providers-form-title", root);
+  const removeButton = must<HTMLButtonElement>("#providers-form-remove", root);
   // A ChatGPT plan signs in where every other provider takes a key.
-  const keyRow = q<HTMLDivElement>("#providers-form-key-row");
-  const signInRow = q<HTMLDivElement>("#providers-form-sign-in-row");
-  const accountText = q<HTMLSpanElement>("#providers-form-account");
-  const continueButton = q<HTMLButtonElement>("#providers-form-continue");
-  const allowPlanButton = q<HTMLButtonElement>("#providers-form-allow-plan");
-  const signOutButton = q<HTMLButtonElement>("#providers-form-sign-out");
-  const signInStatus = q<HTMLParagraphElement>("#providers-form-sign-in-status");
+  const keyRow = must<HTMLDivElement>("#providers-form-key-row", root);
+  const signInRow = must<HTMLDivElement>("#providers-form-sign-in-row", root);
+  const accountText = must<HTMLSpanElement>("#providers-form-account", root);
+  const continueButton = must<HTMLButtonElement>("#providers-form-continue", root);
+  const allowPlanButton = must<HTMLButtonElement>("#providers-form-allow-plan", root);
+  const signOutButton = must<HTMLButtonElement>("#providers-form-sign-out", root);
+  const signInStatus = must<HTMLParagraphElement>("#providers-form-sign-in-status", root);
 
   // The two checklists, each saving only its own config field.
   interface ModelList {

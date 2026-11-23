@@ -11,7 +11,7 @@ import {
   type SaveMcpServerRequestBody,
 } from "../core/apiClient.ts";
 import { PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
-import { buildOpenRow, countText, replaceRows } from "../lib/dom.ts";
+import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import type { DialogService } from "../services/dialog.ts";
 
@@ -61,31 +61,30 @@ export function labelFromUrl(raw: string): string {
 // `root` is the whole `#settings-body`: queries span both the list
 // `<section>` and the sibling form subpage.
 export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps): () => void {
-  const q = <T extends HTMLElement>(sel: string): T => root.querySelector<T>(sel)!;
-  const note = q<HTMLParagraphElement>("#mcp-storage-note");
-  const listNote = q<HTMLParagraphElement>("#mcp-list-note");
-  const list = q<HTMLDivElement>("#mcp-server-list");
-  const addButton = q<HTMLButtonElement>("#mcp-add-server");
-  const form = q<HTMLFormElement>("#mcp-server-form");
-  const formTitle = q<HTMLHeadingElement>("#mcp-form-title");
-  const trustNote = q<HTMLParagraphElement>("#mcp-form-trust");
-  const urlInput = q<HTMLInputElement>("#mcp-form-url");
-  const urlText = q<HTMLSpanElement>("#mcp-form-url-text");
-  const nameRow = q<HTMLDivElement>("#mcp-form-name-row");
-  const nameInput = q<HTMLInputElement>("#mcp-form-name");
-  const nameHint = q<HTMLParagraphElement>("#mcp-form-name-hint");
-  const keyRow = q<HTMLDivElement>("#mcp-form-key-row");
-  const keyInput = q<HTMLInputElement>("#mcp-form-key");
-  const flowsRow = q<HTMLDivElement>("#mcp-form-flows-row");
-  const flowsSwitch = q<HTMLButtonElement>("#mcp-form-flows");
-  const copilotSwitch = q<HTMLButtonElement>("#mcp-form-copilot");
-  const signInButton = q<HTMLButtonElement>("#mcp-form-sign-in");
-  const setButton = q<HTMLButtonElement>("#mcp-form-set");
-  const testButton = q<HTMLButtonElement>("#mcp-form-test");
-  const statusLine = q<HTMLParagraphElement>("#mcp-form-status");
-  const errorLine = q<HTMLParagraphElement>("#mcp-form-error");
-  const removeButton = q<HTMLButtonElement>("#mcp-form-remove");
-  const formSection = q<HTMLElement>('[data-settings-subpage="mcp-server"]');
+  const note = must<HTMLParagraphElement>("#mcp-storage-note", root);
+  const listNote = must<HTMLParagraphElement>("#mcp-list-note", root);
+  const list = must<HTMLDivElement>("#mcp-server-list", root);
+  const addButton = must<HTMLButtonElement>("#mcp-add-server", root);
+  const form = must<HTMLFormElement>("#mcp-server-form", root);
+  const formTitle = must<HTMLHeadingElement>("#mcp-form-title", root);
+  const trustNote = must<HTMLParagraphElement>("#mcp-form-trust", root);
+  const urlInput = must<HTMLInputElement>("#mcp-form-url", root);
+  const urlText = must<HTMLSpanElement>("#mcp-form-url-text", root);
+  const nameRow = must<HTMLDivElement>("#mcp-form-name-row", root);
+  const nameInput = must<HTMLInputElement>("#mcp-form-name", root);
+  const nameHint = must<HTMLParagraphElement>("#mcp-form-name-hint", root);
+  const keyRow = must<HTMLDivElement>("#mcp-form-key-row", root);
+  const keyInput = must<HTMLInputElement>("#mcp-form-key", root);
+  const flowsRow = must<HTMLDivElement>("#mcp-form-flows-row", root);
+  const flowsSwitch = must<HTMLButtonElement>("#mcp-form-flows", root);
+  const copilotSwitch = must<HTMLButtonElement>("#mcp-form-copilot", root);
+  const signInButton = must<HTMLButtonElement>("#mcp-form-sign-in", root);
+  const setButton = must<HTMLButtonElement>("#mcp-form-set", root);
+  const testButton = must<HTMLButtonElement>("#mcp-form-test", root);
+  const statusLine = must<HTMLParagraphElement>("#mcp-form-status", root);
+  const errorLine = must<HTMLParagraphElement>("#mcp-form-error", root);
+  const removeButton = must<HTMLButtonElement>("#mcp-form-remove", root);
+  const formSection = must<HTMLElement>('[data-settings-subpage="mcp-server"]', root);
 
   let formServerId = "";
   let savedUrl = "";
