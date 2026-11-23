@@ -23,7 +23,7 @@ The npm package requires Node.js 24+ and git.
 
 ### One route layer, four hosts
 
-HTTP hosts serve `src/server/routes.ts`, a Hono app against one space root. Routes construct responses, with one module per resource family.
+HTTP hosts serve `src/server/routes.ts`, a Hono app against one space root. Routes construct responses, with one module per resource family. A route catches only the errors that have a status of its own; the app's one error handler answers everything else.
 
 | Host | Runtime contract |
 | --- | --- |
