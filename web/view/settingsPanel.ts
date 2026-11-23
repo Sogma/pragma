@@ -52,8 +52,8 @@ export interface SettingsPanel {
 
 // Where on its page each need is met: an item's row in a list, when it has
 // one, and the control that meets it otherwise. A text or image default with
-// no model to pick is met by adding a provider first; no provider makes
-// videos, so a video default keeps its picker.
+// no model to pick is met by adding a provider first; a video default keeps
+// its picker.
 function placeOf(need: SetupNeed, lists: Pick<ModelLists, "get">): { list?: string; item?: string; control: string } {
   if (need.kind === "defaultModel") {
     if (need.output !== "video" && lists.get(need.output)?.models.length === 0) return { control: "#providers-add" };
@@ -63,6 +63,7 @@ function placeOf(need: SetupNeed, lists: Pick<ModelLists, "get">): { list?: stri
   if (need.kind === "publisherKey") {
     return { list: "#publishers-list", item: need.publisher, control: "#publishers-add" };
   }
+  if (need.kind === "sharing") return { list: "#sharing-list", item: "sharing", control: "#sharing-list" };
   return { control: need.kind === "provider" ? "#providers-add" : "#publishers-add" };
 }
 

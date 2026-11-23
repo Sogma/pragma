@@ -120,11 +120,13 @@ import type {
   SaveMcpServerRequestBody,
   SaveProviderRequestBody,
   SavePublisherRequestBody,
+  SaveSharingRequestBody,
   SaveSiteSettingsRequestBody,
   SaveSiteSettingsResponse,
   SelectedRange,
   SetOrderRequestBody,
   SetSortRequestBody,
+  SharingResponse,
   SiteImageUploadRequestBody,
   SiteImageUploadResponse,
   SiteSettingsChanges,
@@ -1428,10 +1430,10 @@ export async function postSaveProvider(payload: SaveProviderRequestBody): Promis
   });
 }
 
-/** Saves the enabled list `lists` names, text or image, leaving the other. */
+/** Saves the enabled lists `lists` names, leaving the others. */
 export async function postSaveProviderModels(
   id: string,
-  lists: Pick<SaveProviderRequestBody, "textModels" | "imageModels">,
+  lists: Pick<SaveProviderRequestBody, "textModels" | "imageModels" | "videoModels">,
 ): Promise<void> {
   await requestVoid("/api/providers", {
     method: "POST",
@@ -1446,7 +1448,30 @@ export async function postDiscoverProviderModels(id: string): Promise<DiscoverMo
     body: { id } satisfies ProviderIdRequestBody,
     fallback: "Couldn't reach the provider",
   });
-  return { textModels: body.textModels ?? [], imageModels: body.imageModels ?? [] };
+  return {
+    textModels: body.textModels ?? [],
+    imageModels: body.imageModels ?? [],
+    videoModels: body.videoModels ?? [],
+  };
+}
+
+export async function fetchSharing(): Promise<SharingResponse> {
+  return request<SharingResponse>("/api/sharing", { fallback: "Couldn't load Sharing" });
+}
+
+/** Saves the bucket's fields, and its secret when given; the server keeps
+ * them only once a file has made the round trip through the bucket. */
+export async function postSaveSharing(payload: SaveSharingRequestBody): Promise<void> {
+  await requestVoid("/api/sharing", { method: "POST", body: payload, fallback: "Couldn't save Sharing" });
+}
+
+/** Runs the saved setup's round trip through the bucket again. */
+export async function postCheckSharing(): Promise<void> {
+  await requestVoid("/api/sharing/check", { method: "POST", fallback: "Couldn't reach the bucket" });
+}
+
+export async function postDeleteSharing(): Promise<void> {
+  await requestVoid("/api/sharing/delete", { method: "POST", fallback: "Couldn't remove Sharing" });
 }
 
 export async function postDeleteProvider(id: string): Promise<void> {

@@ -97,6 +97,7 @@ import { wireProvidersPanel } from "./view/providersPanel.ts";
 import { wirePublishersPanel } from "./view/publishersPanel.ts";
 import { createQuickOpen } from "./view/quickOpen.ts";
 import { createSettingsPanel } from "./view/settingsPanel.ts";
+import { wireSharingPanel } from "./view/sharingPanel.ts";
 import { wireShortcutsPanel } from "./view/shortcutsPanel.ts";
 import { createBookmarksView } from "./view/sidebar/bookmarks.ts";
 import { createHistorySection } from "./view/sidebar/history.ts";
@@ -468,24 +469,21 @@ async function main(): Promise<void> {
   wireSpellcheckPanel(settingsBody, { openSettingsSubpage: (id) => settingsView.openSubpage(id), contextMenu });
 
   // Settings' server-side lists. An MCP server on for Flows lists image models, so it refetches them too.
+  const subpages = {
+    openSettingsSubpage: (id: string) => settingsView.openSubpage(id),
+    closeSettingsSubpage: () => settingsView.closeSubpage(),
+    dialog: () => dialog,
+  };
   const refreshProvidersPanel = wireProvidersPanel(settingsBody, {
-    openSettingsSubpage: (id) => settingsView.openSubpage(id),
-    closeSettingsSubpage: () => settingsView.closeSubpage(),
+    ...subpages,
     onProvidersChanged: () => void modelLists.refresh(),
-    dialog: () => dialog,
     contextMenu,
   });
-  const refreshPublishersPanel = wirePublishersPanel(settingsBody, {
-    openSettingsSubpage: (id) => settingsView.openSubpage(id),
-    closeSettingsSubpage: () => settingsView.closeSubpage(),
-    dialog: () => dialog,
-    contextMenu,
-  });
+  const refreshPublishersPanel = wirePublishersPanel(settingsBody, { ...subpages, contextMenu });
+  const refreshSharingPanel = wireSharingPanel(settingsBody, subpages);
   const refreshMcpServersPanel = wireMcpServersPanel(settingsBody, {
-    openSettingsSubpage: (id) => settingsView.openSubpage(id),
-    closeSettingsSubpage: () => settingsView.closeSubpage(),
+    ...subpages,
     onServersChanged: () => void modelLists.refresh(),
-    dialog: () => dialog,
   });
 
   const refreshShortcutsPanel = wireShortcutsPanel(settingsBody, {
@@ -506,7 +504,7 @@ async function main(): Promise<void> {
       menus,
       modelLists,
       onShowCategory: {
-        files: () => files.refresh(),
+        files: () => Promise.all([files.refresh(), refreshSharingPanel()]).then(() => {}),
         shortcuts: () => refreshShortcutsPanel(),
         models: () => refreshProvidersPanel(),
         publishing: () => refreshPublishersPanel(),

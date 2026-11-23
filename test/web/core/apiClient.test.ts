@@ -344,16 +344,23 @@ describe("postDiscoverProviderModels", () => {
   });
 
   it("returns the discovered models on success", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ textModels: ["a", "b"], imageModels: ["gpt-image-1"] }));
+    fetchMock.mockResolvedValue(
+      jsonResponse({ textModels: ["a", "b"], imageModels: ["gpt-image-1"], videoModels: ["seedance"] }),
+    );
     await expect(postDiscoverProviderModels("openai")).resolves.toEqual({
       textModels: ["a", "b"],
       imageModels: ["gpt-image-1"],
+      videoModels: ["seedance"],
     });
   });
 
   it("reads a list the answer leaves out as empty", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ textModels: ["a"] }));
-    await expect(postDiscoverProviderModels("lmstudio")).resolves.toEqual({ textModels: ["a"], imageModels: [] });
+    await expect(postDiscoverProviderModels("lmstudio")).resolves.toEqual({
+      textModels: ["a"],
+      imageModels: [],
+      videoModels: [],
+    });
   });
 
   it("throws the server's message on failure", async () => {

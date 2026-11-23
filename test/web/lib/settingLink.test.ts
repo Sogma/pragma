@@ -30,13 +30,14 @@ describe("settingLinks", () => {
     expect(setupPage({ kind: "providerKey", provider: "p" })).toBe("models");
     expect(setupPage({ kind: "provider", model: "m" })).toBe("models");
     expect(setupPage({ kind: "publisher" })).toBe("publishing");
+    expect(setupPage({ kind: "sharing" })).toBe("files");
   });
 
   // A page renamed in the nav and not here would show here.
   it("names each page as Settings' nav does", () => {
     const html = readFileSync(new NodeURL("../../../web/index.html", import.meta.url), "utf8");
     const doc = new DOMParser().parseFromString(html, "text/html");
-    for (const page of ["models", "publishing"] as const) {
+    for (const page of ["models", "publishing", "files"] as const) {
       const nav = doc.querySelector(`.settings-nav-item[data-settings-category="${page}"]`);
       expect(goToSettingsLabel(page)).toBe(`Go to ${nav?.textContent?.trim()} settings`);
     }

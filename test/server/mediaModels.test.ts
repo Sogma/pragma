@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PragmaGlobalConfig } from "../../src/config/loadConfig.ts";
 import { MissingProviderKeyError } from "../../src/protocol/modelProvider.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
@@ -195,14 +195,93 @@ describe("resolveVideoModel", () => {
       /isn't switched on for Flows/,
     );
   });
+
+  it("resolves a gateway provider's video model, which reads its key only when a job starts", () => {
+    const resolved = resolveVideoModel("vercel/maker/clip-2", {
+      modelProviders: [{ id: "vercel", kind: "vercel", label: "Vercel AI Gateway", videoModels: ["maker/clip-2"] }],
+    });
+    expect(resolved).toMatchObject({ providerId: "vercel", modelId: "maker/clip-2", host: "vercel" });
+    expect(resolved.model).toMatchObject({ provider: "vercel", modelId: "maker/clip-2", maxVideosPerCall: 1 });
+    expect(resolved.inputs).toBeTypeOf("function");
+  });
 });
 
 describe("listVideoModels", () => {
-  it("lists no model provider's models: only a server switched on for Flows makes videos", async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("lists no provider that lists no video models, or whose kind makes none", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const listing = await listVideoModels({
-      modelProviders: [{ id: "gemini", kind: "google", label: "Gemini", imageModels: ["gemini-2.5-flash-image"] }],
+      modelProviders: [
+        { id: "gemini", kind: "google", label: "Gemini", imageModels: ["gemini-2.5-flash-image"] },
+        { id: "openai", kind: "openai", label: "OpenAI", videoModels: ["sora-2"] },
+      ],
     });
     expect(listing).toEqual({ models: [], providers: [], failures: [] });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("lists a gateway's video models by name, with what its own list says each takes", async () => {
+    const entry = {
+      id: "maker/clip-2",
+      type: "video",
+      name: "Clip 2",
+      video_capabilities: {
+        supported_operations: ["first-last-frame", "reference-to-video"],
+        supported_resolutions: ["720p", "1080p"],
+        input_limits: { image: { max_count: 4 } },
+        generate_audio: true,
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ data: [entry] })),
+    );
+    const listing = await listVideoModels({
+      modelProviders: [
+        {
+          id: "vercel",
+          kind: "vercel",
+          label: "Vercel AI Gateway",
+          baseURL: "https://list.example.test",
+          videoModels: ["maker/clip-2", "maker/gone"],
+        },
+      ],
+    });
+    expect(listing).toEqual({
+      models: [
+        {
+          id: "vercel/maker/clip-2",
+          label: "Clip 2 (Vercel AI Gateway)",
+          provider: "vercel",
+          model: "Clip 2",
+          references: { video: 0, audio: 0 },
+          frames: ["start", "end"],
+          resolutions: ["720p", "1080p"],
+          settings: [{ name: "generate_audio", kind: "switch" }],
+        },
+        { id: "vercel/maker/gone", label: "maker/gone (Vercel AI Gateway)", provider: "vercel", model: "maker/gone" },
+      ],
+      providers: [{ id: "vercel", label: "Vercel AI Gateway" }],
+      failures: [],
+    });
+  });
+
+  it("still lists a gateway's models bare when its list can't be read, saying why", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 503 })),
+    );
+    const listing = await listVideoModels({
+      modelProviders: [
+        { id: "vercel", kind: "vercel", label: "Gateway", baseURL: "https://down.example.test", videoModels: ["m"] },
+      ],
+    });
+    expect(listing.models).toEqual([{ id: "vercel/m", label: "m (Gateway)", provider: "vercel", model: "m" }]);
+    expect(listing.failures).toEqual([{ server: "vercel", message: "Gateway's model list answered 503." }]);
   });
 });
 

@@ -1,3 +1,4 @@
+import { GatewayAuthenticationError } from "@ai-sdk/gateway";
 import { APICallError, generateText, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +18,7 @@ import {
   languageModelFor,
   MissingProviderKeyError,
   verifyProviderKey,
+  videoModelFor,
 } from "../../src/protocol/modelProvider.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
 
@@ -224,6 +226,7 @@ describe("createModelProvider", () => {
     await expect(provider.complete({ model: "m", system: "", content: "x", maxTokens: 10 })).rejects.toBe(rejection);
     expect(isAuthRejection(rejection)).toBe(true);
     expect(isAuthRejection(new Error("network"))).toBe(false);
+    expect(isAuthRejection(new GatewayAuthenticationError({ message: "bad key", statusCode: 401 }))).toBe(true);
   });
 
   it("names the provider whose key or sign-in was refused, and nothing else", () => {
@@ -251,7 +254,7 @@ describe("createModelProvider", () => {
 });
 
 function provider(overrides: Partial<ResolvedProvider>): ResolvedProvider {
-  return { id: "p", label: "P", kind: "openai", textModels: [], imageModels: [], ...overrides };
+  return { id: "p", label: "P", kind: "openai", textModels: [], imageModels: [], videoModels: [], ...overrides };
 }
 
 describe("languageModelFor", () => {
@@ -582,10 +585,42 @@ describe("discoverModels / verifyProviderKey", () => {
     vi.unstubAllGlobals();
   });
 
+  it("sorts the gateway's models into text, image and video lists by the type it gives each", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        data: [
+          { id: "maker/still-1", type: "image" },
+          { id: "maker/clip-2", type: "video" },
+          { id: "maker/chat-1", type: "language" },
+          { id: "maker/embed-1", type: "embedding" },
+        ],
+      }),
+    );
+    expect(await discoverModels(provider({ id: "vercel", kind: "vercel" }), "k")).toEqual({
+      textModels: ["maker/chat-1"],
+      imageModels: ["maker/still-1"],
+      videoModels: ["maker/clip-2"],
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://ai-gateway.vercel.sh/v1/models");
+    expect(init.headers).toEqual({ authorization: "Bearer k" });
+  });
+
+  it("tries a gateway key on its balance, since its model list answers anyone", async () => {
+    const gateway = provider({ id: "vercel", kind: "vercel" });
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    expect(await verifyProviderKey(gateway, "bad")).toBe(false);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://ai-gateway.vercel.sh/v1/credits");
+    expect(init.headers).toEqual({ authorization: "Bearer bad" });
+    fetchMock.mockResolvedValueOnce(Response.json({ balance: "5.00" }));
+    expect(await verifyProviderKey(gateway, "good")).toBe(true);
+  });
+
   it("lists an anthropic provider's models with its own auth headers", async () => {
     fetchMock.mockResolvedValue(Response.json({ data: [{ id: "claude-b" }, { id: "claude-a" }] }));
     const found = await discoverModels(provider({ id: "anthropic", kind: "anthropic" }), "sk");
-    expect(found).toEqual({ textModels: ["claude-b", "claude-a"], imageModels: [] }); // endpoint order, unsorted
+    expect(found).toEqual({ textModels: ["claude-b", "claude-a"], imageModels: [], videoModels: [] }); // endpoint order, unsorted
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.anthropic.com/v1/models?limit=1000");
     expect(init.headers).toEqual({ "anthropic-version": "2023-06-01", "x-api-key": "sk" });
@@ -594,7 +629,7 @@ describe("discoverModels / verifyProviderKey", () => {
   it("lists an openai-compatible provider's models, sorted, from its baseURL", async () => {
     fetchMock.mockResolvedValue(Response.json({ data: [{ id: "b" }, { id: "a" }] }));
     const found = await discoverModels(provider({ kind: "openai", baseURL: "http://localhost:1234/v1/" }), "t");
-    expect(found).toEqual({ textModels: ["a", "b"], imageModels: [] });
+    expect(found).toEqual({ textModels: ["a", "b"], imageModels: [], videoModels: [] });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:1234/v1/models");
     expect(init.headers).toEqual({ authorization: "Bearer t" });
@@ -607,6 +642,7 @@ describe("discoverModels / verifyProviderKey", () => {
     expect(await discoverModels(provider({ kind: "openai" }), "t")).toEqual({
       textModels: ["dall-e-3", "gpt-5"],
       imageModels: ["gpt-image-1", "gpt-image-1-mini"],
+      videoModels: [],
     });
   });
 
@@ -626,6 +662,7 @@ describe("discoverModels / verifyProviderKey", () => {
     expect(await discoverModels(provider({ kind: "google" }), "g")).toEqual({
       textModels: ["gemini-2.5-flash", "gemma-3-27b-it"],
       imageModels: ["gemini-2.5-flash-image", "gemini-nano-banana-2.1"],
+      videoModels: [],
     });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000");
@@ -659,5 +696,19 @@ describe("discoverModels / verifyProviderKey", () => {
       Response.json({ error: { code: 400, status: "FAILED_PRECONDITION" } }, { status: 400 }),
     );
     expect(await verifyProviderKey(provider({ kind: "google" }), "k")).toBe(true);
+  });
+});
+
+describe("videoModelFor", () => {
+  it("builds the gateway's video model, never without a key, and refuses a kind that makes no videos", () => {
+    const gateway = provider({ id: "vercel", label: "Vercel AI Gateway", kind: "vercel" });
+    expect(videoModelFor(gateway, "maker/clip-2", "k")).toMatchObject({
+      specificationVersion: "v4",
+      modelId: "maker/clip-2",
+    });
+    expect(() => videoModelFor(gateway, "maker/clip-2", undefined)).toThrow(MissingProviderKeyError);
+    expect(() => videoModelFor(provider({ label: "OpenAI" }), "sora-2", "k")).toThrow(
+      "OpenAI makes no videos Pragma can use.",
+    );
   });
 });

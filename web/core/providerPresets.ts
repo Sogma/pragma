@@ -4,9 +4,10 @@ import type { DiscoverModelsResponse, ProviderKind } from "./apiClient.ts";
 // only the vendor's rolling `-latest` aliases (Gemini has one per line).
 // newest: the newest stable version of each model family. all: every one, a
 // local server's being the ones you downloaded. pick: all of a short list,
-// none of a long one (OpenRouter, custom proxies).
+// none of a long one (OpenRouter, custom proxies, gateways).
 //
-// Image models always go by newest.
+// Image and video models go by newest, except that pick ticks none of a
+// long list of them either.
 export type DiscoverMode = "aliases" | "newest" | "all" | "pick";
 
 export interface ProviderPreset {
@@ -35,6 +36,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   },
   ollama: { kind: "openai", baseURL: "http://localhost:11434/v1", label: "Ollama", keyless: true, discover: "all" },
   openrouter: { kind: "openai", baseURL: "https://openrouter.ai/api/v1", label: "OpenRouter", discover: "pick" },
+  vercel: { kind: "vercel", baseURL: "", label: "Vercel AI Gateway", discover: "pick" },
   custom: { kind: "openai", baseURL: "", label: "", discover: "pick" },
 };
 
@@ -48,6 +50,9 @@ function isChatModel(id: string): boolean {
   return !/embed|tts|whisper|dall-?e|moderation|realtime|audio|transcrib|image|guard|rerank|sora|veo|lyria/i.test(id);
 }
 
+// More than this many models is a list to pick from, not to take whole.
+const SHORT_LIST = 20;
+
 /** What a fresh provider starts with ticked, out of what discovery found. */
 export function defaultModels(mode: DiscoverMode, found: DiscoverModelsResponse): DiscoverModelsResponse {
   const chat = found.textModels.filter(isChatModel);
@@ -56,13 +61,14 @@ export function defaultModels(mode: DiscoverMode, found: DiscoverModelsResponse)
     mode === "all"
       ? found.textModels
       : mode === "pick"
-        ? found.textModels.length <= 20
+        ? found.textModels.length <= SHORT_LIST
           ? found.textModels
           : []
         : mode === "aliases" && aliases.length > 0
           ? aliases
           : newestOfEachFamily(chat);
-  return { textModels: models, imageModels: newestOfEachFamily(found.imageModels) };
+  const media = (ids: string[]) => (mode === "pick" && ids.length > SHORT_LIST ? [] : newestOfEachFamily(ids));
+  return { textModels: models, imageModels: media(found.imageModels), videoModels: media(found.videoModels) };
 }
 
 // A pinned snapshot's suffix, as vendors date or number one: -2025-08-07,

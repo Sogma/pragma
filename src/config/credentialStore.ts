@@ -32,6 +32,7 @@ export const CREDENTIAL_KINDS = [
   "publisher-keys",
   "mcp-tokens",
   "mcp-sign-ins",
+  "sharing-keys",
 ] as const;
 export type CredentialKind = (typeof CREDENTIAL_KINDS)[number];
 export type CredentialSlot = { kind: CredentialKind; id: string } | { kind: "remote-access-passphrase" };

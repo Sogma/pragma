@@ -12,7 +12,9 @@ export type SetupNeed =
   // No publisher configured, or not the one a site names.
   | { kind: "publisher" }
   // A publisher with no API key.
-  | { kind: "publisherKey"; publisher: string };
+  | { kind: "publisherKey"; publisher: string }
+  // A provider that fetches files by link, with no bucket set up to share them from.
+  | { kind: "sharing" };
 
 /** An error a setting fixes. */
 export class SetupError extends Error {
@@ -34,7 +36,7 @@ function isSetupNeed(value: unknown): value is SetupNeed {
   if (need.kind === "providerKey") return typeof need.provider === "string";
   if (need.kind === "provider") return typeof need.model === "string";
   if (need.kind === "publisherKey") return typeof need.publisher === "string";
-  return need.kind === "publisher";
+  return need.kind === "publisher" || need.kind === "sharing";
 }
 
 /** The need `error` carries, whether thrown as a SetupError or rebuilt from a

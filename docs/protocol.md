@@ -979,7 +979,7 @@ Two mechanisms touch a document, deliberately unrelated:
 
 This section describes Pragma's own implementation. Source locations and configuration choices guide readers of that implementation; another host may organize its internals differently.
 
-Pragma's text editor uses CodeMirror. Its provider connections use the kinds `anthropic`, `openai`, `google`, and `chatgpt`, with a base URL and an API key or sign-in. The `openai` kind also serves compatible endpoints, including LM Studio and Ollama; `google` is Gemini. Provider configuration is documented in the [configuration reference](../README.md#configuration), and bare-model-id resolution in [Model providers and configuration](architecture.md#model-providers-and-configuration).
+Pragma's text editor uses CodeMirror. Its provider connections use the kinds `anthropic`, `openai`, `google`, `vercel`, and `chatgpt`, with a base URL and a key or sign-in. The `openai` kind also serves compatible endpoints such as LM Studio and Ollama; `google` is Gemini. Provider configuration is documented in the [configuration reference](../README.md#configuration), and bare-model-id resolution in [Model providers and configuration](architecture.md#model-providers-and-configuration).
 
 The source map below is the only part of this document that names implementation files.
 

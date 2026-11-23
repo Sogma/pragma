@@ -240,13 +240,13 @@ OAuth uses the person's browser and a temporary loopback listener, on desktop an
 
 Flow generation, Find in context and the copilot share `ModelProvider`. Flow generation has one chokepoint; the others share its resolver, with the copilot owning its loop. Adapters translate provider-neutral text and image blocks.
 
-Providers use AI SDK text/image interfaces; video separates submission from status. Models must be resolved provider instances. SDK bare strings could select its hosted gateway, which Pragma must never contact.
+Providers use AI SDK text, image and video interfaces; video separates submission from status. Models must be resolved provider instances: an SDK bare string could select its hosted gateway, which Pragma reaches only as a provider the person adds. A provider that takes media only as links gets each one through Sharing, as a link that expires; without Sharing set up, such a request fails before anything is sent.
 
 Reference limits and vocabulary come from [model support data](model-support.md). Unsupported effort is rejected; a node's choice moves to the nearest supported level. Failures, including empty replies, preserve SDK error types.
 
 Host configuration applies to browser and headless callers alike. The [README](../README.md#configuration) lists its fields.
 
-- Providers declare ids, kinds, endpoints and separate text/image model lists. Kinds include Anthropic, OpenAI, Google and ChatGPT sign-in. OpenAI-compatible endpoints use a base URL. None is built in.
+- Providers declare ids, kinds, endpoints and separate text, image and video model lists. Kinds include Anthropic, OpenAI, Google, Vercel AI Gateway and ChatGPT sign-in. OpenAI-compatible endpoints use a base URL. None is built in.
 - `<providerId>/<model>` is explicit; a bare text-model id must match one provider. Image/video references always name a provider or Flow-enabled MCP server, sharing one id namespace.
 - Saved keys precede vendor environment variables, which apply only without a custom base URL. Missing required keys fail before requests; local OpenAI-compatible endpoints may be keyless.
 - Default models resolve server-side. Calls naming no model fail without a default.

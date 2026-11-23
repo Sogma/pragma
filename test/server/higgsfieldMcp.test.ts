@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
 import type { ResolvedMcpServer } from "../../src/config/loadConfig.ts";
 import { callImageModel } from "../../src/protocol/imageGeneration.ts";
-import { checkVideoJob, startVideoJob, type VideoCallOptions } from "../../src/protocol/videoGeneration.ts";
+import {
+  checkVideoJob,
+  offeredSettings,
+  startVideoJob,
+  type VideoCallOptions,
+} from "../../src/protocol/videoGeneration.ts";
 import {
   catalogSettings,
   higgsfieldImageJobs,
@@ -11,7 +16,6 @@ import {
   higgsfieldVideoInputs,
   higgsfieldVideoModel,
   type MediaCache,
-  offeredSettings,
   wholeRatio,
 } from "../../src/server/higgsfieldMcp.ts";
 import {

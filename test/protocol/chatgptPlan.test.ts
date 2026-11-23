@@ -34,6 +34,7 @@ const provider: ResolvedProvider = {
   kind: "chatgpt",
   textModels: [],
   imageModels: [],
+  videoModels: [],
 };
 
 let standIn: ChatGptStandIn;
@@ -245,6 +246,7 @@ describe("a ChatGPT plan's models", () => {
     expect(await discoverModels(provider, undefined)).toEqual({
       textModels: ["gpt-6.1-sol", "gpt-6-mini"],
       imageModels: [],
+      videoModels: [],
     });
     expect(standIn.modelRequests[0].get("authorization")).toBe("Bearer at-0");
   });

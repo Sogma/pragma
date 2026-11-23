@@ -102,6 +102,7 @@ interface ProviderEntry {
 const providerSlot = (id: string): CredentialSlot => ({ kind: "provider-keys", id });
 const publisherSlot = (id: string): CredentialSlot => ({ kind: "publisher-keys", id });
 const mcpSlot = (id: string): CredentialSlot => ({ kind: "mcp-tokens", id });
+const sharingSlot = (kind: string): CredentialSlot => ({ kind: "sharing-keys", id: kind });
 
 /** The endpoint a provider's key is bound to: its base URL, or the vendor's
  * own. Undefined for a kind that signs in instead, or a malformed URL. */
@@ -155,6 +156,11 @@ export function publisherKey(entry: { id: string; baseURL?: string }): Promise<K
 /** An MCP server's bearer token for a request to its URL. */
 export function mcpToken(entry: { id: string; url?: string }): Promise<KeyLookup> {
   return lookup(mcpSlot(entry.id), canonicalEndpointOrUndefined(entry.url));
+}
+
+/** The sharing bucket's secret access key, for a request to its endpoint. */
+export function sharingKey(entry: { kind: string; endpoint?: string }): Promise<KeyLookup> {
+  return lookup(sharingSlot(entry.kind), canonicalEndpointOrUndefined(entry.endpoint));
 }
 
 // What a failed read of a saved key or sign-in in this process means for it.
@@ -215,6 +221,10 @@ export function mcpTokenStatus(entry: { id: string; url?: string }): Promise<Key
   return status(mcpSlot(entry.id), canonicalEndpointOrUndefined(entry.url), false);
 }
 
+export function sharingKeyStatus(entry: { kind: string; endpoint?: string }): Promise<KeyStatus> {
+  return status(sharingSlot(entry.kind), canonicalEndpointOrUndefined(entry.endpoint), false);
+}
+
 /** How a store's protection reads in Settings: whether keys rest encrypted,
  * and whether saving is known to be impossible here. */
 export function credentialStoreDescription(): CredentialStoreDescription {
@@ -226,7 +236,7 @@ export function credentialStoreDescription(): CredentialStoreDescription {
 export type CredentialSaveResult = { ok: true } | { ok: false; status: 400 | 409 | 500; message: string };
 
 export interface CredentialSave {
-  kind: "provider-keys" | "publisher-keys" | "mcp-tokens";
+  kind: "provider-keys" | "publisher-keys" | "mcp-tokens" | "sharing-keys";
   id: string;
   endpoint: string | undefined;
   secret: string;

@@ -33,6 +33,7 @@ const row = (fields: Partial<ProviderRow> & Pick<ProviderRow, "id" | "label" | "
   baseURL: "",
   textModels: [],
   imageModels: [],
+  videoModels: [],
   keySource: "stored",
   ...fields,
 });
@@ -74,6 +75,9 @@ beforeEach(() => {
         <div id="providers-form-models"><div id="providers-form-models-list"></div><input id="providers-form-model-add" /></div>
         <div id="providers-form-image-models">
           <div id="providers-form-image-models-list"></div><input id="providers-form-image-model-add" />
+        </div>
+        <div id="providers-form-video-models">
+          <div id="providers-form-video-models-list"></div><input id="providers-form-video-model-add" />
         </div>
         <button id="providers-form-refresh" type="button"></button><p id="providers-form-message"></p>
       </form>
@@ -185,6 +189,7 @@ describe("Settings → AI Models' Set", () => {
     vi.mocked(postDiscoverProviderModels).mockResolvedValueOnce({
       textModels: ["claude-sonnet-5", "claude-opus-5"],
       imageModels: [],
+      videoModels: [],
     });
     wire();
     await setOn(0);
@@ -201,7 +206,11 @@ describe("Settings → AI Models' Set", () => {
       store,
       signInAllowed: true,
     });
-    vi.mocked(postDiscoverProviderModels).mockResolvedValueOnce({ textModels: ["qwen3"], imageModels: [] });
+    vi.mocked(postDiscoverProviderModels).mockResolvedValueOnce({
+      textModels: ["qwen3"],
+      imageModels: [],
+      videoModels: [],
+    });
     wire();
     await setOn(0);
     expect(line().textContent).toBe(
@@ -209,9 +218,43 @@ describe("Settings → AI Models' Set", () => {
     );
   });
 
+  it("lists a gateway's video models in a list of their own, counted with the rest", async () => {
+    vi.mocked(fetchProviders).mockResolvedValue({
+      providers: [
+        row({ id: "vercel", label: "Vercel AI Gateway", kind: "vercel", videoModels: ["maker/clip-2"] }),
+        row({ id: "lmstudio", label: "LM Studio", kind: "openai", baseURL: "http://localhost:1234/v1" }),
+      ],
+      store,
+      signInAllowed: true,
+    });
+    vi.mocked(postDiscoverProviderModels).mockResolvedValueOnce({
+      textModels: ["maker/chat-1", "maker/chat-2"],
+      imageModels: ["maker/still-1"],
+      videoModels: ["maker/clip-2", "maker/clip-3"],
+    });
+    wire();
+    await vi.waitFor(() => expect(rows()).toHaveLength(2));
+    expect(rows()[0].querySelector(".providers-row-sub")?.textContent).toBe("1 video model");
+    await setOn(0);
+    expect(byId("providers-form-video-models").hidden).toBe(false);
+    const ticked = [...byId("providers-form-video-models-list").querySelectorAll("label")].map((label) => [
+      label.textContent,
+      label.querySelector("input")?.checked,
+    ]);
+    expect(ticked).toEqual([
+      ["maker/clip-2", true],
+      ["maker/clip-3", false],
+    ]);
+    expect(line().textContent).toBe(
+      "Key works. Vercel AI Gateway offers 2 text models, 1 image model and 2 video models, and Pragma lists the ticked ones wherever you choose a model.",
+    );
+    rows()[1].click();
+    expect(byId("providers-form-video-models").hidden).toBe(true);
+  });
+
   it("turns the line red when the next attempt fails", async () => {
     vi.mocked(postDiscoverProviderModels)
-      .mockResolvedValueOnce({ textModels: ["claude-sonnet-5"], imageModels: [] })
+      .mockResolvedValueOnce({ textModels: ["claude-sonnet-5"], imageModels: [], videoModels: [] })
       .mockRejectedValueOnce(new Error('Provider "anthropic" answered 401.'));
     wire();
     await setOn(0);
@@ -256,6 +299,7 @@ describe("Settings → AI Models' ChatGPT plan", () => {
     vi.mocked(postDiscoverProviderModels).mockResolvedValue({
       textModels: ["gpt-6.1-sol", "gpt-6-mini"],
       imageModels: [],
+      videoModels: [],
     });
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     byId("providers-form-continue").click();

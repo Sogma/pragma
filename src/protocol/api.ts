@@ -954,8 +954,9 @@ export type GenerateOptionsResponse = ActionResult;
 // ---- /api/providers, /api/models
 
 // `chatgpt` is a ChatGPT sign-in: requests run on the person's ChatGPT plan,
-// never on a key.
-export type ProviderKind = "anthropic" | "openai" | "google" | "chatgpt";
+// never on a key. `vercel` is Vercel's AI Gateway, one key for many makers'
+// models.
+export type ProviderKind = "anthropic" | "openai" | "google" | "vercel" | "chatgpt";
 
 // A `chatgpt` provider's sign-in. `planUsage` is whether the person let
 // Pragma use their ChatGPT plan: signed in without it, no request is sent.
@@ -988,6 +989,7 @@ export interface ProviderRow {
   vendor?: ProviderKind;
   textModels: string[];
   imageModels: string[];
+  videoModels: string[];
   // Where the key comes from. "unreadable" is a key saved but not usable
   // here, with `keyProblem` saying why and what to do.
   keySource: "stored" | "env" | "none" | "unreadable";
@@ -1123,10 +1125,12 @@ export interface DefaultModelRequestBody {
 }
 
 // What a provider's endpoint serves, split by how Pragma calls a model:
-// `imageModels` are the ids its kind makes images with, `textModels` the rest.
+// `imageModels` and `videoModels` are the ids its kind makes images and
+// videos with, `textModels` the rest.
 export interface DiscoverModelsResponse {
   textModels: string[];
   imageModels: string[];
+  videoModels: string[];
 }
 
 // The JSON error body the provider, publisher, and publishing routes use.
@@ -1134,6 +1138,37 @@ export interface DiscoverModelsResponse {
 export interface ErrorBody {
   message: string;
   need?: SetupNeed;
+}
+
+// ---- /api/sharing
+
+// The bucket Pragma shares files from when a provider fetches them by link:
+// where it is and whose access key reads it, never the secret, only whether
+// one is saved and usable.
+export interface SharingRow {
+  kind: "s3";
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  keySource: "stored" | "none" | "unreadable";
+  keyProblem?: string;
+}
+
+export interface SharingResponse {
+  sharing: SharingRow | null;
+  store: CredentialStoreDescription;
+}
+
+// The fields replace what's saved. A `secretAccessKey` is kept only once a
+// file has gone into the bucket, out by its link and been deleted again;
+// left out, the saved secret stays.
+export interface SaveSharingRequestBody {
+  endpoint: string;
+  bucket: string;
+  region?: string;
+  accessKeyId: string;
+  secretAccessKey?: string;
 }
 
 // ---- /api/mcp-servers
@@ -2011,8 +2046,8 @@ export type SandboxGenerateOptionsRequestBody = SandboxRequestBody & GenerateOpt
 // /api/providers (upsert), /api/providers/delete, /api/providers/discover
 
 // An upsert: `id` names the row, every other field is merged over what's
-// stored. `textModels` or `imageModels` alone toggles that enabled list; `apiKey`
-// alone rotates the key (verified against the endpoint before it is kept).
+// stored. A model list alone toggles that enabled list; `apiKey` alone
+// rotates the key (verified against the endpoint before it is kept).
 export interface SaveProviderRequestBody {
   id: string;
   kind?: ProviderKind;
@@ -2020,6 +2055,7 @@ export interface SaveProviderRequestBody {
   baseURL?: string;
   textModels?: string[];
   imageModels?: string[];
+  videoModels?: string[];
   apiKey?: string;
 }
 

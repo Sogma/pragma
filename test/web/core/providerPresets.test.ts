@@ -33,6 +33,7 @@ const GEMINI = {
     "gemini-3.1-flash-lite-image",
     "gemini-nano-banana-2.1",
   ],
+  videoModels: [],
 };
 
 describe("defaultModels", () => {
@@ -45,6 +46,7 @@ describe("defaultModels", () => {
         "gemini-3.1-flash-lite-image",
         "gemini-nano-banana-2.1",
       ],
+      videoModels: [],
     });
   });
 
@@ -52,6 +54,7 @@ describe("defaultModels", () => {
     const pinnedOnly = {
       textModels: ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.8-flash-tts"],
       imageModels: [],
+      videoModels: [],
     };
     expect(defaultModels("aliases", pinnedOnly).textModels).toEqual(["gemini-3.8-flash"]);
   });
@@ -69,7 +72,7 @@ describe("defaultModels", () => {
       "claude-3-5-haiku-20241022",
       "claude-3-haiku-20240307",
     ];
-    expect(defaultModels("newest", { textModels: anthropic, imageModels: [] }).textModels).toEqual([
+    expect(defaultModels("newest", { textModels: anthropic, imageModels: [], videoModels: [] }).textModels).toEqual([
       "claude-opus-5-5",
       "claude-sonnet-5-5",
       "claude-fable-5-1",
@@ -97,20 +100,31 @@ describe("defaultModels", () => {
         "whisper-1",
       ],
       imageModels: ["gpt-image-1", "gpt-image-1-mini", "gpt-image-1.5"],
+      videoModels: [],
     };
     // gpt-4o names its line "4o", which no newer id continues.
     expect(defaultModels("newest", openai)).toEqual({
       textModels: ["gpt-4o", "gpt-5.2", "gpt-5.2-mini", "o3", "o4-mini"],
       imageModels: ["gpt-image-1-mini", "gpt-image-1.5"],
+      videoModels: [],
     });
   });
 
   it("ticks a local server's every model, and a long list's none", () => {
-    const local = { textModels: ["qwen/qwen3.5-35b-a3b", "nomic-embed-text"], imageModels: [] };
+    const local = { textModels: ["qwen/qwen3.5-35b-a3b", "nomic-embed-text"], imageModels: [], videoModels: [] };
     expect(defaultModels("all", local).textModels).toEqual(local.textModels);
     expect(defaultModels("pick", local).textModels).toEqual(local.textModels);
-    const long = { textModels: Array.from({ length: 21 }, (_, n) => `model-${n}`), imageModels: [] };
+    const long = { textModels: Array.from({ length: 21 }, (_, n) => `model-${n}`), imageModels: [], videoModels: [] };
     expect(defaultModels("pick", long).textModels).toEqual([]);
+  });
+
+  it("ticks the newest image and video model of each line, and none of a gateway's long lists", () => {
+    const short = { textModels: [], imageModels: [], videoModels: ["maker/clip-1.0", "maker/clip-2.0"] };
+    expect(defaultModels("pick", short).videoModels).toEqual(["maker/clip-2.0"]);
+    const many = Array.from({ length: 21 }, (_, n) => `maker${n}/clip-1`);
+    const gateway = { textModels: [], imageModels: many, videoModels: many };
+    expect(defaultModels("pick", gateway)).toEqual({ textModels: [], imageModels: [], videoModels: [] });
+    expect(defaultModels("newest", gateway).videoModels).toHaveLength(21);
   });
 });
 

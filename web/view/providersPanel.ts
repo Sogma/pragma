@@ -49,6 +49,7 @@ const PRESET_CHOICES: PickerChoice[] = [
   { value: "lmstudio", label: "LM Studio (local)" },
   { value: "ollama", label: "Ollama (local)" },
   { value: "openrouter", label: "OpenRouter" },
+  { value: "vercel", label: "Vercel AI Gateway" },
   { value: "custom", label: "Custom" },
 ];
 
@@ -68,11 +69,10 @@ function setConfirmation(label: string, found: DiscoverModelsResponse, keyed: bo
   const counts = [
     [found.textModels.length, "text model"],
     [found.imageModels.length, "image model"],
+    [found.videoModels.length, "video model"],
   ] as const;
-  const offered = counts
-    .filter(([n]) => n > 0)
-    .map(([n, noun]) => countText(n, noun))
-    .join(" and ");
+  const named = counts.filter(([n]) => n > 0).map(([n, noun]) => countText(n, noun));
+  const offered = named.length > 1 ? `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}` : named.join("");
   if (!offered) return `${lead}, but ${label} lists no models. Add one by id below.`;
   return ticked > 0
     ? `${lead}. ${label} offers ${offered}, and Pragma lists the ticked ones wherever you choose a model.`
@@ -110,6 +110,9 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   const imageModelsBlock = must<HTMLDivElement>("#providers-form-image-models", root);
   const imageModelsList = must<HTMLDivElement>("#providers-form-image-models-list", root);
   const imageModelAddInput = must<HTMLInputElement>("#providers-form-image-model-add", root);
+  const videoModelsBlock = must<HTMLDivElement>("#providers-form-video-models", root);
+  const videoModelsList = must<HTMLDivElement>("#providers-form-video-models-list", root);
+  const videoModelAddInput = must<HTMLInputElement>("#providers-form-video-model-add", root);
   const refreshButton = must<HTMLButtonElement>("#providers-form-refresh", root);
   const messageLine = must<HTMLParagraphElement>("#providers-form-message", root);
   const formTitle = must<HTMLHeadingElement>("#providers-form-title", root);
@@ -123,14 +126,15 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   const signOutButton = must<HTMLButtonElement>("#providers-form-sign-out", root);
   const signInStatus = must<HTMLParagraphElement>("#providers-form-sign-in-status", root);
 
-  // The two checklists, each saving only its own config field.
+  // The checklists, each saving only its own config field.
   interface ModelList {
-    field: "textModels" | "imageModels";
+    field: "textModels" | "imageModels" | "videoModels";
     container: HTMLDivElement;
     enabled: string[];
   }
   const textModels: ModelList = { field: "textModels", container: modelsList, enabled: [] };
   const imageModels: ModelList = { field: "imageModels", container: imageModelsList, enabled: [] };
+  const videoModels: ModelList = { field: "videoModels", container: videoModelsList, enabled: [] };
 
   let formProviderId = "";
   let formLabel = "";
@@ -235,15 +239,19 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     );
   }
 
-  function renderChecklists(discovered: DiscoverModelsResponse = { textModels: [], imageModels: [] }): void {
+  function renderChecklists(
+    discovered: DiscoverModelsResponse = { textModels: [], imageModels: [], videoModels: [] },
+  ): void {
     renderChecklist(textModels, discovered.textModels);
     renderChecklist(imageModels, discovered.imageModels);
+    renderChecklist(videoModels, discovered.videoModels);
   }
 
   // Anthropic makes no images, and a ChatGPT plan covers text only, so
-  // neither form has an image list.
-  function showImageModels(kind: ProviderKind): void {
+  // neither form has an image list. Only the gateway makes videos.
+  function showMediaModels(kind: ProviderKind): void {
     imageModelsBlock.hidden = kind === "anthropic" || kind === "chatgpt";
+    videoModelsBlock.hidden = kind !== "vercel";
   }
 
   async function discover(): Promise<DiscoverModelsResponse> {
@@ -320,7 +328,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   // first sign-in every one of them ticked.
   async function showPlanModels(): Promise<void> {
     modelsBlock.hidden = false;
-    showImageModels("chatgpt");
+    showMediaModels("chatgpt");
     try {
       const discovered = await discover();
       if (textModels.enabled.length === 0) {
@@ -446,9 +454,10 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       formLabel = row.label;
       textModels.enabled = [...row.textModels];
       imageModels.enabled = [...row.imageModels];
+      videoModels.enabled = [...row.videoModels];
       setEditingMode(true);
       modelsBlock.hidden = false;
-      showImageModels(row.kind);
+      showMediaModels(row.kind);
       renderChecklists();
       setKeyPlaceholder(row.keySource, Boolean(PRESETS[presetKey]?.keyless));
       // Why the saved key can't be used, in the line a failed Set reports in.
@@ -465,6 +474,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       formProviderId = "";
       textModels.enabled = [];
       imageModels.enabled = [];
+      videoModels.enabled = [];
       setEditingMode(false);
       applyPreset();
     }
@@ -517,13 +527,14 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     formTitle.textContent = formLabel;
     renderNameHint();
     modelsBlock.hidden = false;
-    showImageModels(preset.kind);
+    showMediaModels(preset.kind);
     let keySource: ProviderRow["keySource"] = key ? "stored" : "none";
     try {
       const all = await fetchProviders();
       const saved = all.providers.find((p) => p.id === id);
       textModels.enabled = saved?.textModels ?? [];
       imageModels.enabled = saved?.imageModels ?? [];
+      videoModels.enabled = saved?.videoModels ?? [];
       keySource = saved?.keySource ?? keySource;
     } catch {
       // keep whatever we had
@@ -539,11 +550,16 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
         const ticked = defaultModels(preset.discover, discovered);
         textModels.enabled = ticked.textModels;
         imageModels.enabled = ticked.imageModels;
-        saved = await saveModels(textModels, ...(discovered.imageModels.length ? [imageModels] : []));
+        videoModels.enabled = ticked.videoModels;
+        saved = await saveModels(
+          textModels,
+          ...(discovered.imageModels.length ? [imageModels] : []),
+          ...(discovered.videoModels.length ? [videoModels] : []),
+        );
       }
       renderChecklists(discovered);
       if (saved) {
-        const tickedCount = textModels.enabled.length + imageModels.enabled.length;
+        const tickedCount = textModels.enabled.length + imageModels.enabled.length + videoModels.enabled.length;
         showMessage(setConfirmation(formLabel, discovered, keySource !== "none", tickedCount), "success");
       }
     } catch (error) {
@@ -593,6 +609,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
           const offered = [
             ...count(row.textModels.length, "text model"),
             ...count(row.imageModels.length, "image model"),
+            ...count(row.videoModels.length, "video model"),
           ];
           sub.textContent = offered.join(" · ") || "no models";
           meta.append(name, sub);
@@ -647,6 +664,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   for (const [input, list] of [
     [modelAddInput, textModels],
     [imageModelAddInput, imageModels],
+    [videoModelAddInput, videoModels],
   ] as const) {
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;

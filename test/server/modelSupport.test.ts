@@ -37,6 +37,16 @@ describe("the shipped model support file", () => {
     });
   });
 
+  // Vercel's docs name a reference in brackets for the whole Seedance 2.x line.
+  it("gives Seedance on the gateway the same counts, and the gateway's words for a reference", () => {
+    expect(modelSupport("bytedance/seedance-2.5", "vercel")).toEqual({
+      references: { image: 30, video: 10, audio: 10 },
+      mention: { image: "[Image {n}]", video: "[Video {n}]", audio: "@Audio{n}" },
+      frames: ["start", "end"],
+    });
+    expect(modelSupport("bytedance/seedance-2.0", "vercel").mention.image).toBe("[Image {n}]");
+  });
+
   // Higgsfield lists Kling 3.0 Omni with references only; its frames model
   // goes under another id.
   it("takes Kling 3.0 Omni's frames away on Higgsfield, and its brackets", () => {

@@ -29,6 +29,7 @@ import { mountProviderRoutes } from "./routes/providers.ts";
 import { mountPublishingRoutes } from "./routes/publishing.ts";
 import { mountSandboxRoutes } from "./routes/sandbox.ts";
 import { answerError, type RouteContext, type RouteOptions, type SpaceSwitcher } from "./routes/shared.ts";
+import { mountSharingRoutes } from "./routes/sharing.ts";
 import { mountSpaceRoutes } from "./routes/space.ts";
 import { mountTagRoutes } from "./routes/tags.ts";
 import { mountTemplateRoutes } from "./routes/templates.ts";
@@ -55,6 +56,7 @@ const MOUNTS: ((app: Hono, context: RouteContext) => void)[] = [
   mountSandboxRoutes,
   mountJobRoutes,
   mountProviderRoutes,
+  mountSharingRoutes,
   mountPublishingRoutes,
   mountAssistantRoutes,
   mountGitRoutes,

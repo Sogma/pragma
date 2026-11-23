@@ -95,9 +95,10 @@ Settings writes these for you. To write one by hand:
 
 | Credential | File in `credentials/plain/` | `endpoint` |
 |---|---|---|
-| Model provider key | `provider-keys/id-<id>.json` | its `baseURL`, or the vendor's: `https://api.anthropic.com/v1`, `https://api.openai.com/v1`, `https://generativelanguage.googleapis.com/v1beta` |
+| Model provider key | `provider-keys/id-<id>.json` | its `baseURL`, or the vendor's: `https://api.anthropic.com/v1`, `https://api.openai.com/v1`, `https://generativelanguage.googleapis.com/v1beta`, `https://ai-gateway.vercel.sh` |
 | Publisher key | `publisher-keys/id-<id>.json` | its `baseURL` |
 | MCP server token | `mcp-tokens/id-<id>.json` | its `url` |
+| Sharing key | `sharing-keys/id-s3.json` | its `endpoint` |
 
 `<id>` is the entry's id, with each character other than lowercase letters, digits, `-` and `_` written as `%` and its byte in hex (`My Key` → `id-%4Dy%20%4Bey`). A key's record:
 
@@ -117,12 +118,12 @@ A sign-in (ChatGPT, an MCP server's OAuth) is written only by signing in, which 
 
 ### Model providers
 
-AI features need at least one model provider configured — an Anthropic key, and/or other hosted or local (LM Studio / Ollama) models. On this target you can either:
+AI features need a model provider, hosted or local. On this target you can either:
 
 - **Use Settings → AI Models in the app** (on every hosting target, not just the desktop app). It writes the entry into `modelProviders` and the key into its record.
 - **Hand-edit `config.json`**: a `modelProviders` array, format in the README's [Configuration](../README.md#configuration) section, with each key in a record as above.
 
-Or **leave a provider's key blank** and export `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` for the service account (systemd `Environment=`) instead; then no key is stored on disk or sent over the network at all. The provider itself must still be configured, only one with no base URL reads its vendor's variable, and a saved key that can't be used blocks the variable rather than giving way to it.
+Or **leave a provider's key blank** and export `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `AI_GATEWAY_API_KEY` for the service account (systemd `Environment=`) instead; then no key is stored on disk or sent over the network. The provider itself must still be configured, only one with no base URL reads its vendor's variable, and a saved key that can't be used blocks the variable rather than giving way to it.
 
 ### MCP servers
 

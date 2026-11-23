@@ -159,7 +159,7 @@ describe("Settings' drill-down", () => {
   });
 });
 
-// Settings' two pages a need can be met on, as web/index.html has them, each
+// Settings' pages a need can be met on, as web/index.html has them, each
 // list loading after its page shows, as the server-held lists do. Each
 // default's picker offers one model, unless `noModels` names its kind.
 function settingsForNeeds(noModels: ModelKind[] = []) {
@@ -170,6 +170,7 @@ function settingsForNeeds(noModels: ModelKind[] = []) {
         <button class="settings-nav-item" data-settings-category="general">General</button>
         <button class="settings-nav-item" data-settings-category="models">AI Models</button>
         <button class="settings-nav-item" data-settings-category="publishing">Publishing</button>
+        <button class="settings-nav-item" data-settings-category="files">Files</button>
       </nav>
       <div class="settings-body settings-pages">
         <section class="settings-category" data-settings-category="general"></section>
@@ -184,8 +185,12 @@ function settingsForNeeds(noModels: ModelKind[] = []) {
           <div id="publishers-list"></div>
           <button id="publishers-add"></button>
         </section>
+        <section class="settings-category" data-settings-category="files" hidden>
+          <div id="sharing-list"></div>
+        </section>
         <section class="settings-subpage" data-settings-subpage="provider" data-settings-parent="models" hidden></section>
         <section class="settings-subpage" data-settings-subpage="publisher" data-settings-parent="publishing" hidden></section>
+        <section class="settings-subpage" data-settings-subpage="sharing" data-settings-parent="files" hidden></section>
       </div>
     </div>`;
   const commands = createCommands();
@@ -215,6 +220,7 @@ function settingsForNeeds(noModels: ModelKind[] = []) {
       onShowCategory: {
         models: load("#providers-list", ["anthropic"], "provider"),
         publishing: load("#publishers-list", ["sogma"], "publisher"),
+        files: load("#sharing-list", ["sharing"], "sharing"),
       },
       commands,
       keybindings,
@@ -247,7 +253,7 @@ describe("a setting link", () => {
     expect(must<HTMLElement>("#providers-add").classList.contains("flash")).toBe(true);
   });
 
-  it("keeps a video default's picker with no model to pick, as no provider makes videos", async () => {
+  it("keeps a video default's picker even with no model to pick", async () => {
     const { press } = settingsForNeeds(["video"]);
     await press({ kind: "defaultModel", output: "video" });
     expect(document.activeElement).toBe(must("#setting-default-video-model"));
@@ -272,5 +278,12 @@ describe("a setting link", () => {
     await press({ kind: "publisherKey", publisher: "sogma" });
     expect(opened).toEqual(["sogma"]);
     expect(shown('.settings-subpage[data-settings-subpage="publisher"]')).toBe(true);
+  });
+
+  it("opens Sharing from the Files page when a provider takes references only as links", async () => {
+    const { press, opened, shown } = settingsForNeeds();
+    await press({ kind: "sharing" });
+    expect(opened).toEqual(["sharing"]);
+    expect(shown('.settings-subpage[data-settings-subpage="sharing"]')).toBe(true);
   });
 });

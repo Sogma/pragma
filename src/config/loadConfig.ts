@@ -52,6 +52,9 @@ export interface PragmaGlobalConfig {
   // Global like modelProviders: a server is a connection, not a space fact.
   // See docs/architecture.md's Copilot as an MCP client section.
   mcpServers?: McpServerConfig[];
+  // The bucket Pragma shares files from when a provider fetches them by link
+  // (Settings → Files → Sharing). Its secret rests in the credential store.
+  sharing?: SharingConfig;
   // The "<providerId>/<model>" text, image and video models a call that
   // names none runs on, set from Settings → AI Models. Absent is none: such a
   // call fails.
@@ -130,8 +133,8 @@ export interface LibraryLocation {
 // One entry in PragmaGlobalConfig.modelProviders: a connection (kind + endpoint +
 // key) that contributes a list of models. `openai` covers OpenAI proper and
 // any OpenAI-compatible endpoint — LM Studio, Ollama, OpenRouter, vLLM — via
-// `baseURL`; `google` is Google's Gemini API. See README.md's
-// Configuration section for the full format.
+// `baseURL`; `google` is Google's Gemini API; `vercel` is Vercel's AI Gateway.
+// See README.md's Configuration section for the full format.
 export interface ProviderConfig {
   id: string;
   label?: string;
@@ -146,6 +149,8 @@ export interface ProviderConfig {
   // Image model ids it contributes to Generate Image. A list of their own, so
   // no text picker ever offers one.
   imageModels?: string[];
+  // Video model ids it contributes to Generate Video, kept apart the same way.
+  videoModels?: string[];
   // Optional floor on the per-call token budget (reasoning + output). Bump
   // this for a provider serving a verbose local reasoning model that would
   // otherwise spend the whole default budget thinking. Hand-edited; no UI.
@@ -162,7 +167,19 @@ export interface ResolvedProvider {
   baseURL?: string;
   textModels: string[];
   imageModels: string[];
+  videoModels: string[];
   maxTokens?: number;
+}
+
+// PragmaGlobalConfig.sharing: an S3-compatible bucket, reached at `endpoint`
+// by path. `region` is what requests are signed for; left out, the endpoint's
+// own name says it where it can.
+export interface SharingConfig {
+  kind?: "s3";
+  endpoint?: string;
+  bucket?: string;
+  region?: string;
+  accessKeyId?: string;
 }
 
 // One entry in PragmaGlobalConfig.publishers: a connection (kind + endpoint +
@@ -208,7 +225,7 @@ export interface ResolvedMcpServer {
   flows: boolean;
 }
 
-const PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai", "google", "chatgpt"];
+const PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai", "google", "vercel", "chatgpt"];
 
 // Each kind's conventional key variable. It holds a key for the vendor's own
 // endpoint, so an entry with a baseURL never reads it: a keyless OpenRouter
@@ -220,6 +237,7 @@ const KEY_ENV_VARS: Partial<Record<ProviderKind, string>> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   google: "GEMINI_API_KEY",
+  vercel: "AI_GATEWAY_API_KEY",
 };
 
 /** Each vendor's own endpoint, which an entry with no baseURL talks to. A
@@ -229,9 +247,10 @@ export const VENDOR_BASE_URLS: Partial<Record<ProviderKind, string>> = {
   anthropic: "https://api.anthropic.com/v1",
   openai: "https://api.openai.com/v1",
   google: "https://generativelanguage.googleapis.com/v1beta",
+  vercel: "https://ai-gateway.vercel.sh",
 };
 
-const KIND_NAMES = '"anthropic", "openai", "google" or "chatgpt"';
+const KIND_NAMES = '"anthropic", "openai", "google", "vercel" or "chatgpt"';
 
 function isProviderKind(kind: string): kind is ProviderKind {
   return (PROVIDER_KINDS as readonly string[]).includes(kind);
@@ -299,6 +318,7 @@ export function resolveProviders(config: PragmaGlobalConfig): ResolvedProvider[]
       baseURL: signsIn(entry.kind) ? undefined : entry.baseURL,
       textModels: entry.textModels ?? [],
       imageModels: entry.imageModels ?? [],
+      videoModels: entry.videoModels ?? [],
       maxTokens: entry.maxTokens,
     };
   });
@@ -311,6 +331,7 @@ export interface ProviderUpsertInput {
   baseURL?: string;
   textModels?: string[];
   imageModels?: string[];
+  videoModels?: string[];
 }
 
 // Shape only. Whether a `kind` is *required* depends on whether the entry
@@ -346,6 +367,7 @@ export function upsertProviderConfig(input: ProviderUpsertInput): void {
     ...(input.baseURL !== undefined ? { baseURL: input.baseURL || undefined } : {}),
     ...(input.textModels !== undefined ? { textModels: input.textModels } : {}),
     ...(input.imageModels !== undefined ? { imageModels: input.imageModels } : {}),
+    ...(input.videoModels !== undefined ? { videoModels: input.videoModels } : {}),
   };
   if (!next.kind) {
     throw new Error(`Provider "${next.id}" needs a "kind" (${KIND_NAMES}).`);
@@ -360,6 +382,89 @@ export function removeProviderConfig(id: string): void {
   const config = loadGlobalConfig();
   if (!config.modelProviders) return;
   saveGlobalConfig({ ...config, modelProviders: config.modelProviders.filter((entry) => entry.id !== id) });
+}
+
+// ── Sharing ─────────────────────────────────────────────────────────────
+
+export interface ResolvedSharing {
+  kind: "s3";
+  endpoint: string;
+  bucket: string;
+  region?: string;
+  accessKeyId: string;
+}
+
+// What's wrong with a sharing setup's fields, said after its name, or
+// undefined when nothing is. A bucket is reached by path, so its name may
+// hold dots and capitals that a host-style address couldn't.
+function sharingProblem(fields: SharingConfig): string | undefined {
+  let endpoint: URL | undefined;
+  try {
+    endpoint = fields.endpoint ? new URL(fields.endpoint) : undefined;
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || (endpoint.protocol !== "https:" && endpoint.protocol !== "http:")) {
+    return "needs an endpoint, an http or https URL.";
+  }
+  if (endpoint.search || endpoint.hash || endpoint.username || endpoint.password) {
+    return "needs an endpoint with no query, fragment or account in it.";
+  }
+  if (!fields.bucket || !/^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$/.test(fields.bucket)) {
+    return "needs a bucket name: 2 to 63 letters, digits, dots, dashes or underscores.";
+  }
+  if (!fields.accessKeyId?.trim()) return "needs a key ID.";
+  if (fields.region !== undefined && !/^[A-Za-z0-9-]*$/.test(fields.region)) {
+    return "needs a region of letters, digits and dashes, or none.";
+  }
+  return undefined;
+}
+
+/** config.sharing, validated, or undefined when none is set up. Throws on a
+ * structural error rather than ignoring it, as a provider entry does. */
+export function resolveSharing(config: PragmaGlobalConfig): ResolvedSharing | undefined {
+  const entry = config.sharing;
+  if (!entry) return undefined;
+  if (entry.kind !== undefined && entry.kind !== "s3") {
+    throw new Error(`"sharing" in config.json has unknown kind ${JSON.stringify(entry.kind)}. Expected "s3".`);
+  }
+  const problem = sharingProblem(entry);
+  if (problem) throw new Error(`"sharing" in config.json ${problem}`);
+  return {
+    kind: "s3",
+    endpoint: (entry.endpoint as string).replace(/\/+$/, ""),
+    bucket: entry.bucket as string,
+    accessKeyId: (entry.accessKeyId as string).trim(),
+    ...(entry.region ? { region: entry.region } : {}),
+  };
+}
+
+/** Why these fields can't be saved as the sharing setup, or undefined. */
+export function sharingInputProblem(fields: SharingConfig): string | undefined {
+  const problem = sharingProblem(fields);
+  return problem ? `Sharing ${problem}` : undefined;
+}
+
+/** Writes the sharing setup's fields into config.json, never its secret. */
+export function saveSharingConfig(fields: Omit<SharingConfig, "kind">): void {
+  const problem = sharingInputProblem(fields);
+  if (problem) throw new Error(problem);
+  const config = loadGlobalConfig();
+  saveGlobalConfig({
+    ...config,
+    sharing: {
+      kind: "s3",
+      endpoint: (fields.endpoint as string).replace(/\/+$/, ""),
+      bucket: fields.bucket,
+      ...(fields.region ? { region: fields.region } : {}),
+      accessKeyId: fields.accessKeyId?.trim(),
+    },
+  });
+}
+
+export function removeSharingConfig(): void {
+  const { sharing: _sharing, ...rest } = loadGlobalConfig();
+  saveGlobalConfig(rest);
 }
 
 // ── Publishers ──────────────────────────────────────────────────────────

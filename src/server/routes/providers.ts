@@ -117,6 +117,7 @@ export function mountProviderRoutes(app: Hono, { ownMachine }: RouteContext): vo
             baseURL,
             textModels: [],
             imageModels: [],
+            videoModels: [],
           };
           const saved = await saveCredential({
             kind: "provider-keys",
@@ -165,6 +166,7 @@ export function mountProviderRoutes(app: Hono, { ownMachine }: RouteContext): vo
             ...vendorField(provider),
             textModels: provider.textModels,
             imageModels: provider.imageModels,
+            videoModels: provider.videoModels,
             keySource: key.source,
             ...(key.problem ? { keyProblem: key.problem } : {}),
             ...(signIn && { signIn }),

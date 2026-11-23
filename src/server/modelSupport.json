@@ -2,7 +2,7 @@
   "$comment": "Each model's support details, read from its maker's official docs. What each field means, and how to keep this file current: docs/model-support.md.",
   "models": {
     "Seedance 2.5": {
-      "ids": ["seedance_2_5"],
+      "ids": ["seedance_2_5", "bytedance/seedance-2.5"],
       "references": { "image": 30, "video": 10, "audio": 10 },
       "frames": ["start", "end"],
       "mention": { "image": "@Image{n}", "video": "@Video{n}", "audio": "@Audio{n}" },
@@ -10,10 +10,17 @@
         "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-5",
         "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-5-prompt-guide"
       ],
-      "checked": "2026-11-11"
+      "checked": "2026-11-11",
+      "hosts": {
+        "vercel": {
+          "mention": { "image": "[Image {n}]", "video": "[Video {n}]" },
+          "source": "https://vercel.com/docs/ai-gateway/modalities/video-generation/reference-to-video",
+          "checked": "2026-11-23"
+        }
+      }
     },
     "Seedance 2.0": {
-      "ids": ["seedance_2_0"],
+      "ids": ["seedance_2_0", "bytedance/seedance-2.0"],
       "references": { "image": 9, "video": 3, "audio": 3 },
       "frames": ["start", "end"],
       "mention": { "image": "@Image{n}", "video": "@Video{n}", "audio": "@Audio{n}" },
@@ -21,7 +28,14 @@
         "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-0",
         "https://ai.byteplus.com/ark/region:ap-southeast-1/docs/seedance-2-0-prompt-guide"
       ],
-      "checked": "2026-11-11"
+      "checked": "2026-11-11",
+      "hosts": {
+        "vercel": {
+          "mention": { "image": "[Image {n}]", "video": "[Video {n}]" },
+          "source": "https://vercel.com/docs/ai-gateway/modalities/video-generation/reference-to-video",
+          "checked": "2026-11-23"
+        }
+      }
     },
     "Seedream 4.5": {
       "ids": ["seedream_v4_5", "seedream-4-5-*"],

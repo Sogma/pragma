@@ -637,6 +637,11 @@
                     </div>
                   </div>
                 </div>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <div id="sharing-list" class="settings-card-list"></div>
+                  </div>
+                </div>
               </section>
               <section class="settings-category" data-settings-category="shortcuts" hidden>
                 <p class="settings-intro">The commands in the command palette, and the keys that run them.</p>
@@ -874,6 +879,51 @@
                   </div>
                 </div>
               </section>
+              <section class="settings-subpage" data-settings-subpage="sharing" data-settings-parent="files" hidden>
+                <div class="settings-subpage-head">
+                  <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Files">
+                    <span class="settings-subpage-back-icon" aria-hidden="true"></span>
+                    Files
+                  </button>
+                  <h3 class="settings-subpage-title">Sharing</h3>
+                </div>
+                <form id="sharing-form" class="settings-form-stack">
+                  <p class="settings-intro">Some providers take reference images and videos only as links. Pragma puts each file in a bucket of your own, gives the provider a link that expires after a day, and deletes the file when the job ends.</p>
+                  <div class="settings-group">
+                    <div class="settings-card">
+                      <div class="settings-field">
+                        <label for="sharing-form-endpoint">Endpoint</label>
+                        <input id="sharing-form-endpoint" class="form-input settings-input" autocomplete="off" placeholder="https://…" />
+                        <button id="sharing-form-check" type="button" class="btn" hidden>Test</button>
+                      </div>
+                      <div class="settings-field">
+                        <label for="sharing-form-bucket">Bucket</label>
+                        <input id="sharing-form-bucket" class="form-input settings-input" autocomplete="off" />
+                      </div>
+                      <div class="settings-field">
+                        <label for="sharing-form-region">Region</label>
+                        <input id="sharing-form-region" class="form-input settings-input" autocomplete="off" placeholder="from the endpoint" />
+                      </div>
+                      <div class="settings-field">
+                        <label for="sharing-form-access-key">Key ID</label>
+                        <input id="sharing-form-access-key" class="form-input settings-input" autocomplete="off" />
+                      </div>
+                      <div class="settings-field">
+                        <label for="sharing-form-secret">Secret key</label>
+                        <input id="sharing-form-secret" class="form-input settings-input" type="password" autocomplete="off" />
+                        <button id="sharing-form-save" type="submit" class="btn primary">Save</button>
+                      </div>
+                    </div>
+                    <p class="settings-group-note">Works with any S3-compatible storage. Saving puts a small file in the bucket, opens it by its link and deletes it, so a bucket that can't share files is never saved.</p>
+                    <p id="sharing-form-message" class="inline-error settings-group-note" hidden></p>
+                  </div>
+                </form>
+                <div class="settings-group">
+                  <div class="settings-card">
+                    <button id="sharing-form-remove" type="button" class="list-item settings-danger-row" hidden>Remove Sharing</button>
+                  </div>
+                </div>
+              </section>
               <section class="settings-subpage" data-settings-subpage="publisher" data-settings-parent="publishing" hidden>
                 <div class="settings-subpage-head">
                   <button type="button" class="flat-button section-label settings-subpage-back" aria-label="Back to Publishing">
@@ -977,6 +1027,15 @@
                         <div id="providers-form-image-models-list" class="providers-form-models-list settings-block"></div>
                         <div class="settings-block">
                           <input id="providers-form-image-model-add" class="form-input settings-input" autocomplete="off" placeholder="add an image model id, then Enter" />
+                        </div>
+                      </div>
+                    </div>
+                    <div id="providers-form-video-models" class="settings-group" hidden>
+                      <h4 class="section-label settings-group-title">Video models</h4>
+                      <div class="settings-card">
+                        <div id="providers-form-video-models-list" class="providers-form-models-list settings-block"></div>
+                        <div class="settings-block">
+                          <input id="providers-form-video-model-add" class="form-input settings-input" autocomplete="off" placeholder="add a video model id, then Enter" />
                         </div>
                       </div>
                     </div>

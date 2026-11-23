@@ -5,12 +5,13 @@
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 
 // Each page's name as Settings' nav writes it.
-const PAGES = { models: "AI Models", publishing: "Publishing" } as const;
+const PAGES = { models: "AI Models", publishing: "Publishing", files: "Files" } as const;
 
 export type SetupPage = keyof typeof PAGES;
 
 /** The Settings page that meets `need`. */
 export function setupPage(need: SetupNeed): SetupPage {
+  if (need.kind === "sharing") return "files";
   return need.kind === "publisher" || need.kind === "publisherKey" ? "publishing" : "models";
 }
 

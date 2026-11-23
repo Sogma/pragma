@@ -8,11 +8,17 @@ import {
   providerKey,
   providerKeyStatus,
   publisherKey,
+  sharingKey,
+  sharingKeyStatus,
 } from "../../src/config/credentials.ts";
 import {
   loadGlobalConfig,
+  removeSharingConfig,
   resolveProviders,
+  resolveSharing,
   saveGlobalConfig,
+  saveSharingConfig,
+  sharingInputProblem,
   upsertMcpServerConfig,
   upsertProviderConfig,
 } from "../../src/config/loadConfig.ts";
@@ -30,6 +36,7 @@ beforeEach(() => {
   vi.stubEnv("ANTHROPIC_API_KEY", "env-anthropic");
   vi.stubEnv("OPENAI_API_KEY", "env-openai");
   vi.stubEnv("GEMINI_API_KEY", "env-gemini");
+  vi.stubEnv("AI_GATEWAY_API_KEY", "env-gateway");
 });
 
 afterEach(() => {
@@ -59,6 +66,23 @@ describe("provider keys", () => {
     await expect(providerKey({ id: "gemini", kind: "google" })).resolves.toMatchObject({ key: "env-gemini" });
     await expect(providerKeyStatus(openrouter)).resolves.toEqual({ source: "none" });
     await expect(providerKeyStatus({ id: "gemini", kind: "google" })).resolves.toEqual({ source: "env" });
+    await expect(providerKey({ id: "vercel", kind: "vercel" })).resolves.toMatchObject({ key: "env-gateway" });
+    await expect(providerKey({ id: "mirror", kind: "vercel", baseURL: "https://mirror.test" })).resolves.toEqual({
+      found: false,
+    });
+  });
+
+  it("keeps a gateway's video models in a list of their own", () => {
+    const [gateway] = resolveProviders({
+      modelProviders: [{ id: "vercel", kind: "vercel", textModels: ["maker/chat-1"], videoModels: ["maker/clip-2"] }],
+    });
+    expect(gateway).toMatchObject({ textModels: ["maker/chat-1"], imageModels: [], videoModels: ["maker/clip-2"] });
+    upsertProviderConfig({ id: "vercel", kind: "vercel", videoModels: ["maker/clip-3"] });
+    expect(loadGlobalConfig().modelProviders?.[0]).toEqual({
+      id: "vercel",
+      kind: "vercel",
+      videoModels: ["maker/clip-3"],
+    });
   });
 
   it("uses a stored key for its own endpoint ahead of the environment", async () => {
@@ -111,7 +135,7 @@ describe("provider entries", () => {
 
   it("refuses an entry with no kind, naming the kinds, whatever its id", () => {
     expect(() => resolveProviders({ modelProviders: [{ id: "anthropic" }] })).toThrow(
-      'Provider "anthropic" in config.json is missing "kind". Set it to one of "anthropic", "openai", "google" or "chatgpt".',
+      'Provider "anthropic" in config.json is missing "kind". Set it to one of "anthropic", "openai", "google", "vercel" or "chatgpt".',
     );
     expect(() => upsertProviderConfig({ id: "anthropic" })).toThrow('Provider "anthropic" needs a "kind"');
   });
@@ -127,7 +151,7 @@ describe("provider entries", () => {
 
   it("names every kind when refusing an unknown one", () => {
     expect(() => resolveProviders({ modelProviders: [{ id: "x", kind: "mystery" as never }] })).toThrow(
-      'Expected "anthropic", "openai", "google" or "chatgpt"',
+      'Expected "anthropic", "openai", "google", "vercel" or "chatgpt"',
     );
   });
 });
@@ -198,5 +222,63 @@ describe("resolveModel", () => {
     expect(resolveModel("gemini/gemini-pro-latest").imagesInToolResults).toBe(true);
     expect(resolveModel("openai/gpt-6.1-sol").imagesInToolResults).toBe(true);
     expect(resolveModel("lmstudio/qwen/qwen3").imagesInToolResults).toBe(false);
+  });
+});
+
+describe("sharing", () => {
+  const fields = { endpoint: "https://store.example.test/", bucket: "refs", accessKeyId: "AK" };
+
+  it("reads a sharing setup, or none, and refuses one it couldn't use, saying what's wrong", () => {
+    expect(resolveSharing({})).toBeUndefined();
+    expect(resolveSharing({ sharing: fields })).toEqual({
+      kind: "s3",
+      endpoint: "https://store.example.test",
+      bucket: "refs",
+      accessKeyId: "AK",
+    });
+    expect(() => resolveSharing({ sharing: { ...fields, kind: "blob" as never } })).toThrow(
+      '"sharing" in config.json has unknown kind "blob". Expected "s3".',
+    );
+    expect(() => resolveSharing({ sharing: { ...fields, bucket: "" } })).toThrow(
+      '"sharing" in config.json needs a bucket name',
+    );
+    expect(sharingInputProblem({ ...fields, endpoint: "ftp://store.example.test" })).toBe(
+      "Sharing needs an endpoint, an http or https URL.",
+    );
+    expect(sharingInputProblem({ ...fields, endpoint: "https://key:secret@store.example.test" })).toBe(
+      "Sharing needs an endpoint with no query, fragment or account in it.",
+    );
+    expect(sharingInputProblem({ ...fields, accessKeyId: " " })).toBe("Sharing needs a key ID.");
+    expect(sharingInputProblem({ ...fields, region: "us east" })).toBe(
+      "Sharing needs a region of letters, digits and dashes, or none.",
+    );
+    expect(sharingInputProblem({ ...fields, bucket: "My.Refs_2" })).toBeUndefined();
+  });
+
+  it("saves the setup's fields to config.json, never its secret, and removes them", () => {
+    saveSharingConfig({ ...fields, accessKeyId: " AK ", region: "" });
+    expect(loadGlobalConfig().sharing).toEqual({
+      kind: "s3",
+      endpoint: "https://store.example.test",
+      bucket: "refs",
+      accessKeyId: "AK",
+    });
+    removeSharingConfig();
+    expect(loadGlobalConfig().sharing).toBeUndefined();
+  });
+
+  it("serves a saved secret only to the endpoint it was saved for", async () => {
+    const sharing = { kind: "s3", endpoint: "https://store.example.test" };
+    await expect(sharingKey(sharing)).resolves.toEqual({ found: false });
+    await credentialStore().set(
+      { kind: "sharing-keys", id: "s3" },
+      { absent: true },
+      { endpoint: "https://store.example.test", secrets: { key: "shh" } },
+    );
+    await expect(sharingKey(sharing)).resolves.toEqual({ found: true, key: "shh", source: "stored" });
+    await expect(sharingKeyStatus({ ...sharing, endpoint: "https://elsewhere.example.test" })).resolves.toEqual({
+      source: "unreadable",
+      problem: "The saved key was entered for another endpoint. Enter it again.",
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGateway, GatewayAuthenticationError } from "@ai-sdk/gateway";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -27,6 +28,7 @@ import { chatGptPlanFetch, listChatGptModels } from "./chatgptPlan.ts";
 import { type ProviderImageModel, withListedAspectRatios, withOptions } from "./imageGeneration.ts";
 import { SetupError, type SetupNeed } from "./setupNeed.ts";
 import type { RasterImageMediaType } from "./types.ts";
+import type { ProviderVideoModel } from "./videoGeneration.ts";
 
 /**
  * The provider seam for pragma's "provider call" — the prompt → provider →
@@ -35,8 +37,9 @@ import type { RasterImageMediaType } from "./types.ts";
  *
  * The packages: `@ai-sdk/anthropic`; `@ai-sdk/openai` for text on OpenAI's
  * own endpoint, `@ai-sdk/openai-compatible` for its images and for any
- * `baseURL` server; and `@ai-sdk/google` for Gemini. See
- * docs/architecture.md's "Model providers and configuration" section.
+ * `baseURL` server; `@ai-sdk/google` for Gemini; and `@ai-sdk/gateway` for
+ * Vercel's AI Gateway. See docs/architecture.md's "Model providers and
+ * configuration" section.
  */
 
 // A provider-neutral prompt content block. Mirrors the two block kinds the
@@ -92,9 +95,9 @@ export interface ModelProvider {
 /**
  * A language model bound to a configured provider. Deliberately excludes the
  * SDK's bare-string form: `generateText({ model: "openai/gpt-5" })` would
- * resolve through Vercel's hosted AI Gateway — a third-party service with its
- * own key and billing — which pragma must never reach, silently or otherwise.
- * Every model call passes an instance built here, from a ResolvedProvider.
+ * resolve through Vercel's hosted AI Gateway, a third-party service with its
+ * own key and billing, which pragma reaches only as a provider the person
+ * adds. Every model call passes an instance built here, from a ResolvedProvider.
  */
 export type ProviderLanguageModel = Exclude<LanguageModel, string>;
 
@@ -146,8 +149,10 @@ export class ProviderHttpError extends Error {
 }
 
 /** True when `error` is the provider rejecting our credentials — an HTTP 401
- * or 403 from the model endpoint — as opposed to any other failure. */
+ * or 403 from the model endpoint — as opposed to any other failure. The
+ * gateway's package throws its own error for a refused key. */
 export function isAuthRejection(error: unknown): boolean {
+  if (GatewayAuthenticationError.isInstance(error)) return true;
   return APICallError.isInstance(error) && (error.statusCode === 401 || error.statusCode === 403);
 }
 
@@ -178,6 +183,12 @@ function baseURLOf(provider: ResolvedProvider): string {
 function requiresKey(provider: ResolvedProvider): boolean {
   if (signsIn(provider.kind)) return false;
   return provider.kind !== "openai" || !provider.baseURL;
+}
+
+// The gateway serves models under its own path, and its model list and
+// balance under the OpenAI-style one beside it.
+function gatewayFor(provider: ResolvedProvider, apiKey: string | undefined) {
+  return createGateway({ apiKey, baseURL: `${baseURLOf(provider).replace(/\/+$/, "")}/v4/ai` });
 }
 
 function openAICompatible(provider: ResolvedProvider, apiKey: string | undefined) {
@@ -238,6 +249,7 @@ export function languageModelFor(
   if (provider.kind === "google") {
     return createGoogleGenerativeAI({ apiKey, baseURL: baseURLOf(provider) }).languageModel(wireModel);
   }
+  if (provider.kind === "vercel") return gatewayFor(provider, apiKey).languageModel(wireModel);
   return createAnthropic({ apiKey, baseURL: baseURLOf(provider) })(wireModel);
 }
 
@@ -277,6 +289,7 @@ export function imageModelFor(
     const model = createGoogleGenerativeAI({ apiKey, baseURL: baseURLOf(provider) });
     return withListedAspectRatios(model.imageModel(wireModel), GEMINI_IMAGE_RATIOS);
   }
+  if (provider.kind === "vercel") return gatewayFor(provider, apiKey).imageModel(wireModel);
   // An images endpoint takes no seed and the SDK warns on one. Here a seed
   // only names a new result, so it goes unsent and unsaid, as on Higgsfield.
   const model = withOptions(openAICompatible(provider, apiKey).imageModel(wireModel), (options) => ({
@@ -284,6 +297,28 @@ export function imageModelFor(
     seed: undefined,
   }));
   return /^gpt-image/.test(wireModel) ? withListedAspectRatios(model, GPT_IMAGE_SIZES) : model;
+}
+
+/** Whether a provider's kind makes videos Pragma can call. */
+export function makesVideos(provider: Pick<ResolvedProvider, "kind">): boolean {
+  return provider.kind === "vercel";
+}
+
+/** Refuses a provider whose kind makes no videos Pragma can call. */
+export function assertMakesVideos(provider: ResolvedProvider): void {
+  if (!makesVideos(provider)) throw new Error(`${provider.label} makes no videos Pragma can use.`);
+}
+
+/** Builds the AI SDK video model for a kind that makes videos, with the key
+ * read for this call, as an image model is. */
+export function videoModelFor(
+  provider: ResolvedProvider,
+  wireModel: string,
+  apiKey: string | undefined,
+): ProviderVideoModel {
+  assertMakesVideos(provider);
+  if (!apiKey && requiresKey(provider)) throw missingKey(provider);
+  return gatewayFor(provider, apiKey).videoModel(wireModel);
 }
 
 type UserContent = Extract<ModelMessage, { role: "user" }>["content"];
@@ -502,6 +537,7 @@ const IMAGE_MODEL_IDS: Record<ResolvedProvider["kind"], RegExp | undefined> = {
   anthropic: undefined,
   openai: /^gpt-image/,
   google: /^gemini-(.*image|nano-banana)/,
+  vercel: undefined,
   chatgpt: undefined,
 };
 
@@ -516,14 +552,37 @@ export async function discoverModels(
   provider: ResolvedProvider,
   apiKey: string | undefined,
 ): Promise<DiscoverModelsResponse> {
-  if (provider.kind === "chatgpt") return { textModels: await listChatGptModels(provider.id), imageModels: [] };
+  if (provider.kind === "chatgpt") {
+    return { textModels: await listChatGptModels(provider.id), imageModels: [], videoModels: [] };
+  }
+  if (provider.kind === "vercel") return listGatewayModels(provider, apiKey);
   const ids =
     provider.kind === "google" ? await listGoogleModels(provider, apiKey) : await listModels(provider, apiKey);
   const images = IMAGE_MODEL_IDS[provider.kind];
   return {
     textModels: ids.filter((id) => !images?.test(id)),
     imageModels: images ? ids.filter((id) => images.test(id)) : [],
+    videoModels: [],
   };
+}
+
+// The gateway lists every model it serves with its type, so each goes to its
+// own list by that, and a type Pragma has no use for, such as embeddings, to none.
+async function listGatewayModels(
+  provider: ResolvedProvider,
+  apiKey: string | undefined,
+): Promise<DiscoverModelsResponse> {
+  const headers: Record<string, string> = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+  const response = await fetch(`${baseURLOf(provider).replace(/\/+$/, "")}/v1/models`, { headers });
+  if (!response.ok) throw new ProviderHttpError(provider.id, response.status);
+  const body = (await response.json()) as { data?: Array<{ id?: unknown; type?: unknown }> };
+  const ofType = (type: string) =>
+    (body.data ?? [])
+      .filter((model) => model.type === type)
+      .map((model) => model.id)
+      .filter((id): id is string => typeof id === "string")
+      .sort();
+  return { textModels: ofType("language"), imageModels: ofType("image"), videoModels: ofType("video") };
 }
 
 // `GET {baseURL}/models` on the anthropic and openai kinds, differing only in
@@ -584,9 +643,19 @@ async function listGoogleModels(provider: ResolvedProvider, apiKey: string | und
  */
 export async function verifyProviderKey(provider: ResolvedProvider, apiKey: string): Promise<boolean> {
   try {
-    await discoverModels(provider, apiKey);
+    if (provider.kind === "vercel") await checkGatewayKey(provider, apiKey);
+    else await discoverModels(provider, apiKey);
     return true;
   } catch (error) {
     return !(error instanceof ProviderHttpError && error.keyRefused);
   }
+}
+
+// The gateway's model list answers anyone, so the key is tried on its
+// balance instead, which only a key's owner may read.
+async function checkGatewayKey(provider: ResolvedProvider, apiKey: string): Promise<void> {
+  const response = await fetch(`${baseURLOf(provider).replace(/\/+$/, "")}/v1/credits`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+  });
+  if (!response.ok) throw new ProviderHttpError(provider.id, response.status);
 }

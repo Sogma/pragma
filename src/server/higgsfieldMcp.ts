@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ResolvedMcpServer } from "../config/loadConfig.ts";
-import type { ModelSetting, ModelSettingValue } from "../protocol/api.ts";
+import type { ModelSetting } from "../protocol/api.ts";
 import type { FrameKind } from "../protocol/flowNodes.ts";
 import type {
   ImageCallResult,
@@ -15,6 +15,7 @@ import { extensionForMediaType, rasterImageMediaTypeForPath, videoMediaTypeForPa
 import {
   type DeclaredVideoInputs,
   jobSettings,
+  offeredSettings,
   type ProviderVideoModel,
   type VideoStartResult,
   type VideoStatusResult,
@@ -523,30 +524,6 @@ export function catalogSettings(entry: Fields): ModelSetting[] {
     }
     return [];
   });
-}
-
-/** The model settings a request names that the model's catalog offers, with
- * a value of the right kind; any other is left out and said so. */
-export function offeredSettings(
-  asked: unknown,
-  offered: readonly ModelSetting[],
-  modelId: string,
-): { settings: Record<string, ModelSettingValue>; leftOut: string[] } {
-  const settings: Record<string, ModelSettingValue> = {};
-  const leftOut: string[] = [];
-  const named = asked && typeof asked === "object" && !Array.isArray(asked) ? (asked as Fields) : {};
-  for (const [name, value] of Object.entries(named)) {
-    const setting = offered.find((each) => each.name === name);
-    const fits =
-      setting?.kind === "switch"
-        ? typeof value === "boolean"
-        : setting?.kind === "number"
-          ? typeof value === "number"
-          : typeof value === "string" || typeof value === "number";
-    if (setting && fits) settings[name] = value as ModelSettingValue;
-    else leftOut.push(`${name}: ${modelId} takes none, so it was left out`);
-  }
-  return { settings, leftOut };
 }
 
 // The sizes a catalog entry's `resolution` lists, in its own names.
