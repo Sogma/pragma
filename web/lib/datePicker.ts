@@ -6,6 +6,7 @@
 // resolved in the calendar the grid shows, so no time zone can shift it by
 // one on the way in or out.
 
+import { iconButton } from "./dom.ts";
 import { openFlyout } from "./flyout.ts";
 
 export interface DatePickerOptions {
@@ -94,8 +95,8 @@ export function openDatePicker({ anchor, value, onPick }: DatePickerOptions): vo
   const header = document.createElement("div");
   header.className = "date-picker-header";
 
-  const previous = navButton("date-picker-prev", "Previous month");
-  const next = navButton("date-picker-next", "Next month");
+  const previous = iconButton("date-picker-nav date-picker-prev", "Previous month");
+  const next = iconButton("date-picker-nav date-picker-next", "Next month");
 
   const monthSelect = document.createElement("select");
   monthSelect.className = "form-input date-picker-month";
@@ -207,12 +208,4 @@ export function openDatePicker({ anchor, value, onPick }: DatePickerOptions): vo
   render(false);
   const flyout = openFlyout(anchor, popover);
   grid.querySelector<HTMLButtonElement>('.date-picker-day[tabindex="0"]')?.focus();
-}
-
-function navButton(className: string, label: string): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `icon-button date-picker-nav ${className}`;
-  button.setAttribute("aria-label", label);
-  return button;
 }

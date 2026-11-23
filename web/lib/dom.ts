@@ -12,6 +12,17 @@ export function must<E extends Element>(selector: string, root: ParentNode = doc
   return found;
 }
 
+/** A button drawn as an icon, named by `label`, which its tooltip shows
+ * (web/lib/tooltip.ts). `tooltip` is kept only where it says something the
+ * label doesn't, so the two can't drift into repeating each other. */
+export function iconButton(className: string, label: string, tooltip?: string): HTMLButtonElement {
+  const button = el("button", className ? `icon-button ${className}` : "icon-button");
+  button.type = "button";
+  button.setAttribute("aria-label", label);
+  if (tooltip && tooltip !== label) button.dataset.tooltip = tooltip;
+  return button;
+}
+
 /** An element of `tag` with its class name and its text, each when given. */
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,

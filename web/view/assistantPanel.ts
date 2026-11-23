@@ -9,7 +9,7 @@
 import { type FileInfoResponse, getFileInfo, getFileSha256, type Tab } from "../core/apiClient.ts";
 import { isForeignRootTab } from "../core/paths.ts";
 import { dateTimeLabel } from "../lib/dateText.ts";
-import { appendCodeRow, appendMetaRow, createInspectorSection, formatFileSize, must } from "../lib/dom.ts";
+import { appendCodeRow, appendMetaRow, createInspectorSection, formatFileSize, iconButton, must } from "../lib/dom.ts";
 import { pixelToken, wirePanelResize } from "../lib/panelResize.ts";
 import type { CommandRegistry } from "../services/commands.ts";
 import type { EditorPane } from "../services/editorPanes.ts";
@@ -140,13 +140,10 @@ export function createInspector(deps: InspectorDeps): Inspector {
   // Marked up as the inspector's own tabs are, so the strip's bar and
   // styles treat them alike. Each goes before Info, which stays last.
   function mount(tab: InspectorTab): void {
-    const button = document.createElement("button");
-    button.type = "button";
+    const button = iconButton("rail-icon", tab.label);
     button.id = `inspector-tab-${tab.id}`;
-    button.className = "icon-button rail-icon";
     button.setAttribute("role", "tab");
     button.setAttribute("aria-controls", `inspector-${tab.id}`);
-    button.setAttribute("aria-label", tab.label);
     button.innerHTML = tab.icon;
     button.addEventListener("click", () => select(tab.id, tab.id === view && !collapsed));
     tab.panel.id = `inspector-${tab.id}`;
@@ -299,7 +296,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
     );
     const tab = tabs.tools;
     const detail = running > 0 ? `${running} running` : "";
-    tab.dataset.tooltip = detail ? `Tools\n${detail}` : "Tools";
+    if (detail) tab.dataset.tooltip = `Tools\n${detail}`;
+    else delete tab.dataset.tooltip;
     tab.setAttribute("aria-label", detail ? `Tools: ${detail}` : "Tools");
     let badge = tab.querySelector<HTMLElement>(".rail-badge");
     if (!detail) {

@@ -242,7 +242,9 @@ describe("createSidebarShell", () => {
 
     status.set({});
     expect(badge()).toBeNull();
-    expect(button.dataset.tooltip).toBe("Source Control");
+    // With nothing to add, the tooltip is the icon button's own name.
+    expect(button.dataset.tooltip).toBeUndefined();
+    expect(button.getAttribute("aria-label")).toBe("Source Control");
 
     store.dispose();
     status.set({ badge: { text: "9", tone: "count" } });

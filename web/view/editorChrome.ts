@@ -11,7 +11,7 @@ import type { Tab } from "../core/apiClient.ts";
 import { activeTitleFor } from "../core/documentContent.ts";
 import { isReadOnlyTab } from "../core/paths.ts";
 import type { FlowView } from "../flow/xyflowAdapter.ts";
-import { buildRunCount, setRunCount } from "../lib/dom.ts";
+import { buildRunCount, el, iconButton, setRunCount } from "../lib/dom.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
 import type { DialogService } from "../services/dialog.ts";
 import { type EditorPane, type EditorPaneRegistry, NO_CHROME, type PaneAction } from "../services/editorPanes.ts";
@@ -30,15 +30,6 @@ const PLAY_ICON =
 const MENU_ICON =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.75" /><circle cx="12" cy="12" r="1.75" /><circle cx="12" cy="19" r="1.75" /></svg>';
 
-function toolbarButton(className: string, label: string): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = className;
-  button.dataset.tooltip = label;
-  button.setAttribute("aria-label", label);
-  return button;
-}
-
 function buildToolbar() {
   // The row the group floats over its host: the mounted pane's aside, then
   // the toolbar's own box with the pane's overlay under it.
@@ -53,7 +44,7 @@ function buildToolbar() {
   const below = document.createElement("div");
   below.className = "editor-toolbar-below";
 
-  const readingToggle = toolbarButton("icon-button editor-toolbar-reading-toggle", "Switch to reading view");
+  const readingToggle = iconButton("editor-toolbar-reading-toggle", "Switch to reading view");
   readingToggle.setAttribute("aria-pressed", "false");
   const toggleIcon = document.createElement("span");
   toggleIcon.className = "editor-toolbar-toggle-icon";
@@ -61,11 +52,14 @@ function buildToolbar() {
 
   // Run is Flow's primary action: a labelled
   // solid pill rather than an icon square.
-  const flowRun = toolbarButton("toolbar-action primary-fill flow-run-button", "Run");
+  const flowRun = el("button", "toolbar-action primary-fill flow-run-button");
+  flowRun.type = "button";
+  flowRun.dataset.tooltip = "Run";
+  flowRun.setAttribute("aria-label", "Run");
   flowRun.hidden = true;
   flowRun.innerHTML = `${PLAY_ICON}<span>Run</span>`;
 
-  const menuButton = toolbarButton("icon-button", "More options");
+  const menuButton = iconButton("", "More options");
   menuButton.setAttribute("aria-haspopup", "true");
   menuButton.setAttribute("aria-expanded", "false");
   menuButton.innerHTML = MENU_ICON;
@@ -190,7 +184,6 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
     const reading = deps.readingView();
     elements.readingToggle.setAttribute("aria-pressed", String(reading));
     const label = reading ? "Switch to editing" : "Switch to reading view";
-    elements.readingToggle.dataset.tooltip = label;
     elements.readingToggle.setAttribute("aria-label", label);
   }
 

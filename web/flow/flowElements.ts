@@ -5,6 +5,8 @@
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+import { iconButton } from "../lib/dom.ts";
+
 const RESET_ICON =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>';
 
@@ -97,15 +99,14 @@ export function createFlowElements(): FlowElements {
   canvasToolbarZoom.setAttribute("aria-haspopup", "true");
   canvasToolbarZoom.setAttribute("aria-expanded", "false");
   canvasToolbarZoom.textContent = "100%";
-  const canvasToolbarFit = button("icon-button flow-canvas-toolbar-fit", "Fit view");
+  const canvasToolbarFit = iconButton("flow-canvas-toolbar-fit", "Fit view");
   canvasToolbarFit.append(document.createElement("span"));
   (canvasToolbarFit.firstElementChild as HTMLElement).className = "flow-canvas-toolbar-fit-icon";
 
   const canvasToolbarZoomPopover = div("floating-toolbar flow-canvas-toolbar-zoom-popover");
   canvasToolbarZoomPopover.hidden = true;
   const popoverRow = div("flow-canvas-toolbar-zoom-popover-row");
-  const canvasToolbarZoomReset = button("icon-button flow-canvas-toolbar-zoom-reset", "Reset to 100%");
-  canvasToolbarZoomReset.setAttribute("aria-label", "Reset zoom to 100%");
+  const canvasToolbarZoomReset = iconButton("flow-canvas-toolbar-zoom-reset", "Reset zoom to 100%", "Reset to 100%");
   canvasToolbarZoomReset.innerHTML = RESET_ICON;
   const canvasToolbarZoomValue = document.createElement("span");
   canvasToolbarZoomValue.className = "flow-canvas-toolbar-zoom-popover-value";

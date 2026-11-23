@@ -4,6 +4,7 @@
 // bar, the showing panel, the collapsed state and its three mirrors (resize
 // handle, header spacer, header toggle's aria-pressed), and the resize drag.
 import { DisposableStore, listen, toDisposable } from "../../lib/disposable.ts";
+import { iconButton } from "../../lib/dom.ts";
 import { pixelToken, wirePanelResize } from "../../lib/panelResize.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
 import { currentPlatform, type KeybindingRegistry } from "../../services/keybindings.ts";
@@ -27,11 +28,8 @@ export interface SidebarShellElements {
 }
 
 function createRailButton(view: SidebarView): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "icon-button rail-icon";
+  const button = iconButton("rail-icon", view.label);
   button.dataset.tooltipSide = "right";
-  button.setAttribute("aria-label", view.label);
   button.dataset.view = view.id;
   button.innerHTML = view.icon;
   return button;
@@ -41,7 +39,8 @@ function createRailButton(view: SidebarView): HTMLButtonElement {
 // counts, joins the accessible name instead. Its text sits in an inner span
 // because that is the box the stylesheet trims to the digits.
 function renderRailStatus(button: HTMLButtonElement, view: SidebarView, status: RailStatus): void {
-  button.dataset.tooltip = status.detail ? `${view.label}\n${status.detail}` : view.label;
+  if (status.detail) button.dataset.tooltip = `${view.label}\n${status.detail}`;
+  else delete button.dataset.tooltip;
   button.setAttribute("aria-label", status.detail ? `${view.label}: ${status.detail}` : view.label);
   let badge = button.querySelector<HTMLElement>(".rail-badge");
   if (!status.badge) {
