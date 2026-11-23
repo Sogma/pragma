@@ -4,7 +4,7 @@
 // and center mark of the area they all share, and markers over the whole
 // picture. Drawn over the picture only; the file is never touched.
 //
-// The lines are one SVG drawn in the media's own pixels, its viewBox the
+// The lines are SVGs drawn in the media's own pixels, their viewBox the
 // media's size. An SVG fits its viewBox to its box as a video fits its
 // picture, so the lines land on the picture at any size, letterboxed with it
 // in full screen, with nothing measured.
@@ -289,15 +289,15 @@ const LEVEL_DOTS = [
   [x, -y],
   [x, y],
 ]);
-const LEVEL_MARKS: readonly { className: string; d: string }[] = [
-  { className: "video-guides-level-horizon", d: "" },
+const LEVEL_MARKS: readonly { className: string; d: string; green?: boolean }[] = [
+  { className: "video-guides-level-horizon", d: "", green: true },
   { className: "video-guides-level-ends", d: "M-260 0H-215M215 0H260" },
   {
     className: "video-guides-level-brackets",
     d: "M-269 -155V-195H-229M229 -195H269V-155M269 155V195H229M-229 195H-269V155",
   },
   { className: "video-guides-level-pitch", d: "M-110.5 -104H-98.5M-110.5 104H-98.5M98.5 -104H110.5M98.5 104H110.5" },
-  { className: "video-guides-level-indicator", d: "M-111.5 0H-97.5M97.5 0H111.5" },
+  { className: "video-guides-level-indicator", d: "M-111.5 0H-97.5M97.5 0H111.5", green: true },
   {
     className: "video-guides-level-roll",
     d: "M-156.78 -147.98L-180.82 -172.02M-156.78 147.98L-180.82 172.02M156.78 -147.98L180.82 -172.02M156.78 147.98L180.82 172.02",
@@ -326,9 +326,13 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   element.setAttribute("aria-hidden", "true");
   const lines = document.createElementNS(SVG, "svg");
   lines.setAttribute("class", "video-guides-lines");
+  // The frame markers' green, in a layer of its own between the lines and
+  // the names, which takes none of their halo (web/styles/video-guides.css).
+  const markers = document.createElementNS(SVG, "svg");
+  markers.setAttribute("class", "video-guides-markers");
   const names = document.createElement("div");
   names.className = "video-guides-names";
-  element.append(lines, names);
+  element.append(lines, markers, names);
   const shape = (tag: string, className: string, parent: Element = lines) => {
     const node = document.createElementNS(SVG, tag);
     node.setAttribute("class", className);
@@ -342,18 +346,20 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   const title = shape("rect", "video-guides-line");
   const center = shape("path", "video-guides-line");
   const social = shape("rect", "video-guides-line");
-  const crossLines = shape("path", "video-guides-line is-cross");
-  const crossBars = shape("path", "video-guides-cross-bars");
+  const crossLines = shape("path", "video-guides-line is-cross", markers);
+  const crossBars = shape("path", "video-guides-cross-bars", markers);
   // The cross's line runs on through its bars as a see-through slit: their
   // mask keeps them all but where the line passes.
-  const crossMask = shape("mask", "video-guides-cross-mask", shape("defs", "video-guides-defs"));
+  const crossMask = shape("mask", "video-guides-cross-mask", shape("defs", "video-guides-defs", markers));
   crossMask.id = `video-guides-cross-mask-${++overlayCount}`;
   const crossKeep = shape("path", "video-guides-cross-keep", crossMask);
   const crossCut = shape("path", "video-guides-cross-cut", crossMask);
   crossBars.setAttribute("mask", `url(#${crossMask.id})`);
-  const level = shape("g", "video-guides-level");
+  // The level in two layers, placed alike: its white marks with the lines,
+  // its green ones with the cross.
+  const levels = [shape("g", "video-guides-level"), shape("g", "video-guides-level", markers)];
   const [levelHorizon] = LEVEL_MARKS.map((mark) => {
-    const node = shape("path", mark.className, level);
+    const node = shape("path", mark.className, levels[mark.green ? 1 : 0]);
     if (mark.d) node.setAttribute("d", mark.d);
     return node;
   });
@@ -383,7 +389,7 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
     const visible = current.shown && any && width > 0 && height > 0;
     element.toggleAttribute("hidden", !visible);
     if (!visible) return;
-    lines.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    for (const layer of [lines, markers]) layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const boxes = current.frames.map((id) => ({ id, ...frameBox(width, height, frameAspect(id)) }));
     // With no frame lit, the picture is the frame. Each frame's framing is
     // outlined and named, and the matte shades what no framing holds.
@@ -466,13 +472,15 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
     crossKeep.setAttribute("d", rect(0, 0, width, height));
     crossCut.setAttribute("d", cross.cut);
     const scale = Math.min(width, height) / 1080;
-    level.setAttribute(
-      "transform",
-      `translate(${round(width / 2)} ${round(height / 2)}) scale(${Math.round(scale * 1e4) / 1e4})`,
-    );
+    for (const level of levels) {
+      level.setAttribute(
+        "transform",
+        `translate(${round(width / 2)} ${round(height / 2)}) scale(${Math.round(scale * 1e4) / 1e4})`,
+      );
+      show(level, current.level);
+    }
     const end = round(width / 2 / scale);
     levelHorizon.setAttribute("d", `M${-end} 0H${-LEVEL_GAP}M${LEVEL_GAP} 0H${end}`);
-    show(level, current.level);
   }
 
   const unsubscribe = guides.subscribe(draw);
