@@ -1359,6 +1359,11 @@ const openToSide = withPathInput(
   "show",
 );
 
+// How many alternatives Generate Options asks for. Its count field's
+// description is written from these, so it can't promise other numbers.
+export const GENERATE_OPTIONS_DEFAULT = 10;
+export const GENERATE_OPTIONS_MAX = 20;
+
 /** `generateText`'s list form: the host's options call, which asks the
  * model for a JSON array and parses it, so `options` is a list of text,
  * never free text split apart. `count` is how many to ask for. */
@@ -1375,7 +1380,12 @@ const generateOptions: FlowNodeTypeDefinition = {
   outputs: [objectPort("options")],
   referenceSlots: IMAGE_REFERENCE_SLOTS,
   configFields: [
-    { key: "count", label: "How many", type: "text", description: "How many to ask for: 10 by default, at most 20." },
+    {
+      key: "count",
+      label: "How many",
+      type: "text",
+      description: `How many to ask for: ${GENERATE_OPTIONS_DEFAULT} by default, at most ${GENERATE_OPTIONS_MAX}.`,
+    },
     reuseField,
   ],
   configKeys: ["count", "reuse", IMAGE_REFERENCE_SLOTS.slotsKey, EFFORT_KEY],

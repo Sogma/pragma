@@ -37,6 +37,8 @@ import {
   EFFORT_KEY,
   FLOW_NODE_REGISTRY,
   type FlowNodeType,
+  GENERATE_OPTIONS_DEFAULT,
+  GENERATE_OPTIONS_MAX,
   GET_FIELD_MAX,
   IMAGE_REFERENCE_SLOTS,
   IMAGE_REFERENCES_MAX,
@@ -951,9 +953,6 @@ const generateText: NodeExecutor = async (node, inputs, context) => {
 
 // A count the config can't read as a whole number falls back to the
 // default rather than failing: the node still does what it says.
-export const GENERATE_OPTIONS_DEFAULT = 10;
-export const GENERATE_OPTIONS_MAX = 20;
-
 function optionCount(node: FlowNodeInstance): number {
   const count = Number.parseInt(configString(node, "count"), 10);
   if (!Number.isFinite(count) || count < 1) return GENERATE_OPTIONS_DEFAULT;
