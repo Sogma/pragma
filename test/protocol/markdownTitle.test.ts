@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addTextToNote,
+  foldBlanks,
   noteExcerpt,
   splitNoteTitle,
   splitTitleHeading,
@@ -9,16 +10,40 @@ import {
 
 describe("splitTitleHeading", () => {
   it("lifts an ATX heading and the blank lines after it", () => {
-    expect(splitTitleHeading("# Chapter One\n\nIt begins.\n")).toEqual({ title: "Chapter One", rest: "It begins.\n" });
+    expect(splitTitleHeading("# Chapter One\n\nIt begins.\n")).toEqual({
+      title: "Chapter One",
+      lead: "",
+      rest: "It begins.\n",
+    });
   });
 
   it("lifts a Setext heading", () => {
-    expect(splitTitleHeading("Chapter One\n===\n\nIt begins.")).toEqual({ title: "Chapter One", rest: "It begins." });
+    expect(splitTitleHeading("Chapter One\n===\n\nIt begins.")).toEqual({
+      title: "Chapter One",
+      lead: "",
+      rest: "It begins.",
+    });
   });
 
   it("reads inline markup as plain text", () => {
     const { title } = splitTitleHeading("# **Draft** of [the plan](plan.md), `v2` \\# &amp; [[notes/a|more]] #\n");
     expect(title).toBe("Draft of the plan, v2 # & more");
+  });
+
+  it("decodes entities by HTML's table, and keeps a name HTML doesn't know as written", () => {
+    expect(splitTitleHeading("# Caf&eacute; &hellip; &#169; &#x41; &foo; &notit;").title).toBe(
+      "Caf\u00e9 \u2026 \u00a9 A &foo; &notit;",
+    );
+  });
+
+  it("leaves an inline HTML tag out and keeps the text inside it", () => {
+    expect(splitTitleHeading("# My <b>bold</b> idea").title).toBe("My bold idea");
+    expect(splitTitleHeading("# <b></b>\n\nbody")).toEqual({ title: undefined, lead: "", rest: "# <b></b>\n\nbody" });
+  });
+
+  it("folds each run of spaces, tabs and line breaks to one space", () => {
+    expect(splitTitleHeading("# Too   many\tspaces").title).toBe("Too many spaces");
+    expect(splitTitleHeading("A long\ntitle\n===").title).toBe("A long title");
   });
 
   it("reads math as written, its marks and all", () => {
@@ -49,28 +74,44 @@ describe("splitTitleHeading", () => {
 
   it("leaves a body that does not open with a level-1 heading alone", () => {
     for (const body of ["## Section\n\ntext", "Intro\n\n# Later", "#\n\ntext", ""]) {
-      expect(splitTitleHeading(body)).toEqual({ title: undefined, rest: body });
+      expect(splitTitleHeading(body)).toEqual({ title: undefined, lead: "", rest: body });
     }
   });
 
   // docs/protocol.md's Display title: a comment is no text.
   it("reads a title past the comments above it, which go with it", () => {
-    expect(splitTitleHeading("<!-- license -->\n\n# Title\n\nbody")).toEqual({ title: "Title", rest: "body" });
+    expect(splitTitleHeading("<!-- license -->\n\n# Title\n\nbody")).toEqual({
+      title: "Title",
+      lead: "<!-- license -->\n\n",
+      rest: "body",
+    });
     expect(splitTitleHeading("<!-- a -->\n<!--\n\nb\n\n-->\nThe\n===\n\nbody")).toEqual({
       title: "The",
+      lead: "<!-- a -->\n<!--\n\nb\n\n-->\n",
       rest: "body",
     });
   });
 
   it("leaves a comment in the heading out of the title", () => {
     expect(splitTitleHeading("# Draft <!-- v2 --> notes").title).toBe("Draft notes");
-    expect(splitTitleHeading("# <!-- only -->\n\nbody")).toEqual({ title: undefined, rest: "# <!-- only -->\n\nbody" });
+    expect(splitTitleHeading("# <!-- only -->\n\nbody")).toEqual({
+      title: undefined,
+      lead: "",
+      rest: "# <!-- only -->\n\nbody",
+    });
   });
 
   it("reads no title past a comment block holding more, or one left open", () => {
     for (const body of ["<!-- a --> <b>b</b>\n# Title", "<!-- open\n\n# Title\n", "Intro <!-- a -->\n\n# Title"]) {
-      expect(splitTitleHeading(body)).toEqual({ title: undefined, rest: body });
+      expect(splitTitleHeading(body)).toEqual({ title: undefined, lead: "", rest: body });
     }
+  });
+});
+
+describe("foldBlanks", () => {
+  it("folds each run of spaces, tabs and line breaks to one space and trims the ends, keeping a no-break space", () => {
+    expect(foldBlanks("  a \t\r\n b  c ")).toBe("a b c");
+    expect(foldBlanks("a\u00a0 b")).toBe("a\u00a0 b");
   });
 });
 

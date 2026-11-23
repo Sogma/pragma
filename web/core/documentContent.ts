@@ -7,11 +7,10 @@ import {
   splitFrontmatter,
   withoutBom,
 } from "../../src/protocol/frontmatter.ts";
-import { splitNoteTitle } from "../../src/protocol/markdownTitle.ts";
+import { foldBlanks, splitNoteTitle, splitTitleHeading } from "../../src/protocol/markdownTitle.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { DocumentType } from "../../src/protocol/types.ts";
 import { countText } from "../lib/dom.ts";
-import { splitLeadingHeading } from "../markdownRender.ts";
 import type { ActiveTitle, FileResponse, TextFileResponse } from "./apiClient.ts";
 import { stripExtension } from "./paths.ts";
 
@@ -112,26 +111,25 @@ export function composeDocumentHead(
 
 /** What stands for the title above the body: the heading as the file held it
  * while the title still reads as it did, so a save never reformats a title
- * nobody edited; else `# title`, written to read back as typed, below the
- * comments the file held above the heading. A blank title writes no heading,
- * only those comments. */
+ * nobody edited; else `# title`, its blanks folded as a title reads, written
+ * to read back as typed, below the comments the file held above the heading.
+ * A blank title writes no heading, only those comments. */
 export function titleHeading(title: string | undefined, read: ReadHeading | undefined, bodyFollows: boolean): string {
-  const trimmed = title?.trim();
+  const typed = foldBlanks(title ?? "");
   const lead = read?.lead ?? "";
-  if (!trimmed) return lead;
-  if (read?.text === trimmed) {
+  if (!typed) return lead;
+  if (read?.text === typed) {
     return read.heading.endsWith("\n") || !bodyFollows ? read.heading : `${read.heading}\n\n`;
   }
-  return `${lead}# ${headingText(trimmed)}\n\n`;
+  return `${lead}# ${headingText(typed)}\n\n`;
 }
 
-// A typed title as heading text that reads back as exactly that title: as
-// typed where it already does, else with its ASCII punctuation escaped,
-// which Markdown always reads as itself. A title is one line.
+// A title as heading text that reads back as exactly that title: as typed
+// where it already does, else with its ASCII punctuation escaped, which
+// Markdown always reads as itself.
 function headingText(title: string): string {
-  const line = title.replace(/\s*\n\s*/g, " ");
-  if (splitLeadingHeading(`# ${line}`).title === line) return line;
-  return line.replace(/[!-/:-@[-`{-~]/g, "\\$&");
+  if (splitTitleHeading(`# ${title}`).title === title) return title;
+  return title.replace(/[!-/:-@[-`{-~]/g, "\\$&");
 }
 
 // The inverse of the compose above: derives the working frontmatter data and
@@ -164,7 +162,7 @@ export function splitDocumentProperties(file: Pick<TextFileResponse, "documentTy
   // properties panel — the CodeMirror doc holds neither. `rest` stays a
   // suffix of `file.content` (only ever a prefix is removed), so the
   // lineOffset math below is unchanged.
-  const { title, lead, rest } = splitLeadingHeading(trimmedBody);
+  const { title, lead, rest } = splitTitleHeading(trimmedBody);
   // How many file lines precede CodeMirror's line 1 — fed to the gutter's
   // custom line numbers so it shows the document's real line numbers, not a
   // restart at 1 after the stripped frontmatter and title. Counting newlines

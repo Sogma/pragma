@@ -4,10 +4,11 @@ import type { SyntaxNode, Tree } from "@lezer/common";
 import type { MarkdownParser } from "@lezer/markdown";
 import { documentBody, isListFrontmatterKey } from "../src/protocol/frontmatter.ts";
 import { highlightSyntax } from "../src/protocol/highlightSyntax.ts";
+import { decodeEntity } from "../src/protocol/htmlEntity.ts";
 import { holdsProse, tagsInProse } from "../src/protocol/inlineTags.ts";
 import { withoutComments } from "../src/protocol/markdownComments.ts";
 import { destinationText, foldReferenceLabel, referenceLabel } from "../src/protocol/markdownLinks.ts";
-import { titleHeadingNode } from "../src/protocol/markdownTitle.ts";
+import { titleHeadingSpan } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
@@ -82,15 +83,6 @@ export function isSafeHref(href: string): boolean {
 export function autolinkHref(text: string): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
   return text.includes("@") ? `mailto:${text}` : `https://${text}`;
-}
-
-// Decodes a numeric/named HTML entity (e.g. "&amp;", "&#8212;") into its
-// character via a detached element — this never touches the live document,
-// so it can't execute anything, unlike innerHTML on a mounted node.
-function decodeEntity(raw: string): string {
-  const el = document.createElement("textarea");
-  el.innerHTML = raw;
-  return el.value;
 }
 
 // A video embed shows the video's thumbnail until clicked, and only then the
@@ -764,44 +756,11 @@ export function renderFrontmatter(data: Record<string, unknown>, path?: string):
   return el;
 }
 
-// Inert resolvers for plain-text heading extraction — a heading's own text
-// is all that's wanted there, never a live link/image.
-const INERT_RESOLVERS: MarkdownResolvers = {
-  image: () => undefined,
-  link: () => undefined,
-  wikilink: () => undefined,
-};
-
-// The heading lifted into the editor's title bar (the rule is in
-// docs/protocol.md), read in this file's grammar.
-function leadingH1Node(body: string): SyntaxNode | undefined {
-  return titleHeadingNode(body, (text) => markdownParser.parse(text));
-}
-
-// Splits a leading `# Heading` off a body already past its frontmatter: the
-// heading's plain text, `lead`, the comments above it, and `rest`, a suffix of
-// `body` without them, the heading or the blank lines after it. The editor
-// shows the heading in its title bar — see docs/protocol.md's
-// "Display titles" section.
-//
-// An empty heading (`#` with no text) is left in place — splitting it out
-// would silently drop it from the file on the next save.
-export function splitLeadingHeading(body: string): { title: string | undefined; lead: string; rest: string } {
-  const heading = leadingH1Node(body);
-  if (!heading) return { title: undefined, lead: "", rest: body };
-  const host = document.createElement("div");
-  appendInlineChildren(heading, body, host, INERT_RESOLVERS);
-  trimEdgeWhitespace(host);
-  const title = host.textContent?.trim();
-  if (!title) return { title: undefined, lead: "", rest: body };
-  return { title, lead: body.slice(0, heading.from), rest: body.slice(heading.to).replace(/^\n+/, "") };
-}
-
 // Shared by both entry points below: parses `body` with the same extended
 // CommonMark grammar the live editor highlights with, and renders it into
 // `fragment` as real elements — no innerHTML step anywhere for content from
-// outside the app (a space file, a model reply). `omitLeadingH1` drops a
-// leading level-1 heading, which reading view shows in the title bar.
+// outside the app (a space file, a model reply). `omitLeadingH1` drops the
+// heading a title is read from, which reading view shows in the title bar.
 //
 // `file` is the whole file `body` was cut from, when there is one: each block
 // is then marked with its line.
@@ -815,7 +774,7 @@ function appendMarkdownBody(
 ): void {
   let source = body;
   if (omitLeadingH1) {
-    const heading = leadingH1Node(body);
+    const heading = titleHeadingSpan(body);
     if (heading) source = body.slice(heading.to).replace(/^\n+/, "");
   }
   const tree = parser.parse(source);
@@ -840,7 +799,7 @@ function fileLines(file: string, source: string): (offset: number) => number {
 // The frontmatter is the properties section's, but it must still be stripped
 // here — handed to the parser, an unblank-lined `---` block reads as a
 // paragraph plus a Setext underline, one run-on heading of `key: value`
-// lines. `omitLeadingH1` drops a leading `# Heading`; the title bar has it.
+// lines. `omitLeadingH1` drops the title's heading; the title bar has it.
 export function renderMarkdown(
   content: string,
   resolvers: MarkdownResolvers,

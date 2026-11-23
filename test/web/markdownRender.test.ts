@@ -6,9 +6,7 @@ import {
   renderFrontmatter,
   renderMarkdown,
   renderMarkdownInline,
-  splitLeadingHeading,
 } from "../../web/markdownRender.ts";
-import { typesetMath } from "../../web/mathTypeset.ts";
 
 // MathJax itself is test/web/mathJax.test.ts's: here a host shows what it was
 // handed.
@@ -303,6 +301,32 @@ describe("a comment in reading view", () => {
   });
 });
 
+// docs/protocol.md's Display titles: only a heading the title is read from
+// leaves the body.
+describe("the title's heading in reading view", () => {
+  const withoutTitle = (markdown: string) => {
+    const host = document.createElement("div");
+    host.appendChild(renderMarkdown(markdown, resolvers, { omitLeadingH1: true }));
+    return host;
+  };
+
+  it("is left out where a title is read from it", () => {
+    expect(withoutTitle("# Title\n\nBody").querySelector("h1")).toBeNull();
+  });
+
+  it("stays where it holds no title", () => {
+    for (const markdown of ["# <b></b>\n\nBody", "#\n\nBody"]) {
+      expect(withoutTitle(markdown).querySelector("h1"), markdown).not.toBeNull();
+    }
+  });
+});
+
+describe("an entity in reading view", () => {
+  it("is the character HTML's table names, and one HTML doesn't know stays as written", () => {
+    expect(render("Caf&eacute; &copy; &#x41; &foo; &notit;").textContent).toBe("Caf\u00e9 \u00a9 A &foo; &notit;");
+  });
+});
+
 // docs/protocol.md's Tags: a note's `#tags` as its pills, by the rule the
 // index reads them by.
 describe("a tag in reading view", () => {
@@ -378,12 +402,6 @@ describe("math in reading view", () => {
     const note = render("so \\(x\\) and \\[y\\]");
     expect(hosts(note)).toEqual([]);
     expect(note.textContent).toBe("so (x) and [y]");
-  });
-
-  it("reads a title's math as written, typesetting none", () => {
-    vi.mocked(typesetMath).mockClear();
-    expect(splitLeadingHeading("# The $\\alpha$ particle\n\nBody").title).toBe("The $\\alpha$ particle");
-    expect(typesetMath).not.toHaveBeenCalled();
   });
 });
 

@@ -1,16 +1,16 @@
-// The display-title rule in docs/protocol.md's Display titles section, for a caller with no DOM: the
+// The display-title rule in docs/protocol.md's Display titles section: the
 // plain text of a leading level-1 heading, and the body with that heading
-// removed. The editor's own split (web/markdownRender.ts) builds its title
-// through the renderer; this walks the same syntax tree down to a string, so
-// `# **Draft** [one](a.md)` reads "Draft one" here as it does there.
+// removed. Every place that shows a note's title reads it here, the editor's
+// title field included, so no two show one note under different titles.
 //
 // A note's opening, which a card shows where the note has no description, is
 // read down to text the same way, and Add to Note's prepend lands where that
 // body starts.
-import type { SyntaxNode, Tree } from "@lezer/common";
+import type { SyntaxNode } from "@lezer/common";
 import { GFM, parser, Subscript, Superscript } from "@lezer/markdown";
 import { documentBody } from "./frontmatter.ts";
 import { highlightSyntax } from "./highlightSyntax.ts";
+import { decodeEntity } from "./htmlEntity.ts";
 import { leadingCommentsEnd, withoutComments } from "./markdownComments.ts";
 import { referenceLabel } from "./markdownLinks.ts";
 import { mathSyntax } from "./mathSyntax.ts";
@@ -37,26 +37,18 @@ const MARK_TYPES = [
 // lines join. A no-break or other Unicode space is the writer's and stays.
 const BLANKS = /[ \t\r\n]+/g;
 
+/** `text` as a title reads: each run of spaces, tabs and line breaks one
+ * space, the ends trimmed. */
+export function foldBlanks(text: string): string {
+  return text.replace(BLANKS, " ").trim();
+}
+
 // A title drops an inline HTML tag and keeps a picture's alt text. An excerpt
 // keeps the tag as reading view shows it, so a `<placeholder>` in prose
 // survives, and has no room for a picture. Neither keeps a comment, which
 // reading view leaves out.
 const TITLE_SKIPS = new Set([...MARK_TYPES, "HTMLTag", "Comment"]);
 const EXCERPT_SKIPS = new Set([...MARK_TYPES, "Image", "Comment"]);
-
-const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
-
-// Numeric entities and the common named ones. Any other named entity stays
-// as written: decoding the full HTML table is a DOM's job, and a title that
-// keeps `&hellip;` literally is still the right title.
-function decodeEntity(raw: string): string {
-  const numeric = /^&#(x?)([0-9a-f]+);$/i.exec(raw);
-  if (numeric) {
-    const code = Number.parseInt(numeric[2], numeric[1] ? 16 : 10);
-    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : raw;
-  }
-  return NAMED_ENTITIES[raw.slice(1, -1)] ?? raw;
-}
 
 // A link or image contributes only its label: the walk stops at the label's
 // closing `]`, as the renderer's does, so a URL written inside the label
@@ -120,15 +112,15 @@ function childText(node: SyntaxNode, doc: string, skip: ReadonlySet<string>): st
   }
 }
 
-/** The heading a Markdown body's title is read from, by `parse`: its first
- * block when that is a level-1 heading, ATX or Setext, past any blocks of
- * comments alone. Only the text it can be in is parsed, since no heading runs
- * across a blank line, so a note edited whole re-reads it on a keystroke. */
-export function titleHeadingNode(body: string, parse: (text: string) => Tree): SyntaxNode | undefined {
+/** The heading a Markdown body's title is read from: its first block when
+ * that is a level-1 heading, ATX or Setext, past any blocks of comments alone.
+ * Only the text it can be in is parsed, since no heading runs across a blank
+ * line, so a note edited whole re-reads it on a keystroke. */
+function titleHeadingNode(body: string): SyntaxNode | undefined {
   const blank = /\n[ \t]*\n/g;
   blank.lastIndex = leadingCommentsEnd(body);
   const text = body.slice(0, blank.exec(body)?.index ?? body.length);
-  let node = parse(text).topNode.firstChild;
+  let node = markdownParser.parse(text).topNode.firstChild;
   while (node?.name === "CommentBlock" && !withoutComments(text.slice(node.from, node.to)).trim()) {
     node = node.nextSibling;
   }
@@ -136,25 +128,24 @@ export function titleHeadingNode(body: string, parse: (text: string) => Tree): S
 }
 
 /** Splits a leading level-1 heading off a Markdown body that is already past
- * any frontmatter. `rest` is always a suffix of `body`, so the comments above
- * the heading go with it. A heading with no text is not a title and stays in
- * `rest`. */
-export function splitTitleHeading(body: string): { title: string | undefined; rest: string } {
-  const heading = titleHeadingNode(body, (text) => markdownParser.parse(text));
+ * any frontmatter: its title, `lead`, the comments above it, and `rest`, the
+ * suffix of `body` after it and the blank lines that follow. A heading with no
+ * text is no title, and `rest` is then all of `body`. */
+export function splitTitleHeading(body: string): { title: string | undefined; lead: string; rest: string } {
+  const heading = titleHeadingNode(body);
   const title = heading ? headingText(heading, body) : "";
-  if (!heading || !title) return { title: undefined, rest: body };
-  return { title, rest: body.slice(heading.to).replace(/^\n+/, "") };
+  if (!heading || !title) return { title: undefined, lead: "", rest: body };
+  return { title, lead: body.slice(0, heading.from), rest: body.slice(heading.to).replace(/^\n+/, "") };
 }
 
 /** Where a body's title heading lies, by the rule `splitTitleHeading` reads a
  * title by; undefined when the body has none. */
 export function titleHeadingSpan(body: string): { from: number; to: number } | undefined {
-  const heading = titleHeadingNode(body, (text) => markdownParser.parse(text));
+  const heading = titleHeadingNode(body);
   return heading && headingText(heading, body) ? { from: heading.from, to: heading.to } : undefined;
 }
 
-const headingText = (heading: SyntaxNode, body: string): string =>
-  inlineText(heading, body, TITLE_SKIPS).replace(BLANKS, " ").trim();
+const headingText = (heading: SyntaxNode, body: string): string => foldBlanks(inlineText(heading, body, TITLE_SKIPS));
 
 /** A whole note's title heading and the prose after it, frontmatter skipped.
  * The frontmatter is cut without parsing it, so malformed YAML never costs a
@@ -205,7 +196,7 @@ export function noteExcerpt(content: string, maxChars: number): string | undefin
     for (let child = node.firstChild; child && length <= maxChars; child = child.nextSibling) {
       if (READ_THROUGH.has(child.name)) read(child);
       if (!isProse(child.name)) continue;
-      const line = inlineText(child, body, EXCERPT_SKIPS).replace(BLANKS, " ").trim();
+      const line = foldBlanks(inlineText(child, body, EXCERPT_SKIPS));
       if (!line) continue;
       lines.push(line);
       length += line.length + 1;

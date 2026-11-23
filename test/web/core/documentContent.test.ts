@@ -1,9 +1,5 @@
-// @vitest-environment jsdom
-// Splitting off the properties extracts a leading `# Heading` through
-// markdownRender.ts, which builds a real DOM node to do it — see that
-// file's own "not DOM-free" caveat. Only this one code path needs it; every other
-// module in test/web stays on the default node environment.
 import { describe, expect, it } from "vitest";
+import { splitNoteTitle } from "../../../src/protocol/markdownTitle.ts";
 import type { FileResponse, TextFileResponse } from "../../../web/core/apiClient.ts";
 import {
   activeTitleFor,
@@ -126,6 +122,11 @@ describe("writing a note's title back", () => {
     expect(saved("# Old\n\nbody", "Part 1: Intro")).toBe("# Part 1: Intro\n\nbody");
     expect(saved("# Old\n\nbody", "*Draft* notes")).toBe("# \\*Draft\\* notes\n\nbody");
     expect(saved("# Old\n\nbody", "Issue #")).toBe("# Issue \\#\n\nbody");
+    expect(saved("# Old\n\nbody", "My <b>bold</b> idea")).toBe("# My \\<b\\>bold\\<\\/b\\> idea\n\nbody");
+  });
+
+  it("folds a typed title's blanks as a title reads, so it reads back as written", () => {
+    expect(saved("# Old\n\nbody", "Too    many\tspaces")).toBe("# Too many spaces\n\nbody");
   });
 
   it("keeps the blank lines the file holds after its block, and leaves out a byte order mark", () => {
@@ -164,6 +165,30 @@ describe("writing a note's title back", () => {
     expect(saved("# The *Forbidden* screenplay\n\nbody", " The Forbidden screenplay ")).toBe(
       "# The *Forbidden* screenplay\n\nbody",
     );
+  });
+});
+
+// docs/protocol.md's Display titles: the editor's title field and every other
+// place read one title.
+describe("the title the editor lifts", () => {
+  it("is the one every other place reads", () => {
+    for (const content of [
+      "# Caf&eacute; menu\n\nbody",
+      "# My <b>bold</b> idea\n\nbody",
+      "# ![logo](logo.png) Studio\n\nbody",
+      "# Too    many spaces\n\nbody",
+      "# Comment <!-- hidden --> after\n\nbody",
+      "# <b></b>\n\nbody",
+    ]) {
+      expect(splitDocumentProperties(textFile(content)).title, content).toBe(splitNoteTitle(content).title);
+    }
+    expect(splitDocumentProperties(textFile("# Caf&eacute; menu\n\nbody")).title).toBe("Caf\u00e9 menu");
+  });
+
+  it("leaves a heading that holds no title in the body", () => {
+    const split = splitDocumentProperties(textFile("# <b></b>\n\nbody"));
+    expect(split.title).toBeUndefined();
+    expect(split.body).toBe("# <b></b>\n\nbody");
   });
 });
 

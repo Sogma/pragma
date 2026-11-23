@@ -135,7 +135,7 @@ A host that shows a document's title derives it by these rules, so independent i
 | Applet | Manifest `meta.name` | Base filename without its extension |
 | Other text kinds | The kind's own title convention, such as a Fountain title page | The kind's convention applies |
 
-HTML comments in a Markdown heading are omitted from its title. Comments on lines of their own may precede the opening heading.
+A title's plain text decodes entities, omits HTML tags and comments, takes an image's alt text, and folds each run of spaces, tabs and line breaks to one space. Comments on lines of their own may precede the opening heading.
 
 A heading promoted to the title is not also rendered as body content. An editor may expose it as an editable title field. Until that field changes, write the heading back as read. After an edit, write an ordinary `# ` heading that reads back as typed, in the heading's position. When adding a heading, put it at the start of the file, directly below any frontmatter.
 
