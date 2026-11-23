@@ -22,6 +22,7 @@ import {
 import { buildTableRowDeleteButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
+import { uniqueSlug } from "../../lib/slug.ts";
 import { createPageFind } from "../../pageFind.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
@@ -31,26 +32,6 @@ import type { ContextMenuService } from "../../services/menus.ts";
 import type { Tabs } from "../../services/tabs.ts";
 import { tableCellControls } from "../../tableCells.ts";
 import type { MetadataProperties } from "../metadataProperties.ts";
-
-// Derives a column's `id` (the `data-field` / row-values key) from its
-// user-typed label: lowercased, non-alphanumeric runs collapsed to "-", and
-// deduped against the table's ids with "-2", "-3", etc.
-//
-// The Add column popover has no id field: the id is load-bearing (row values
-// are keyed by it), but the label already implies a reasonable one, so typing
-// it by hand isn't worth the friction.
-function slugifyColumnId(label: string, existingIds: ReadonlySet<string>): string {
-  const base =
-    label
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "column";
-  if (!existingIds.has(base)) return base;
-  let suffix = 2;
-  while (existingIds.has(`${base}-${suffix}`)) suffix++;
-  return `${base}-${suffix}`;
-}
 
 let addColumnFlyout: Flyout | undefined;
 
@@ -74,7 +55,13 @@ function openAddColumnPopover(
     typeLabel: "Column type",
     types: FIELD_VALUE_TYPE_OPTIONS,
     onSubmit: ({ label, type, options, default: fill }) => {
-      const column: TableColumn = { id: slugifyColumnId(label, existingIds), type: type as TableColumn["type"], label };
+      // No id field: the id keys every row's value, but the label already
+      // implies a fair one, so typing it by hand isn't worth the friction.
+      const column: TableColumn = {
+        id: uniqueSlug(label, existingIds, "column"),
+        type: type as TableColumn["type"],
+        label,
+      };
       if (options) column.options = options;
       if (fill) column.default = fill;
       onAdd(column);

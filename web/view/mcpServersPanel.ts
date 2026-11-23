@@ -13,6 +13,7 @@ import {
 import { PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
 import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
+import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface McpServersPanelDeps {
@@ -108,12 +109,6 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   let addedHere = false;
   let finishVerb = "Saved";
 
-  const slugify = (s: string): string =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
   // A fresh server's id is the slug of its name, suffixed -2, -3, … past a
   // collision. The id names its saved token and sign-in, and is the
   // `mcp_<id>_` tool-name prefix the model sees, so it never moves once created.
@@ -121,12 +116,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   // Model providers share the id namespace, since an image model ref may name
   // either, so their ids and the presets' are taken too.
   function uniqueId(name: string): string {
-    const base = slugify(name) || "server";
-    const taken = new Set([...knownIds, ...providerIds, ...PROVIDER_PRESET_IDS]);
-    if (!taken.has(base)) return base;
-    let n = 2;
-    while (taken.has(`${base}-${n}`)) n += 1;
-    return `${base}-${n}`;
+    return uniqueSlug(name, new Set([...knownIds, ...providerIds, ...PROVIDER_PRESET_IDS]), "server");
   }
 
   const text = (value: string): Node => document.createTextNode(value);

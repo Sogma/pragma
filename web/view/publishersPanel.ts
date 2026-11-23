@@ -7,6 +7,7 @@ import {
 } from "../core/apiClient.ts";
 import { buildOpenRow, must, replaceRows } from "../lib/dom.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
+import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 
@@ -90,24 +91,13 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
   // re-read a row's key state after a save.
   let publisherRows: readonly PublisherRow[] = [];
 
-  const slugify = (s: string): string =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
   // A publisher's id is the slug of its name, suffixed -2, -3, … past a
   // collision. Unlike a model provider's, no preset id is reserved: a
   // publisher id is only a config key and a site's `publisherId`, so deriving
   // every one the same way keeps a second connection to the same service
   // from silently upserting over the first.
   function uniquePublisherId(name: string): string {
-    const base = slugify(name) || "publisher";
-    const taken = new Set(publisherRows.map((row) => row.id));
-    if (!taken.has(base)) return base;
-    let n = 2;
-    while (taken.has(`${base}-${n}`)) n += 1;
-    return `${base}-${n}`;
+    return uniqueSlug(name, new Set(publisherRows.map((row) => row.id)), "publisher");
   }
 
   // Under the Name field: the id this name resolves to. Live while adding

@@ -19,6 +19,7 @@ import { defaultModels, PROVIDER_PRESETS as PRESETS, PROVIDER_PRESET_IDS } from 
 import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import { type PickerChoice, wireChoicePicker } from "../lib/picker.ts";
+import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 
@@ -151,22 +152,11 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     return PRESETS[presetPicker.value] ?? PRESETS.custom;
   }
 
-  const slugify = (s: string): string =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
   // A fresh custom provider's id is the slug of its name (falling back to
   // "provider" for a name with nothing sluggable), suffixed -2, -3, … past a
   // collision with another provider or a preset id.
   function uniqueProviderId(name: string): string {
-    const base = slugify(name) || "provider";
-    const taken = new Set([...reservedIds, ...knownProviderIds, ...knownServerIds]);
-    if (!taken.has(base)) return base;
-    let n = 2;
-    while (taken.has(`${base}-${n}`)) n += 1;
-    return `${base}-${n}`;
+    return uniqueSlug(name, new Set([...reservedIds, ...knownProviderIds, ...knownServerIds]), "provider");
   }
 
   // Under the Name field: the id this name resolves to. Live while adding
