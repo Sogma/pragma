@@ -1,34 +1,56 @@
 name: Publish release
 
-# The deliberate "ship it" gate. Flips a draft GitHub Release (built by
-# release.yml) to published + latest, after checking its electron-updater
-# metadata is actually there. Once this runs, installed Windows/Linux copies
-# pick the update up on their next check.
+# The deliberate "ship it" gate for a draft GitHub Release built by
+# release.yml. It publishes the draft's npm tarball first and flips the release
+# to published + latest last, so a failed npm step leaves a draft this workflow
+# can run again. Once the release is live, installed Windows/Linux copies pick
+# the update up on their next check.
 #
-# Run it from the Actions tab (Publish release -> Run workflow -> tag), or
-# locally: `gh release edit v0.1.7 --draft=false --latest`.
+# Run it from the release's tag: Actions -> Publish release -> Run workflow ->
+# Use workflow from -> Tags -> v0.1.7. From a terminal:
+# `gh workflow run publish.yml --ref v0.1.7`. npm's provenance names the commit
+# a run starts from, which from the tag is the commit the tarball was built
+# from. The `npm` environment admits only v* tags, so a branch run fails.
+#
+# npm accepts the publish through a trusted publisher on npmjs.com naming
+# sogma/pragma, publish.yml and the `npm` environment, so no npm token exists.
+# Renaming this file or the environment stops publishing until the trusted
+# publisher is recreated to match.
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag of the draft release to publish, e.g. v0.1.7"
-        required: true
 
 permissions:
   contents: write
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: npm
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+      PACKAGE: "@sogma/pragma"
     steps:
+      - name: Check the run started from a release tag
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" != tag ] || [[ "$TAG" != v* ]]; then
+            echo "::error::Run Publish release from the release's tag (Use workflow from -> Tags), not from $GITHUB_REF_TYPE $TAG."
+            exit 1
+          fi
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "TARBALL=sogma-pragma-${TAG#v}.tgz" >> "$GITHUB_ENV"
+
       # latest-mac.yml stands for the Mac upload, though Macs don't
       # auto-update: once the release is published, electron-builder skips
       # an upload still to come with only a warning.
-      - name: Verify the draft has its updater metadata, then publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+      - name: Verify the draft has its updater metadata and npm tarball
         run: |
           set -euo pipefail
           view=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets)
@@ -39,11 +61,48 @@ jobs:
           assets=$(echo "$view" | jq -r '.assets[].name')
           echo "Assets on $TAG:"
           echo "$assets"
-          for f in latest-mac.yml latest.yml latest-linux.yml; do
+          for f in latest-mac.yml latest.yml latest-linux.yml "$TARBALL"; do
             if ! echo "$assets" | grep -qx "$f"; then
               echo "::error::draft $TAG is missing $f — has the build finished?"
               exit 1
             fi
           done
+
+      - name: Check the tarball is this version of the package
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$TARBALL" --dir "$RUNNER_TEMP"
+          manifest=$(tar -xzOf "$RUNNER_TEMP/$TARBALL" package/package.json)
+          found="$(echo "$manifest" | jq -r .name)@$(echo "$manifest" | jq -r .version)"
+          if [ "$found" != "$PACKAGE@$VERSION" ]; then
+            echo "::error::$TARBALL holds $found, not $PACKAGE@$VERSION."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      # Trusted publishing needs npm 11.5.1 or later. Pinned, so a publish
+      # doesn't change with the npm a Node release happens to bundle.
+      - run: npm install -g npm@11.21.2
+
+      # Skipping a version npm already has lets a rerun finish a release whose
+      # npm step went through but whose flip below failed.
+      - name: Publish the tarball to npm
+        run: |
+          set -euo pipefail
+          if [ "$(npm view "$PACKAGE@$VERSION" version 2>/dev/null || true)" = "$VERSION" ]; then
+            echo "npm already has $PACKAGE@$VERSION, skipping."
+            exit 0
+          fi
+          if ! npm publish "$RUNNER_TEMP/$TARBALL"; then
+            echo "::error::npm refused $PACKAGE@$VERSION (its reason is above). The trusted publisher on npmjs.com must name sogma/pragma, publish.yml and environment npm, and one that has never published expires 48 hours after it was made."
+            exit 1
+          fi
+
+      - name: Make the release live
+        run: |
+          set -euo pipefail
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           echo "Published $TAG and marked it latest."

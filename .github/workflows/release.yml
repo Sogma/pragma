@@ -5,7 +5,7 @@ name: Release desktop app
 # latest-linux.yml), to a **draft** GitHub Release, then stops. The npm
 # package's tarball, tried out here first, goes on the draft too. The draft is
 # a staging area: download the installers from it, smoke-test them, edit the
-# notes, then run the "Publish release" workflow (publish.yml) to make it live.
+# notes, then run the "Publish release" workflow (publish.yml) from the tag.
 #
 # The tag must already exist. Normal path: `npm version patch` (its `postversion`
 # hook runs `git push --follow-tags`). Manual re-run of a build: the
@@ -176,5 +176,5 @@ jobs:
             echo ""
             echo "1. Download and smoke-test the installers: $URL"
             echo "2. Edit the release notes on that page."
-            echo "3. Run the **Publish release** workflow with \`tag=$TAG\` to make it live."
+            echo "3. Run the **Publish release** workflow from the \`$TAG\` tag (*Use workflow from* → *Tags*), or \`gh workflow run publish.yml --ref $TAG\`. It publishes the npm package, then makes the release live."
           } >> "$GITHUB_STEP_SUMMARY"
