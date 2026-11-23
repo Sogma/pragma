@@ -1,17 +1,13 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { changeSpaceTag, readSpaceTags } from "../../src/server/spaceTags.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let space: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-tags-space-"));
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
+  space = tempDir("pragma-tags-space-");
 });
 
 const declare = (tags: unknown[]) => writeFileSync(path.join(space, "_tags.json"), JSON.stringify({ tags }));

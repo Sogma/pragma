@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProgram } from "../../src/cli/index.ts";
 import { findSpaceId, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 let root: string;
 let printed: string[];
@@ -24,9 +24,9 @@ async function folder(name: string): Promise<string> {
   return target;
 }
 
-beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), "pragma-cli-"));
-  process.env.PRAGMA_CONFIG_DIR = path.join(root, "config");
+beforeEach(() => {
+  root = tempDir("pragma-cli-");
+  isolateConfig(path.join(root, "config"));
   printed = [];
   errors = [];
   vi.spyOn(console, "log").mockImplementation((line: string) => {
@@ -37,11 +37,9 @@ beforeEach(async () => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.PRAGMA_CONFIG_DIR;
   process.exitCode = undefined;
-  await rm(root, { recursive: true, force: true });
 });
 
 describe("pragma init", () => {

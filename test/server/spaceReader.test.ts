@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createSpaceReader, type SpaceReaderOptions } from "../../src/server/spaceReader.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // The reads every model surface shares, as the copilot and the agent API take
 // them: no read limit, paths relative to the space. A generation's look, with
@@ -30,17 +30,12 @@ function reader(options: Partial<SpaceReaderOptions> = {}) {
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-reader-"));
-  outside = mkdtempSync(path.join(tmpdir(), "pragma-reader-outside-"));
+  space = tempDir("pragma-reader-");
+  outside = tempDir("pragma-reader-outside-");
   write("cast/README.md", "---\ndescription: Who is who\n---\n\n# Cast\n");
   write("cast/lina.md", "---\ndescription: The lead\n---\n\n# Lina\n\nCopper hair. [Rory](rory.md)\n");
   write("cast/rory.md", "# Rory\n\nLina's brother.\n");
   write("cast/secret.md", `${PRIVATE}Lina's secret.\n`);
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
-  rmSync(outside, { recursive: true, force: true });
 });
 
 describe("a read with no limit", () => {

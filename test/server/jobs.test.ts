@@ -1,8 +1,8 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createFileJobStore, type JobRecord } from "../../src/server/jobs.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // The paid jobs a host started, one file each beside config.json until the
 // result is saved and shown.
@@ -10,11 +10,7 @@ import { createFileJobStore, type JobRecord } from "../../src/server/jobs.ts";
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-jobs-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  dir = tempDir("pragma-jobs-");
 });
 
 const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({

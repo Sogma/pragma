@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { MockVideoModelV4 } from "ai/test";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VideoJob, VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
 import { checkPause, createJobRunner, type JobRunner } from "../../src/server/jobRunner.ts";
 import type { JobRecord } from "../../src/server/jobs.ts";
 import type { ResolvedVideoModel } from "../../src/server/mediaModels.ts";
+import { tempDir } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The host's half of a paid job: checking it on its own schedule, saving its
@@ -69,7 +69,7 @@ const add = (record: JobRecord) => {
 };
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-job-runner-"));
+  space = tempDir("pragma-job-runner-");
   mkdirSync(path.join(space, "clips"));
   records.clear();
   clock = Date.UTC(2026, 10, 10, 12);
@@ -88,10 +88,6 @@ beforeEach(() => {
     now: () => clock,
     spaceRoot: (spaceId) => (spaceId === "spc_1" ? space : undefined),
   });
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("checkPause", () => {
@@ -218,8 +214,7 @@ describe("createJobRunner", () => {
   // docs/protocol.md's Symbolic links: a cloned or synced space can carry a
   // link under another prefix's name for the same inputs, pointing anywhere.
   it("saves its own clip rather than copying one through a link under another prefix", async () => {
-    const outside = mkdtempSync(path.join(tmpdir(), "pragma-job-runner-outside-"));
-    onTestFinished(() => rmSync(outside, { recursive: true, force: true }));
+    const outside = tempDir("pragma-job-runner-outside-");
     writeFileSync(path.join(outside, "secret.txt"), "SECRET");
     symlinkSync(path.join(outside, "secret.txt"), path.join(space, "clips", `_${"b".repeat(12)}.mp4`));
 

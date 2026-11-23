@@ -1,5 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Protector, SaveCheck } from "../../src/config/credentialProtector.ts";
@@ -22,6 +21,7 @@ import {
   TOKENS_PART,
 } from "../../src/config/credentials.ts";
 import { globalConfigDir } from "../../src/config/loadConfig.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // The order a key and its connection are saved in: nothing changes until
 // protection works and the service accepts the key, the key lands before the
@@ -33,14 +33,11 @@ const endpoint = "https://gateway.example/v1";
 const recordFile = () => path.join(configDir, "credentials", "plain", slot.kind, `${encodeCredentialId(slot.id)}.json`);
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-credential-save-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
 });
 
 afterEach(() => {
   setCredentialStore(createFileCredentialStore({ backing: "plain", root: globalConfigDir }));
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 const save = (overrides: Partial<CredentialSave> = {}) =>

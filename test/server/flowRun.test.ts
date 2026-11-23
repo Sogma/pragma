@@ -1,9 +1,8 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { localDay } from "../../src/protocol/localDay.ts";
@@ -15,10 +14,10 @@ import {
   UnattendedRunRefusedError,
 } from "../../src/server/flowRun.ts";
 import { grantCapability, setUnattended } from "../../src/server/grants.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // Config and grants are install-global, so this points PRAGMA_CONFIG_DIR at a
 // temp directory — see loadConfig.ts.
-let configDir: string;
 let space: string;
 
 const FLOW_PATH = "notes.flow.html";
@@ -64,19 +63,11 @@ async function grantOnDisk(capabilityKey: string): Promise<void> {
 }
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-flowrun-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-flowrun-space-"));
+  isolateConfig();
+  space = tempSpace("pragma-flowrun-space-");
   mkdirSync(path.join(space, ".pragma"), { recursive: true });
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
   writeFileSync(path.join(space, "note.md"), "the note body");
   writeFlow();
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("runFlowHeadless", () => {

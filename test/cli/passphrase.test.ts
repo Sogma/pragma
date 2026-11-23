@@ -1,11 +1,10 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, Readable, Writable } from "node:stream";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type PassphraseInput, registerPassphraseCommand } from "../../src/cli/commands/passphrase.ts";
 import { credentialStore, remoteAccessPassphrase } from "../../src/config/credentials.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // `pragma passphrase` against this test's own config directory: what it
 // saves from a script's pipe, and from a terminal that never shows it.
@@ -14,9 +13,8 @@ let configDir: string;
 let printed: string[];
 let errors: string[];
 
-beforeEach(async () => {
-  configDir = await mkdtemp(path.join(tmpdir(), "pragma-cli-passphrase-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+beforeEach(() => {
+  configDir = isolateConfig();
   printed = [];
   errors = [];
   vi.spyOn(console, "log").mockImplementation((line: string) => {
@@ -27,11 +25,9 @@ beforeEach(async () => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.PRAGMA_CONFIG_DIR;
   process.exitCode = undefined;
-  await rm(configDir, { recursive: true, force: true });
 });
 
 async function passphrase(input: PassphraseInput, output: NodeJS.WritableStream = new PassThrough()): Promise<void> {

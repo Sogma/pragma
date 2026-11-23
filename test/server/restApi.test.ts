@@ -1,6 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -16,10 +15,10 @@ import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
 import { type GrantSubject, grantCapability, setUnattended } from "../../src/server/grants.ts";
 import { hungFlow } from "../support/hungFlow.ts";
+import { isolateConfig, tempDir, tempSpace } from "../support/isolation.ts";
 
 // Over real HTTP, like the MCP suite: the point of a second encoding is that a
 // caller can reach it with nothing but an HTTP client, so the test uses one.
-let configDir: string;
 let space: string;
 let endpoint: AgentEndpoint | undefined;
 let base: string;
@@ -52,9 +51,8 @@ function mint(readOnly: boolean): string {
 }
 
 beforeEach(async () => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-rest-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-rest-space-"));
+  isolateConfig();
+  space = tempDir("pragma-rest-space-");
 
   writeFileSync(path.join(space, "hello.md"), "# Hello\n\nthe secret word is banana\n");
   writeFileSync(path.join(space, "secret.md"), "---\nvisibility: private\n---\nthe private word is durian\n");
@@ -97,9 +95,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await endpoint?.close();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("the REST surface", () => {
@@ -331,8 +326,7 @@ describe("a request held open", () => {
   });
 
   it("is refused when the served space switches while its body arrives", async () => {
-    const other = mkdtempSync(path.join(tmpdir(), "pragma-rest-other-"));
-    saveGlobalConfig(rememberSpace(loadGlobalConfig(), other));
+    const other = tempSpace("pragma-rest-other-");
     let served = space;
     await endpoint?.close();
     endpoint = createAgentEndpoint(() => served);
@@ -341,7 +335,6 @@ describe("a request held open", () => {
     await headersTaken();
     served = other;
     expect(await pending.send()).toBe(403);
-    rmSync(other, { recursive: true, force: true });
   });
 
   it("ends when the endpoint is switched off, without waiting for its client", async () => {

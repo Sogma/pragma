@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProgram } from "../../src/cli/index.ts";
 import { credentialStore, setCredentialHost } from "../../src/config/credentials.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // `pragma start --external-url` against this test's own config directory:
 // what it refuses before anything listens.
@@ -19,21 +19,18 @@ async function pragma(...args: string[]): Promise<void> {
 
 const passphraseFile = () => path.join(configDir, "credentials", "plain", "remote-access-passphrase.json");
 
-beforeEach(async () => {
-  configDir = await mkdtemp(path.join(tmpdir(), "pragma-cli-start-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+beforeEach(() => {
+  configDir = isolateConfig();
   errors = [];
   vi.spyOn(console, "error").mockImplementation((line: string) => {
     errors.push(line);
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
   setCredentialHost("terminal");
-  delete process.env.PRAGMA_CONFIG_DIR;
   process.exitCode = undefined;
-  await rm(configDir, { recursive: true, force: true });
 });
 
 describe("pragma start --external-url", () => {

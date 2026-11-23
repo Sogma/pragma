@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ContextMessage } from "../../src/protocol/types.ts";
 import { CONTEXT_FILE_LIMIT, placeContext, readContext } from "../../src/server/pathContext.ts";
 import { listRootPaths } from "../../src/server/tree.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Conformance tests for docs/protocol.md's Context of a path, against a space
 // on disk: what goes, in which order, and what is left out or cut.
@@ -40,7 +40,7 @@ async function contextOf(relative: string) {
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-context-"));
+  space = tempDir("pragma-context-");
   write("AGENTS.md", "# Space rules\n");
   write("top.md", "# Top\n");
   write("projects/forbidden/AGENTS.md", `${SCOPE}# forbidden\n`);
@@ -52,10 +52,6 @@ beforeEach(() => {
   write("projects/forbidden/story/world/characters/Rory.md", "---\nvisibility: private\n---\n\n# Rory\n");
   write("projects/forbidden/story/world/locations/C-17 - Cargo Hold.md", "# Cargo hold\n");
   write(SCENE, "INT. C-17 - CARGO HOLD - NIGHT\n\nLina walks. RORY waits.\n\nLINA\nWhere?\n");
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("the context of a screenplay", () => {

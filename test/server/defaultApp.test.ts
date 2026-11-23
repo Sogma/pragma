@@ -1,7 +1,6 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   type DefaultAppHost,
   defaultAppTarget,
@@ -9,24 +8,17 @@ import {
   systemExtension,
   systemTarget,
 } from "../../src/server/defaultApp.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 let space: string;
-let configDir: string;
 
 const trusted: DefaultAppHost = { trusted: true, platform: "linux" };
 
 // A library path reads the install's registry, so the config directory is a
 // throwaway one rather than the developer's own.
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-default-app-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-default-app-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
+  space = tempDir("pragma-default-app-");
+  isolateConfig();
 });
 
 function file(name: string, mode = 0o644, contents: string | Uint8Array = "bytes"): string {
@@ -178,14 +170,10 @@ describe("defaultAppTarget", () => {
   });
 
   it("refuses a path through a symbolic link", async () => {
-    const outside = mkdtempSync(path.join(tmpdir(), "pragma-default-app-outside-"));
-    try {
-      writeFileSync(path.join(outside, "budget.zip"), "bytes");
-      symlinkSync(outside, path.join(space, "linked"));
-      expect("refusal" in (await defaultAppTarget(space, "linked/budget.zip", trusted))).toBe(true);
-    } finally {
-      rmSync(outside, { recursive: true, force: true });
-    }
+    const outside = tempDir("pragma-default-app-outside-");
+    writeFileSync(path.join(outside, "budget.zip"), "bytes");
+    symlinkSync(outside, path.join(space, "linked"));
+    expect("refusal" in (await defaultAppTarget(space, "linked/budget.zip", trusted))).toBe(true);
   });
 });
 

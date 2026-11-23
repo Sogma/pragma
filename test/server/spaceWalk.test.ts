@@ -1,14 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { walkSpace } from "../../src/server/spaceWalk.ts";
+import { tempDir } from "../support/isolation.ts";
 import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), "pragma-space-walk-"));
+  root = tempDir("pragma-space-walk-");
   mkdirSync(path.join(root, "notes", "drafts"), { recursive: true });
   writeFileSync(path.join(root, "notes", "a.md"), "");
   writeFileSync(path.join(root, "notes", "drafts", "b.md"), "");
@@ -17,10 +17,6 @@ beforeEach(() => {
   writeFileSync(path.join(root, ".git", "config"), "");
   writeFileSync(path.join(root, ".hidden.md"), "");
   symlinkSync(path.join(root, "notes"), path.join(root, "linked"));
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
 });
 
 describe("walkSpace", () => {

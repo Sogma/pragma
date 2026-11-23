@@ -1,15 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { readAppletFile } from "../../src/protocol/appletFile.ts";
 import type { AppletManifest } from "../../src/protocol/types.ts";
 import { readAppletImports } from "../../src/server/appletImports.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let space: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-applet-imports-"));
+  space = tempDir("pragma-applet-imports-");
   mkdirSync(path.join(space, "lib"));
   mkdirSync(path.join(space, "studio"));
   writeFileSync(path.join(space, "lib", "three.module.js"), "export const REVISION = '186';");
@@ -19,8 +19,6 @@ beforeEach(() => {
 });
 
 const MODEL_BYTES = Uint8Array.from([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0, 0xff, 0x00, 0x80]);
-
-afterEach(() => rmSync(space, { recursive: true, force: true }));
 
 const manifest = (imports: Record<string, string>) =>
   ({

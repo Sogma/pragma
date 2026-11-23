@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
 import type { McpServerConnectResponse } from "../../src/protocol/api.ts";
 import { mcpSignIns, saveMcpSignIn } from "../../src/server/mcpSignIn.ts";
 import { createSpaceApiRoutes, type SpaceApp } from "../../src/server/routes.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { type OAuthStandIn, startOAuthStandIn } from "../support/oauthStandIn.ts";
 
 // The MCP server routes on a host that is the writer's own machine: what the
@@ -20,11 +20,10 @@ let app: SpaceApp;
 
 beforeEach(async () => {
   standIn = await startOAuthStandIn();
-  space = mkdtempSync(path.join(tmpdir(), "pragma-mcp-routes-space-"));
+  space = tempDir("pragma-mcp-routes-space-");
   // Servers and sign-ins rest in the global config, so it points at a
   // throwaway directory.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-mcp-routes-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   writeFileSync(
     path.join(configDir, "config.json"),
     JSON.stringify({ mcpServers: [{ id: "standin", label: "Stand-in", url: `${standIn.base}/mcp` }] }),
@@ -34,9 +33,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await mcpSignIns.close();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
   await standIn.close();
 });
 

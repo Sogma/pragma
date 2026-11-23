@@ -1,13 +1,13 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PublisherConnection } from "../../src/protocol/publisher.ts";
 import type { PublisherResolution } from "../../src/server/publishers.ts";
 import { runReadSiteSettings, runSaveSiteSettings } from "../../src/server/siteSettingsHandler.ts";
 import { readSiteFile } from "../../src/server/sites.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Two stand-ins for publishers, built here so the test can never reach a
 // real endpoint configured on the machine running it.
@@ -21,14 +21,11 @@ const schemaWith = (field: string) => ({
 });
 
 const servers: Server[] = [];
-const dirs: string[] = [];
-
 // Every PATCH body a stub received, in order.
 const patches: unknown[] = [];
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))));
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   patches.splice(0);
 });
 
@@ -81,8 +78,7 @@ async function publisher(
 }
 
 async function siteFolder(): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), "pragma-site-settings-"));
-  dirs.push(dir);
+  const dir = tempDir("pragma-site-settings-");
   await writeFile(path.join(dir, "_site.json"), JSON.stringify({ id: "site-1", slug: "site", name: "Site" }));
   return dir;
 }

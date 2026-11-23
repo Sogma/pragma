@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
 import type { ResolvedMcpServer } from "../../src/config/loadConfig.ts";
@@ -23,6 +20,7 @@ import {
   startHiggsfieldStandIn,
   VIDEO_JOB_ID,
 } from "../support/higgsfieldStandIn.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // The Higgsfield adapter against its recorded MCP server, through the SDK's
 // own image call where the result matters and straight to the model where an
@@ -32,7 +30,6 @@ const REFERENCE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
 const JOB_ID = "71db41af-5b54-46b5-a88d-0eb4167ee799";
 
 let standIn: HiggsfieldStandIn;
-let configDir: string;
 let server: ResolvedMcpServer;
 let cache: Map<string, string>;
 
@@ -55,8 +52,7 @@ beforeEach(async () => {
   standIn = await startHiggsfieldStandIn();
   // The adapter looks for a sign-in first, and sign-ins rest in the global
   // config, so it points at a throwaway directory.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-higgsfield-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  isolateConfig();
   server = { id: "higgsfield", label: "Higgsfield", url: standIn.url, copilot: false, flows: true };
   await credentialStore().set(
     { kind: "mcp-tokens", id: "higgsfield" },
@@ -67,8 +63,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
   await standIn.close();
 });
 

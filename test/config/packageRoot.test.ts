@@ -1,19 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { PACKAGE_ROOT, packageRootAbove } from "../../src/config/packageRoot.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), "pragma-package-root-"));
+  root = tempDir("pragma-package-root-");
   writeFileSync(path.join(root, "package.json"), "{}");
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
 });
 
 describe("packageRootAbove", () => {

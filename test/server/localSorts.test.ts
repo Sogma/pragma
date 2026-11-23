@@ -1,15 +1,8 @@
 import type { Stats } from "node:fs";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  findSpaceId,
-  globalLayoutPath,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { findSpaceId, globalLayoutPath, loadGlobalConfig } from "../../src/config/loadConfig.ts";
 import type { SortChoice } from "../../src/protocol/folderSort.ts";
 import type { LocalSort } from "../../src/protocol/localSort.ts";
 import type { TableLayout } from "../../src/protocol/types.ts";
@@ -34,6 +27,7 @@ import {
   saveTableLayout,
 } from "../../src/server/localSorts.ts";
 import { buildTree, type FolderListingEntry } from "../../src/server/tree.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 const names = (entries: readonly { name: string }[]) => entries.map((entry) => entry.name);
 
@@ -109,25 +103,16 @@ describe("ordering a listing", () => {
 
 describe("a folder's sort on this install", () => {
   let root: string;
-  let configDir: string;
   let scenes: string;
 
   beforeEach(() => {
-    configDir = mkdtempSync(path.join(tmpdir(), "pragma-sorts-config-"));
-    process.env.PRAGMA_CONFIG_DIR = configDir;
-    root = mkdtempSync(path.join(tmpdir(), "pragma-sorts-"));
-    saveGlobalConfig(rememberSpace(loadGlobalConfig(), root));
+    isolateConfig();
+    root = tempSpace("pragma-sorts-");
     scenes = path.join(root, "scenes");
     mkdirSync(path.join(scenes, "extras"), { recursive: true });
     writeFileSync(path.join(scenes, "take 10.md"), "---\ndate: 2026-01-03\n---\n");
     writeFileSync(path.join(scenes, "take 2.md"), "---\ndate: 2026-01-01\ndescription: The second take\n---\n");
     writeFileSync(path.join(scenes, "take 3.md"), "---\ndate: 2026-01-02\n---\n");
-  });
-
-  afterEach(() => {
-    delete process.env.PRAGMA_CONFIG_DIR;
-    rmSync(root, { recursive: true, force: true });
-    rmSync(configDir, { recursive: true, force: true });
   });
 
   const save = (change: { sort?: LocalSort["sort"]; arrangement?: string[] | null }, key = "scenes") =>

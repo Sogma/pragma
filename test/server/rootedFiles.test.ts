@@ -1,17 +1,6 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  type PathLike,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, type PathLike, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LibraryEntry } from "../../src/protocol/api.ts";
 import { resolveToolkits } from "../../src/server/resolveToolkits.ts";
 import {
@@ -26,6 +15,7 @@ import { readSpaceRulesFile } from "../../src/server/spaceFiles.ts";
 import { changeSpaceTag, readSpaceTags } from "../../src/server/spaceTags.ts";
 import { readStructure, writeStructure } from "../../src/server/structure.ts";
 import { buildTree } from "../../src/server/tree.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 
 let space: string;
@@ -40,18 +30,10 @@ function register(...libraries: LibraryEntry[]): void {
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-rooted-space-"));
-  library = mkdtempSync(path.join(tmpdir(), "pragma-rooted-library-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-rooted-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  space = tempDir("pragma-rooted-space-");
+  library = tempDir("pragma-rooted-library-");
+  configDir = isolateConfig();
   register({ id: "footage", label: "Footage", path: library, access: "read-only" });
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(library, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 // The error code a read raises, or undefined when it resolves.
@@ -310,12 +292,8 @@ describe("symbolic links below a root", () => {
   let outside: string;
 
   beforeEach(() => {
-    outside = mkdtempSync(path.join(tmpdir(), "pragma-rooted-outside-"));
+    outside = tempDir("pragma-rooted-outside-");
     writeFileSync(path.join(outside, "secret.md"), "SECRET");
-  });
-
-  afterEach(() => {
-    rmSync(outside, { recursive: true, force: true });
   });
 
   it("refuses a path that is, or passes through, a link — for either access, wherever it points", () => {

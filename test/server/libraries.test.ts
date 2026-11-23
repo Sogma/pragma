@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { type LibraryLocation, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { isAccess, libraryRows, mintLibraryId, readLibraries } from "../../src/server/libraries.ts";
 import {
@@ -15,19 +15,12 @@ import {
   removeSpaceLibrary,
   setSpaceLibraryAccess,
 } from "../../src/server/spaceLibraries.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 let configDir: string;
 let space: string;
 let footage: string;
 let stills: string;
-const made: string[] = [];
-
-const folder = (prefix: string) => {
-  const dir = mkdtempSync(path.join(tmpdir(), prefix));
-  made.push(dir);
-  return dir;
-};
-
 const declare = (root: string, file: unknown) =>
   writeFileSync(path.join(root, "_libraries.json"), typeof file === "string" ? file : JSON.stringify(file));
 const declared = (root: string) => readFileSync(path.join(root, "_libraries.json"), "utf8");
@@ -42,16 +35,10 @@ function register(root: string, libraries?: Record<string, LibraryLocation>): st
 const locations = (spaceId: string) => loadGlobalConfig().spaces?.[spaceId]?.libraries;
 
 beforeEach(() => {
-  configDir = folder("pragma-libraries-config-");
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = folder("pragma-libraries-space-");
-  footage = folder("pragma-libraries-footage-");
-  stills = folder("pragma-libraries-stills-");
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+  configDir = isolateConfig();
+  space = tempDir("pragma-libraries-space-");
+  footage = tempDir("pragma-libraries-footage-");
+  stills = tempDir("pragma-libraries-stills-");
 });
 
 describe("a space's libraries", () => {
@@ -85,7 +72,7 @@ describe("a space's libraries", () => {
     register(space, { stills: { path: stills, access: "read-only" } });
     expect(readLibraries(space)).toEqual([]);
 
-    const unregistered = folder("pragma-libraries-unregistered-");
+    const unregistered = tempDir("pragma-libraries-unregistered-");
     declare(unregistered, { libraries: [{ id: "footage", label: "Footage" }] });
     expect(readLibraries(unregistered)).toEqual([]);
     expect(libraryRows(unregistered).libraries.map((row) => row.missing)).toEqual([true]);
@@ -125,7 +112,7 @@ describe("adding and locating a library", () => {
     await addSpaceLibrary(space, footage);
     await expect(addSpaceLibrary(space, footage)).rejects.toThrow(/already one of this space's libraries/);
 
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     register(other);
     expect((await addSpaceLibrary(other, footage)).path).toBe(footage);
   });
@@ -161,7 +148,7 @@ describe("adding and locating a library", () => {
 // another space, named back by that space's id and the library's.
 describe("offering other spaces' libraries", () => {
   it("offers each folder other spaces located once, that this space hasn't got, by label", () => {
-    const first = folder("pragma-libraries-first-");
+    const first = tempDir("pragma-libraries-first-");
     declare(first, {
       libraries: [
         { id: "stills", label: "Stills" },
@@ -172,14 +159,14 @@ describe("offering other spaces' libraries", () => {
       stills: { path: stills, access: "read-write" },
       reels: { path: footage, access: "read-only" },
     });
-    const second = folder("pragma-libraries-second-");
+    const second = tempDir("pragma-libraries-second-");
     declare(second, {
       libraries: [
         { id: "again", label: "Again" },
         { id: "art", label: "art" },
       ],
     });
-    const art = folder("pragma-libraries-art-");
+    const art = tempDir("pragma-libraries-art-");
     const secondId = register(second, {
       again: { path: stills, access: "read-only" },
       art: { path: art, access: "read-only" },
@@ -194,7 +181,7 @@ describe("offering other spaces' libraries", () => {
   });
 
   it("leaves out a folder that isn't there, a location no space declares, and a space whose folder is gone", () => {
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     declare(other, { libraries: [{ id: "gone", label: "Gone" }] });
     register(other, {
       gone: { path: path.join(tmpdir(), "pragma-libraries-not-there"), access: "read-only" },
@@ -206,7 +193,7 @@ describe("offering other spaces' libraries", () => {
   });
 
   it("adds an offered library read-only, keeping its label and, where it is free here, its id", async () => {
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     declare(other, {
       libraries: [
         { id: "stills", label: "Stills" },
@@ -236,7 +223,7 @@ describe("offering other spaces' libraries", () => {
   });
 
   it("carries a library's description into the offer and into the space that adds it", async () => {
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     declare(other, { libraries: [{ id: "stills", label: "Stills", description: "Frames from the shoot" }] });
     const otherId = register(other, { stills: { path: stills, access: "read-only" } });
     register(space);
@@ -257,7 +244,7 @@ describe("offering other spaces' libraries", () => {
   });
 
   it("refuses an offer that isn't one, rather than taking a folder from the request", async () => {
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     declare(other, { libraries: [{ id: "stills", label: "Stills" }] });
     const otherId = register(other, { stills: { path: stills, access: "read-only" } });
     register(space);
@@ -393,7 +380,7 @@ describe("moving an install-wide list onto the spaces", () => {
   it("gives each space the libraries its files name, keeping ids, labels and folders", async () => {
     mkdirSync(path.join(space, "notes"));
     writeFileSync(path.join(space, "notes", "a.md"), "![](lib:footage/reel.mp4)\n");
-    const other = folder("pragma-libraries-other-");
+    const other = tempDir("pragma-libraries-other-");
     mkdirSync(path.join(other, ".pragma"));
     writeFileSync(
       path.join(other, ".pragma", "bookmarks.json"),
@@ -401,7 +388,7 @@ describe("moving an install-wide list onto the spaces", () => {
     );
     const spaceId = register(space);
     const otherId = register(other);
-    const empty = register(folder("pragma-libraries-empty-"));
+    const empty = register(tempDir("pragma-libraries-empty-"));
     saveGlobalConfig({ ...loadGlobalConfig(), libraries: list() });
 
     await moveLibrariesOntoSpaces();
@@ -418,8 +405,8 @@ describe("moving an install-wide list onto the spaces", () => {
 
   it("gives a library no space names to the space opened last, and keeps what a space already has", async () => {
     const first = register(space);
-    const recent = folder("pragma-libraries-recent-");
-    const elsewhere = folder("pragma-libraries-elsewhere-");
+    const recent = tempDir("pragma-libraries-recent-");
+    const elsewhere = tempDir("pragma-libraries-elsewhere-");
     declare(recent, { libraries: [{ id: "stills", label: "My stills" }] });
     const recentId = register(recent, { stills: { path: elsewhere, access: "read-only" } });
     saveGlobalConfig({ ...loadGlobalConfig(), recentSpaceIds: [recentId, first], libraries: list() });

@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { serializeEntryListFile } from "../../src/protocol/entryListFile.ts";
 import { EntryListFileError, type EntryListFileKind, readEntryListFile } from "../../src/server/entryListFile.ts";
 import { changeEntryListFile } from "../../src/server/spaceFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // One made-up kind stands for the tags, presets, libraries and bookmarks
 // files, each of which reads and changes its file through these two.
@@ -30,13 +30,8 @@ const thingsFile = () => things.at(space);
 const hold = (text: string) => writeFileSync(thingsFile(), text);
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-entry-list-"));
-  outside = mkdtempSync(path.join(tmpdir(), "pragma-entry-list-outside-"));
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
-  rmSync(outside, { recursive: true, force: true });
+  space = tempDir("pragma-entry-list-");
+  outside = tempDir("pragma-entry-list-outside-");
 });
 
 describe("a list file", () => {

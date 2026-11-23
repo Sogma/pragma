@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { capabilityDigest, parseFlowFile, readFlowFile } from "../../src/protoco
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { metadataText } from "../../src/protocol/metadata.ts";
 import type { FlowFile, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Conformance tests for the `.flow.html` format itself (the reader's
 // graceful-fallback contract + the serializer's byte-stable shape), same
@@ -13,14 +14,10 @@ import type { FlowFile, FlowGraph, FlowNodeInstance } from "../../src/protocol/t
 // read/serialize input/output contract, not on node-html-parser.
 
 async function withTempFile(contents: string, run: (filePath: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(path.join(tmpdir(), "pragma-flowfile-test-"));
-  try {
-    const filePath = path.join(dir, "test.flow.html");
-    await writeFile(filePath, contents, "utf8");
-    await run(filePath);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  const dir = tempDir("pragma-flowfile-test-");
+  const filePath = path.join(dir, "test.flow.html");
+  await writeFile(filePath, contents, "utf8");
+  await run(filePath);
 }
 
 describe(".flow.html round-tripping", () => {

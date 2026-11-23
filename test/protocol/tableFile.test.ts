@@ -1,5 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "node-html-parser";
@@ -10,6 +9,7 @@ import { metadataText } from "../../src/protocol/metadata.ts";
 import { parseTableFile, readMetadataBlock, readTableFile } from "../../src/protocol/tableFile.ts";
 import { metadataBlock, serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import type { TableFile } from "../../src/protocol/types.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.resolve(dirname, "../../templates/space/projects/getting-started/writing-prompts.table.html");
@@ -37,73 +37,61 @@ describe(".table.html round-tripping", () => {
       rows: [{ values: { value: "First row" } }, { values: { value: 'Second <row> & "quoted"' } }],
     };
 
-    const dir = await mkdtemp(path.join(tmpdir(), "pragma-tablefile-test-"));
-    try {
-      const filePath = path.join(dir, "roundtrip.table.html");
-      const firstPass = serializeTableFile(file);
-      await writeFile(filePath, firstPass, "utf8");
+    const dir = tempDir("pragma-tablefile-test-");
+    const filePath = path.join(dir, "roundtrip.table.html");
+    const firstPass = serializeTableFile(file);
+    await writeFile(filePath, firstPass, "utf8");
 
-      const reparsed = await readTableFile(filePath);
-      const secondPass = serializeTableFile(reparsed);
+    const reparsed = await readTableFile(filePath);
+    const secondPass = serializeTableFile(reparsed);
 
-      // Not just "equal data" — literally the same bytes, matching the
-      // format's own byte-stability guarantee (see tableHtml.ts).
-      expect(secondPass).toBe(firstPass);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    // Not just "equal data" — literally the same bytes, matching the
+    // format's own byte-stability guarantee (see tableHtml.ts).
+    expect(secondPass).toBe(firstPass);
   });
 
   // The layout is what a reader opens in, carried as one attribute on the
   // data table and written only when it is not the list — a file that never
   // named one must not gain an attribute from being saved.
   it("round-trips data-layout, and writes nothing for the list", async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "pragma-tablefile-layout-"));
-    try {
-      const base: TableFile = {
-        version: "1.0",
-        columns: [{ id: "take", type: "text", label: "Take" }],
-        rows: [{ values: { take: "one" } }],
-      };
-      const cards = path.join(dir, "cards.table.html");
-      await writeFile(cards, serializeTableFile({ ...base, layout: "cards" }), "utf8");
-      expect(await readFile(cards, "utf8")).toContain('<table data-role="data" data-layout="cards">');
-      expect((await readTableFile(cards)).layout).toBe("cards");
+    const dir = tempDir("pragma-tablefile-layout-");
+    const base: TableFile = {
+      version: "1.0",
+      columns: [{ id: "take", type: "text", label: "Take" }],
+      rows: [{ values: { take: "one" } }],
+    };
+    const cards = path.join(dir, "cards.table.html");
+    await writeFile(cards, serializeTableFile({ ...base, layout: "cards" }), "utf8");
+    expect(await readFile(cards, "utf8")).toContain('<table data-role="data" data-layout="cards">');
+    expect((await readTableFile(cards)).layout).toBe("cards");
 
-      const list = path.join(dir, "list.table.html");
-      await writeFile(list, serializeTableFile({ ...base, layout: "list" }), "utf8");
-      expect(await readFile(list, "utf8")).toContain('<table data-role="data">');
-      expect((await readTableFile(list)).layout).toBeUndefined();
-      expect(serializeTableFile(await readTableFile(list))).toBe(serializeTableFile(base));
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const list = path.join(dir, "list.table.html");
+    await writeFile(list, serializeTableFile({ ...base, layout: "list" }), "utf8");
+    expect(await readFile(list, "utf8")).toContain('<table data-role="data">');
+    expect((await readTableFile(list)).layout).toBeUndefined();
+    expect(serializeTableFile(await readTableFile(list))).toBe(serializeTableFile(base));
   });
 
   // A drop folder is written only when set, so a media column that never
   // named one saves byte-identical.
   it("round-trips data-media-folder, and writes nothing without one", async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "pragma-tablefile-media-"));
-    try {
-      const file: TableFile = {
-        version: "1.0",
-        columns: [
-          { id: "still", type: "media", label: "Still", mediaFolder: "lib:refs/shots" },
-          { id: "take", type: "media", label: "Take" },
-        ],
-        rows: [],
-      };
-      const html = serializeTableFile(file);
-      expect(html).toContain('<th data-field="still" data-type="media" data-media-folder="lib:refs/shots">Still</th>');
-      expect(html).toContain('<th data-field="take" data-type="media">Take</th>');
-      const filePath = path.join(dir, "media.table.html");
-      await writeFile(filePath, html, "utf8");
-      const reparsed = await readTableFile(filePath);
-      expect(reparsed.columns.map((column) => column.mediaFolder)).toEqual(["lib:refs/shots", undefined]);
-      expect(serializeTableFile(reparsed)).toBe(html);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const dir = tempDir("pragma-tablefile-media-");
+    const file: TableFile = {
+      version: "1.0",
+      columns: [
+        { id: "still", type: "media", label: "Still", mediaFolder: "lib:refs/shots" },
+        { id: "take", type: "media", label: "Take" },
+      ],
+      rows: [],
+    };
+    const html = serializeTableFile(file);
+    expect(html).toContain('<th data-field="still" data-type="media" data-media-folder="lib:refs/shots">Still</th>');
+    expect(html).toContain('<th data-field="take" data-type="media">Take</th>');
+    const filePath = path.join(dir, "media.table.html");
+    await writeFile(filePath, html, "utf8");
+    const reparsed = await readTableFile(filePath);
+    expect(reparsed.columns.map((column) => column.mediaFolder)).toEqual(["lib:refs/shots", undefined]);
+    expect(serializeTableFile(reparsed)).toBe(html);
   });
 
   // The default is a timestamp's alone, and written only when set, so a

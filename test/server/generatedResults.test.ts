@@ -1,9 +1,9 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { findResult, resultStart, saveResult } from "../../src/server/generatedResults.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // A generated result's name: its start (the node's prefix, its dates filled
 // and its number given as it is saved), then `_` and the digest a later run
@@ -14,11 +14,7 @@ const DIGEST = "1a2b3c4d5e6f";
 let folder: string;
 
 beforeEach(() => {
-  folder = mkdtempSync(path.join(tmpdir(), "pragma-results-"));
-});
-
-afterEach(() => {
-  rmSync(folder, { recursive: true, force: true });
+  folder = tempDir("pragma-results-");
 });
 
 const typed = "{{$number}}_{{$date:%y%m%d}}";

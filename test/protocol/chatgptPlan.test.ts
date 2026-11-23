@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { generateText, isStepCount, tool } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -23,6 +20,7 @@ import {
   sse,
   textMessage,
 } from "../support/chatgptStandIn.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // A `chatgpt` provider's model calls through the real AI SDK, against a
 // stand-in for OpenAI: what the plan route is sent, and how its answers,
@@ -39,7 +37,6 @@ const provider: ResolvedProvider = {
 };
 
 let standIn: ChatGptStandIn;
-let configDir: string;
 
 function signIn(overrides: ChatGptSignIn = {}): Promise<void> {
   return saveSignIn("chatgpt", {
@@ -54,8 +51,7 @@ function signIn(overrides: ChatGptSignIn = {}): Promise<void> {
 
 beforeEach(async () => {
   // The sign-in and its renewal lock rest under the config folder.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-chatgpt-plan-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  isolateConfig();
   resetChatGptAuthCache();
   standIn = await createChatGptStandIn();
   vi.stubGlobal("fetch", standIn.fetch);
@@ -64,8 +60,6 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("a ChatGPT plan request", () => {

@@ -1,19 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { GraphNode, SpaceGraphResponse } from "../../src/protocol/api.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import { buildSpaceGraph } from "../../src/server/spaceGraph.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
-
-const folders: string[] = [];
-
-async function folder(prefix: string): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), prefix));
-  folders.push(dir);
-  return dir;
-}
 
 async function fill(root: string, files: Record<string, string>): Promise<string> {
   for (const [relative, content] of Object.entries(files)) {
@@ -24,7 +16,7 @@ async function fill(root: string, files: Record<string, string>): Promise<string
   return root;
 }
 
-const space = async (files: Record<string, string>) => fill(await folder("pragma-graph-"), files);
+const space = (files: Record<string, string>) => fill(tempDir("pragma-graph-"), files);
 
 // Every edge as `from -> to (kind)`, crossings marked, for one assertion.
 function edges(graph: SpaceGraphResponse, kinds?: string[]): string[] {
@@ -40,13 +32,10 @@ function edges(graph: SpaceGraphResponse, kinds?: string[]): string[] {
 const node = (graph: SpaceGraphResponse, id: string): GraphNode | undefined =>
   graph.nodes.find((each) => each.id === id);
 
-beforeEach(async () => {
-  vi.stubEnv("PRAGMA_CONFIG_DIR", await folder("pragma-graph-config-"));
-});
+let configDir: string;
 
-afterEach(async () => {
-  vi.unstubAllEnvs();
-  await Promise.all(folders.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+beforeEach(() => {
+  configDir = isolateConfig();
 });
 
 describe("the space graph", () => {
@@ -139,11 +128,9 @@ describe("the space graph", () => {
   });
 
   it("reads a library's files only once the space names the library, each in the library's one scope", async () => {
-    const library = await fill(await folder("pragma-graph-library-"), { "refs/still.png": "" });
+    const library = await fill(tempDir("pragma-graph-library-"), { "refs/still.png": "" });
     const root = await space({ "a.md": "![](lib:stills/refs/still.png)\n" });
-    giveSpaceLibraries(process.env.PRAGMA_CONFIG_DIR as string, root, [
-      { id: "stills", label: "Stills", path: library, access: "read-only" },
-    ]);
+    giveSpaceLibraries(configDir, root, [{ id: "stills", label: "Stills", path: library, access: "read-only" }]);
     const graph = await buildSpaceGraph(root);
     expect(edges(graph, ["embed"])).toEqual(["a.md -> lib:stills/refs/still.png (embed, crosses)"]);
     expect(node(graph, "lib:stills/refs/still.png")).toMatchObject({ library: true, scope: "lib:stills" });

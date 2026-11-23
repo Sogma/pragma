@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -10,6 +9,7 @@ import {
 } from "../../../../src/server/copilotContext.ts";
 import { okfContext } from "../../../../src/server/modules/okf/context.ts";
 import { shippedContextSources } from "../../../../src/server/modules.ts";
+import { tempDir } from "../../../support/isolation.ts";
 
 const ROOT_INDEX =
   '---\nokf_version: "0.2"\n---\n# Knowledge\n\n## Tables\n\n* [Orders](tables/orders.md) - Every order placed\n';
@@ -17,14 +17,13 @@ const ROOT_INDEX =
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-okf-"));
+  dir = tempDir("pragma-okf-");
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 9, 29, 12));
 });
 
 afterEach(() => {
   vi.useRealTimers();
-  rmSync(dir, { recursive: true, force: true });
 });
 
 function write(relativePath: string, content: string): void {

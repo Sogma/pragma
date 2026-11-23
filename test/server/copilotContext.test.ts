@@ -1,19 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { CONTEXT_SECTION_LIMIT, type ContextSource, createContextSources } from "../../src/server/copilotContext.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const PRIVATE = "---\nvisibility: private\n---\n";
 
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-context-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  dir = tempDir("pragma-context-");
 });
 
 // A source whose section says which folder it was handed.

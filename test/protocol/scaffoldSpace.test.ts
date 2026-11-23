@@ -1,20 +1,16 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { scaffoldSpace } from "../../src/protocol/scaffoldSpace.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const TEMPLATE = fileURLToPath(new URL("../../templates/space", import.meta.url));
 let target: string;
 
-beforeEach(async () => {
-  target = await mkdtemp(path.join(tmpdir(), "pragma-scaffold-"));
-});
-
-afterEach(async () => {
-  await rm(target, { recursive: true, force: true });
+beforeEach(() => {
+  target = tempDir("pragma-scaffold-");
 });
 
 describe("scaffoldSpace", () => {

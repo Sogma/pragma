@@ -1,9 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { APICallError, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { ResolvedMcpServer } from "../../src/config/loadConfig.ts";
 import { parseFlowFile } from "../../src/protocol/flowFile.ts";
@@ -14,6 +13,7 @@ import { type EditorContext, runChat, runChatOn, type SelectedFile } from "../..
 import { createContextSources } from "../../src/server/copilotContext.ts";
 import type { McpConnector } from "../../src/server/mcpTools.ts";
 import { revisionOf } from "../../src/server/spaceFiles.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 
 // The copilot's loop against the AI SDK's mock model — no provider, no
@@ -76,14 +76,10 @@ describe("runChatOn", () => {
   let notePath: string;
 
   beforeEach(async () => {
-    spaceRoot = await mkdtemp(path.join(tmpdir(), "pragma-chat-test-"));
+    spaceRoot = tempDir("pragma-chat-test-");
     notePath = path.join(spaceRoot, "note.md");
     await writeFile(notePath, "# Draft\n", "utf8");
     await writeFile(path.join(spaceRoot, "secret.md"), "---\nvisibility: private\n---\nhidden\n", "utf8");
-  });
-
-  afterEach(async () => {
-    await rm(spaceRoot, { recursive: true, force: true });
   });
 
   it("offers the document-scoped tools only when a document is open", async () => {
@@ -554,20 +550,13 @@ describe("runChatOn", () => {
       // A library's folder sits in the config, so this points
       // PRAGMA_CONFIG_DIR at a throwaway config naming one.
       beforeEach(async () => {
-        configDir = await mkdtemp(path.join(tmpdir(), "pragma-chat-config-"));
-        library = await mkdtemp(path.join(tmpdir(), "pragma-chat-library-"));
-        process.env.PRAGMA_CONFIG_DIR = configDir;
+        configDir = isolateConfig();
+        library = tempDir("pragma-chat-library-");
         giveSpaceLibraries(configDir, spaceRoot, [
           { id: "footage", label: "Footage", path: library, access: "read-only" },
         ]);
         await mkdir(path.join(library, "shots"));
         await writeFile(path.join(library, "shots", "still.png"), PNG);
-      });
-
-      afterEach(async () => {
-        delete process.env.PRAGMA_CONFIG_DIR;
-        await rm(configDir, { recursive: true, force: true });
-        await rm(library, { recursive: true, force: true });
       });
 
       it("looks at one by its library path, and nothing else of the library reaches the model", async () => {
@@ -1197,14 +1186,8 @@ describe("runChat", () => {
 
   // Which wording the refusal takes depends on the providers config.json
   // lists, so this points PRAGMA_CONFIG_DIR at a throwaway one.
-  beforeEach(async () => {
-    configDir = await mkdtemp(path.join(tmpdir(), "pragma-chat-config-"));
-    process.env.PRAGMA_CONFIG_DIR = configDir;
-  });
-
-  afterEach(async () => {
-    delete process.env.PRAGMA_CONFIG_DIR;
-    await rm(configDir, { recursive: true, force: true });
+  beforeEach(() => {
+    configDir = isolateConfig();
   });
 
   const refusal = () =>

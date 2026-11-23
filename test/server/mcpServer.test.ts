@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -17,11 +16,11 @@ import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
 import { setUnattended } from "../../src/server/grants.ts";
 import { hungFlow } from "../support/hungFlow.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 // End-to-end over real HTTP with the SDK's own client, rather than calling the
 // tool callbacks directly: the point of taking the SDK was that the protocol
 // is not ours to get right, so the test should exercise the protocol too.
-let configDir: string;
 let space: string;
 let endpoint: AgentEndpoint | undefined;
 let client: Client;
@@ -73,9 +72,8 @@ const callText = async (name: string, args: Record<string, unknown> = {}): Promi
 };
 
 beforeEach(async () => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-mcp-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-mcp-space-"));
+  isolateConfig();
+  space = tempDir("pragma-mcp-space-");
 
   writeFileSync(path.join(space, "hello.md"), "# Hello\n\nthe secret word is banana\n");
   writeFileSync(path.join(space, "secret.md"), "---\nvisibility: private\n---\nthe private word is durian\n");
@@ -114,9 +112,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await client?.close();
   await endpoint?.close();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("the space's MCP surface", () => {

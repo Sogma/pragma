@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
@@ -15,6 +14,7 @@ import {
   verifyChatGptIdToken,
 } from "../../src/protocol/chatgptAuth.ts";
 import { type ChatGptStandIn, createChatGptStandIn, saveSignIn } from "../support/chatgptStandIn.ts";
+import { isolateConfig } from "../support/isolation.ts";
 import { holdLockInAnotherProcess, releaseLockHolders } from "../support/lockHolder.ts";
 
 // A `chatgpt` provider's tokens: when they are renewed, what a refused or
@@ -43,8 +43,7 @@ function save(tokens: Partial<NonNullable<ChatGptSignIn["tokens"]>> = {}, extra:
 const signInFolder = () => path.join(configDir, "credentials", "plain", "provider-sign-ins");
 
 beforeEach(async () => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-chatgpt-auth-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   resetChatGptAuthCache();
   standIn = await createChatGptStandIn();
   vi.stubGlobal("fetch", standIn.fetch);
@@ -54,8 +53,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await releaseLockHolders();
   vi.unstubAllGlobals();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("a ChatGPT access token", () => {

@@ -1,18 +1,14 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { moveFromTrash, readSpaceFile } from "../../src/server/spaceFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 let space: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-space-files-"));
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
+  space = tempDir("pragma-space-files-");
 });
 
 describe("readSpaceFile", () => {

@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PragmaGlobalConfig } from "../../src/config/loadConfig.ts";
 import { MissingProviderKeyError } from "../../src/protocol/modelProvider.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
@@ -12,21 +9,14 @@ import {
   resolveImageModel,
   resolveVideoModel,
 } from "../../src/server/mediaModels.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // Which image or video model a ref names, and why one doesn't resolve.
-
-let configDir: string;
 
 beforeEach(() => {
   // Resolving a server reads its stored token, which rests in the global
   // config, so it points at a throwaway directory.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-image-models-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
+  isolateConfig();
 });
 
 const higgsfield = { id: "higgsfield", label: "Higgsfield", url: "https://mcp.higgsfield.ai/mcp", flows: true };

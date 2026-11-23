@@ -1,14 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  findSpaceId,
-  globalGrantsPath,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { findSpaceId, globalGrantsPath, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import {
   grantCapability,
   grantedCapabilities,
@@ -20,19 +14,16 @@ import {
   setUnattended,
   unattendedStanding,
 } from "../../src/server/grants.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // Grants are install-global, so these tests point PRAGMA_CONFIG_DIR at a
 // temp directory — without it every case here would read and write the
 // developer's own config and approvals.
-let configDir: string;
 let space: string;
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-grants-"));
-  // A served space is always registered; grants key off that id.
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  isolateConfig();
+  space = tempSpace("pragma-grants-");
   // Every write prunes entries whose document is gone, so each subject below
   // needs a file behind it.
   for (const file of ["a.applet.html", "elsewhere/a.applet.html", "k.flow.html", "f.flow.html", "u.flow.html"]) {
@@ -44,12 +35,6 @@ function touch(root: string, file: string): void {
   mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
   writeFileSync(path.join(root, file), "");
 }
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
-});
 
 const applet = { path: "a.applet.html", contentHash: "h1" };
 const toolkit = { path: "k.flow.html", contentHash: "k1" };
@@ -127,14 +112,12 @@ describe("grants", () => {
   // The space is scoped by registry id rather than by its folder: approvals
   // survive that space being moved.
   it("scopes grants to one space", async () => {
-    const other = mkdtempSync(path.join(tmpdir(), "pragma-grants-other-"));
-    saveGlobalConfig(rememberSpace(loadGlobalConfig(), other));
+    const other = tempSpace("pragma-grants-other-");
 
     await grantCapability(space, applet, "generateText");
 
     expect(await isCapabilityGranted(space, applet, "generateText")).toBe(true);
     expect(await isCapabilityGranted(other, applet, "generateText")).toBe(false);
-    rmSync(other, { recursive: true, force: true });
   });
 
   it("keeps grants when a space's registry entry is relocated", async () => {
@@ -183,11 +166,9 @@ describe("pruning", () => {
 
   // The other space may be on a drive that isn't mounted.
   it("leaves every other space's entries alone", async () => {
-    const other = mkdtempSync(path.join(tmpdir(), "pragma-grants-other-"));
-    saveGlobalConfig(rememberSpace(loadGlobalConfig(), other));
+    const other = tempSpace("pragma-grants-other-");
     touch(other, "a.applet.html");
     await grantCapability(other, applet, "generateText");
-    rmSync(other, { recursive: true, force: true });
 
     await grantCapability(space, applet, "generateText");
     expect(await isCapabilityGranted(other, applet, "generateText")).toBe(true);
@@ -195,7 +176,6 @@ describe("pruning", () => {
 
   it("prunes nothing while the space's own folder is missing", async () => {
     await grantCapability(space, applet, "generateText");
-    rmSync(space, { recursive: true, force: true });
 
     await grantCapability(space, toolkit, "generateText");
     expect(Object.keys(stored()).sort()).toEqual(["a.applet.html", "k.flow.html"]);

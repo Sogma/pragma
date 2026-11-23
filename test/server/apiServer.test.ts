@@ -1,18 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createApiToken,
-  findSpaceId,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createApiToken, findSpaceId, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { ApiAuthError, authorizeApiRequest, checkRequestOrigin } from "../../src/server/apiServer.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
-let configDir: string;
 let space: string;
 let secret: string;
 
@@ -34,17 +25,9 @@ function mintToken(options: { readOnly?: boolean; spaceId?: string } = {}): stri
 }
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-api-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-api-space-"));
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  isolateConfig();
+  space = tempSpace("pragma-api-space-");
   secret = mintToken();
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("the agent endpoint's origin check", () => {

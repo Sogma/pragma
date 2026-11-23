@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { MockLanguageModelV4 } from "ai/test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { serializeFlowFile } from "../../../src/protocol/flowHtml.ts";
 import { createSpaceApiRoutes } from "../../../src/server/routes.ts";
+import { isolateConfig, tempDir } from "../../support/isolation.ts";
 import { giveSpaceLibraries } from "../../support/libraries.ts";
 
 // Every model resolves to the one a test sets, so a turn runs with no
@@ -21,15 +21,8 @@ let spaceRoot: string;
 let configDir: string;
 
 beforeEach(() => {
-  spaceRoot = mkdtempSync(path.join(tmpdir(), "pragma-assistant-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-assistant-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(spaceRoot, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
+  spaceRoot = tempDir("pragma-assistant-");
+  configDir = isolateConfig();
 });
 
 function answering(text: string): MockLanguageModelV4 {
@@ -99,7 +92,7 @@ describe("the chat route", () => {
     writeFileSync(path.join(spaceRoot, "stills", "a.png"), "");
     mkdirSync(path.join(spaceRoot, ".cache"));
     writeFileSync(path.join(spaceRoot, ".cache", "b.png"), "");
-    const library = mkdtempSync(path.join(tmpdir(), "pragma-assistant-library-"));
+    const library = tempDir("pragma-assistant-library-");
     giveSpaceLibraries(configDir, spaceRoot, [{ id: "footage", label: "Footage", path: library, access: "read-only" }]);
     writeFileSync(path.join(library, "still.png"), "");
     writeFileSync(path.join(library, "notes.md"), "# Notes\n");
@@ -116,34 +109,24 @@ describe("the chat route", () => {
       return String(model.doGenerateCalls[0].prompt[0].content);
     };
 
-    try {
-      expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png")).toContain(
-        "The writer has selected the image `stills/a.png`.",
-      );
-      expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png&previewing=1")).toContain(
-        "The writer is previewing the image `stills/a.png`.",
-      );
-      expect(await promptFor(`selectedFile=${encodeURIComponent("lib:footage/still.png")}&previewing=1`)).toContain(
-        "The writer is previewing the image `lib:footage/still.png`.",
-      );
-      for (const dropped of [
-        ".cache/b.png",
-        "missing.png",
-        "../outside.png",
-        "lib:footage/notes.md",
-        "lib:gone/x.png",
-      ]) {
-        const prompt = await promptFor(`folderPath=stills&selectedFile=${encodeURIComponent(dropped)}`);
-        expect(prompt, dropped).not.toMatch(/The writer (has selected|is previewing)/);
-      }
-    } finally {
-      rmSync(library, { recursive: true, force: true });
+    expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png")).toContain(
+      "The writer has selected the image `stills/a.png`.",
+    );
+    expect(await promptFor("folderPath=stills&selectedFile=stills%2Fa.png&previewing=1")).toContain(
+      "The writer is previewing the image `stills/a.png`.",
+    );
+    expect(await promptFor(`selectedFile=${encodeURIComponent("lib:footage/still.png")}&previewing=1`)).toContain(
+      "The writer is previewing the image `lib:footage/still.png`.",
+    );
+    for (const dropped of [".cache/b.png", "missing.png", "../outside.png", "lib:footage/notes.md", "lib:gone/x.png"]) {
+      const prompt = await promptFor(`folderPath=stills&selectedFile=${encodeURIComponent(dropped)}`);
+      expect(prompt, dropped).not.toMatch(/The writer (has selected|is previewing)/);
     }
   });
 
   // A library's file reaches the copilot only as a raster image to look at.
   it("names a library's raster image by its library path, and any other library view as no file open", async () => {
-    const library = mkdtempSync(path.join(tmpdir(), "pragma-assistant-library-"));
+    const library = tempDir("pragma-assistant-library-");
     giveSpaceLibraries(configDir, spaceRoot, [{ id: "footage", label: "Footage", path: library, access: "read-only" }]);
     writeFileSync(path.join(library, "still.png"), "");
     const app = createSpaceApiRoutes(spaceRoot, undefined, { ownMachine: true });
@@ -159,27 +142,23 @@ describe("the chat route", () => {
       return String(model.doGenerateCalls[0].prompt[0].content);
     };
 
-    try {
-      expect(await promptFor("imagePath", "lib:footage/still.png")).toContain(
-        "the image `lib:footage/still.png` open in a read-only preview",
-      );
-      expect(await promptFor("besideImagePath", "lib:footage/still.png")).toContain(
-        "other editor group shows the image `lib:footage/still.png`",
-      );
-      const others = [
-        ["imagePath", "lib:footage/logo.svg"],
-        ["videoPath", "lib:footage/clip.mp4"],
-        ["tablePath", "lib:footage/shots.table.html"],
-        ["path", "lib:footage/notes.md"],
-        ["folderPath", "lib:footage"],
-      ];
-      for (const [param, libraryPath] of others) {
-        const prompt = await promptFor(param, libraryPath);
-        expect(prompt).toContain("no file open in the editor");
-        expect(prompt).not.toContain("lib:footage");
-      }
-    } finally {
-      rmSync(library, { recursive: true, force: true });
+    expect(await promptFor("imagePath", "lib:footage/still.png")).toContain(
+      "the image `lib:footage/still.png` open in a read-only preview",
+    );
+    expect(await promptFor("besideImagePath", "lib:footage/still.png")).toContain(
+      "other editor group shows the image `lib:footage/still.png`",
+    );
+    const others = [
+      ["imagePath", "lib:footage/logo.svg"],
+      ["videoPath", "lib:footage/clip.mp4"],
+      ["tablePath", "lib:footage/shots.table.html"],
+      ["path", "lib:footage/notes.md"],
+      ["folderPath", "lib:footage"],
+    ];
+    for (const [param, libraryPath] of others) {
+      const prompt = await promptFor(param, libraryPath);
+      expect(prompt).toContain("no file open in the editor");
+      expect(prompt).not.toContain("lib:footage");
     }
   });
 });

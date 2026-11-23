@@ -1,26 +1,16 @@
-import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it } from "vitest";
 import { spaceApiPlugin } from "../../src/server/createServer.ts";
 import { createServedSpace } from "../../src/server/servedSpace.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 type Middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => Promise<void>;
 
 let space: string;
-let configDir: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-dev-api-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-dev-api-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
+  space = tempDir("pragma-dev-api-");
+  isolateConfig();
 });
 
 // The middleware the plugin adds to the dev server, taken as it registers.

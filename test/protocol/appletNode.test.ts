@@ -1,5 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { readAppletFile } from "../../src/protocol/appletFile.ts";
@@ -13,6 +12,7 @@ import { NODE_EXECUTORS, type NodeExecutionContext } from "../../src/protocol/fl
 import { nodePorts } from "../../src/protocol/flowNodes.ts";
 import { runFlow } from "../../src/protocol/flowRuntime.ts";
 import type { AppletManifest, AppletPorts, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const ports: AppletPorts = {
   inputs: [],
@@ -221,57 +221,49 @@ describe("an Applet node in a run", () => {
 
 describe("an Applet manifest's ports", () => {
   it("are read with ids unique, types known, every input optional and each named by its id", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "pragma-applet-ports-"));
-    try {
-      const file = path.join(dir, "stage.applet.html");
-      writeFileSync(
-        file,
-        `<script type="application/json" data-role="manifest">${JSON.stringify({
-          ports: {
-            inputs: [{ id: "caption", type: "text" }],
-            outputs: [
-              { id: "frame", type: "image", label: "Frame" },
-              { id: "frame", type: "text" },
-              { id: "", type: "text" },
-              { id: "mesh", type: "geometry" },
-            ],
-          },
-        })}</script>`,
-      );
-      expect((await readAppletFile(file)).manifest.ports).toEqual({
-        inputs: [{ id: "caption", type: "text", label: "caption", required: false }],
-        outputs: [{ id: "frame", type: "image", label: "frame" }],
-      });
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempDir("pragma-applet-ports-");
+    const file = path.join(dir, "stage.applet.html");
+    writeFileSync(
+      file,
+      `<script type="application/json" data-role="manifest">${JSON.stringify({
+        ports: {
+          inputs: [{ id: "caption", type: "text" }],
+          outputs: [
+            { id: "frame", type: "image", label: "Frame" },
+            { id: "frame", type: "text" },
+            { id: "", type: "text" },
+            { id: "mesh", type: "geometry" },
+          ],
+        },
+      })}</script>`,
+    );
+    expect((await readAppletFile(file)).manifest.ports).toEqual({
+      inputs: [{ id: "caption", type: "text", label: "caption", required: false }],
+      outputs: [{ id: "frame", type: "image", label: "frame" }],
+    });
   });
 
   it("keep a port's description trimmed, and none that is blank or isn't text", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "pragma-applet-ports-"));
-    try {
-      const file = path.join(dir, "stage.applet.html");
-      writeFileSync(
-        file,
-        `<script type="application/json" data-role="manifest">${JSON.stringify({
-          ports: {
-            inputs: [],
-            outputs: [
-              { id: "frame", type: "image", description: "  The camera's view. " },
-              { id: "blank", type: "text", description: "  " },
-              { id: "count", type: "number", description: 7 },
-            ],
-          },
-        })}</script>`,
-      );
-      expect((await readAppletFile(file)).manifest.ports?.outputs).toEqual([
-        { id: "frame", type: "image", label: "frame", description: "The camera's view." },
-        { id: "blank", type: "text", label: "blank" },
-        { id: "count", type: "number", label: "count" },
-      ]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempDir("pragma-applet-ports-");
+    const file = path.join(dir, "stage.applet.html");
+    writeFileSync(
+      file,
+      `<script type="application/json" data-role="manifest">${JSON.stringify({
+        ports: {
+          inputs: [],
+          outputs: [
+            { id: "frame", type: "image", description: "  The camera's view. " },
+            { id: "blank", type: "text", description: "  " },
+            { id: "count", type: "number", description: 7 },
+          ],
+        },
+      })}</script>`,
+    );
+    expect((await readAppletFile(file)).manifest.ports?.outputs).toEqual([
+      { id: "frame", type: "image", label: "frame", description: "The camera's view." },
+      { id: "blank", type: "text", label: "blank" },
+      { id: "count", type: "number", label: "count" },
+    ]);
   });
 
   it("draw a saved port's description, and none that isn't text", () => {

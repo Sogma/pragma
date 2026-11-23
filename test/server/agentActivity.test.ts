@@ -1,5 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -11,10 +10,10 @@ import {
 } from "../../src/config/loadConfig.ts";
 import { activitySince, resetActivityLog } from "../../src/server/activityLog.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../../src/server/apiServer.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 // Over real HTTP, like the REST and MCP suites: what the Console reports is
 // what actually reached the listener, not what a unit test handed a function.
-let configDir: string;
 let space: string;
 let endpoint: AgentEndpoint | undefined;
 let base: string;
@@ -45,9 +44,8 @@ async function mcp(body: unknown, bearer = token): Promise<void> {
 }
 
 beforeEach(async () => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-activity-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-activity-space-"));
+  isolateConfig();
+  space = tempDir("pragma-activity-space-");
   writeFileSync(path.join(space, "hello.md"), "# Hello\n");
 
   saveGlobalConfig({ ...rememberSpace(loadGlobalConfig(), space), api: { enabled: true, port: 0 } });
@@ -69,9 +67,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await endpoint?.close();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("what the agent endpoint reports to the Console", () => {

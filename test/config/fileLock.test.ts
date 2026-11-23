@@ -1,21 +1,20 @@
-import { mkdtempSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LockBusyError, withFileLock } from "../../src/config/fileLock.ts";
+import { tempDir } from "../support/isolation.ts";
 import { holdLockInAnotherProcess, releaseLockHolders } from "../support/lockHolder.ts";
 
 let dir: string;
 let lockPath: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-filelock-"));
+  dir = tempDir("pragma-filelock-");
   lockPath = path.join(dir, "locks", "slot.lock");
 });
 
 afterEach(async () => {
   await releaseLockHolders();
-  rmSync(dir, { recursive: true, force: true });
 });
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {

@@ -1,8 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import {
   historyFiles,
   historyVersion,
@@ -15,28 +14,22 @@ import {
 import { spaceRoutes } from "../../src/server/routes.ts";
 import { createServedSpace } from "../../src/server/servedSpace.ts";
 import { revisionOf } from "../../src/server/spaceFiles.ts";
+import { isolateConfig, tempDir, tempSpace } from "../support/isolation.ts";
 
-const roots: string[] = [];
 const MINUTE = 60 * 1000;
 
 // History is host state in the install-global config directory, so each
 // test gets a throwaway one, and a space registered in it.
-beforeEach(async () => {
-  const configDir = await mkdtemp(path.join(tmpdir(), "pragma-history-config-"));
-  roots.push(configDir);
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+beforeEach(() => {
+  isolateConfig();
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.useRealTimers();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 async function space(files: Record<string, string> = {}): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-history-space-"));
-  roots.push(root);
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), root));
+  const root = tempSpace("pragma-history-space-");
   for (const [name, content] of Object.entries(files)) {
     await mkdir(path.dirname(path.join(root, name)), { recursive: true });
     await writeFile(path.join(root, name), content);
@@ -110,8 +103,7 @@ describe("writeDocument", () => {
     await writeDocument(root, path.join(root, "big.md"), "small now", { source: "edit" });
     expect(await historyFiles(root)).toEqual([]);
 
-    const unregistered = await mkdtemp(path.join(tmpdir(), "pragma-history-unregistered-"));
-    roots.push(unregistered);
+    const unregistered = tempDir("pragma-history-unregistered-");
     await writeFile(path.join(unregistered, "note.md"), "first");
     await writeDocument(unregistered, path.join(unregistered, "note.md"), "second", { source: "edit" });
     expect(await historyFiles(unregistered)).toEqual([]);

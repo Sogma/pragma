@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { builtAppProblem, isSourceCheckout } from "../../src/server/builtApp.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let root: string;
 
@@ -20,11 +20,7 @@ function build(builtAt: Date, inputs: string[]): void {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), "pragma-built-app-"));
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = tempDir("pragma-built-app-");
 });
 
 describe("builtAppProblem", () => {

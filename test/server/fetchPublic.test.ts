@@ -1,8 +1,8 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { fetchPublic, fetchPublicToFile, isPrivateAddress } from "../../src/server/fetchPublic.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // The guard a result download goes through. Name resolution and the fetch are
 // stand-ins, so no test touches the network.
@@ -97,35 +97,31 @@ describe("fetchPublic", () => {
 
 describe("fetchPublicToFile", () => {
   it("writes the bytes into the file named for the answer's type, under the same guard and cap", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "pragma-fetch-public-"));
-    try {
-      const written = await fetchPublicToFile(
-        "https://cdn.example/clip",
-        {
-          maxBytes: 100,
-          resolve: publicName,
-          fetchFn: respond(new Uint8Array([1, 2, 3]), { headers: { "content-type": "video/mp4" } }),
-        },
-        (mediaType) => path.join(dir, mediaType === "video/mp4" ? "clip.mp4" : "clip.bin"),
-      );
-      expect(written).toBe(path.join(dir, "clip.mp4"));
-      expect([...readFileSync(written)]).toEqual([1, 2, 3]);
+    const dir = tempDir("pragma-fetch-public-");
+    const written = await fetchPublicToFile(
+      "https://cdn.example/clip",
+      {
+        maxBytes: 100,
+        resolve: publicName,
+        fetchFn: respond(new Uint8Array([1, 2, 3]), { headers: { "content-type": "video/mp4" } }),
+      },
+      (mediaType) => path.join(dir, mediaType === "video/mp4" ? "clip.mp4" : "clip.bin"),
+    );
+    expect(written).toBe(path.join(dir, "clip.mp4"));
+    expect([...readFileSync(written)]).toEqual([1, 2, 3]);
 
-      // Past the cap partway, nothing is left behind, not even the temp file.
-      await expect(
-        fetchPublicToFile(
-          "https://cdn.example/big",
-          { maxBytes: 100, resolve: publicName, fetchFn: respond(new Uint8Array(200)) },
-          () => path.join(dir, "big.mp4"),
-        ),
-      ).rejects.toThrow(/over the 100-byte limit/);
-      expect(existsSync(path.join(dir, "big.mp4"))).toBe(false);
-      expect(readdirSync(dir)).toEqual(["clip.mp4"]);
-      await expect(
-        fetchPublicToFile("http://cdn.example/clip", { maxBytes: 100, resolve: publicName }, () => path.join(dir, "x")),
-      ).rejects.toThrow(/only https/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    // Past the cap partway, nothing is left behind, not even the temp file.
+    await expect(
+      fetchPublicToFile(
+        "https://cdn.example/big",
+        { maxBytes: 100, resolve: publicName, fetchFn: respond(new Uint8Array(200)) },
+        () => path.join(dir, "big.mp4"),
+      ),
+    ).rejects.toThrow(/over the 100-byte limit/);
+    expect(existsSync(path.join(dir, "big.mp4"))).toBe(false);
+    expect(readdirSync(dir)).toEqual(["clip.mp4"]);
+    await expect(
+      fetchPublicToFile("http://cdn.example/clip", { maxBytes: 100, resolve: publicName }, () => path.join(dir, "x")),
+    ).rejects.toThrow(/only https/);
   });
 });

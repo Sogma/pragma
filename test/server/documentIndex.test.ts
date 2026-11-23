@@ -1,7 +1,6 @@
-import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { emptyClass } from "../../src/protocol/classFile.ts";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
 import {
@@ -10,18 +9,9 @@ import {
   type IndexRoot,
   installDocumentIndex,
 } from "../../src/server/documentIndex.ts";
+import { tempDir } from "../support/isolation.ts";
 
-const roots: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
-
-async function folder(): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-document-index-"));
-  roots.push(root);
-  return root;
-}
+const folder = () => tempDir("pragma-document-index-");
 
 async function write(root: string, relative: string, content: string): Promise<string> {
   const absolute = path.join(root, ...relative.split("/"));
@@ -30,7 +20,7 @@ async function write(root: string, relative: string, content: string): Promise<s
   return absolute;
 }
 
-const note = async (content: string) => write(await folder(), "note.md", content);
+const note = (content: string) => write(folder(), "note.md", content);
 
 const spaceAt = (dir: string): IndexRoot => ({ dir, root: "space" });
 
@@ -114,7 +104,7 @@ describe("one file's entry", () => {
 
   it("is never made for a link or a missing file", async () => {
     const index = createDocumentIndex();
-    const root = await folder();
+    const root = folder();
     const target = await write(root, "target.md", "---\nstatus: done\n---\n\n# Target\n");
     const link = path.join(root, "link.md");
     await symlink(target, link);
@@ -128,8 +118,8 @@ describe("one file's entry", () => {
 describe("a root's check", () => {
   it("drops the entry of a file that changed, forgets one that went, and leaves other roots alone", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
-    const library = await folder();
+    const space = folder();
+    const library = folder();
     const changed = await write(space, "changed.md", "---\nstatus: draft\n---\n");
     const gone = await write(space, "gone.md", "---\nstatus: draft\n---\n");
     const kept = await write(space, "deep/kept.md", "---\nstatus: draft\n---\n");
@@ -147,7 +137,7 @@ describe("a root's check", () => {
 
   it("forgets an entry inside a dot folder or behind a link, which no path names", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     const hidden = await write(space, ".trash/old.md", "---\nstatus: draft\n---\n");
     await symlink(path.join(space, ".trash"), path.join(space, "linked"));
     index.frontmatter(hidden);
@@ -159,7 +149,7 @@ describe("a root's check", () => {
 
   it("is shared by a question asked while it runs, and runs anew after", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "note.md", "# Note\n");
     const first = index.check(spaceAt(space));
     expect(index.check(spaceAt(space))).toBe(first);
@@ -173,7 +163,7 @@ describe("backlinks", () => {
 
   it("lists each note whose own text links to a note, with the line and place of each mention", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     await write(space, "a.md", "# A\n\nSee [[plan]] and [[Plan]].\n");
     await write(space, "x/b.md", "[the plan](../plan.md)\r\n");
@@ -191,7 +181,7 @@ describe("backlinks", () => {
 
   it("counts no embed, web link, folder link, or link in code or frontmatter", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     await write(space, "embed.md", "![](plan.md)\n");
     await write(space, "web.md", "[plan](https://example.com/plan.md) and [mail](mailto:plan.md)\n");
@@ -203,7 +193,7 @@ describe("backlinks", () => {
 
   it("reads a link as a path from the note's own folder, or from the root, as the resolver does", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "notes/plan.md", "# Plan\n");
     await write(space, "notes/sibling.md", "[[plan]]\n");
     await write(space, "other/far.md", "[[plan]] names other/plan, and [[/notes/plan]] names the note\n");
@@ -221,7 +211,7 @@ describe("backlinks", () => {
 
   it("counts a wikilink that leaves off `.md` only while it names that one file", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     await write(space, "a.md", "[[plan]] and [[plan.md]]\n");
     expect(await index.backlinks("plan.md", [spaceAt(space)])).toEqual([
@@ -241,7 +231,7 @@ describe("backlinks", () => {
 
   it("leaves out a note's links to itself, and a preset's links to a note outside the presets", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     const isPreset = (path: string) => path.startsWith("presets/");
     await write(space, "plan.md", "# Plan\n\nSee [[plan]].\n");
     await write(space, "presets/brief.md", "[[/plan]] and [[outline]]\n");
@@ -254,8 +244,8 @@ describe("backlinks", () => {
 
   it("reads a library note's from its library and from the space", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
-    const library = await folder();
+    const space = folder();
+    const library = folder();
     await write(library, "refs/plan.md", "# Plan\n");
     await write(library, "inside.md", "[[refs/plan]]\n");
     await write(space, "outside.md", "[[lib:refs-lib/refs/plan]] and [this](lib:refs-lib/refs/plan.md)\n");
@@ -270,7 +260,7 @@ describe("backlinks", () => {
 
   it("follows edits, new notes and deletions between two questions", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     const a = await write(space, "a.md", "[[plan]]\n");
     const b = await write(space, "b.md", "[[plan]]\n");
@@ -285,7 +275,7 @@ describe("backlinks", () => {
 
   it("keeps a note filed when a question about that one file read it again in between", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     const a = await write(space, "a.md", "[[plan]]\n");
     expect(linking(await index.backlinks("plan.md", [spaceAt(space)]))).toEqual(["a.md"]);
@@ -302,7 +292,7 @@ describe("classes", () => {
 
   it("lists each Class under a root with its definition, but one that doesn't read as one or no path names", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "shots.class.html", classFile("Shots", ["refs/guide.md"]));
     await write(space, "deep/cast.class.html", classFile("Cast"));
     await write(space, "broken.class.html", "<table>not a Class</table>");
@@ -314,7 +304,7 @@ describe("classes", () => {
 
   it("reads a Class again once it changes, and sees one added or gone at the next question", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     const shots = await write(space, "shots.class.html", classFile("Shots"));
     expect(names(await index.classes(spaceAt(space)))).toEqual(["Shots"]);
     await writeFile(shots, classFile("Shot list"));
@@ -331,7 +321,7 @@ describe("tags", () => {
 
   it("lists a note's frontmatter tags and those written in its text, where each sits, and a Table's metadata tags", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "a.md", "---\ntags: [Draft, night]\n---\n\nSee #rain and\n  `#code` #Draft\n");
     await write(space, "b.md", "---\ntags: poetry\n---\nNo inline tags.\n");
     await write(space, "c.md", "Nothing here.\n");
@@ -355,7 +345,7 @@ describe("tags", () => {
 
   it("sees a tag added, edited or gone at the next question", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     const a = await write(space, "a.md", "#one\n");
     expect(byPath(await index.tagged(spaceAt(space)))["a.md"]).toEqual([{ name: "one", line: 1, text: "#one", at: 0 }]);
     await writeFile(a, "---\ntags: [two]\n---\n#three\n");
@@ -369,7 +359,7 @@ describe("tags", () => {
 
   it("answers one note's tags written in its text, and keeps its links for the next check", async () => {
     const index = createDocumentIndex();
-    const space = await folder();
+    const space = folder();
     await write(space, "plan.md", "# Plan\n");
     const a = await write(space, "a.md", "#todo [[plan]] #Later\n");
     expect(index.inlineTags(a)).toEqual(["todo", "Later"]);

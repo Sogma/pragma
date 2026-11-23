@@ -1,24 +1,20 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { readStaticFile } from "../../src/server/staticFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let root: string;
 let outside: string;
 
 beforeEach(() => {
-  outside = mkdtempSync(path.join(tmpdir(), "pragma-static-"));
+  outside = tempDir("pragma-static-");
   root = path.join(outside, "web");
   mkdirSync(path.join(root, "assets"), { recursive: true });
   writeFileSync(path.join(root, "index.html"), "<p>editor</p>");
   writeFileSync(path.join(root, "welcome.html"), "<p>welcome</p>");
   writeFileSync(path.join(root, "assets", "welcome.js"), "start();");
   writeFileSync(path.join(outside, "secret.txt"), "secret");
-});
-
-afterEach(() => {
-  rmSync(outside, { recursive: true, force: true });
 });
 
 // The editor's server and the desktop app's first-run window both serve the

@@ -1,30 +1,22 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { findSpaceId, loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import type { SpaceListResponse } from "../../src/protocol/api.ts";
 import { spaceRoutes } from "../../src/server/routes.ts";
 import { createServedSpace } from "../../src/server/servedSpace.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 // Two registered spaces, the first served: what a service account holds once
 // someone has added a second space, or what the desktop app's account holds
 // when the service runs as it.
-let configDir: string;
 let served: string;
 let other: string;
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-registry-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  served = mkdtempSync(path.join(tmpdir(), "pragma-registry-served-"));
-  other = mkdtempSync(path.join(tmpdir(), "pragma-registry-other-"));
+  isolateConfig();
+  served = tempDir("pragma-registry-served-");
+  other = tempDir("pragma-registry-other-");
   saveGlobalConfig(rememberSpace(rememberSpace(loadGlobalConfig(), other), served));
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  for (const dir of [configDir, served, other]) rmSync(dir, { recursive: true, force: true });
 });
 
 function routesFor(ownMachine: boolean) {

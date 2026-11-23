@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { licenceAllowed, writeThirdPartyNotices } from "../../scripts/third-party-notices.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const TEXTS = path.join(import.meta.dirname, "../../scripts/licence-texts");
 
@@ -31,11 +31,10 @@ interface FakePackage {
 
 describe("writeThirdPartyNotices", () => {
   let root = "";
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
 
   // An app root holding a lockfile and the packages it lists.
   function fakeApp(packages: Record<string, FakePackage>): string {
-    root = mkdtempSync(path.join(os.tmpdir(), "notices-"));
+    root = tempDir("notices-");
     const lock: Record<string, unknown> = { "": { name: "app" } };
     for (const [dir, { manifest, files = {}, dev }] of Object.entries(packages)) {
       mkdirSync(path.join(root, dir), { recursive: true });

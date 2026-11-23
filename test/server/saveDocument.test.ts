@@ -1,30 +1,21 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
 import { capabilityDigest } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
 import { grantCapability, isCapabilityGranted } from "../../src/server/grants.ts";
 import { saveDocument } from "../../src/server/saveDocument.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // Grants are install-global: PRAGMA_CONFIG_DIR keeps these off the
 // developer's own approvals.
-let configDir: string;
 let space: string;
 const relativePath = "shot.flow.html";
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  space = mkdtempSync(path.join(tmpdir(), "pragma-save-"));
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
+  isolateConfig();
+  space = tempSpace("pragma-save-");
 });
 
 function graph(appletConfig: Record<string, unknown>): FlowGraph {

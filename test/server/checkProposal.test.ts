@@ -1,13 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { contentHashFor } from "../../src/protocol/appletFile.ts";
 import { parseFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import type { FlowEdgeInstance, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 import { checkProposal } from "../../src/server/checkProposal.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // What the copilot proposes, checked against a real space on disk: problems
 // come back instead of a proposal, and a Flow comes back with what the host
@@ -42,7 +42,7 @@ const HELPER = "export const tone = 2;\n";
 const TYPES = "checkbox, color, integer, media, path, select, text, timestamp";
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-proposal-"));
+  space = tempDir("pragma-proposal-");
   for (const dir of ["notes", "renders", ".pragma"]) mkdirSync(path.join(space, dir));
   writeFileSync(path.join(space, "notes", "idea.md"), "# Idea\n");
   writeFileSync(path.join(space, "notes", "secret.md"), "---\nvisibility: private\n---\nhidden\n");
@@ -60,10 +60,6 @@ beforeEach(() => {
       rows: [],
     }),
   );
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("checkProposal", () => {

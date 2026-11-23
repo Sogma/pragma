@@ -1,13 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { APICallError, RetryError } from "ai";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { EffortLevel } from "../../src/protocol/api.ts";
 import { type ContextLook, LOOK_REACH, lookFurther, refusesTools } from "../../src/server/contextLook.ts";
 import { CONTEXT_FILE_LIMIT, placeContext, readContext } from "../../src/server/pathContext.ts";
 
 import { listRootPaths } from "../../src/server/tree.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Conformance tests for docs/protocol.md's Context of a path, past its
 // starting files: what the model's tools let it see, in the scope's folder
@@ -53,7 +53,7 @@ async function call(look: ContextLook, name: string, input: object): Promise<str
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-look-"));
+  space = tempDir("pragma-look-");
   clock = 0;
   write("AGENTS.md", "# Space rules\n");
   write("top.md", "# Top\n\nLina at the top.\n");
@@ -69,10 +69,6 @@ beforeEach(() => {
   write("projects/story/notes/secret.md", `${PRIVATE}Lina's secret. [Lina](../world/Lina.md)\n`);
   write("projects/story/screenplay/01 Opening.fountain", "LINA\nHome is south.\n");
   write(TENT, "LINA\nWhere?\n");
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
 });
 
 describe("listing the scope", () => {

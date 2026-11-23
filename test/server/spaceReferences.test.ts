@@ -1,26 +1,19 @@
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { emptyClass, parseClassFile } from "../../src/protocol/classFile.ts";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
 import { parseFrontmatter } from "../../src/protocol/frontmatter.ts";
 import { parseTableFile } from "../../src/protocol/tableFile.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import { rewriteMovedReferences } from "../../src/server/spaceReferences.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // The move → rewrite path end to end, over a real directory: a file or
 // folder is renamed on disk exactly as the route does it, and then the paths
 // that named it are expected to still name it, written as a new one would be.
-const spaces: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(spaces.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
-
 async function space(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-refs-test-"));
-  spaces.push(root);
+  const root = tempDir("pragma-refs-test-");
   for (const [relative, content] of Object.entries(files)) {
     const absolute = path.join(root, relative);
     await mkdir(path.dirname(absolute), { recursive: true });

@@ -1,5 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openAgentEndpoint } from "../../src/cli/hostSpace.ts";
@@ -13,17 +11,16 @@ import {
 import type { AgentEndpoint } from "../../src/server/apiServer.ts";
 import { spaceRoutes } from "../../src/server/routes.ts";
 import { createServedSpace } from "../../src/server/servedSpace.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
-let configDir: string;
 let first: string;
 let second: string;
 let endpoint: AgentEndpoint | undefined;
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-served-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  first = mkdtempSync(path.join(tmpdir(), "pragma-served-first-"));
-  second = mkdtempSync(path.join(tmpdir(), "pragma-served-second-"));
+  isolateConfig();
+  first = tempDir("pragma-served-first-");
+  second = tempDir("pragma-served-second-");
   const registered = rememberSpace(rememberSpace(loadGlobalConfig(), first), second);
   saveGlobalConfig({ ...registered, api: { enabled: true, port: 0 } });
 });
@@ -32,8 +29,6 @@ afterEach(async () => {
   await endpoint?.close();
   endpoint = undefined;
   vi.restoreAllMocks();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  for (const dir of [configDir, first, second]) rmSync(dir, { recursive: true, force: true });
 });
 
 function mint(space: string): string {

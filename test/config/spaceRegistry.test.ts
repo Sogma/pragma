@@ -1,7 +1,6 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   findSpaceId,
   type PragmaGlobalConfig,
@@ -12,6 +11,7 @@ import {
   resolveOpenableSpace,
   spaceLabel,
 } from "../../src/config/loadConfig.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Narrowing helper: every assertion below is about a space that *is*
 // registered, so an absent id is a test failure rather than a case to handle.
@@ -200,15 +200,11 @@ describe("resolveOpenableSpace", () => {
   const dead = "/definitely/not/a/real/space";
 
   beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "pragma-openable-"));
+    dir = tempDir("pragma-openable-");
     alive = path.join(dir, "alive");
     alsoAlive = path.join(dir, "also-alive");
     await mkdir(alive);
     await mkdir(alsoAlive);
-  });
-
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
   });
 
   it("prefers the configured space when its folder is still there", () => {

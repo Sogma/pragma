@@ -1,9 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { APICallError } from "ai";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generationEffort } from "../../src/protocol/dispatchAction.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
@@ -17,6 +15,7 @@ import {
   readSandboxDocument,
   SandboxRequestError,
 } from "../../src/server/sandbox.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // The model call itself is stubbed: what's checked is which files reach it,
 // and that nothing does before the scope they come from is allowed.
@@ -45,7 +44,6 @@ function flow(wired: boolean): string {
 }
 
 let space: string;
-let configDir: string;
 
 function write(relative: string, content: string): void {
   const file = path.join(space, ...relative.split("/"));
@@ -63,10 +61,8 @@ async function statusOf(promise: Promise<unknown>): Promise<number | undefined> 
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-sandbox-context-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-sandbox-context-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  isolateConfig();
+  space = tempSpace("pragma-sandbox-context-");
   write("tools/wired.flow.html", flow(true));
   write("tools/unwired.flow.html", flow(false));
   write("projects/story/AGENTS.md", "---\npragma:\n  screenplay:\n    world: world/\n---\n\n# story\n");
@@ -75,12 +71,6 @@ beforeEach(() => {
   write("projects/story/screenplay/scene.fountain", "LINA\nWhere?\n");
   vi.mocked(runGenerate).mockClear();
   vi.mocked(runGenerateOptions).mockClear();
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("a generation's effort", () => {

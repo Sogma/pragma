@@ -1,22 +1,16 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   collectPublishImages,
   describeImageNotes,
   type PublishImage,
   rewriteImageEmbeds,
 } from "../../src/server/publishAssets.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 
 // Collecting reads real bytes off disk, so every case needs a real space.
-const spaces: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(spaces.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
-
 // A one-pixel PNG, and a second that differs only in its trailing byte, so
 // two files can be told apart by content rather than by name.
 const PNG = Buffer.from(
@@ -27,8 +21,7 @@ const PNG = Buffer.from(
 const OTHER_PNG = Buffer.concat([PNG, Buffer.from([0x00])]);
 
 async function space(files: Record<string, string | Buffer>): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-publish-assets-"));
-  spaces.push(root);
+  const root = tempDir("pragma-publish-assets-");
   for (const [relative, content] of Object.entries(files)) {
     const absolute = path.join(root, relative);
     await mkdir(path.dirname(absolute), { recursive: true });
@@ -114,34 +107,26 @@ describe("collecting the images a publish has to upload", () => {
     const library = await space({ "stills/hero.png": PNG });
     const configDir = await space({});
     giveSpaceLibraries(configDir, root, [{ id: "shots", label: "Shots", path: library, access: "read-only" }]);
-    process.env.PRAGMA_CONFIG_DIR = configDir;
-    try {
-      const { images, skipped } = await collect(root, "blog/post.md", "blog", "![L](lib:shots/stills/hero.png)");
+    isolateConfig(configDir);
+    const { images, skipped } = await collect(root, "blog/post.md", "blog", "![L](lib:shots/stills/hero.png)");
 
-      expect(skipped).toEqual([]);
-      expect(images).toHaveLength(1);
-      expect(images[0]).toMatchObject({
-        spacePath: "lib:shots/stills/hero.png",
-        filename: "hero.png",
-        outsideSite: true,
-      });
-    } finally {
-      delete process.env.PRAGMA_CONFIG_DIR;
-    }
+    expect(skipped).toEqual([]);
+    expect(images).toHaveLength(1);
+    expect(images[0]).toMatchObject({
+      spacePath: "lib:shots/stills/hero.png",
+      filename: "hero.png",
+      outsideSite: true,
+    });
   });
 
   it("reports an embed naming a library the space hasn't got rather than resolving it against the space", async () => {
     const root = await space({ "blog/post.md": "", "lib:shots/hero.png": PNG });
     const configDir = await space({});
-    process.env.PRAGMA_CONFIG_DIR = configDir;
-    try {
-      const { images, skipped } = await collect(root, "blog/post.md", "blog", "![L](lib:shots/hero.png)");
+    isolateConfig(configDir);
+    const { images, skipped } = await collect(root, "blog/post.md", "blog", "![L](lib:shots/hero.png)");
 
-      expect(images).toEqual([]);
-      expect(skipped).toEqual([{ raw: "lib:shots/hero.png", reason: 'No library "shots" is located in this space' }]);
-    } finally {
-      delete process.env.PRAGMA_CONFIG_DIR;
-    }
+    expect(images).toEqual([]);
+    expect(skipped).toEqual([{ raw: "lib:shots/hero.png", reason: 'No library "shots" is located in this space' }]);
   });
 
   it("reports an embed with a scheme pragma doesn't define", async () => {

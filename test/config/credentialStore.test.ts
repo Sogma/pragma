@@ -1,7 +1,6 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Protector, SealedPart } from "../../src/config/credentialProtector.ts";
 import {
   type CredentialSlot,
@@ -9,17 +8,14 @@ import {
   createFileCredentialStore,
   encodeCredentialId,
 } from "../../src/config/credentialStore.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let root: string;
 const anthropic: CredentialSlot = { kind: "provider-keys", id: "anthropic" };
 const endpoint = "https://api.anthropic.com/v1";
 
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), "pragma-credentials-"));
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = tempDir("pragma-credentials-");
 });
 
 const plainStore = () => createFileCredentialStore({ backing: "plain", root: () => root });

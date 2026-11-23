@@ -3,7 +3,6 @@ import {
   closeSync,
   ftruncateSync,
   mkdirSync,
-  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
@@ -11,11 +10,10 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { MockVideoModelV4 } from "ai/test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadGlobalConfig } from "../../src/config/loadConfig.ts";
 import type { GenerateVideoRequestBody } from "../../src/protocol/api.ts";
 import type { VideoCallOptions, VideoStatusResult } from "../../src/protocol/videoGeneration.ts";
 import { grantCapability } from "../../src/server/grants.ts";
@@ -29,6 +27,7 @@ import {
   SandboxRequestError,
   startSandboxGenerateVideo,
 } from "../../src/server/sandbox.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Video node: the grant, the folder, reuse by
@@ -119,10 +118,8 @@ async function failure(promise: Promise<unknown>): Promise<SandboxRequestError |
 }
 
 beforeEach(async () => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-generate-video-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-generate-video-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  configDir = isolateConfig();
+  space = tempSpace("pragma-generate-video-");
   writeFileSync(path.join(space, "v.flow.html"), FLOW);
   mkdirSync(path.join(space, "clips"));
   flow = await readSandboxDocument(space, "flow", "v.flow.html");
@@ -141,12 +138,6 @@ beforeEach(async () => {
     now: Date.now,
     spaceRoot: (spaceId) => loadGlobalConfig().spaces?.[spaceId]?.path,
   });
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("performSandboxGenerateVideo", () => {

@@ -1,10 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { APICallError } from "ai";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchGenerate, dispatchGenerateOptions, generationEffort } from "../../src/protocol/dispatchAction.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // What a generation sends, read off the provider's one completion call.
 const { complete } = vi.hoisted(() => ({ complete: vi.fn(async () => ({ text: '["a", "b"]' })) }));
@@ -157,18 +155,11 @@ describe("a generation that may look further", () => {
 
 describe("a refusal a setting fixes", () => {
   const ask = { instruction: "List the shots.", values: {}, images: {} };
-  let configDir: string;
 
   // The no-model refusal's wording depends on the providers config.json
   // lists, so this points PRAGMA_CONFIG_DIR at a throwaway one, with none.
   beforeEach(() => {
-    configDir = mkdtempSync(path.join(tmpdir(), "pragma-dispatch-config-"));
-    process.env.PRAGMA_CONFIG_DIR = configDir;
-  });
-
-  afterEach(() => {
-    delete process.env.PRAGMA_CONFIG_DIR;
-    rmSync(configDir, { recursive: true, force: true });
+    isolateConfig();
   });
 
   it("needs a default text model when the call names none", async () => {

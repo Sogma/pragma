@@ -1,5 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -18,6 +17,7 @@ import {
   upsertProviderConfig,
 } from "../../src/config/loadConfig.ts";
 import { resolveModel, UnresolvedModelError } from "../../src/protocol/modelProvider.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // Which providers there are (only the configured ones), which key each
 // resolves, its two model lists, how a model ref finds its provider, and the
@@ -26,8 +26,7 @@ import { resolveModel, UnresolvedModelError } from "../../src/protocol/modelProv
 let configDir: string;
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-model-providers-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   vi.stubEnv("ANTHROPIC_API_KEY", "env-anthropic");
   vi.stubEnv("OPENAI_API_KEY", "env-openai");
   vi.stubEnv("GEMINI_API_KEY", "env-gemini");
@@ -35,8 +34,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("provider keys", () => {

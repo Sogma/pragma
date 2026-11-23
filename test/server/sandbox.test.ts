@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { capabilityDigest, readFlowFile } from "../../src/protocol/flowFile.ts";
 import { serializeFlowFile } from "../../src/protocol/flowHtml.ts";
@@ -21,6 +20,7 @@ import {
   readSandboxTarget,
   SandboxRequestError,
 } from "../../src/server/sandbox.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 import { isoVideo, trackHeader } from "../support/videoFixtures.ts";
 
@@ -68,12 +68,11 @@ let library: string;
 let configDir: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-sandbox-"));
-  library = mkdtempSync(path.join(tmpdir(), "pragma-sandbox-library-"));
+  space = tempDir("pragma-sandbox-");
+  library = tempDir("pragma-sandbox-library-");
   // A library's folder sits in the config, so this points PRAGMA_CONFIG_DIR
   // at a throwaway directory rather than reading the developer's own.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-sandbox-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   giveSpaceLibraries(configDir, space, [{ id: "footage", label: "Footage", path: library, access: "read-only" }]);
   writeFileSync(path.join(library, "sunset.png"), PNG);
   writeFileSync(path.join(library, "notes.md"), "# In the library\n");
@@ -84,13 +83,6 @@ beforeEach(() => {
   writeFileSync(path.join(space, "p.png"), PNG);
   mkdirSync(path.join(space, "notes"));
   writeFileSync(path.join(space, "notes", "a.md"), "# A\n");
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(library, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 async function statusOf(promise: Promise<unknown>): Promise<number | undefined> {

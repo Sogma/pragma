@@ -1,12 +1,12 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PublisherConnection } from "../../src/protocol/publisher.ts";
 import { runPublish } from "../../src/server/publishHandler.ts";
 import { revisionOf } from "../../src/server/spaceFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // The whole publish, end to end, against a stand-in for the service: images
 // staged and uploaded, the body rewritten to what came back, the file on disk
@@ -199,15 +199,12 @@ async function startStub(): Promise<Stub> {
 }
 
 let stub: Stub;
-const spaces: string[] = [];
-
 beforeEach(async () => {
   stub = await startStub();
 });
 
 afterEach(async () => {
   await new Promise<void>((resolve) => stub.server.close(() => resolve()));
-  await Promise.all(spaces.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 function publisher(): PublisherConnection {
@@ -215,8 +212,7 @@ function publisher(): PublisherConnection {
 }
 
 async function space(files: Record<string, string | Buffer>): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-publish-flow-"));
-  spaces.push(root);
+  const root = tempDir("pragma-publish-flow-");
   for (const [relative, content] of Object.entries(files)) {
     const absolute = path.join(root, relative);
     await mkdir(path.dirname(absolute), { recursive: true });

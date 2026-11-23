@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { findSpaceId, loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
@@ -12,10 +11,10 @@ import {
   syncAll,
   UntrustedSpaceError,
 } from "../../src/server/gitHandler.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 // A repository's own config naming programs git runs — the attack the trust
 // gate exists for. Each payload leaves a marker file if git ever ran it.
-let configDir: string;
 let root: string;
 // Git reads no one's own config here, or a contributor's `pull.rebase` would
 // change what a pull does. simple-git drops GIT_CONFIG_GLOBAL from the
@@ -23,21 +22,17 @@ let root: string;
 const home = { HOME: process.env.HOME, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME };
 
 beforeEach(() => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  root = mkdtempSync(path.join(tmpdir(), "pragma-git-"));
+  isolateConfig();
+  root = tempDir("pragma-git-");
   process.env.HOME = root;
   process.env.XDG_CONFIG_HOME = root;
 });
 
 afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
   for (const [key, value] of Object.entries(home)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
-  rmSync(configDir, { recursive: true, force: true });
-  rmSync(root, { recursive: true, force: true });
 });
 
 function git(cwd: string, ...args: string[]): void {

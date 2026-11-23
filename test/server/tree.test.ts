@@ -1,25 +1,21 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
 import { buildTree, listFolder, listRootPaths, scopesOnDisk, searchableFiles } from "../../src/server/tree.ts";
+import { tempDir } from "../support/isolation.ts";
 import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 let library: string;
 
 beforeEach(() => {
-  library = mkdtempSync(path.join(tmpdir(), "pragma-tree-"));
+  library = tempDir("pragma-tree-");
   mkdirSync(path.join(library, "shots/day1"), { recursive: true });
   writeFileSync(path.join(library, "shots/day1/a.png"), "");
   mkdirSync(path.join(library, "scripts"));
   writeFileSync(path.join(library, "scripts/notes.md"), "");
   mkdirSync(path.join(library, "empty"));
   writeFileSync(path.join(library, "top.md"), "");
-});
-
-afterEach(() => {
-  rmSync(library, { recursive: true, force: true });
 });
 
 describe("buildTree — depth", () => {

@@ -1,20 +1,16 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalChangeFeeds } from "../../src/server/changeFeeds.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Real folders and real timers: what is under test is whether a change on
 // disk reaches the version, by either of the two ways it can.
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), "pragma-changes-"));
+  root = tempDir("pragma-changes-");
   await mkdir(path.join(root, "notes"));
-});
-
-afterEach(async () => {
-  await rm(root, { recursive: true, force: true });
 });
 
 async function changesFrom(read: () => string, from: string, within = 3000): Promise<boolean> {

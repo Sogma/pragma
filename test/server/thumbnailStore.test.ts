@@ -1,7 +1,5 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readdir } from "node:fs/promises";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   checkThumbnail,
   createDiskThumbnailStore,
@@ -13,6 +11,7 @@ import {
   parseFacts,
   thumbnailMediaType,
 } from "../../src/server/thumbnailStore.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // Headers only: the store and the check read a thumbnail's type and size,
 // never its pixels.
@@ -50,12 +49,8 @@ const clip = {
 describe("disk thumbnail store", () => {
   let dir: string;
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "pragma-thumbnails-"));
-  });
-
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  beforeEach(() => {
+    dir = tempDir("pragma-thumbnails-");
   });
 
   const key = (version: string, file = "/space/stills/a.png", root = "/space") => ({ root, file, version });

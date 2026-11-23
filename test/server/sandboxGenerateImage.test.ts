@@ -1,7 +1,6 @@
 import {
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -9,11 +8,10 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { MockImageModelV4 } from "ai/test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadGlobalConfig } from "../../src/config/loadConfig.ts";
 import type { GenerateImageRequestBody } from "../../src/protocol/api.ts";
 import type { ImageCallOptions, ProviderImageJobs } from "../../src/protocol/imageGeneration.ts";
 import { grantCapability } from "../../src/server/grants.ts";
@@ -27,6 +25,7 @@ import {
   SandboxRequestError,
   startSandboxGenerateImage,
 } from "../../src/server/sandbox.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Image node: the grant, the folder, and reuse
@@ -80,20 +79,12 @@ async function statusOf(promise: Promise<unknown>): Promise<number | undefined> 
 }
 
 beforeEach(async () => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-generate-image-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-generate-image-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  configDir = isolateConfig();
+  space = tempSpace("pragma-generate-image-");
   writeFileSync(path.join(space, "g.flow.html"), FLOW);
   mkdirSync(path.join(space, "art"));
   flow = await readSandboxDocument(space, "flow", "g.flow.html");
   calls = [];
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("performSandboxGenerateImage", () => {

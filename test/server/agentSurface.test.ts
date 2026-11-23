@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it } from "vitest";
 import { isVisible, visiblePaths } from "../../src/server/agentSurface.ts";
+import { tempDir } from "../support/isolation.ts";
 
 // What the agent API will read has to be exactly what it lists: a file the
 // per-path check admits but the listing hides would be a disclosure, and one
@@ -26,8 +26,8 @@ function onDisk(dir: string, prefix = ""): string[] {
 }
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-surface-"));
-  outside = mkdtempSync(path.join(tmpdir(), "pragma-surface-outside-"));
+  space = tempDir("pragma-surface-");
+  outside = tempDir("pragma-surface-outside-");
   write("a.md", "# A\n");
   write("notes/b.md");
   write("notes/deep/c.fountain", "INT. HOUSE - DAY\n");
@@ -47,11 +47,6 @@ beforeEach(() => {
   writeFileSync(path.join(outside, "x.md"), "outside\n");
   symlinkSync(path.join(space, "a.md"), path.join(space, "alias.md"));
   symlinkSync(outside, path.join(space, "outdir"));
-});
-
-afterEach(() => {
-  rmSync(space, { recursive: true, force: true });
-  rmSync(outside, { recursive: true, force: true });
 });
 
 it("admits by path exactly the files the listing holds", async () => {

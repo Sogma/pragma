@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { bookmarksAfterMove } from "../../src/protocol/bookmarks.ts";
 import { EntryListFileError } from "../../src/server/entryListFile.ts";
 import { changeSpaceBookmark, keepSpaceBookmarks, readSpaceBookmarks } from "../../src/server/spaceBookmarks.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 
 let space: string;
@@ -12,20 +12,14 @@ let configDir: string;
 let library: string;
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-bookmarks-space-"));
-  library = mkdtempSync(path.join(tmpdir(), "pragma-bookmarks-library-"));
+  space = tempDir("pragma-bookmarks-space-");
+  library = tempDir("pragma-bookmarks-library-");
   // A library's folder sits in the config, so each test has its own.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-bookmarks-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   giveSpaceLibraries(configDir, space, [{ id: "refs", label: "Refs", path: library, access: "read-only" }]);
   mkdirSync(path.join(space, "notes"));
   writeFileSync(path.join(space, "notes", "a.md"), "# A\n");
   writeFileSync(path.join(library, "moodboard.png"), "");
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  for (const dir of [space, library, configDir]) rmSync(dir, { recursive: true, force: true });
 });
 
 const bookmarksFile = () => path.join(space, ".pragma", "bookmarks.json");
@@ -111,14 +105,10 @@ describe("the space's bookmarks", () => {
   });
 
   it("refuses to write through a linked folder", async () => {
-    const elsewhere = mkdtempSync(path.join(tmpdir(), "pragma-bookmarks-elsewhere-"));
-    try {
-      symlinkSync(elsewhere, path.join(space, ".pragma"));
-      await expect(changeSpaceBookmark(space, { add: "notes/a.md" })).rejects.toThrow("symbolic link");
-      expect(existsSync(path.join(elsewhere, "bookmarks.json"))).toBe(false);
-    } finally {
-      rmSync(elsewhere, { recursive: true, force: true });
-    }
+    const elsewhere = tempDir("pragma-bookmarks-elsewhere-");
+    symlinkSync(elsewhere, path.join(space, ".pragma"));
+    await expect(changeSpaceBookmark(space, { add: "notes/a.md" })).rejects.toThrow("symbolic link");
+    expect(existsSync(path.join(elsewhere, "bookmarks.json"))).toBe(false);
   });
 
   it("keeps a bookmark on its entry, and writes nothing when none follows", async () => {

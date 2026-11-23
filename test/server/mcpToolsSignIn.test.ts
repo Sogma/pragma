@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
 import type { ResolvedMcpServer } from "../../src/config/loadConfig.ts";
 import { saveMcpSignIn } from "../../src/server/mcpSignIn.ts";
 import { connectMcpServer, mcpServerSignIn } from "../../src/server/mcpTools.ts";
+import { isolateConfig } from "../support/isolation.ts";
 import { type OAuthStandIn, startOAuthStandIn } from "../support/oauthStandIn.ts";
 
 // The copilot's connector with a real MCP client against a stand-in server:
@@ -27,8 +27,7 @@ async function storeToken(token: string, url: string): Promise<void> {
 beforeEach(async () => {
   standIn = await startOAuthStandIn();
   // Sign-ins rest in the global config, so it points at a throwaway directory.
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-mcp-sign-in-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  configDir = isolateConfig();
   server = { id: "standin", label: "Stand-in", url: `${standIn.base}/mcp`, copilot: true, flows: false };
   writeFileSync(
     path.join(configDir, "config.json"),
@@ -37,8 +36,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
   await standIn.close();
 });
 

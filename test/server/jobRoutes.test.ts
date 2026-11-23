@@ -1,11 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { findSpaceId, loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { findSpaceId, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import type { JobsResponse } from "../../src/protocol/api.ts";
 import { createFileJobStore, installJobStore, type JobRecord, type JobStore } from "../../src/server/jobs.ts";
 import { createSpaceApiRoutes, type SpaceApp } from "../../src/server/routes.ts";
+import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
 // /api/jobs: the open document's paid jobs for its Tools tab, and the ended
 // ones a window has shown, which the host then forgets.
@@ -35,10 +34,8 @@ const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({
 });
 
 beforeEach(() => {
-  space = mkdtempSync(path.join(tmpdir(), "pragma-job-routes-"));
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-job-routes-config-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+  configDir = isolateConfig();
+  space = tempSpace("pragma-job-routes-");
   spaceId = findSpaceId(loadGlobalConfig(), space) as string;
   store = createFileJobStore(path.join(configDir, "jobs"));
   installJobStore(store);
@@ -47,9 +44,6 @@ beforeEach(() => {
 
 afterEach(() => {
   installJobStore(createFileJobStore());
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(space, { recursive: true, force: true });
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 describe("/api/jobs", () => {

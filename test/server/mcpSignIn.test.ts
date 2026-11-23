@@ -1,7 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { credentialStore } from "../../src/config/credentials.ts";
@@ -11,6 +10,7 @@ import {
   SignInRequiredError,
   type SignInTarget,
 } from "../../src/server/mcpSignIn.ts";
+import { isolateConfig } from "../support/isolation.ts";
 import { holdLockInAnotherProcess, releaseLockHolders } from "../support/lockHolder.ts";
 import { type OAuthStandIn, startOAuthStandIn } from "../support/oauthStandIn.ts";
 
@@ -46,8 +46,7 @@ describe("MCP sign-in", () => {
   beforeEach(async () => {
     standIn = await startOAuthStandIn();
     // Sign-ins rest under the config folder, so it points at a throwaway one.
-    configDir = mkdtempSync(path.join(tmpdir(), "pragma-mcp-sign-in-"));
-    process.env.PRAGMA_CONFIG_DIR = configDir;
+    configDir = isolateConfig();
     clock = 1_000_000;
     signIns = createMcpSignIns({ port: await freePort(), now: () => clock });
     target = { id: "standin", label: "Stand-in", url: `${standIn.base}/mcp` };
@@ -58,8 +57,6 @@ describe("MCP sign-in", () => {
     vi.unstubAllGlobals();
     await signIns.close();
     await standIn.close();
-    delete process.env.PRAGMA_CONFIG_DIR;
-    rmSync(configDir, { recursive: true, force: true });
   });
 
   // Starts a sign-in and approves it, returning the callback the browser hit.
@@ -260,12 +257,10 @@ describe("MCP sign-in cancelled mid-flow", () => {
   let standIn: OAuthStandIn;
   let signIns: McpSignIns;
   let target: SignInTarget;
-  let configDir: string;
 
   beforeEach(async () => {
     standIn = await startOAuthStandIn();
-    configDir = mkdtempSync(path.join(tmpdir(), "pragma-mcp-sign-in-"));
-    process.env.PRAGMA_CONFIG_DIR = configDir;
+    isolateConfig();
     signIns = createMcpSignIns({ port: await freePort() });
     target = { id: "standin", label: "Stand-in", url: `${standIn.base}/mcp` };
   });
@@ -274,8 +269,6 @@ describe("MCP sign-in cancelled mid-flow", () => {
     vi.unstubAllGlobals();
     await signIns.close();
     await standIn.close();
-    delete process.env.PRAGMA_CONFIG_DIR;
-    rmSync(configDir, { recursive: true, force: true });
   });
 
   // Holds every request to `path` until the returned release is called.

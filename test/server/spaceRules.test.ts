@@ -1,19 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { findNearestReadme, readSpaceRulesFile } from "../../src/server/spaceFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 
 const PRIVATE = "---\nvisibility: private\n---\n";
 
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-rules-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  dir = tempDir("pragma-rules-");
 });
 
 describe("the space's operating-rules file", () => {

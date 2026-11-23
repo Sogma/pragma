@@ -1,8 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
 import { request } from "node:http";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Protector, SealedPart } from "../../src/config/credentialProtector.ts";
 import { createFileCredentialStore } from "../../src/config/credentialStore.ts";
@@ -16,6 +13,7 @@ import {
 } from "../../src/protocol/chatgptAuth.ts";
 import { type ChatGptSignIns, type ChatGptSignInTarget, createChatGptSignIns } from "../../src/server/chatgptSignIn.ts";
 import { type ChatGptStandIn, createChatGptStandIn, saveSignIn } from "../support/chatgptStandIn.ts";
+import { isolateConfig } from "../support/isolation.ts";
 
 // Signing a `chatgpt` provider in against a stand-in for OpenAI. The test
 // plays the browser: it reads the authorization URL Pragma would open, then
@@ -26,11 +24,9 @@ const HOST_ID = "urn:uuid:7f1c2b8e-0d55-4f0e-9a3c-2b1f5e6d7c8a";
 let standIn: ChatGptStandIn;
 let signIns: ChatGptSignIns;
 let target: ChatGptSignInTarget;
-let configDir: string;
 
 beforeEach(async () => {
-  configDir = mkdtempSync(path.join(tmpdir(), "pragma-chatgpt-sign-in-"));
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+  isolateConfig();
   resetChatGptAuthCache();
   standIn = await createChatGptStandIn();
   vi.stubGlobal("fetch", standIn.fetch);
@@ -42,8 +38,6 @@ afterEach(async () => {
   await signIns.close();
   setCredentialStore(createFileCredentialStore({ backing: "plain", root: globalConfigDir }));
   vi.unstubAllGlobals();
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(configDir, { recursive: true, force: true });
 });
 
 // The token endpoint's answer to a code: tokens, the scopes granted, and an

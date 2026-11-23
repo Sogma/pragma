@@ -1,45 +1,22 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  findSpaceId,
-  globalLayoutPath,
-  loadGlobalConfig,
-  rememberSpace,
-  saveGlobalConfig,
-} from "../../src/config/loadConfig.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { findSpaceId, globalLayoutPath, loadGlobalConfig } from "../../src/config/loadConfig.ts";
 import { readFolderState, readLayoutGroups, writeFolderState, writeLayoutGroups } from "../../src/server/layout.ts";
 import { spaceRoutes } from "../../src/server/routes.ts";
 import { createServedSpace } from "../../src/server/servedSpace.ts";
-
-const roots: string[] = [];
+import { isolateConfig, tempDir, tempSpace } from "../support/isolation.ts";
 
 // Layouts live in the install-global config directory, so each test gets a
 // throwaway one rather than the developer's own.
-beforeEach(async () => {
-  const configDir = await mkdtemp(path.join(tmpdir(), "pragma-layout-config-"));
-  roots.push(configDir);
-  process.env.PRAGMA_CONFIG_DIR = configDir;
+beforeEach(() => {
+  isolateConfig();
 });
 
-afterEach(async () => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
+const unregisteredSpace = () => tempDir("pragma-layout-test-");
 
-async function unregisteredSpace(): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-layout-test-"));
-  roots.push(root);
-  return root;
-}
-
-async function space(): Promise<string> {
-  const root = await unregisteredSpace();
-  saveGlobalConfig(rememberSpace(loadGlobalConfig(), root));
-  return root;
-}
+const space = () => tempSpace("pragma-layout-test-");
 
 function layoutFile(root: string): string {
   const id = findSpaceId(loadGlobalConfig(), root);
@@ -51,7 +28,7 @@ const readme = { tabs: [{ kind: "document" as const, path: "README.md" }], activ
 
 describe("folder state", () => {
   it("folds every folder below the top level of a space whose folds were never saved", async () => {
-    const root = await space();
+    const root = space();
     await mkdir(path.join(root, "a", "b", "c"), { recursive: true });
     await mkdir(path.join(root, "d"));
     await mkdir(path.join(root, ".git", "objects"), { recursive: true });
@@ -69,14 +46,14 @@ describe("folder state", () => {
   });
 
   it("keeps a saved list over the first open's, an empty one included", async () => {
-    const root = await space();
+    const root = space();
     await mkdir(path.join(root, "a", "b"), { recursive: true });
     await writeFolderState(root, { collapsedFolders: [] });
     expect(await readFolderState(root)).toEqual({ collapsedFolders: [], expandedFolders: [] });
   });
 
   it("reads a malformed list as never saved", async () => {
-    const root = await space();
+    const root = space();
     await mkdir(path.join(root, "a", "b"), { recursive: true });
     const file = layoutFile(root);
     await mkdir(path.dirname(file), { recursive: true });
@@ -85,14 +62,14 @@ describe("folder state", () => {
   });
 
   it("writes one list without dropping the other", async () => {
-    const root = await space();
+    const root = space();
     await writeFolderState(root, { collapsedFolders: ["a"], expandedFolders: ["lib:footage/stills"] });
     await writeFolderState(root, { collapsedFolders: ["b"] });
     expect(await readFolderState(root)).toEqual({ collapsedFolders: ["b"], expandedFolders: ["lib:footage/stills"] });
   });
 
   it("keeps the groups across a folder write, and the folder lists across a groups write", async () => {
-    const root = await space();
+    const root = space();
     const one = { tabs: [{ kind: "document" as const, path: "note.md" }], activeTabIndex: 0 };
     await writeLayoutGroups(root, { groups: [one], focusedGroup: 0 });
     await writeFolderState(root, { collapsedFolders: ["a"], expandedFolders: ["lib:footage/stills"] });
@@ -112,7 +89,7 @@ describe("groups", () => {
   });
 
   it("opens a space whose groups were never saved on its README, even with folder lists saved", async () => {
-    const root = await space();
+    const root = space();
     await writeFile(path.join(root, "README.md"), "# Mine\n");
     expect(await readLayoutGroups(root)).toEqual({ groups: [readme], focusedGroup: 0 });
 
@@ -121,11 +98,11 @@ describe("groups", () => {
   });
 
   it("reads no groups from a space with no README and no saved groups", async () => {
-    expect(await readLayoutGroups(await space())).toEqual({ groups: [], focusedGroup: 0 });
+    expect(await readLayoutGroups(space())).toEqual({ groups: [], focusedGroup: 0 });
   });
 
   it("keeps groups saved with every tab closed empty, README or not", async () => {
-    const root = await space();
+    const root = space();
     await writeFile(path.join(root, "README.md"), "# Mine\n");
     await writeLayoutGroups(root, { groups: [], focusedGroup: 0 });
     expect(await readLayoutGroups(root)).toEqual({ groups: [], focusedGroup: 0 });
@@ -134,7 +111,7 @@ describe("groups", () => {
   // A file in a shape no reader knows restores nothing, and the next write
   // leaves only the fields that are read.
   it("reads a file without groups as nothing to restore, and drops keys no reader knows", async () => {
-    const root = await space();
+    const root = space();
     const file = layoutFile(root);
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(file, JSON.stringify({ collapsedFolders: ["a"], tabs: [{ kind: "empty" }], activeTabIndex: 0 }));
@@ -147,7 +124,7 @@ describe("groups", () => {
 
 describe("where the layout lives", () => {
   it("writes beside config.json under the space's id, and nothing into the space", async () => {
-    const root = await space();
+    const root = space();
     await writeLayoutGroups(root, { groups: [readme], focusedGroup: 0 });
     await writeFolderState(root, { collapsedFolders: ["a"] });
 
@@ -162,7 +139,7 @@ describe("where the layout lives", () => {
   // Losing a layout costs only the open tabs, so an unreadable one is none
   // rather than the hard stop an unreadable config.json is.
   it("reads an unparseable layout as none, and the next write replaces it", async () => {
-    const root = await space();
+    const root = space();
     const file = layoutFile(root);
     await mkdir(path.dirname(file), { recursive: true });
     await writeFile(file, "{ not json");
@@ -173,7 +150,7 @@ describe("where the layout lives", () => {
   });
 
   it("reads an unregistered space as having no layout, and refuses to save one", async () => {
-    const root = await unregisteredSpace();
+    const root = unregisteredSpace();
     expect(await readFolderState(root)).toEqual({ collapsedFolders: [], expandedFolders: [] });
     await expect(writeFolderState(root, { collapsedFolders: ["a"] })).rejects.toThrow("not a registered space");
   });
@@ -191,14 +168,14 @@ describe("the layout route", () => {
   }
 
   it("answers a space whose folds were never saved with the folders below its top level folded", async () => {
-    const root = await space();
+    const root = space();
     await mkdir(path.join(root, "a", "b"), { recursive: true });
     const response = await spaceRoutes(createServedSpace(root), { ownMachine: true })().request("/api/space/layout");
     expect((await response.json()).collapsedFolders).toEqual(["a/b"]);
   });
 
   it("keeps each group's reading view and Source mode, and refuses either as anything but a boolean", async () => {
-    const root = await space();
+    const root = space();
     const group = { ...readme, readingView: false, sourceMode: true };
     expect(await post(root, [group])).toBe(204);
     expect(await readLayoutGroups(root)).toEqual({ groups: [group], focusedGroup: 0 });
@@ -209,7 +186,7 @@ describe("the layout route", () => {
   });
 
   it("keeps a document tab's place, and refuses one that isn't a line and a caret", async () => {
-    const root = await space();
+    const root = space();
     const tab = { kind: "document", path: "README.md", place: { line: 12.5, caret: { line: 14, column: 3 } } };
     const placed = { tabs: [tab], activeTabIndex: 0 };
     expect(await post(root, [placed])).toBe(204);
@@ -227,14 +204,14 @@ describe("the layout route", () => {
   });
 
   it("keeps a LUT's tab", async () => {
-    const root = await space();
+    const root = space();
     const group = { tabs: [{ kind: "lut", path: "looks/print.cube" }], activeTabIndex: 0 };
     expect(await post(root, [group])).toBe(204);
     expect(await readLayoutGroups(root)).toEqual({ groups: [group], focusedGroup: 0 });
   });
 
   it("keeps a Flow tab's view, and refuses one that isn't an offset and a zoom", async () => {
-    const root = await space();
+    const root = space();
     const tab = { kind: "flow", path: "a.flow.html", viewport: { x: -120, y: 40.5, zoom: 0.75 } };
     const viewed = { tabs: [tab], activeTabIndex: 0 };
     expect(await post(root, [viewed])).toBe(204);

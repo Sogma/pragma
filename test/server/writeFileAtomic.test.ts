@@ -1,17 +1,13 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { writeFileAtomic } from "../../src/server/spaceFiles.ts";
+import { tempDir } from "../support/isolation.ts";
 
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-atomic-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  dir = tempDir("pragma-atomic-");
 });
 
 describe("writeFileAtomic", () => {

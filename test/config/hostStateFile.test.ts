@@ -1,7 +1,6 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   HostStateParseError,
   readHostStateFile,
@@ -10,17 +9,12 @@ import {
 } from "../../src/config/hostStateFile.ts";
 import { globalConfigPath, loadGlobalConfig, saveGlobalConfig } from "../../src/config/loadConfig.ts";
 import { isCapabilityGranted } from "../../src/server/grants.ts";
+import { isolateConfig, tempDir } from "../support/isolation.ts";
 
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "pragma-hoststate-"));
-  process.env.PRAGMA_CONFIG_DIR = dir;
-});
-
-afterEach(() => {
-  delete process.env.PRAGMA_CONFIG_DIR;
-  rmSync(dir, { recursive: true, force: true });
+  dir = isolateConfig();
 });
 
 describe("readHostStateFile", () => {
@@ -128,12 +122,10 @@ describe("an unreadable config.json", () => {
 // re-prompting recovers. The write side is covered in grants.test.ts.
 describe("an unreadable grants.json", () => {
   it("is reported as nothing granted rather than thrown", async () => {
-    const space = mkdtempSync(path.join(tmpdir(), "pragma-space-"));
+    const space = tempDir("pragma-space-");
     saveGlobalConfig({ spaces: { main: { path: space } } });
     writeFileSync(path.join(dir, "grants.json"), "{ broken");
 
     expect(await isCapabilityGranted(space, { path: "a.applet.html", contentHash: "h" }, "read")).toBe(false);
-
-    rmSync(space, { recursive: true, force: true });
   });
 });

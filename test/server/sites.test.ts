@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   forgetPendingPaths,
   movePendingPaths,
@@ -13,19 +12,13 @@ import {
   resolveSiteForPath,
   updateSiteFile,
 } from "../../src/server/sites.ts";
+import { tempDir } from "../support/isolation.ts";
 import { canLockFolders, lockedFolder } from "../support/lockedFolder.ts";
 
 // Site resolution over a real directory, since both resolvers read
 // `_site.json` and ancestor `index.md` frontmatter off disk.
-const spaces: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(spaces.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
-
 async function space(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "pragma-sites-test-"));
-  spaces.push(root);
+  const root = tempDir("pragma-sites-test-");
   for (const [relative, content] of Object.entries(files)) {
     const absolute = path.join(root, relative);
     await mkdir(path.dirname(absolute), { recursive: true });
