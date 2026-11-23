@@ -298,11 +298,11 @@ describe("editorChrome Source mode", () => {
     } as unknown as DocumentPane;
   }
 
-  // Where Design sits on a Table, and like it a checkbox; the pane is
-  // refreshed once the group's mode is set.
-  it("offers Source mode first in a note's menu, checked while the group is in it", () => {
-    const { chrome, pane, toolbar, item, commands, context } = setup(note, false, notePane(true));
-    expect(toolbar()[0]).toMatchObject({ label: "Source mode", command: "editor.toggleSourceMode", checked: false });
+  // A checkbox, as Design is on a Table; the pane is refreshed once the
+  // group's mode is set.
+  it("offers Source mode in a note's menu, checked while the group is in it", () => {
+    const { chrome, pane, item, commands, context } = setup(note, false, notePane(true));
+    expect(item("Source mode")).toMatchObject({ command: "editor.toggleSourceMode", checked: false });
 
     void commands.run("editor.toggleSourceMode", context());
     expect(chrome.isSourceMode()).toBe(true);
@@ -367,15 +367,12 @@ describe("editorChrome find", () => {
     } as unknown as DocumentPane & { openFind: Mock };
   }
 
-  it("lists Find… and Replace… in a group of their own, after the pane's own actions", () => {
+  // The ⋮ lists them in the block the tab menu shares (editorArea.ts), so
+  // the chrome's own items end before them.
+  it("ends its own items before Find… and Replace…", () => {
     const { chrome, toolbar } = setup(note, false, findPane("replace"));
     chrome.setAddPropertyAvailable(true);
-    expect(toolbar().map((entry) => [entry.label, entry.group])).toEqual([
-      ["Layout", undefined],
-      ["Add property…", undefined],
-      ["Find…", "find"],
-      ["Replace…", "find"],
-    ]);
+    expect(toolbar().map((entry) => entry.label)).toEqual(["Layout", "Add property…"]);
   });
 
   it("opens the card from each, with Replace showing from Replace…", () => {
@@ -387,12 +384,12 @@ describe("editorChrome find", () => {
   });
 
   it("offers Find… alone over locked text, and neither where the card can't show", () => {
-    const labels = (findable: "find" | "replace" | undefined) =>
-      setup(note, false, findPane(findable))
-        .toolbar()
-        .map((entry) => entry.label);
-    expect(labels("find")).toEqual(["Layout", "Find…"]);
-    expect(labels(undefined)).toEqual(["Layout"]);
+    const offered = (findable: "find" | "replace" | undefined) => {
+      const { commands, context } = setup(note, false, findPane(findable));
+      return ["document.find", "document.replace"].filter((id) => commands.isEnabled(id, context()));
+    };
+    expect(offered("find")).toEqual(["document.find"]);
+    expect(offered(undefined)).toEqual([]);
   });
 
   it("names them for the command palette, where no toolbar says which document", () => {
@@ -401,15 +398,11 @@ describe("editorChrome find", () => {
   });
 
   it("offers Find… on any pane that can search what it shows, a Table's among them", () => {
-    const { pane, toolbar } = setup(table);
-    expect(toolbar().map((entry) => entry.label)).not.toContain("Find…");
+    const { pane, commands, context } = setup(table);
+    expect(commands.isEnabled("document.find", context())).toBe(false);
 
     Object.assign(pane, { findable: () => "find" });
-    expect(toolbar().map((entry) => [entry.label, entry.group])).toEqual([
-      ["Design", undefined],
-      ["Layout", undefined],
-      ["Find…", "find"],
-    ]);
+    expect(commands.isEnabled("document.find", context())).toBe(true);
   });
 
   it("opens it on Ctrl+F where the pane can search, leaving the key to the browser elsewhere", () => {
@@ -442,26 +435,19 @@ describe("editorChrome Format", () => {
     } as unknown as DocumentPane & { applyFormat: Mock };
   }
 
-  it("lists the format's own rows right after Format…, before the pane's", () => {
+  it("lists the format's own rows right after Format… and Source mode, before the pane's", () => {
     const zoom = { label: "Zoom", submenu: [{ label: "100%", run: vi.fn() }] };
     const { toolbar } = setup(note, false, formatPane(offered, undefined, [zoom]));
-    expect(toolbar().map((entry) => entry.label)).toEqual([
-      "Source mode",
-      "Format…",
-      "Zoom",
-      "Layout",
-      "Find…",
-      "Replace…",
-    ]);
+    expect(toolbar().map((entry) => entry.label)).toEqual(["Format…", "Source mode", "Zoom", "Layout"]);
   });
 
-  it("offers Format right after Source mode, checked while the setting is on, and flips the setting", () => {
+  it("offers Format… first, then Source mode, checked while the setting is on, and flips the setting", () => {
     const { toolbar, item, commands, context, formatColumn } = setup(note, false, formatPane(offered));
     expect(
       toolbar()
         .map((entry) => entry.label)
         .slice(0, 2),
-    ).toEqual(["Source mode", "Format…"]);
+    ).toEqual(["Format…", "Source mode"]);
     expect(item("Format…")?.checked).toBe(false);
 
     void commands.run("editor.toggleFormat", context());

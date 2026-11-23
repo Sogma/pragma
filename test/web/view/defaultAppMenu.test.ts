@@ -138,6 +138,15 @@ describe("showing the open file in the file manager", () => {
     expect(bridge.showInFolder).toHaveBeenCalledWith("pictures/cat.png");
   });
 
+  it("shows the file or folder a menu names, whatever the focused tab", async () => {
+    const { commands, bridge } = registered("linux");
+    const blank = on({ kind: "empty" });
+    expect(commands.isEnabled("file.showInFolder", blank, { file: "notes/a.md" })).toBe(true);
+    await commands.run("file.showInFolder", blank, { folder: "notes" });
+    expect(bridge.showInFolder).toHaveBeenCalledWith("notes");
+    expect(commands.isEnabled("file.showInFolder", blank, { file: "lib:photos/cat.png" })).toBe(false);
+  });
+
   it("doesn't apply to a library's file or a tab without one", () => {
     const { commands } = registered("linux");
     expect(commands.get("file.showInFolder")?.label).toBe("Open containing folder");

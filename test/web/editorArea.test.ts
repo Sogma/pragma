@@ -9,10 +9,11 @@ import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClie
 import { PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
-import { installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
+import { COPY_PATH, installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
 import { PREVIEW_OPEN_MENU } from "../../web/notePreview.ts";
+import type { CommandContext } from "../../web/services/commands.ts";
 import type { DialogService } from "../../web/services/dialog.ts";
-import { COMMAND_PALETTE } from "../../web/services/menus.ts";
+import { COMMAND_PALETTE, type ResolvedMenuItem } from "../../web/services/menus.ts";
 import type { SaveQueue } from "../../web/services/saveQueue.ts";
 import type { Setting } from "../../web/services/settings.ts";
 import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
@@ -208,6 +209,7 @@ async function setup(split = splitSetting(), dialog = {} as DialogService) {
     tabs,
     split,
     showExtensions: { get: () => false },
+    moveToTrash: { get: () => true },
   });
   const columns = () => [...root.querySelectorAll<HTMLElement>(".editor-group")];
   const strips = () => [...stripHost.querySelectorAll<HTMLElement>(".editor-group-tabs")];
@@ -233,6 +235,24 @@ async function setup(split = splitSetting(), dialog = {} as DialogService) {
     bars,
     barPart,
   };
+}
+
+type Harness = Awaited<ReturnType<typeof setup>>;
+
+// A pill's right-click, and the items its menu shows, resolved as the
+// context menu resolves them.
+function pillMenu(harness: Harness, index: number, strip = 0): ResolvedMenuItem[] {
+  harness
+    .strips()
+    [strip].querySelectorAll(".editor-tab")
+    [index]?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  const options = vi.mocked(harness.contextMenu.open).mock.calls.at(-1)?.[0];
+  if (!options) return [];
+  const context = { tab: harness.workspace.activeTab(), pane: harness.area.focusedPane() };
+  return [
+    ...harness.menus.resolveItems(options.items ?? [], context, options.arg),
+    ...(options.menu ? harness.menus.resolve(options.menu, context, options.arg) : []),
+  ];
 }
 
 describe("editor area", () => {
@@ -319,28 +339,41 @@ describe("editor area", () => {
   });
 
   it("opens a pill's own menu, whose items act on that tab", async () => {
-    const { tabs, workspace, area, contextMenu, commands, menus, strips } = await setup();
+    const harness = await setup();
+    const { tabs, workspace, area, commands } = harness;
     await tabs.openEntry("a.md");
     await tabs.openNew("group-1");
     await tabs.openEntry("b.md");
 
-    strips()[0]
-      .querySelector(".editor-tab")
-      ?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    const target = { groupId: "group-1", index: 0 };
-    expect(contextMenu.open).toHaveBeenCalledWith(expect.objectContaining({ menu: "editor.tab", arg: target }));
-
-    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
-    expect(menus.resolve("editor.tab", context, target).map((item) => item.label)).toEqual([
-      "Split",
-      "Move to the side",
+    // b.md shows, so a.md's pill gets only what acts on its own tab.
+    expect(pillMenu(harness, 0).map((item) => item.label)).toEqual([
       "Close",
       "Close others",
+      "Close all",
+      "Split",
+      "Move to the side",
     ]);
-    await commands.run("tab.moveToOtherGroup", context, target);
+    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
+    await commands.run("tab.moveToOtherGroup", context, { groupId: "group-1", index: 0 });
     const [left, right] = workspace.groups();
     expect(left.tabs.map((tab) => ("path" in tab ? tab.path : ""))).toEqual(["b.md"]);
     expect(right.tabs.map((tab) => ("path" in tab ? tab.path : ""))).toEqual(["a.md"]);
+  });
+
+  // The ⋮ acts on the focused group's showing tab, so only that tab's menu
+  // holds it whole.
+  it("gives the showing tab's menu the ⋮'s items after its Close items, and a tab behind none of the document's", async () => {
+    const harness = await setup();
+    await harness.tabs.openEntry("a.md");
+    await harness.tabs.openNew("group-1");
+    await harness.tabs.openEntry("b.md");
+
+    const showing = pillMenu(harness, 1).map((item) => item.label);
+    expect(showing.slice(0, 3)).toEqual(["Close", "Close others", "Close all"]);
+    expect(showing).toEqual(expect.arrayContaining(["Split", "Move to the side", "Read on the side", "Find…"]));
+    const behind = pillMenu(harness, 0).map((item) => item.label);
+    expect(behind).not.toContain("Read on the side");
+    expect(behind).not.toContain("Find…");
   });
 
   // Copy path comes with the context menu itself, so it is installed here.
@@ -362,9 +395,8 @@ describe("editor area", () => {
 
   it("offers a tab's Rename as its tree row's, the name typed in a dialog", async () => {
     const prompt = vi.fn(async () => "c");
-    const { tabs, workspace, area, commands, menus, strips } = await setup(splitSetting(), {
-      prompt,
-    } as unknown as DialogService);
+    const harness = await setup(splitSetting(), { prompt } as unknown as DialogService);
+    const { tabs, workspace, area, commands, strips } = harness;
     // The tree's Rename, as the Space view registers it: the name typed on the surface its target names.
     const named: string[] = [];
     commands.register({
@@ -380,31 +412,68 @@ describe("editor area", () => {
     await tabs.openNew("group-1");
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
 
-    const items = menus.resolve("editor.tab", context, { groupId: "group-1", index: 0 });
-    expect(items.map((item) => item.label)).toEqual(["Split", "Move to the side", "Rename…", "Close", "Close others"]);
-    const newTab = menus.resolve("editor.tab", context, { groupId: "group-1", index: 1 });
-    expect(newTab.map((item) => item.label)).not.toContain("Rename…");
+    const items = pillMenu(harness, 0);
+    expect(items.map((item) => item.label)).toEqual([
+      "Close",
+      "Close others",
+      "Close all",
+      "Split",
+      "Move to the side",
+      "Rename…",
+    ]);
+    expect(pillMenu(harness, 1).map((item) => item.label)).not.toContain("Rename…");
 
-    const rename = items[2];
-    expect(rename.arg).toMatchObject({ node: { name: "a.md", path: "a.md", type: "file" } });
+    const rename = items.find((item) => item.label === "Rename…");
+    expect(rename?.arg).toMatchObject({ node: { name: "a.md", path: "a.md", type: "file" } });
     // A right-click focuses the pill; the dialog would hand focus back to it.
     const pill = strips()[0].querySelector<HTMLElement>(".editor-tab");
     pill?.focus();
     expect(document.activeElement).toBe(pill);
-    await commands.run("tree.rename", context, rename.arg);
+    await commands.run("tree.rename", context, rename?.arg);
     expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ title: "Rename file", value: "a" }));
     expect(document.activeElement).not.toBe(pill);
     await vi.waitFor(() => expect(named).toEqual(["c.md"]));
   });
 
-  // The Space and Libraries views register these two, each offering itself
-  // only for the entries it lists, so a tab names its file, or a gallery's
-  // folder, to both.
-  it("names a tab's file, or a gallery's folder, to both views' Reveal, before Close", async () => {
-    const { tabs, panes, workspace, area, commands, menus } = await setup();
+  // The commands the file group names, as their own views register them.
+  function registerFileCommands({ commands, menus, contextMenu }: Harness): void {
+    const isRow = (_: CommandContext, arg: unknown) => (arg as { node?: unknown } | undefined)?.node != null;
+    commands.register({ id: "tree.rename", label: "Rename…", when: isRow, run: vi.fn() });
+    commands.register({ id: "tree.delete", label: "Delete", when: isRow, run: vi.fn() });
     commands.register({ id: "space.reveal", label: "Reveal in space", run: vi.fn() });
-    commands.register({ id: "library.show", label: "Reveal in library", run: vi.fn() });
-    panes.register({
+    commands.register({ id: "library.show", label: "Reveal in library", when: () => false, run: vi.fn() });
+    commands.register({ id: "file.showInFolder", label: "Reveal in File Explorer", run: vi.fn() });
+    installPathChipMenu({ commands, menus, menu: contextMenu });
+  }
+
+  it("lists what the tab menu shares in the ⋮'s order: split, find, the file's own, then its trash", async () => {
+    const harness = await setup();
+    registerFileCommands(harness);
+    await harness.tabs.openEntry("a.md");
+    const context = { tab: harness.workspace.activeTab(), pane: harness.area.focusedPane() };
+
+    const shared = harness.menus.resolve("editor.toolbar", context).filter((item) => item.group !== undefined);
+    expect(shared.map((item) => [item.label, item.group])).toEqual([
+      ["Split", "split"],
+      ["Read on the side", "split"],
+      ["Find…", "find"],
+      ["Replace…", "find"],
+      ["Rename…", "file"],
+      ["Reveal in space", "file"],
+      ["Reveal in File Explorer", "file"],
+      ["Copy path", "file"],
+      ["Move to Trash", "trash"],
+    ]);
+    expect(shared.at(-1)?.danger).toBe(true);
+    // A tab alone in its group has no others to close.
+    expect(pillMenu(harness, 0).map((item) => item.label)).not.toContain("Close all");
+  });
+
+  // A gallery's tab names its folder, and never offers the folder's trash.
+  it("names a tab's file, or a gallery's folder, to the file group, and trashes only a file", async () => {
+    const harness = await setup();
+    registerFileCommands(harness);
+    harness.panes.register({
       kind: "gallery",
       chrome: { toolbar: false, readingView: false, statusbar: false, actions: [] },
       create: () => ({
@@ -416,34 +485,29 @@ describe("editor area", () => {
         dispose: () => undefined,
       }),
     });
-    await tabs.openEntry("a.md");
-    await tabs.openNew("group-1");
-    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
-    const reveals = (index: number) =>
-      menus
-        .resolve("editor.tab", context, { groupId: "group-1", index })
-        .filter((item) => item.group === "reveal")
+    await harness.tabs.openEntry("a.md");
+    await harness.tabs.openNew("group-1");
+    await harness.tabs.openFolder("shots");
+    const fileGroup = (index: number) =>
+      pillMenu(harness, index)
+        .filter((item) => item.group === "file" || item.group === "trash")
         .map((item) => [item.command, item.arg]);
+    const row = (path: string, type: string) =>
+      expect.objectContaining({ node: expect.objectContaining({ path, type }) });
 
-    expect(menus.resolve("editor.tab", context, { groupId: "group-1", index: 0 }).map((item) => item.label)).toEqual([
-      "Split",
-      "Move to the side",
-      "Reveal in space",
-      "Reveal in library",
-      "Close",
-      "Close others",
-    ]);
-    expect(reveals(0)).toEqual([
+    expect(fileGroup(0)).toEqual([
+      ["tree.rename", row("a.md", "file")],
       ["space.reveal", { file: "a.md" }],
-      ["library.show", { file: "a.md" }],
+      ["file.showInFolder", { file: "a.md" }],
+      [COPY_PATH, { file: "a.md" }],
+      ["tree.delete", row("a.md", "file")],
     ]);
-    expect(reveals(1)).toEqual([]);
-
-    await tabs.openFolder("shots");
-    const gallery = workspace.focusedGroup().tabs.findIndex((tab) => tab.kind === "gallery");
-    expect(reveals(gallery)).toEqual([
+    const gallery = harness.workspace.focusedGroup().tabs.findIndex((tab) => tab.kind === "gallery");
+    expect(fileGroup(gallery)).toEqual([
+      ["tree.rename", row("shots", "directory")],
       ["space.reveal", { folder: "shots" }],
-      ["library.show", { folder: "shots" }],
+      ["file.showInFolder", { folder: "shots" }],
+      [COPY_PATH, { folder: "shots" }],
     ]);
   });
 
@@ -701,7 +765,9 @@ describe("editor area", () => {
     await tabs.openEntry("a.md");
     const context = () => ({ tab: workspace.activeTab(), pane: area.focusedPane() });
     const labels = (menu: string) => menus.resolve(menu, context()).map((item) => item.label);
-    expect(labels("editor.toolbar")).toEqual(expect.arrayContaining(["Read on the side", "Split Editor"]));
+    expect(labels("editor.toolbar")).toEqual(expect.arrayContaining(["Read on the side", "Split"]));
+    expect(labels("editor.toolbar")).not.toContain("Split Editor");
+    expect(labels(COMMAND_PALETTE)).toContain("Split Editor");
     expect(labels("editor.toolbar")).not.toContain("Edit on the side");
     expect(labels(COMMAND_PALETTE)).toContain("Read on the side");
 

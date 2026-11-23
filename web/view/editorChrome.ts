@@ -492,9 +492,8 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   };
 
   menus.register("editor.toolbar", (context) => [
-    // Where Design sits on a Table: the two never show together.
-    { command: "editor.toggleSourceMode", checked: () => deps.focused().isSourceMode() },
     { command: "editor.toggleFormat", checked: () => deps.formatColumn.get() },
+    { command: "editor.toggleSourceMode", checked: () => deps.focused().isSourceMode() },
     ...(deps.activeDocumentPane()?.formatMenu() ?? []),
     designItem,
     ...layoutSubmenu(context),
@@ -506,10 +505,6 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     { command: "flow.permissions" },
     ...defaultViewItem(context),
     { command: "applet.toggleCode", label: (context) => (context.tab.kind === "applet" ? "Edit code" : "Run Applet") },
-    // Last of the chrome's items: their group then follows any pane's own
-    // actions and comes before Split Editor.
-    { command: "document.find", group: "find" },
-    { command: "document.replace", group: "find" },
   ]);
 
   // The toolbar menu's commands, named for a list that has no toolbar

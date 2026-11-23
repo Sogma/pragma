@@ -736,6 +736,7 @@ async function main(): Promise<void> {
     tabs,
     split: settings.editorSplit,
     showExtensions: settings.showExtensions,
+    moveToTrash: files.moveToTrash,
   });
   createQuickOpen({
     commands,

@@ -15,7 +15,14 @@ import { isAppletFile, isMarkdownFile } from "../src/protocol/types.ts";
 import { type FileResponse, putFile, type Tab } from "./core/apiClient.ts";
 import type { PaneSelection } from "./core/chatContext.ts";
 import { onLibraryNames } from "./core/libraries.ts";
-import { displayName, extensionOf, isReadOnlyTab, OPEN_IN_NEW_TAB, pendingFileType } from "./core/paths.ts";
+import {
+  displayName,
+  extensionOf,
+  isReadOnlyTab,
+  OPEN_IN_NEW_TAB,
+  pendingFileType,
+  removalLabel,
+} from "./core/paths.ts";
 import * as spaceTree from "./core/spaceTree.ts";
 import type { Direction } from "./core/tabHistory.ts";
 import type { EditorGroup } from "./core/workspace.ts";
@@ -92,6 +99,9 @@ export interface EditorAreaDeps {
   split: Setting<number | undefined>;
   // Whether a name shows its extension, as a tab's rename field follows.
   showExtensions: Pick<Setting<boolean>, "get">;
+  // Whether a removal goes to the Trash, which a tab's names: Move to Trash
+  // or Delete.
+  moveToTrash: Pick<Setting<boolean>, "get">;
 }
 
 export interface EditorArea {
@@ -402,13 +412,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
         onSwitch: (index) => void tabs.switchTo(group.id, index),
         onClose: (index) => void tabs.close(group.id, index),
         onNew: () => void tabs.openNew(group.id),
-        onMenu: (index, event) =>
-          deps.contextMenu.open({
-            menu: "editor.tab",
-            arg: { groupId: group.id, index } satisfies TabTarget,
-            at: { x: event.clientX, y: event.clientY },
-            ariaLabel: "Tab actions",
-          }),
+        onMenu: (index, event) => openTabMenu({ groupId: group.id, index }, event),
       },
       // What shows the pane's own sections in the inspector follows the
       // focused group's pane, not any group's.
@@ -736,16 +740,8 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "library.show", group: "library" },
   ]);
   deps.keybindings.register({ key: "Mod+\\", command: "editor.split" });
-  // An Applet's Edit on the side follows the chrome's Edit code with no line
-  // between; a document's sits with Split Editor, the other way to a side.
   const runsApplet = (context: CommandContext) => context.tab.kind === "applet";
   const showsDocument = (context: CommandContext) => context.tab.kind === "document";
-  deps.menus.register("editor.toolbar", [
-    { command: "editor.editToSide", when: runsApplet },
-    { command: "editor.readToSide", group: "split" },
-    { command: "editor.editToSide", group: "split", when: showsDocument },
-    { command: "editor.split", group: "split" },
-  ]);
   deps.menus.register(COMMAND_PALETTE, [
     { command: "editor.split" },
     { command: "editor.focusOtherGroup" },
@@ -848,17 +844,21 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     when: (_, arg) => (pillTab(arg)?.group.tabs.length ?? 0) > 1,
     run: (_, arg) => tabs.closeOthers((arg as TabTarget).groupId, (arg as TabTarget).index),
   });
-  // A tab's Rename is its tree row's, the name typed in a dialog: a pill
-  // can't hold a field, and the sidebar may be hidden. A root has no name of
-  // its own to change.
-  const renameItems = (arg: unknown): MenuItem[] => {
-    const tab = arg === undefined ? undefined : pillTab(arg)?.tab;
-    if (!tab || tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version") return [];
-    if (!parseRootedPath(tab.path).path) return [];
+  deps.commands.register({
+    id: "tab.closeAll",
+    label: "Close all",
+    when: (_, arg) => (pillTab(arg)?.group.tabs.length ?? 0) > 1,
+    run: (_, arg) => tabs.closeAll((arg as TabTarget).groupId),
+  });
+  // A tab's entry as its tree row has it, for Rename and Move to Trash, the
+  // name typed in a dialog: a pill can't hold a field, and the sidebar may be
+  // hidden. A root has no name of its own to change, nor a trash.
+  const rowOf = (tab: Tab) => {
+    if (tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version") return undefined;
+    if (!parseRootedPath(tab.path).path) return undefined;
     const type = tab.kind === "gallery" ? "directory" : "file";
     const entry = { name: basenameOf(tab.path), path: tab.path, type } as const;
-    const row = treeRowMenu(entry, renameDialog(entry));
-    return [{ command: row.menu === "tree" ? "tree.rename" : "libraryTree.rename", arg: row.arg, group: "bookmark" }];
+    return { type, ...treeRowMenu(entry, renameDialog(entry)) };
   };
   // The name shows as the entry's row shows it, and a hidden extension goes
   // back on.
@@ -891,27 +891,81 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     focusedDocumentPane()?.view.focus();
     if (document.activeElement === pill) pill.blur();
   };
-  // Where the tab's file or folder sits. Both views' Reveal get it, and each
-  // offers itself only for what its own view lists.
-  const revealItems = (arg: unknown): MenuItem[] => {
-    const tab = arg === undefined ? undefined : pillTab(arg)?.tab;
+  // The tab's file or folder: its name, its bookmark, where it sits and its
+  // path, then its trash. Both views' Reveal get it, each offering itself
+  // only for what its own view lists. A folder's tab never offers the
+  // folder's trash, as no key or palette entry does.
+  const fileItems = (target: TabTarget): MenuItem[] => {
+    const tab = pillTab(target)?.tab;
     if (!tab || tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version") return [];
     const entry = tab.kind === "gallery" ? { folder: tab.path } : { file: tab.path };
+    const row = rowOf(tab);
+    const tree = row?.menu === "tree";
     return [
-      { command: "space.reveal", arg: entry, group: "reveal" },
-      { command: "library.show", arg: entry, group: "reveal" },
+      ...(row ? [{ command: tree ? "tree.rename" : "libraryTree.rename", arg: row.arg, group: "file" }] : []),
+      { command: "bookmarks.add", arg: target, group: "file" },
+      { command: "bookmarks.remove", arg: target, group: "file" },
+      { command: "space.reveal", arg: entry, group: "file" },
+      { command: "library.show", arg: entry, group: "file" },
+      { command: "file.showInFolder", arg: entry, group: "file" },
+      // The space's own top has no path to copy.
+      ...(tab.path ? [{ command: COPY_PATH, arg: entry, group: "file" }] : []),
+      ...(row?.type === "file"
+        ? [
+            {
+              command: tree ? "tree.delete" : "libraryTree.delete",
+              arg: row.arg,
+              group: "trash",
+              label: () => removalLabel(deps.moveToTrash.get()),
+              danger: true,
+            },
+          ]
+        : []),
     ];
   };
-  deps.menus.register("editor.tab", (_, arg) => [
-    { command: "tab.split", group: "group" },
-    { command: "tab.moveToOtherGroup", group: "group" },
-    ...renameItems(arg),
-    { command: "bookmarks.add", group: "bookmark" },
-    { command: "bookmarks.remove", group: "bookmark" },
-    ...revealItems(arg),
-    { command: "tab.close", group: "close" },
-    { command: "tab.closeOthers", group: "close" },
-  ]);
+  // What the tab menu and the ⋮ share, in that order, for the tab `target`
+  // names. Read on the side and Find act on the focused group's showing tab,
+  // so they come only with it; the rest name the tab itself.
+  const sharedItems = (target: TabTarget, showing: boolean): MenuItem[] => [
+    { command: "tab.split", arg: target, group: "split" },
+    { command: "tab.moveToOtherGroup", arg: target, group: "split" },
+    ...(showing
+      ? [
+          { command: "editor.readToSide", group: "split" },
+          { command: "editor.editToSide", group: "split", when: showsDocument },
+          { command: "document.find", group: "find" },
+          { command: "document.replace", group: "find" },
+        ]
+      : []),
+    ...fileItems(target),
+  ];
+  // An Applet's Edit on the side follows the chrome's Edit code with no line
+  // between; a document's sits with Split, the other way to a side.
+  deps.menus.register("editor.toolbar", () => {
+    const group = workspace.focusedGroup();
+    return [
+      { command: "editor.editToSide", when: runsApplet },
+      ...sharedItems({ groupId: group.id, index: group.activeTabIndex }, true),
+    ];
+  });
+  // A tab's menu: its Close items, then what the ⋮ holds, whole for the tab
+  // showing in the focused group, since the ⋮ acts on that tab; a right-click
+  // on a pill focuses its group. A tab behind gets what names its own file.
+  function openTabMenu(target: TabTarget, event: MouseEvent): void {
+    const group = workspace.groupById(target.groupId);
+    const showing = group === workspace.focusedGroup() && group.activeTabIndex === target.index;
+    const close: MenuItem[] = [
+      { command: "tab.close", arg: target, group: "close" },
+      { command: "tab.closeOthers", arg: target, group: "close" },
+      { command: "tab.closeAll", arg: target, group: "close" },
+    ];
+    deps.contextMenu.open({
+      items: showing ? close : [...close, ...sharedItems(target, false)],
+      ...(showing ? { menu: "editor.toolbar" } : {}),
+      at: { x: event.clientX, y: event.clientY },
+      ariaLabel: "Tab actions",
+    });
+  }
   // An empty tab offers the tree's document creates, made at the space's
   // top (the tree's argument for the space around its rows) and
   // opened in the tab's place. The name is typed in a dialog, as a tab's

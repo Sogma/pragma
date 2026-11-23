@@ -122,6 +122,8 @@ export interface Tabs {
   moveToOtherGroup(groupId: string, index: number, at?: number): Promise<void>;
   /** Closes every tab in the group but the one at `index`. */
   closeOthers(groupId: string, index: number): Promise<void>;
+  /** Closes every tab in the group, as closing its last one does. */
+  closeAll(groupId: string): Promise<void>;
   /** Puts the tab at `index` into slot `to` of its own strip — counting the
    * tabs as the strip showed them, the moved one included. What the group
    * shows stays as it was. */
@@ -999,6 +1001,23 @@ export function createTabs(deps: TabsDeps): Tabs {
       group.activeTabIndex = 0;
       if (wasActive) listChanged();
       else await renderActive(group);
+    },
+
+    // All at once, so none of them is drawn on its way out.
+    async closeAll(groupId) {
+      const group = workspace.groupById(groupId);
+      if (!group) return;
+      await deps.flush();
+      if (!alive(group)) return;
+      for (const tab of group.tabs) releaseModel(tab);
+      group.tabs = [];
+      if (workspace.groups().length > 1) {
+        removeGroup(group);
+        return;
+      }
+      group.tabs.push({ kind: "empty" });
+      group.activeTabIndex = 0;
+      await renderActive(group);
     },
 
     async openToSide(path, options = {}) {

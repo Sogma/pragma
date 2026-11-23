@@ -1608,6 +1608,32 @@ describe("two groups", () => {
     expect(log).toContain("mount document a.md");
   });
 
+  it("closes every tab at once, down to one empty tab when the group is the only one", async () => {
+    const { tabs, workspace, deps, log } = await withGroups();
+    await tabs.openEntry("a.md");
+    await tabs.openNew(GROUP);
+    await tabs.openEntry("b.md");
+    log.length = 0;
+
+    await tabs.closeAll(GROUP);
+    expect(workspace.focusedGroup().tabs).toEqual([{ kind: "empty" }]);
+    expect(deps.documents.release).toHaveBeenCalledWith("a.md");
+    expect(deps.documents.release).toHaveBeenCalledWith("b.md");
+    expect(log).not.toContain("mount document a.md");
+  });
+
+  it("closes the group itself when every tab in it closes beside another", async () => {
+    const { tabs, workspace } = await withGroups();
+    await tabs.openEntry("a.md");
+    await tabs.openToSide("b.md");
+    const [left] = workspace.groups();
+
+    await tabs.closeAll(left.id);
+    expect(workspace.groups().map((group) => group.tabs)).toEqual([
+      [{ kind: "document", path: "b.md", documentType: "note" }],
+    ]);
+  });
+
   it("splits from a pill: the tab right-clicked, not the active one", async () => {
     const { tabs, workspace } = await withGroups();
     await tabs.openEntry("a.md");

@@ -6,7 +6,7 @@
 // In the browser the menu says why the file stays closed, except beside a
 // row or tile whose tooltip already says so.
 import { basenameOf, isLibraryPath } from "../../src/protocol/rootedPath.ts";
-import type { PragmaElectronBridge } from "../core/apiClient.ts";
+import type { PragmaElectronBridge, Tab } from "../core/apiClient.ts";
 import { CANT_OPEN } from "../core/paths.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
 import { COMMAND_PALETTE, type ContextMenuService, type MenuItem, type MenuRegistry } from "../services/menus.ts";
@@ -85,26 +85,36 @@ function showInFolderLabel(platform: string): string {
   return "Open containing folder";
 }
 
-/** The file or folder open in the focused group, shown in the system's file
- * manager. Never a library's, which the main process won't show
- * (src/server/defaultApp.ts). */
+/** The file or folder a menu names as `{ file }` or `{ folder }`, else the
+ * one open in the focused group, shown in the system's file manager. Never a
+ * library's, which the main process won't show (src/server/defaultApp.ts). */
 export function registerShowInFolder(
   bridge: Pick<PragmaElectronBridge, "platform" | "showInFolder"> | undefined,
   deps: { commands: CommandRegistry; menus: MenuRegistry },
 ): void {
   if (!bridge) return;
-  const shownPath = ({ tab }: CommandContext): string | undefined =>
-    tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version" || isLibraryPath(tab.path)
-      ? undefined
-      : tab.path;
+  const shownPath = ({ tab }: CommandContext, arg: unknown): string | undefined => {
+    const path = arg === undefined ? openPath(tab) : namedPath(arg);
+    return path === undefined || isLibraryPath(path) ? undefined : path;
+  };
   deps.commands.register({
     id: "file.showInFolder",
     label: showInFolderLabel(bridge.platform),
-    when: (context) => shownPath(context) !== undefined,
-    run: (context) => {
-      const path = shownPath(context);
+    when: (context, arg) => shownPath(context, arg) !== undefined,
+    run: (context, arg) => {
+      const path = shownPath(context, arg);
       if (path !== undefined) void bridge.showInFolder(path);
     },
   });
   deps.menus.register(COMMAND_PALETTE, [{ command: "file.showInFolder" }]);
+}
+
+function openPath(tab: Tab): string | undefined {
+  return tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version" ? undefined : tab.path;
+}
+
+function namedPath(arg: unknown): string | undefined {
+  if (typeof arg !== "object" || arg === null) return undefined;
+  const path = "file" in arg ? arg.file : "folder" in arg ? arg.folder : undefined;
+  return typeof path === "string" ? path : undefined;
 }
