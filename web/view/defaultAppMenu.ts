@@ -77,8 +77,12 @@ export function createDefaultAppMenu(deps: DefaultAppMenuDeps): (path: string, f
   };
 }
 
+// Each system's own name for its file manager. Linux has no single one to
+// name, so its label says what happens instead.
 function showInFolderLabel(platform: string): string {
-  return platform === "darwin" ? "Show in Finder" : "Show in folder";
+  if (platform === "darwin") return "Reveal in Finder";
+  if (platform === "win32") return "Reveal in File Explorer";
+  return "Open containing folder";
 }
 
 /** The file or folder open in the focused group, shown in the system's file

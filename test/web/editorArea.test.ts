@@ -397,6 +397,56 @@ describe("editor area", () => {
     await vi.waitFor(() => expect(named).toEqual(["c.md"]));
   });
 
+  // The Space and Libraries views register these two, each offering itself
+  // only for the entries it lists, so a tab names its file, or a gallery's
+  // folder, to both.
+  it("names a tab's file, or a gallery's folder, to both views' Reveal, before Close", async () => {
+    const { tabs, panes, workspace, area, commands, menus } = await setup();
+    commands.register({ id: "space.reveal", label: "Reveal in space", run: vi.fn() });
+    commands.register({ id: "library.show", label: "Reveal in library", run: vi.fn() });
+    panes.register({
+      kind: "gallery",
+      chrome: { toolbar: false, readingView: false, statusbar: false, actions: [] },
+      create: () => ({
+        kind: "gallery" as const,
+        element: document.createElement("div"),
+        setInput: async () => undefined,
+        clearInput: () => undefined,
+        title: () => "shots",
+        dispose: () => undefined,
+      }),
+    });
+    await tabs.openEntry("a.md");
+    await tabs.openNew("group-1");
+    const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
+    const reveals = (index: number) =>
+      menus
+        .resolve("editor.tab", context, { groupId: "group-1", index })
+        .filter((item) => item.group === "reveal")
+        .map((item) => [item.command, item.arg]);
+
+    expect(menus.resolve("editor.tab", context, { groupId: "group-1", index: 0 }).map((item) => item.label)).toEqual([
+      "Split",
+      "Move to the side",
+      "Reveal in space",
+      "Reveal in library",
+      "Close",
+      "Close others",
+    ]);
+    expect(reveals(0)).toEqual([
+      ["space.reveal", { file: "a.md" }],
+      ["library.show", { file: "a.md" }],
+    ]);
+    expect(reveals(1)).toEqual([]);
+
+    await tabs.openFolder("shots");
+    const gallery = workspace.focusedGroup().tabs.findIndex((tab) => tab.kind === "gallery");
+    expect(reveals(gallery)).toEqual([
+      ["space.reveal", { folder: "shots" }],
+      ["library.show", { folder: "shots" }],
+    ]);
+  });
+
   it("offers New Note, Table, Flow and Class on an empty tab, made at the space's top, the name typed in a dialog", async () => {
     const prompt = vi.fn(async () => "Plans");
     const { tabs, root, commands } = await setup(splitSetting(), { prompt } as unknown as DialogService);
@@ -445,7 +495,7 @@ describe("editor area", () => {
       "Open",
       "Open in new tab",
       "Open to the side",
-      "Show in editor",
+      "Reveal in editor",
     ]);
 
     // Both commands start the open without awaiting it, as from the tree.
@@ -630,7 +680,7 @@ describe("editor area", () => {
       "Open in new tab",
       "Open to the side",
       "Edit on the side",
-      "Show in editor",
+      "Reveal in editor",
     ]);
     // The toolbar's menu names no file: it takes the focused tab, while that runs an Applet.
     const toolbar = (tab: Tab) => menus.resolve("editor.toolbar", { tab, pane: undefined }).map((item) => item.label);
@@ -792,7 +842,7 @@ describe("editor area", () => {
       "Open",
       "Open in new tab",
       "Open to the side",
-      "Show in editor",
+      "Reveal in editor",
     ]);
     const toggle = document.querySelector(".editor-toolbar-reading-toggle");
     await commands.run("editor.toggleReadingView", context);
@@ -805,7 +855,7 @@ describe("editor area", () => {
     expect(reveal).toHaveBeenCalledWith("a.md");
   });
 
-  it("offers a linked name in the text Show in links too, which opens the Links tab on the focused pane's row", async () => {
+  it("offers a linked name in the text Reveal in links too, which opens the Links tab on the focused pane's row", async () => {
     const { tabs, workspace, area, commands, menus, inspector } = await setup();
     await tabs.openEntry("a.md");
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
@@ -814,7 +864,7 @@ describe("editor area", () => {
       "Open",
       "Open in new tab",
       "Open to the side",
-      "Show in links",
+      "Reveal in links",
     ]);
 
     const reveal = vi.spyOn(area.focusedDocumentPane() as DocumentPane, "revealLink");

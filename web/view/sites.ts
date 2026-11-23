@@ -214,9 +214,6 @@ export interface SiteDialogsDeps {
   publishers(): readonly { id: string; label: string }[];
   // Reveals and opens the new site's `index.md` once it exists.
   onSiteCreated(sitePath: string): Promise<void>;
-  // Brings the Space view up with the site's folder open and its row in
-  // view, as a folder bookmark does.
-  showInSpace(sitePath: string): void;
 }
 
 /** The routes Site Settings reads and writes through. */
@@ -547,14 +544,15 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
     // narrowing, since a command's arg arrives untyped from the menu.
     run: (_, arg: ListItemTarget) => void openSiteSettings((arg as { kind: "site"; path: string }).path),
   });
-  // Local, so unlike Settings it needs no publisher key.
-  deps.commands.register({
-    id: "site.showInSpace",
-    label: "Show in space",
-    when: (_, arg: ListItemTarget | undefined) => arg?.kind === "site",
-    run: (_, arg: ListItemTarget) => deps.showInSpace((arg as { kind: "site"; path: string }).path),
+  deps.menus.register("listItem", (_, arg) => {
+    const target = arg as ListItemTarget | undefined;
+    return [
+      { command: "site.settings" },
+      // A site's folder is a space folder, revealed as any other is. Local,
+      // so unlike Settings it needs no publisher key.
+      ...(target?.kind === "site" ? [{ command: "space.reveal", arg: { folder: target.path } }] : []),
+    ];
   });
-  deps.menus.register("listItem", [{ command: "site.settings" }, { command: "site.showInSpace" }]);
 
   return { openNewSite };
 }

@@ -616,7 +616,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   // Reveals the focused pane's row: a right-click focused that pane's group.
   deps.commands.register({
     id: "editor.showInLinks",
-    label: "Show in links",
+    label: "Reveal in links",
     when: (_, arg) => fileOf(arg) !== undefined && focusedDocumentPane() !== undefined,
     run: (_, arg) => {
       const path = fileOf(arg);
@@ -632,7 +632,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   // to select, so it gives way to editing; a read-only tab never can.
   deps.commands.register({
     id: "editor.showInEditor",
-    label: "Show in editor",
+    label: "Reveal in editor",
     when: (context, arg) =>
       fileOf(arg) !== undefined && focusedDocumentPane() !== undefined && !isReadOnlyTab(context.tab),
     run: (_, arg) => {
@@ -648,7 +648,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   // that listed it, with its first mention of that document selected.
   deps.commands.register({
     id: "editor.showLinkingMention",
-    label: "Show in editor",
+    label: "Reveal in editor",
     when: (_, arg) => fileOf(arg) !== undefined && targetOf(arg) !== undefined,
     run: async (_, arg) => {
       const path = fileOf(arg);
@@ -891,12 +891,24 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     focusedDocumentPane()?.view.focus();
     if (document.activeElement === pill) pill.blur();
   };
+  // Where the tab's file or folder sits. Both views' Reveal get it, and each
+  // offers itself only for what its own view lists.
+  const revealItems = (arg: unknown): MenuItem[] => {
+    const tab = arg === undefined ? undefined : pillTab(arg)?.tab;
+    if (!tab || tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version") return [];
+    const entry = tab.kind === "gallery" ? { folder: tab.path } : { file: tab.path };
+    return [
+      { command: "space.reveal", arg: entry, group: "reveal" },
+      { command: "library.show", arg: entry, group: "reveal" },
+    ];
+  };
   deps.menus.register("editor.tab", (_, arg) => [
     { command: "tab.split", group: "group" },
     { command: "tab.moveToOtherGroup", group: "group" },
     ...renameItems(arg),
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
+    ...revealItems(arg),
     { command: "tab.close", group: "close" },
     { command: "tab.closeOthers", group: "close" },
   ]);

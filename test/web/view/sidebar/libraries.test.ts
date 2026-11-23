@@ -425,6 +425,35 @@ describe("createLibrariesView", () => {
     expect(reveal).toHaveBeenCalledTimes(1);
   });
 
+  // A tab's file comes up the same way, with only the folders above it opened.
+  it("revealFile opens the folders above a library's file, then centres and flashes its row", async () => {
+    const listed: Record<string, SpaceTreeNode[]> = {
+      "": [{ name: "shots", path: "shots", type: "directory" }],
+      shots: [{ name: "b.png", path: "shots/b.png", type: "file" }],
+    };
+    const fetchLibraryFolder = vi.fn((_id: string, dir: string) => Promise.resolve({ entries: listed[dir] }));
+    const collapsed = { isCollapsed: vi.fn(() => false), setCollapsed: vi.fn(), expand: vi.fn(), reveal: vi.fn() };
+    const label = document.createElement("span");
+    label.className = "node-label";
+    label.dataset.path = "lib:two/shots/b.png";
+    const reveal = vi.fn(() => true);
+    const createTree = vi.fn(() => {
+      const element = document.createElement("ul");
+      element.append(label);
+      return { element, render: vi.fn(), hasRow: () => true, reveal, dispose: vi.fn() };
+    });
+    const d = deps({ fetchLibraryFolder, collapsed, createTree });
+    const libraries = await shown(d);
+
+    libraries.revealFile("lib:two/shots/b.png");
+    expect(collapsed.reveal).toHaveBeenCalledWith("lib:two/shots/b.png");
+    expect(collapsed.expand).not.toHaveBeenCalledWith("lib:two/shots/b.png");
+    expect(d.show).toHaveBeenCalled();
+    libraries.view.onShow?.();
+    await vi.waitFor(() => expect(reveal).toHaveBeenCalledWith("lib:two/shots/b.png"));
+    expect(label.classList.contains("flash")).toBe(true);
+  });
+
   it("collapsing or switching clears the previous body", async () => {
     const d = deps();
     const { view } = await shown(d);
@@ -686,6 +715,7 @@ describe("createLibraryManager", () => {
     const onDeleted = vi.fn();
     const reveal = vi.fn();
     const revealFolder = vi.fn();
+    const revealFile = vi.fn();
     const trash = { on: true };
     const tree: LibraryTreeActions = {
       startCreate: vi.fn(),
@@ -711,9 +741,11 @@ describe("createLibraryManager", () => {
       refresh,
       reveal,
       revealFolder,
+      revealFile,
     });
     return {
       revealFolder,
+      revealFile,
       trash,
       commands,
       menus,
@@ -821,18 +853,24 @@ describe("createLibraryManager", () => {
     expect(cancelled.refresh).not.toHaveBeenCalled();
   });
 
-  // A status bar path's folder or a preset folder names a library's folder:
-  // its top shows the library, one inside opens down to that folder.
-  it("offers Show in library on a library's folders, the top showing the library", async () => {
-    const { commands, reveal, revealFolder } = manager("read-only");
+  // A tab's file or folder, a status bar path's folder or a preset folder
+  // names a library's entry: its top shows the library, a folder inside opens
+  // down to it, and a file comes up with the folders above it open.
+  it("offers Reveal in library on a library's files and folders, the top showing the library", async () => {
+    const { commands, reveal, revealFolder, revealFile } = manager("read-only");
+    expect(commands.get("library.show")?.label).toBe("Reveal in library");
     expect(commands.isEnabled("library.show", context, { folder: "lib:one", ownView: true })).toBe(true);
     expect(commands.isEnabled("library.show", context, { folder: "lib:one/batch", ownView: true })).toBe(true);
+    expect(commands.isEnabled("library.show", context, { file: "lib:one/batch/a.png" })).toBe(true);
     expect(commands.isEnabled("library.show", context, { folder: "notes", ownView: true })).toBe(false);
+    expect(commands.isEnabled("library.show", context, { file: "notes/a.md" })).toBe(false);
     expect(commands.isEnabled("library.show", context, target())).toBe(false);
     await commands.run("library.show", context, { folder: "lib:one", ownView: true });
     await commands.run("library.show", context, { folder: "lib:one/batch", ownView: true });
+    await commands.run("library.show", context, { file: "lib:one/batch/a.png" });
     expect(reveal).toHaveBeenCalledWith("one");
     expect(revealFolder).toHaveBeenCalledWith("lib:one/batch");
+    expect(revealFile).toHaveBeenCalledWith("lib:one/batch/a.png");
   });
 
   // Rename, Properties and Remove name no path, so they are offered on every

@@ -74,6 +74,27 @@ test("renames a note from its tab's menu, the name typed in a dialog", async ({ 
   await expect(page.locator(".cm-content")).toBeFocused();
 });
 
+// The row comes back however the tree lost it: another view showing, and its
+// folder folded since the tab opened.
+test("reveals a tab's file in the space from its tab's menu", async ({ page }) => {
+  const path = "projects/getting-started/sample-scene.md";
+  await page.goto("/");
+  await openFolder(page, "projects/getting-started");
+  await (await treeRow(page, path)).click();
+  await expect(page.locator(".editor-tab.active .editor-tab-label")).toHaveText("sample-scene");
+
+  const row = page.locator(`#tree-nodes .node-label[data-path="${path}"]`);
+  await (await treeRow(page, "projects/getting-started")).click();
+  await expect(row).toHaveCount(0);
+  await page.locator('#rail .rail-icon[data-view="bookmarks"]').click();
+  await expect(page.locator("#tree-nodes")).toBeHidden();
+
+  await page.locator(".editor-tab.active").click({ button: "right" });
+  await page.locator(".context-menu button", { hasText: "Reveal in space" }).click();
+  await expect(row).toBeVisible();
+  await expect(row).toHaveClass(/\bflash\b/);
+});
+
 test("makes a note from an empty tab's New Note, at the space's top, in the tab's place", async ({ page, request }) => {
   const name = `empty-tab-note-${Date.now()}`;
   await page.goto("/");

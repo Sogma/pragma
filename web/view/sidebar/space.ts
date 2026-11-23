@@ -675,13 +675,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   }
 
   // A preset folder's menu: where it lives, and, for one the space lists,
-  // taking it out. A library's folder is the Libraries view's to show.
+  // taking it out.
   function folderMenu(event: MouseEvent, folder: string, listed?: { kind: PresetKind; folder: string }): void {
     event.preventDefault();
     const items: MenuItem[] = [
-      isLibraryPath(folder)
-        ? { command: "library.show", group: "show" }
-        : { label: "Show in space", group: "show", run: () => revealFolder(folder) },
+      { command: "space.reveal", group: "show" },
+      { command: "library.show", group: "show" },
     ];
     if (listed)
       items.push({
@@ -830,15 +829,15 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     if (collapsed.reveal(path)) render();
     tree.reveal(path);
   }
-  // A folder bookmark's folder, open, its row centred and flashed, since it
-  // turns up away from the click.
+  // An entry brought up from elsewhere: its row centred and flashed, since it
+  // turns up away from the click, and a folder opened too.
   //
   // The open file's reveal still waiting for this view to show is dropped,
-  // or it would scroll the folder away as the view comes up.
-  function revealFolder(path: string): void {
+  // or it would scroll the entry away as the view comes up.
+  function revealEntry(path: string): void {
     unrevealed = undefined;
     deps.show();
-    collapsed.expand(path);
+    if (spaceTree.findEntry(path)?.type === "directory") collapsed.expand(path);
     collapsed.reveal(path);
     render();
     if (!tree.reveal(path)) return;
@@ -1420,6 +1419,24 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     when: (_, arg) => isContextTarget(arg),
     run: (_, arg) => {
       if (isContextTarget(arg)) openContext(arg.folder, arg.setting);
+    },
+  });
+  // Where a file or folder named elsewhere sits in the tree: a tab's, a
+  // site's or a preset folder's, as `{ file }` or `{ folder }`. A library's
+  // entry is the Libraries view's to reveal, and one the tree doesn't list
+  // has no row to bring up.
+  const revealedEntry = (arg: unknown): string | undefined => {
+    if (typeof arg !== "object" || arg === null) return undefined;
+    const path = "file" in arg ? arg.file : "folder" in arg ? arg.folder : undefined;
+    return typeof path === "string" && !isLibraryPath(path) && isListed(path) ? path : undefined;
+  };
+  commands.register({
+    id: "space.reveal",
+    label: "Reveal in space",
+    when: (_, arg) => revealedEntry(arg) !== undefined,
+    run: (_, arg) => {
+      const path = revealedEntry(arg);
+      if (path !== undefined) revealEntry(path);
     },
   });
   commands.register({
@@ -2056,7 +2073,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       render();
       return hasRow(path);
     },
-    revealFolder,
+    revealFolder: revealEntry,
     revealCreated,
     startCreate,
     startRename,

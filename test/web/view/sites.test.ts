@@ -61,6 +61,8 @@ function setup(overrides: Partial<SiteDialogsDeps> = {}, api: Partial<SiteSettin
   const commands = createCommands();
   const menus = createMenus(commands);
   const keybindings = createKeybindings(commands);
+  // The space view's own command, which a site row's item names.
+  commands.register({ id: "space.reveal", label: "Reveal", run: vi.fn() });
   const deps: SiteDialogsDeps = {
     commands,
     menus,
@@ -79,7 +81,6 @@ function setup(overrides: Partial<SiteDialogsDeps> = {}, api: Partial<SiteSettin
     createSite: vi.fn(),
     publishers: () => [publisher("sogma", "Sogma CMS")],
     onSiteCreated: vi.fn(async () => {}),
-    showInSpace: vi.fn(),
     ...overrides,
   };
   const dialogs = createSiteDialogs(deps);
@@ -96,20 +97,19 @@ beforeEach(() => {
 });
 
 describe("createSiteDialogs: a site row's menu", () => {
-  it("contributes Settings, then Show in space, to the listItem menu", () => {
+  it("contributes Settings, then the space's Reveal on the site's folder, to the listItem menu", () => {
     const { menus } = setup();
     const items = menus.resolve("listItem", context, { kind: "site", path: "blog" });
-    expect(items.map((item) => item.label)).toEqual(["Settings", "Show in space"]);
+    expect(items.map((item) => item.command)).toEqual(["site.settings", "space.reveal"]);
+    expect(items[1]?.arg).toEqual({ folder: "blog" });
   });
 
-  it("offers Show in space on any site row, publisher key or not, and reveals the site's folder", () => {
+  it("offers the space's Reveal on any site row, publisher key or not, and on nothing else", () => {
     const keyless = setup({ publishers: () => [] });
     const items = keyless.menus.resolve("listItem", context, { kind: "site", path: "blog" });
-    expect(items.map((item) => item.label)).toEqual(["Show in space"]);
-    expect(keyless.commands.isEnabled("site.showInSpace", context, undefined)).toBe(false);
-
-    void keyless.commands.run("site.showInSpace", context, { kind: "site", path: "blog" });
-    expect(keyless.deps.showInSpace).toHaveBeenCalledWith("blog");
+    expect(items.map((item) => item.command)).toEqual(["space.reveal"]);
+    // A Libraries row opens the same menu.
+    expect(keyless.menus.resolve("listItem", context, { kind: "library", id: "photos" })).toEqual([]);
   });
 
   it("applies to a site row only, and only with a publisher key stored", () => {

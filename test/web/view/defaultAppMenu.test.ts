@@ -40,11 +40,11 @@ describe("the menu a file Pragma can't open shows", () => {
     expect(opened[0]?.items?.map((entry) => entry.label)).toEqual([
       "budget.zip",
       "Open in the default app",
-      "Show in folder",
+      "Open containing folder",
     ]);
     expect(item(opened[0], "Open in the default app")?.disabled?.(context, undefined)).toBe(false);
     item(opened[0], "Open in the default app")?.run?.(context, undefined);
-    item(opened[0], "Show in folder")?.run?.(context, undefined);
+    item(opened[0], "Open containing folder")?.run?.(context, undefined);
     expect(bridge?.openInDefaultApp).toHaveBeenCalledWith("data/budget.zip");
     expect(bridge?.showInFolder).toHaveBeenCalledWith("data/budget.zip");
   });
@@ -53,7 +53,14 @@ describe("the menu a file Pragma can't open shows", () => {
     const { open, opened, anchor } = setup({ platform: "darwin" });
     open("budget.zip", { anchor });
     await settle();
-    expect(item(opened[0], "Show in Finder")).toBeDefined();
+    expect(item(opened[0], "Reveal in Finder")).toBeDefined();
+  });
+
+  it("names File Explorer on Windows", async () => {
+    const { open, opened, anchor } = setup({ platform: "win32" });
+    open("budget.zip", { anchor });
+    await settle();
+    expect(item(opened[0], "Reveal in File Explorer")).toBeDefined();
   });
 
   it("shows why the default app can't have the file", async () => {
@@ -66,7 +73,7 @@ describe("the menu a file Pragma can't open shows", () => {
     const openItem = item(opened[0], "Open in the default app");
     expect(openItem?.disabled?.(context, undefined)).toBe(true);
     expect(openItem?.description).toBe("Blocked: .exe files can run code");
-    expect(item(opened[0], "Show in folder")?.disabled).toBeUndefined();
+    expect(item(opened[0], "Open containing folder")?.disabled).toBeUndefined();
   });
 
   it("shows itself again with the system's reason when the open fails", async () => {
@@ -126,14 +133,14 @@ describe("showing the open file in the file manager", () => {
 
   it("shows the focused tab's file, named for the system's file manager", async () => {
     const { commands, bridge } = registered("darwin");
-    expect(commands.get("file.showInFolder")?.label).toBe("Show in Finder");
+    expect(commands.get("file.showInFolder")?.label).toBe("Reveal in Finder");
     await commands.run("file.showInFolder", on({ kind: "image", path: "pictures/cat.png" }));
     expect(bridge.showInFolder).toHaveBeenCalledWith("pictures/cat.png");
   });
 
   it("doesn't apply to a library's file or a tab without one", () => {
     const { commands } = registered("linux");
-    expect(commands.get("file.showInFolder")?.label).toBe("Show in folder");
+    expect(commands.get("file.showInFolder")?.label).toBe("Open containing folder");
     expect(commands.isEnabled("file.showInFolder", on({ kind: "image", path: "lib:photos/cat.png" }))).toBe(false);
     expect(commands.isEnabled("file.showInFolder", on({ kind: "empty" }))).toBe(false);
   });

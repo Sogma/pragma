@@ -178,6 +178,8 @@ export interface LibrariesView {
   /** Shows this panel with the folder at a rooted path open in its library,
    * its row centred and flashed, as a folder bookmark brings it up. */
   revealFolder(path: string): void;
+  /** The same for a file: its folders open, its row centred and flashed. */
+  revealFile(path: string): void;
   /** Re-reads the library list. Called after a row action changes it —
    * those live on commands (see createLibraryManager), which don't own this
    * panel's DOM. */
@@ -237,9 +239,9 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   // together came back at different versions, which the next answer settles.
   let readAt: string | undefined;
   // What the next listing of the libraries opens in place of the remembered
-  // one: a library, and a folder in it to bring into view.
-  let revealing: { id: string; folder?: string } | undefined;
-  // That folder, rooted, until the open library has listed down to it.
+  // one: a library, and a file or folder in it to bring into view.
+  let revealing: { id: string; entry?: string } | undefined;
+  // That entry, rooted, until the open library has listed down to it.
   let unrevealed: string | undefined;
   // Both are rooted paths, matching what the tree compares them against.
   let editingPath: string | undefined;
@@ -535,7 +537,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     expandedView.render(nodes, renderContext(expandedId, row.writable));
   }
 
-  async function setExpanded(id: string | undefined, folder?: string): Promise<void> {
+  async function setExpanded(id: string | undefined, entry?: string): Promise<void> {
     expandedId = id;
     listings.clear();
     listing.clear();
@@ -554,7 +556,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     expandedView = undefined;
     editingPath = undefined;
     pendingCreate = undefined;
-    unrevealed = folder;
+    unrevealed = entry;
     // Remembered per browser, so the panel comes back to the same library
     // — after a reload, and after switching away and back. Collapsing it is
     // remembered too: "" means open nothing next time.
@@ -672,7 +674,18 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     const asked = revealing;
     revealing = undefined;
     const wanted = asked?.id ?? (settings.sidebarLibrary.get() || undefined);
-    if (wanted !== undefined && rows.has(wanted)) await setExpanded(wanted, asked?.folder);
+    if (wanted !== undefined && rows.has(wanted)) await setExpanded(wanted, asked?.entry);
+  }
+
+  // The folders above the entry, and a folder itself, are opened before the
+  // panel shows too, so the listing that showing starts lists down to it.
+  function revealEntry(path: string, isFolder: boolean): void {
+    const { root } = parseRootedPath(path);
+    if (!isLibraryRoot(root)) return;
+    deps.collapsed.reveal(path);
+    if (isFolder) deps.collapsed.expand(path);
+    revealing = { id: root.library, entry: path };
+    deps.show();
   }
 
   return {
@@ -684,16 +697,8 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
       revealing = { id };
       deps.show();
     },
-    // The folder and those above it are opened before the panel shows too,
-    // so the listing that showing starts lists down to it.
-    revealFolder: (path: string) => {
-      const { root } = parseRootedPath(path);
-      if (!isLibraryRoot(root)) return;
-      deps.collapsed.reveal(path);
-      deps.collapsed.expand(path);
-      revealing = { id: root.library, folder: path };
-      deps.show();
-    },
+    revealFolder: (path: string) => revealEntry(path, true),
+    revealFile: (path: string) => revealEntry(path, false),
     refresh,
   };
 }
@@ -745,8 +750,10 @@ export interface LibraryManagerDeps {
   // Shows the panel with that library open: one just added, or one whose
   // name was clicked elsewhere in the UI.
   reveal(id: string): void;
-  // Shows the panel open down to the folder at a rooted path, its row flashed.
+  // Shows the panel open down to the folder or file at a rooted path, its
+  // row flashed.
   revealFolder(path: string): void;
+  revealFile(path: string): void;
 }
 
 export interface LibraryManager {
@@ -841,13 +848,14 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
 
   deps.commands.register({
     id: "library.show",
-    label: "Show in library",
-    when: (_, arg) => libraryFolderOf(arg) !== undefined,
+    label: "Reveal in library",
+    when: (_, arg) => libraryEntryOf(arg) !== undefined,
     run: (_, arg) => {
-      const folder = libraryFolderOf(arg);
-      if (folder === undefined) return;
-      if (folder.path === "") deps.reveal(folder.root.library);
-      else deps.revealFolder(formatRootedPath(folder));
+      const entry = libraryEntryOf(arg);
+      if (entry === undefined) return;
+      if (entry.type === "file") deps.revealFile(formatRootedPath(entry));
+      else if (entry.path === "") deps.reveal(entry.root.library);
+      else deps.revealFolder(formatRootedPath(entry));
     },
   });
 
@@ -1113,6 +1121,7 @@ export interface LibrariesPanelDeps
       | "refresh"
       | "reveal"
       | "revealFolder"
+      | "revealFile"
       | "setLibraryAccess"
       | "setLibraryLabel"
       | "setLibraryDescription"
@@ -1170,6 +1179,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     refresh: () => view.refresh(),
     reveal: (id) => view.reveal(id),
     revealFolder: (path) => view.revealFolder(path),
+    revealFile: (path) => view.revealFile(path),
   });
   return view;
 }
@@ -1178,13 +1188,18 @@ function isLibraryRow(arg: unknown): arg is Extract<ListItemTarget, { kind: "lib
   return typeof arg === "object" && arg !== null && (arg as { kind?: unknown }).kind === "library";
 }
 
-// The library folder a menu's `{ folder }` names, its top or one inside it:
-// a status bar path's folder, or a preset folder.
-function libraryFolderOf(arg: unknown): { root: { library: string }; path: string } | undefined {
-  if (typeof arg !== "object" || arg === null || !("folder" in arg) || typeof arg.folder !== "string") return undefined;
+// The library entry a menu's `{ file }` or `{ folder }` names, a folder's
+// top or anything inside it: a tab's file or folder, a status bar path's
+// folder, or a preset folder.
+function libraryEntryOf(
+  arg: unknown,
+): { root: { library: string }; path: string; type: "file" | "directory" } | undefined {
+  if (typeof arg !== "object" || arg === null) return undefined;
+  const named = "file" in arg ? arg.file : "folder" in arg ? arg.folder : undefined;
+  if (typeof named !== "string") return undefined;
   try {
-    const { root, path } = parseRootedPath(arg.folder);
-    return isLibraryRoot(root) ? { root, path } : undefined;
+    const { root, path } = parseRootedPath(named);
+    return isLibraryRoot(root) ? { root, path, type: "file" in arg ? "file" : "directory" } : undefined;
   } catch {
     return undefined;
   }

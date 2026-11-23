@@ -301,7 +301,7 @@ test("opens a link's menu above Cut, Copy and Paste, the link kept folded, and o
     "Open",
     "Open in new tab",
     "Open to the side",
-    "Show in links",
+    "Reveal in links",
     "Cut",
     "Copy",
     "Paste",
