@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { onTestFinished } from "vitest";
 import { loadGlobalConfig, rememberSpace, saveGlobalConfig } from "../../src/config/loadConfig.ts";
+import { pointConfigAt } from "./configDir.ts";
 
 // Each helper undoes itself once the test has finished, after the file's own
 // teardown hooks, so a server or watcher those close is gone before its
@@ -19,15 +20,10 @@ export function tempDir(prefix = "pragma-test-"): string {
 /**
  * Points PRAGMA_CONFIG_DIR at `dir`, a new temp folder unless given, until the
  * test finishes, so nothing the test runs reads or writes the developer's own
- * config. The value it had before is put back, set or not.
+ * config.
  */
 export function isolateConfig(dir = tempDir("pragma-config-")): string {
-  const before = process.env.PRAGMA_CONFIG_DIR;
-  process.env.PRAGMA_CONFIG_DIR = dir;
-  onTestFinished(() => {
-    if (before === undefined) delete process.env.PRAGMA_CONFIG_DIR;
-    else process.env.PRAGMA_CONFIG_DIR = before;
-  });
+  onTestFinished(pointConfigAt(dir));
   return dir;
 }
 
