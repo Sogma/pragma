@@ -26,6 +26,7 @@ import { parseFrontmatter } from "../../src/protocol/frontmatter.ts";
 import { localDayAfter } from "../../src/protocol/localDay.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import { createLaunchTokenAuth, LAUNCH_TOKEN_COOKIE } from "../../src/server/launchTokenAuth.ts";
+import { tempDir } from "../support/isolation.ts";
 import { giveSpaceLibraries } from "../support/libraries.ts";
 import { startTestServer, type TestServer } from "../support/testServer.ts";
 import { isoVideo, visualEntry } from "../support/videoFixtures.ts";
@@ -1011,7 +1012,7 @@ describe("API contract — trash", () => {
 
     it("lands only in a folder of the space that is there", async () => {
       await writeFile(path.join(trashDir, "stays.md"), "stays");
-      const libraryRoot = await mkdtemp(path.join(tmpdir(), "pragma-test-library-"));
+      const libraryRoot = tempDir("pragma-test-library-");
       const configPath = path.join(testServer.configDir, "config.json");
       const config = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
       giveSpaceLibraries(testServer.configDir, testServer.spaceRoot, [
@@ -1029,7 +1030,6 @@ describe("API contract — trash", () => {
       } finally {
         await writeFile(configPath, JSON.stringify(config), "utf8");
         await rm(path.join(testServer.spaceRoot, "_libraries.json"), { force: true });
-        await rm(libraryRoot, { recursive: true, force: true });
       }
     });
   });
@@ -2487,7 +2487,7 @@ describe("API contract — libraries", () => {
   });
 
   it("removes a library from the registry and leaves its folder alone", async () => {
-    const spareRoot = await mkdtemp(path.join(tmpdir(), "pragma-test-library-spare-"));
+    const spareRoot = tempDir("pragma-test-library-spare-");
     try {
       await registerLibraries([
         { id: "lib", label: "Lib", path: libraryRoot, access: "read-only" },
@@ -2504,7 +2504,6 @@ describe("API contract — libraries", () => {
       expect((await fetch(`${testServer.baseUrl}/api/space/libraries/lib`, { method: "POST" })).status).toBe(405);
     } finally {
       await registerLibraries([{ id: "lib", label: "Lib", path: libraryRoot, access: "read-only" }]);
-      await rm(spareRoot, { recursive: true, force: true });
     }
   });
 

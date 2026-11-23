@@ -1,5 +1,5 @@
-// Structural ratchets for web/ — the rules in docs/architecture.md's Module
-// boundaries section, enforced.
+// Structural ratchets: the rules in docs/architecture.md's Module boundaries
+// section, and the tests' own isolation, enforced.
 //
 // Two files grew back after the last extraction pass because nothing
 // stopped them. These ceilings do: each refactor step that moves code out
@@ -438,5 +438,33 @@ describe("ratchet: host state", () => {
       .filter((file) => HOST_STATE_PATHS.test(readFileSync(path.join(root, file), "utf8")))
       .filter((file) => !STORE_MODULES.includes(file) && !(file in HOST_STATE_EXCEPTIONS));
     expect(found).toEqual([]);
+  });
+});
+
+// A test makes a temp folder or sets the config folder only through
+// test/support/, whose helpers undo both when the test finishes, so no
+// folder outlives its test and no test inherits another's config.
+const HAND_ISOLATION =
+  /\bmkdtemp(Sync)?\(|process\.env\.PRAGMA_CONFIG_DIR\s*=[^=]|delete process\.env\.PRAGMA_CONFIG_DIR|stubEnv\(\s*["']PRAGMA_CONFIG_DIR/;
+// How many each file may keep, each for a reason of its own.
+const HAND_ISOLATION_KEPT: Record<string, number> = {
+  // The libraries suite's folder, made once for every test in it.
+  "test/contract/api.test.ts": 1,
+};
+
+describe("ratchet: test isolation", () => {
+  it("makes a temp folder or sets the config folder only through test/support/", () => {
+    const self = fileURLToPath(import.meta.url);
+    const found = walk(path.join(root, "test"), ".ts")
+      .filter((file) => file !== self)
+      .map((file) => path.relative(root, file).split(path.sep).join("/"))
+      .filter((file) => !file.startsWith("test/support/"))
+      .flatMap((file) =>
+        readFileSync(path.join(root, file), "utf8")
+          .split("\n")
+          .flatMap((line, index) => (HAND_ISOLATION.test(line) ? [`${file}:${index + 1}`] : []))
+          .slice(HAND_ISOLATION_KEPT[file] ?? 0),
+      );
+    expect(found, "Use tempDir, isolateConfig or tempSpace from test/support/isolation.ts.").toEqual([]);
   });
 });
