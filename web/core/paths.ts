@@ -23,6 +23,7 @@ import {
   isTableFile,
   pdfMediaTypeForPath,
   splitDocumentName,
+  vectorImageMediaTypeForPath,
   videoMediaTypeForPath,
 } from "../../src/protocol/types.ts";
 import { countText } from "../lib/dom.ts";
@@ -154,9 +155,9 @@ export function flattenTreeFilePaths(nodes: SpaceTreeNode[]): string[] {
 
 /** The tab kind a media file opens as, or undefined for anything that is
  * not one. These are the kinds with no text to fetch: a click hands the path
- * straight to a pane, which reads the bytes from the raw-file route. Also
- * the tree's icon class for them, so the two can never disagree about what a
- * given extension is. */
+ * straight to a pane, which reads the bytes from the raw-file route. The
+ * tree's icon names the same kind, or a vector image for an SVG, so the two
+ * can never disagree about what a given extension is. */
 export function mediaTabKind(path: string): "image" | "video" | "pdf" | undefined {
   if (imageMediaTypeForPath(path)) return "image";
   if (videoMediaTypeForPath(path)) return "video";
@@ -192,6 +193,7 @@ export function pathHint(path: string, text: string): string | undefined {
 
 export type FileType =
   | "image"
+  | "vector-image"
   | "video"
   | "pdf"
   | "lut"
@@ -220,6 +222,7 @@ export function fileTypeClass(path: string): FileType | undefined {
   const kind = fileKindForPath(path);
   if (kind === "note") return "markdown";
   if (kind === "screenplay") return "fountain";
+  if (kind === "image" && vectorImageMediaTypeForPath(path)) return "vector-image";
   return kind ?? (isJsonFile(path) ? "json" : undefined);
 }
 
@@ -271,6 +274,7 @@ export function entryIcon(node: SpaceTreeNode): EntryIcon {
 
 const FILE_TYPE_LABELS: Record<FileType, string> = {
   image: "Image",
+  "vector-image": "Vector image",
   video: "Video",
   pdf: "PDF",
   lut: "LUT",

@@ -209,7 +209,6 @@ describe("mediaTabKind / fileTypeClass", () => {
   it("names each media kind for both, and nothing else", () => {
     for (const [path, kind] of [
       ["art/cover.PNG", "image"],
-      ["art/logo.svg", "image"],
       ["takes/a.mov", "video"],
       ["refs/paper.pdf", "pdf"],
     ] as const) {
@@ -217,6 +216,13 @@ describe("mediaTabKind / fileTypeClass", () => {
       expect(fileTypeClass(path), path).toBe(kind);
     }
     expect(mediaTabKind("notes/paper.pdf.md")).toBeUndefined();
+  });
+
+  it("opens a vector image as an image, under an icon of its own", () => {
+    expect(mediaTabKind("art/Logo.SVG")).toBe("image");
+    expect(fileTypeClass("art/Logo.SVG")).toBe("vector-image");
+    expect(fileTypeLabel("vector-image")).toBe("Vector image");
+    expect(fileTypeLabel("image")).toBe("Image");
   });
 
   it("opens a LUT as a tab of its own, which no media kind names", () => {

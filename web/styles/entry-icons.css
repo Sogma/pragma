@@ -40,6 +40,10 @@
   --entry-glyph: var(--icon-image);
 }
 
+[data-entry-icon="vector-image"] {
+  --entry-glyph: var(--icon-vector-image);
+}
+
 [data-entry-icon="video"] {
   --entry-glyph: var(--icon-video);
 }
