@@ -8,6 +8,7 @@ import {
   formatRootedPath,
   isLibraryPath,
   isLibraryRoot,
+  type PathRoot,
   parseRootedPath,
   type RootedPath,
 } from "../../src/protocol/rootedPath.ts";
@@ -82,13 +83,18 @@ export function joinSpacePath(parentPath: string, name: string): string {
   return parentPath ? `${parentPath}/${name}` : name;
 }
 
+/** What a root is called in text, as the status bar names it: a library by
+ * its display name, the id standing in until that is read, the space as
+ * "Space". */
+export function rootName(root: PathRoot): string {
+  return isLibraryRoot(root) ? (libraryName(root.library) ?? root.library) : "Space";
+}
+
 /** A folder view's title: the folder's own name, whole, since a folder has no
- * extension to drop. A root names itself as the status bar does: a library
- * by its display name, the space as "Space". */
+ * extension to drop, or a root's name. */
 export function folderTitle(dirPath: string): string {
   const { root, path } = parseRootedPath(dirPath);
-  if (path) return basenameOf(path);
-  return isLibraryRoot(root) ? (libraryName(root.library) ?? root.library) : "Space";
+  return path ? basenameOf(path) : rootName(root);
 }
 
 /** What a folder view says it shows, in the status bar: "2 folders · 7

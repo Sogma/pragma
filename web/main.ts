@@ -118,6 +118,7 @@ import { createToolkitRunner } from "./view/toolkitRunner.ts";
 import { createActiveRowMarker } from "./view/treeRows.ts";
 import { wireUpdateControl } from "./view/updateControl.ts";
 import { wireWindowControls } from "./view/windowControls.ts";
+import { wireWindowTitle } from "./view/windowTitle.ts";
 import { wireZoom } from "./view/zoom.ts";
 
 const APP_NAME = "Pragma";
@@ -244,7 +245,7 @@ async function main(): Promise<void> {
     // Fires before the tab is re-pointed, which announces no focus change, so
     // whatever follows the focused tab's path is moved here, from this argument.
     onActivePathMoved: (path) => {
-      document.title = `${APP_NAME} - ${path}`;
+      showTitle(path);
       activeRow.set(path);
     },
     tabs,
@@ -759,11 +760,12 @@ async function main(): Promise<void> {
     notify: (message) => window.alert(message),
   });
   followOutsideEdits({ queue: saveQueue, tabs });
+  const showTitle = wireWindowTitle(APP_NAME, tabs);
 
   // Everything outside the groups that follows the focused tab: the
   // copilot's and toolkits' notion of the open document, the inspector, the tree
-  // highlight, the window title. Nothing here knows a kind beyond whether the
-  // tab names a text document or a directory.
+  // highlight. Nothing here knows a kind beyond whether the tab names a text
+  // document or a directory.
   tabs.onFocus((tab) => {
     contextMenu.close();
 
@@ -781,8 +783,6 @@ async function main(): Promise<void> {
         : undefined,
       active?.properties(),
     );
-
-    document.title = tab.kind === "empty" ? APP_NAME : `${APP_NAME} - ${tab.path}`;
 
     // The tree's highlighted row follows the active tab however the switch
     // happened. Only file rows are ever highlighted, so a tab showing no file
