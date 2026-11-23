@@ -4,14 +4,12 @@ Running Pragma as a persistent service on an always-on machine (a Raspberry Pi o
 
 ## Prerequisites
 
-As in the README's [From source](../README.md#from-source): Node.js 24+ and git, on the host machine itself (not bundled into the app), plus an HTTPS proxy (below).
+As in the README's [From npm](../README.md#from-npm): Node.js 24+, on the host machine itself (not bundled into the app), plus an HTTPS proxy (below).
 
 ## Install
 
 ```bash
-git clone https://github.com/sogma/pragma.git /opt/pragma
-cd /opt/pragma
-npm install   # also builds the app into dist/web/
+npm install -g @sogma/pragma
 ```
 
 ## Configure
@@ -19,7 +17,7 @@ npm install   # also builds the app into dist/web/
 As the account systemd will run the service as (see `User=` below, not necessarily your own login), add your space to Pragma's list:
 
 ```bash
-npm run pragma -- space add /path/to/your-space   # a new one: init /path/to/your-space
+pragma space add /path/to/your-space   # a new one: pragma init /path/to/your-space
 ```
 
 That wrote a `spaces` entry to the account's `~/.config/pragma/config.json`; set `spacePath` there too, the one space the service serves:
@@ -31,7 +29,7 @@ That wrote a `spaces` entry to the account's `~/.config/pragma/config.json`; set
 Then save the passphrase every device signs in with, 15 characters or more. It asks twice, shows neither, and keeps it in a [credential record](#credential-records) of its own, never in `config.json`:
 
 ```bash
-npm run pragma -- passphrase
+pragma passphrase
 ```
 
 All three are required. `--external-url` refuses to start without the passphrase, whatever the proxy in front restricts, so auth can't end up silently unconfigured; and it refuses a space with no `spaces` entry, for the reason below.
@@ -47,7 +45,7 @@ Every space has an id, and it is the join key for that space's capability approv
 **So when you move a space, locate its existing entry.** Don't add a second one or change the id (`space list` shows ids):
 
 ```bash
-npm run pragma -- space locate <id> /mnt/data/your-space
+pragma space locate <id> /mnt/data/your-space
 ```
 
 It moves `spacePath` too if that named the old folder; then restart the service. The desktop app's **Locate** does the same with a folder picker; here it's typed because a route that accepted a filesystem path would be reachable by every device the proxy serves.
@@ -115,7 +113,7 @@ Settings writes these for you. To write one by hand:
 }
 ```
 
-A sign-in (ChatGPT, an MCP server's OAuth) is written only by signing in, which needs a browser on this machine: run `pragma dev` here, as the service's account, and sign in from its Settings.
+A sign-in (ChatGPT, an MCP server's OAuth) is written only by signing in, which needs a browser on this machine: run `pragma start` here, without `--external-url`, as the service's account, and sign in from its Settings.
 
 ### Model providers
 
@@ -137,23 +135,23 @@ Optional — only needed to publish space content to an external service (Sogma 
 ## Run directly (before wiring up systemd)
 
 ```bash
-npm run pragma -- start --external-url https://<machine>.<tailnet>.ts.net --port 14319
+pragma start --external-url https://<machine>.<tailnet>.ts.net --port 14319
 ```
 
 Confirm another device reaches it at that address before moving on to the systemd unit below.
 
 ## systemd unit
 
-`deploy/pragma.service` is a template — copy it in and fill in the placeholders:
+`deploy/pragma.service` in the repo is a template. Download it and fill in the placeholders:
 
 ```bash
-sudo cp deploy/pragma.service /etc/systemd/system/pragma.service
-sudo systemctl edit --full pragma.service   # set User=, WorkingDirectory=, and ExecStart's node path and URL
+sudo curl -fsSL -o /etc/systemd/system/pragma.service https://raw.githubusercontent.com/sogma/pragma/main/deploy/pragma.service
+sudo systemctl edit --full pragma.service   # set User=, and ExecStart's node path, pragma path and URL
 sudo systemctl daemon-reload
 sudo systemctl enable --now pragma
 ```
 
-The node path matters: systemd doesn't run `ExecStart` through a login shell, so an nvm-installed node, the common case on a Pi, is almost never at `/usr/bin/node`. Run `which node` as the account in `User=` and use that full path.
+The paths matter: systemd doesn't run `ExecStart` through a login shell, so an nvm-installed node, the common case on a Pi, is almost never at `/usr/bin/node`, and `pragma` started on its own looks for node on systemd's PATH. Run `which node` and `which pragma` as the account in `User=` and use those full paths.
 
 `Restart=on-failure` means a crash restarts the service; it does not mean the space directory or config file need any special provisioning beyond existing at the paths above — Pragma reads them fresh on each start.
 
@@ -162,13 +160,11 @@ Check status/logs with `systemctl status pragma` / `journalctl -u pragma -f`.
 ## Updating
 
 ```bash
-cd /opt/pragma
-git pull
-npm install   # rebuilds dist/web/
+npm install -g @sogma/pragma@latest
 sudo systemctl restart pragma
 ```
 
-`pragma start` refuses a `dist/web/` older than any file its build read, so a pull without `npm install` stops the service with a message to run `npm run build`, rather than serving a frontend out of step with the server.
+Run the install under the node `ExecStart` names: a Node.js version manager keeps each version's global packages apart, so an update under another version leaves the service on its old copy.
 
 ## Known gaps
 

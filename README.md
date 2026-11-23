@@ -47,7 +47,7 @@ Classes connect documents to tools. A Class selects documents by folder, tag, or
 ## Get started
 
 > [!NOTE]
-> Pragma is in beta. APIs, the protocol, and CLI commands can change between releases. It is not published to npm.
+> Pragma is in beta. APIs, the protocol, and CLI commands can change between releases.
 
 ### Desktop app
 
@@ -56,6 +56,22 @@ Download the Mac disk image, Windows installer, or Linux AppImage from the [late
 The Windows installer isn't signed during the beta, so Windows may stop it with "Windows protected your PC". Choose **More info**, then **Run anyway**.
 
 Windows and Linux check for updates at launch; you can also use Settings → General → Check for updates. On a Mac, Check for updates reports new releases, which you download and install yourself.
+
+### From npm
+
+Requires [Node.js 24+](https://nodejs.org).
+
+```bash
+npm install -g @sogma/pragma
+
+# Create a space with the getting-started example.
+pragma init path/to/your-space
+
+# Start the editor, then open the address it prints.
+pragma start path/to/your-space
+```
+
+`npm install -g @sogma/pragma@latest` updates it. For access from other devices through an HTTPS proxy and behind a passphrase, see [deployment](docs/deployment.md).
 
 ### From source
 
@@ -73,7 +89,7 @@ npm run pragma -- init path/to/your-space
 npm run pragma -- start path/to/your-space
 ```
 
-`npm run electron` builds and starts the desktop app from the same checkout. For access from other devices through an HTTPS proxy and behind a passphrase, see [deployment](docs/deployment.md).
+`npm run electron` builds and starts the desktop app from the same checkout.
 
 ### First steps
 
@@ -120,11 +136,11 @@ Publish targets go in `publishers`, described in [publisher configuration](docs/
 
 ## Command line
 
-From a clone, run each command as `npm run pragma -- <command>`.
+Run each command as `pragma <command>`, or from a clone as `npm run pragma -- <command>`.
 
 | Command | What it does |
 |---|---|
-| `dev [spacePath]` | Start the editor with hot reload for work on Pragma itself |
+| `dev [spacePath]` | Start the editor from a clone, with hot reload, for work on Pragma itself |
 | `init [directory]` | Create a space with the getting-started example and add it to your spaces; defaults to the current directory |
 | `space add <folder>` | Add an existing folder to your spaces without changing it |
 | `space locate <id> <folder>` | Point a space at the folder it moved to, keeping its approvals and API tokens |
