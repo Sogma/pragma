@@ -294,7 +294,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     continueButton.disabled = !signInAllowed || signIn.state === "pending";
     continueButton.dataset.tooltip = signInAllowed
       ? ""
-      : "Signing in needs pragma dev on the machine this host runs on";
+      : "Signing in needs pragma start without --external-url on the machine this host runs on";
     allowPlanButton.hidden = !signedIn || signIn.planUsage === true;
     allowPlanButton.disabled = !signInAllowed;
     signOutButton.hidden = !signedIn;

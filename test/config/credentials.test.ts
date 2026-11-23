@@ -238,11 +238,11 @@ describe("how a host says to supply a credential", () => {
     );
     setCredentialHost("remote");
     expect(again()).toBe(
-      "Sign in to ChatGPT again from `pragma dev` on the machine this host runs on, as the account it runs as.",
+      "Sign in to ChatGPT again from `pragma start` without `--external-url` on the machine this host runs on, as the account it runs as.",
     );
     setCredentialHost("terminal");
     expect(again()).toBe(
-      "Sign in to ChatGPT again in Settings → AI Models in `pragma dev`. Sign-ins made in the desktop app aren't used here.",
+      "Sign in to ChatGPT again in Settings → AI Models in `pragma start`. Sign-ins made in the desktop app aren't used here.",
     );
   });
 

@@ -2992,7 +2992,9 @@ describe("API contract — libraries", () => {
       body: JSON.stringify({ id: "remote" }),
     });
     expect(start.status).toBe(400);
-    expect((await start.json()).message).toMatch(/needs `pragma dev` on the machine this host runs on/);
+    expect((await start.json()).message).toMatch(
+      /needs `pragma start` without `--external-url` on the machine this host runs on/,
+    );
 
     const status = await fetch(`${testServer.baseUrl}/api/mcp-servers/sign-in?id=remote`);
     expect(await status.json()).toEqual({ state: "signed-out" });
@@ -4747,13 +4749,15 @@ describe("API contract — model providers", () => {
 
       const start = await post("/api/providers/sign-in", { id: "chatgpt" });
       expect(start.status).toBe(400);
-      expect((await start.json()).message).toMatch(/needs `pragma dev` on the machine this host runs on/);
+      expect((await start.json()).message).toMatch(
+        /needs `pragma start` without `--external-url` on the machine this host runs on/,
+      );
 
       const turn = await post("/api/chat?folderPath=", { history: [], message: "hi", model: "chatgpt/gpt-6.1-sol" });
       expect(turn.status).toBe(401);
       expect(await turn.json()).toEqual({
         message:
-          "Sign in to ChatGPT again from `pragma dev` on the machine this host runs on, as the account it runs as.",
+          "Sign in to ChatGPT again from `pragma start` without `--external-url` on the machine this host runs on, as the account it runs as.",
         need: { kind: "providerKey", provider: "chatgpt" },
       });
 

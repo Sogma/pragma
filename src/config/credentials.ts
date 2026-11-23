@@ -61,11 +61,12 @@ export function credentialHint(noun: "key" | "token", variable?: string): string
   const apart = `${noun === "key" ? "Keys" : "Tokens"} saved in the desktop app aren't used here`;
   if (host !== "terminal") return ` ${apart}${variable ? `, but ${variable} is` : ""}.`;
   return variable
-    ? ` ${apart}: set ${variable}, or add the ${noun} in Settings in \`pragma dev\`.`
-    : ` ${apart}: add the ${noun} in Settings in \`pragma dev\`, or write its record as docs/deployment.md shows.`;
+    ? ` ${apart}: set ${variable}, or add the ${noun} in Settings in \`pragma start\`.`
+    : ` ${apart}: add the ${noun} in Settings in \`pragma start\`, or write its record as docs/deployment.md shows.`;
 }
 
-const ON_THIS_MACHINE = "`pragma dev` on the machine this host runs on, as the account it runs as";
+const ON_THIS_MACHINE =
+  "`pragma start` without `--external-url` on the machine this host runs on, as the account it runs as";
 
 /** How to sign in to `service` again on this host. */
 export function signInAgain(service: string, page: string): string {
@@ -77,7 +78,7 @@ export function signInAgain(service: string, page: string): string {
     case "remote":
       return `Sign in to ${service} again from ${ON_THIS_MACHINE}.`;
     case "terminal":
-      return `Sign in to ${service} again in Settings → ${page} in \`pragma dev\`. Sign-ins made in the desktop app aren't used here.`;
+      return `Sign in to ${service} again in Settings → ${page} in \`pragma start\`. Sign-ins made in the desktop app aren't used here.`;
   }
 }
 

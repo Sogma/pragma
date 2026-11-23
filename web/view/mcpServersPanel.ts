@@ -159,7 +159,9 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
     // A server that asked for a token has just shown it offers no sign-in.
     signInButton.hidden = !editing || signIn.state === "signed-in" || needsToken;
     signInButton.disabled = !signInAllowed || signIn.state === "pending";
-    signInButton.dataset.tooltip = signInAllowed ? "" : "Signing in needs pragma dev on the machine this host runs on";
+    signInButton.dataset.tooltip = signInAllowed
+      ? ""
+      : "Signing in needs pragma start without --external-url on the machine this host runs on";
     keyInput.placeholder = tokenSet
       ? "a token is set (enter a new one to replace it)"
       : tokenUnreadable

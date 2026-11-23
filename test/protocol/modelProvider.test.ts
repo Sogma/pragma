@@ -288,10 +288,10 @@ describe("languageModelFor", () => {
       );
       setCredentialHost("terminal");
       expect(refusal({ id: "openai", kind: "openai" })).toMatch(
-        /: set OPENAI_API_KEY, or add the key in Settings in `pragma dev`\.$/,
+        /: set OPENAI_API_KEY, or add the key in Settings in `pragma start`\.$/,
       );
       expect(refusal({ id: "gateway", kind: "anthropic", baseURL: "https://gateway.example/v1" })).toMatch(
-        /add the key in Settings in `pragma dev`, or write its record as docs\/deployment\.md shows\.$/,
+        /add the key in Settings in `pragma start`, or write its record as docs\/deployment\.md shows\.$/,
       );
     } finally {
       setCredentialHost("terminal");
