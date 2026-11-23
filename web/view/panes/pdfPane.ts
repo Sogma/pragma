@@ -139,7 +139,7 @@ export interface PdfPane extends EditorPane {
   goToPage(): void;
 }
 
-export function isPdfPane(pane: EditorPane): pane is PdfPane {
+function isPdfPane(pane: EditorPane): pane is PdfPane {
   return pane.kind === "pdf";
 }
 

@@ -759,7 +759,7 @@ export function windowTheme(config: PragmaGlobalConfig): "system" | "light" | "d
  * already shares a machine with — 14319 (its own editor), 5173 (Vite's
  * default), 1234 (LM Studio), 11434 (Ollama) — and of the ranges comparable
  * local-first tools were found to bind when this was picked. */
-export const DEFAULT_API_PORT = 4319;
+const DEFAULT_API_PORT = 4319;
 
 export function apiPort(config: PragmaGlobalConfig): number {
   return config.api?.port ?? DEFAULT_API_PORT;

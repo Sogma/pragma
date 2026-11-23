@@ -49,7 +49,7 @@ export async function writeDocument(
 
 /** Keeps what `filePath` holds now, before `change` writes over it. Best
  * effort: a version that can't be kept never stops the write it precedes. */
-export async function keepVersion(spaceRoot: string, filePath: string, change: HistoryChange): Promise<void> {
+async function keepVersion(spaceRoot: string, filePath: string, change: HistoryChange): Promise<void> {
   try {
     const target = historyTarget(spaceRoot, filePath);
     if (!target) return;

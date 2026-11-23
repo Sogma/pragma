@@ -22,7 +22,7 @@ type Listed = { name: string; type: "file" | "directory" };
 /** `entry`'s value for `property`, read where a property order reads it: a
  * Markdown document's own frontmatter, a folder's `index.md`'s. Anything
  * else has none. */
-export function entrySortValue(dir: string, entry: Listed, property: string): SortValue | undefined {
+function entrySortValue(dir: string, entry: Listed, property: string): SortValue | undefined {
   const source =
     entry.type === "directory"
       ? namedEntryPath(path.join(dir, entry.name), "index.md")

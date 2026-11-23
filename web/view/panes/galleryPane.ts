@@ -104,7 +104,7 @@ const CARD_WIDTH = 286;
 
 /** The Layout menu's entries: a tile size, one setting every folder shares,
  * or cards, which the folder keeps. */
-export const GALLERY_LAYOUTS: readonly { id: string; label: string; group: string }[] = [
+const GALLERY_LAYOUTS: readonly { id: string; label: string; group: string }[] = [
   ...GALLERY_TILE_SIZES.map(({ id, label }) => ({ id: `tiles-${id}`, label: `${label} tiles`, group: "tiles" })),
   { id: "cards", label: "Cards", group: "cards" },
 ];

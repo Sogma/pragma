@@ -107,7 +107,7 @@ const PROGRAM_HEADS: readonly (readonly number[])[] = [
 const DESKTOP_ENTRY = /^\s*(?:#[^\n]*\n\s*)*\[Desktop Entry\]/;
 
 /** Whether `head`, the first bytes of a file, are a program's. */
-export function isProgramHead(head: Uint8Array): boolean {
+function isProgramHead(head: Uint8Array): boolean {
   if (PROGRAM_HEADS.some((magic) => magic.every((byte, index) => head[index] === byte))) return true;
   return DESKTOP_ENTRY.test(Buffer.from(head).toString("latin1"));
 }

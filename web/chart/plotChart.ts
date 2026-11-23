@@ -9,7 +9,7 @@ import type { ChartSpec } from "../../src/protocol/types.ts";
 // at theme tokens, so a drawn chart follows a theme switch without a redraw.
 // A token can't go in a mark's fill directly: Plot writes it as an SVG
 // attribute, where var() doesn't resolve.
-export const CHART_CLASS = "chart";
+const CHART_CLASS = "chart";
 const MARKS_CLASS = "chart-marks";
 
 /** Draws `rows` as `spec` describes, `width` by `height` pixels (0.6 of the

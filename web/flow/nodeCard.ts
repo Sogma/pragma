@@ -159,7 +159,7 @@ const PIN_VALUE_MAX = 50;
 
 /** A pin's value as its dot shows it: one line, at most PIN_VALUE_MAX
  * characters. */
-export function pinValueText(value: string): string {
+function pinValueText(value: string): string {
   const line = value.replace(/\s+/g, " ").trim();
   return line.length > PIN_VALUE_MAX ? `${line.slice(0, PIN_VALUE_MAX - 1)}…` : line;
 }
@@ -177,7 +177,7 @@ function configPinValues(node: FlowNodeInstance): Record<string, string | undefi
 
 const TEMPLATE_VARIABLE_VIEW: SlotView = { ...TEMPLATE_VARIABLE_SLOTS, noun: "variable" };
 const GET_FIELD_VIEW: SlotView = { ...GET_FIELD_SLOTS, noun: "field" };
-export const MIN_NODE_WIDTH = 160;
+const MIN_NODE_WIDTH = 160;
 
 // The `.collapsed` class does the hiding in CSS; this handles what CSS
 // can't. An explicit inline width/height would keep a collapsed card at its

@@ -44,7 +44,7 @@ export const PROVIDER_PRESET_IDS = Object.keys(PROVIDER_PRESETS);
 
 /** Whether an id names a model a text picker can use, rather than an
  * embedding, speech, moderation or media-making one. */
-export function isChatModel(id: string): boolean {
+function isChatModel(id: string): boolean {
   return !/embed|tts|whisper|dall-?e|moderation|realtime|audio|transcrib|image|guard|rerank|sora|veo|lyria/i.test(id);
 }
 

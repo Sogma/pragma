@@ -30,7 +30,7 @@ const LIBRARY_KINDS = new Set<FileKind>(["note", "screenplay", "table", "class",
 /** What a library tree lists, which is narrower than what a space tree
  * does: only kinds whose pane can render the document non-editably, since a
  * read-only library can't host a pane that autosaves. */
-export function isLibraryVisibleFile(name: string): boolean {
+function isLibraryVisibleFile(name: string): boolean {
   const kind = fileKindForPath(name);
   return !isHiddenName(name) && kind !== undefined && LIBRARY_KINDS.has(kind);
 }

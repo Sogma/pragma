@@ -39,7 +39,7 @@ export function isBuiltInLook(lut: string): lut is LutName {
 }
 
 /** Whether `lut` names a LUT file, by a rooted path. */
-export function isFileLook(lut: string): boolean {
+function isFileLook(lut: string): boolean {
   if (!isLutFile(lut)) return false;
   try {
     return parseRootedPath(lut).path !== "";

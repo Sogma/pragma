@@ -58,7 +58,7 @@ const MAX_OFFERS = 50;
  * rooted, and whether it is a folder; undefined for an empty or unreadable
  * value. `present` is false only for a space entry the listing lacks: a
  * library's listing may not have landed, so its entries are taken on trust. */
-export function readPathValue(
+function readPathValue(
   docPath: string,
   value: string,
 ): { path: string; folder: boolean; present: boolean } | undefined {

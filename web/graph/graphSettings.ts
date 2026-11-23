@@ -6,7 +6,7 @@ import { createSetting } from "../services/settings.ts";
 import { EDGE_GROUPS, type ShowOptions } from "./graphData.ts";
 import type { Forces } from "./graphSim.worker.ts";
 
-export const SHOW_DEFAULTS: ShowOptions = {
+const SHOW_DEFAULTS: ShowOptions = {
   edges: EDGE_GROUPS.filter((group) => group.key !== "contains").map((group) => group.key),
   missing: true,
   presets: false,

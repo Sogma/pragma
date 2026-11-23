@@ -464,7 +464,7 @@ const measure = (value: number | null, unit: string): string | undefined =>
 
 /** What a Load Video's output dots show for the clip it read, by port. The
  * `video` dot shows nothing: it hands on a clip, never text. */
-export function clipPinValues(clip: ClipFacts, name: string, path: string): Record<string, string | undefined> {
+function clipPinValues(clip: ClipFacts, name: string, path: string): Record<string, string | undefined> {
   const { width, height, duration, frameRate, variableFrameRate } = clip;
   return {
     name,
@@ -480,7 +480,7 @@ export function clipPinValues(clip: ClipFacts, name: string, path: string): Reco
 /** What a Load Image's output dots show for the picture it read, by port;
  * `path` is blank for a picture picked from the computer. The `image` dot
  * shows nothing: it hands on a picture, never text. */
-export function picturePinValues(
+function picturePinValues(
   picture: { width: number; height: number },
   name: string,
   path: string,

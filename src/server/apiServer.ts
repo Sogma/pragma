@@ -124,7 +124,7 @@ export interface ApiServer {
 /** Starts the listener. Rejects if the port is taken rather than scanning for
  * a free one: an address that silently moves is worse than one that refuses,
  * because the harness config naming it has no way to notice. */
-export function startApiServer(options: ApiServerOptions, handler: ApiHandler): Promise<ApiServer> {
+function startApiServer(options: ApiServerOptions, handler: ApiHandler): Promise<ApiServer> {
   const port = options.port ?? apiPort(loadGlobalConfig());
 
   // Each token's open connections, so revoking it ends them at once.

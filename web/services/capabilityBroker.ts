@@ -62,7 +62,7 @@ const dayLabel = (day: string): string => {
   return date ? dateLabel(date) : day;
 };
 
-export function subjectName(subject: Pick<BrokerSubject, "name" | "path">): string {
+function subjectName(subject: Pick<BrokerSubject, "name" | "path">): string {
   return subject.name.trim() || stripExtension(basenameOf(subject.path));
 }
 

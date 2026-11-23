@@ -591,7 +591,7 @@ function commentRun(doc: Text, from: number, to: number): Run[] {
  * runs, a dual cue's `^` and a centered line's `<` closing a line, and a
  * line's leading forcing mark or synopsis `=`. A link note shows at the
  * caret, so it is none. */
-export const screenplaySyntax: HiddenSyntax = {
+const screenplaySyntax: HiddenSyntax = {
   near(state: EditorState, from: number, to: number): HiddenNear {
     const { doc } = state;
     const first = doc.lineAt(from);

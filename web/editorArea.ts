@@ -132,7 +132,7 @@ export interface EditorArea {
 }
 
 /** Back and Forward in the focused tab, as commands. */
-export const GO_COMMANDS: Record<Direction, string> = { back: "editor.goBack", forward: "editor.goForward" };
+const GO_COMMANDS: Record<Direction, string> = { back: "editor.goBack", forward: "editor.goForward" };
 
 // A mouse's back and forward buttons, by MouseEvent.button.
 const MOUSE_GO: Record<number, Direction> = { 3: "back", 4: "forward" };

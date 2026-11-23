@@ -89,7 +89,7 @@ const everySide = (share: number): Insets => ({ top: share, right: share, bottom
 
 // HD's safe areas (SMPTE ST 2046-1): action within 93% of the frame, titles
 // within 90%, as a share cut from each side.
-export const ACTION_SAFE = everySide(0.035);
+const ACTION_SAFE = everySide(0.035);
 export const TITLE_SAFE = everySide(0.05);
 // Clear of what a vertical feed lays over the video: its tabs along the top,
 // its buttons down the right, its caption along the bottom.
@@ -149,7 +149,7 @@ export function toggleGuides(choice: GuidesChoice): void {
   choice.set({ ...current, shown: !current.shown });
 }
 
-export function frameAspect(frame: GuideFrame): number {
+function frameAspect(frame: GuideFrame): number {
   return FRAMES.find((choice) => choice.id === frame)?.aspect ?? 0;
 }
 

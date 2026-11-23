@@ -68,7 +68,7 @@ export function findNameCollision(dir: string, name: string, exempt?: string): s
   return undefined;
 }
 
-export const TRASH_DIRNAME = ".trash";
+const TRASH_DIRNAME = ".trash";
 
 /** Writes a file without ever leaving a half-written one behind: a plain
  * writeFile truncates first, so a failure partway destroys the old content.

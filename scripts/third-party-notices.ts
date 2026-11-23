@@ -130,7 +130,7 @@ function readPackage(appRoot: string, dir: string): ShippedPackage {
 /** Every package a build ships: the lockfile's production dependencies, and
  * whatever package the web bundle took a module from. The bundle's packages
  * are development dependencies, so the lockfile alone would miss them. */
-export function shippedPackages(appRoot: string, bundledModuleIds: Iterable<string>): ShippedPackage[] {
+function shippedPackages(appRoot: string, bundledModuleIds: Iterable<string>): ShippedPackage[] {
   const dirs = new Set<string>();
   const lock = JSON.parse(readFileSync(path.join(appRoot, "package-lock.json"), "utf8")) as {
     packages?: Record<string, { dev?: boolean; devOptional?: boolean; optional?: boolean; link?: boolean }>;
@@ -167,7 +167,7 @@ const licenceIds = (expression: string) => expression.split(/[\s()]+/).filter(Bo
  * and notice files. One that ships no licence file is covered by its
  * licence's standard text from `textsDir`, which the file appends once for
  * every licence named, since short headers only point to the full text. */
-export function noticesText(appRoot: string, packages: ShippedPackage[], textsDir: string): string {
+function noticesText(appRoot: string, packages: ShippedPackage[], textsDir: string): string {
   const standard = new Map(
     readdirSync(textsDir)
       .filter((name) => name.endsWith(".txt"))

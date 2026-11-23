@@ -23,7 +23,7 @@ export const codeLayout: EditorLayout = {
 };
 
 // A built-in font's value, or an installed font's family name.
-export const DEFAULT_CODE_FONT = "monospace";
+const DEFAULT_CODE_FONT = "monospace";
 
 const BUILT_IN: FontChoice[] = [
   { value: DEFAULT_CODE_FONT, label: "System monospace", font: "var(--font-monospace)", monospaced: true },

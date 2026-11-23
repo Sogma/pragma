@@ -164,7 +164,7 @@ export function suggested(source: TagSource): TagDefinition[] {
 // What's typed matches anywhere in a name, case aside: names it begins
 // first, then the rest, alphabetical within each. `skip` also drops a tag
 // listed twice, in any case.
-export function rankTags(tags: readonly TagDefinition[], query: string, applied: readonly string[]): TagDefinition[] {
+function rankTags(tags: readonly TagDefinition[], query: string, applied: readonly string[]): TagDefinition[] {
   const skip = new Set(applied.map(tagKey));
   const ranked: { tag: TagDefinition; rank: number }[] = [];
   for (const tag of tags) {

@@ -18,7 +18,7 @@ import { carryingAttempt, credentialStore, metadataOf, signInAgain, TOKENS_PART 
  * "ChatGPT plan usage" docs under developers.openai.com/siwc.
  */
 
-export const CHATGPT_ISSUER = "https://auth.openai.com";
+const CHATGPT_ISSUER = "https://auth.openai.com";
 // The token's audience, and the only base URL its requests may go to.
 export const CHATGPT_RESOURCE = "https://api.openai.com/v1";
 export const PLAN_SCOPE = "chatgpt.tokens.use.direct";
@@ -327,7 +327,7 @@ export type OpenedChatGptSignIn =
   | { state: "unreadable"; message: string };
 
 /** The sign-in with its tokens, opened from where they rest. */
-export async function openChatGptSignIn(id: string): Promise<OpenedChatGptSignIn> {
+async function openChatGptSignIn(id: string): Promise<OpenedChatGptSignIn> {
   const selected = await credentialStore().select(chatGptSignInSlot(id), CHATGPT_SIGN_IN_ENDPOINT);
   if (!selected.ok) {
     const { state } = selected;

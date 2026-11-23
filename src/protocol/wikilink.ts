@@ -22,7 +22,7 @@ export function splitWikilinkLabel(raw: string): { target: string; display: stri
 
 /** True for a target read from the linking document's folder: one with no
  * scheme and no leading `/`. */
-export function isRelativeWikilinkTarget(target: string): boolean {
+function isRelativeWikilinkTarget(target: string): boolean {
   return target !== "" && !target.startsWith("/") && !hasPathScheme(target);
 }
 

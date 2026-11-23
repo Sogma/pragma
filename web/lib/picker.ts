@@ -57,7 +57,7 @@ function span(className: string): HTMLSpanElement {
 }
 
 /** Gives `button` a picker's parts: the name and the chevron after it. */
-export function makePicker(button: HTMLButtonElement): void {
+function makePicker(button: HTMLButtonElement): void {
   button.type = "button";
   button.classList.add("picker");
   button.setAttribute("aria-haspopup", "true");

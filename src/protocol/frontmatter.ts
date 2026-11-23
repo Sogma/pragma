@@ -373,7 +373,7 @@ export function frontmatterDescription(data: Record<string, unknown>): string | 
 // gets the pill + add-tag UI immediately instead of a plain text input. A
 // host-rendering hint only; the parser above stays schema-less. `tags` is
 // the protocol-known field (docs/protocol.md's Tags → Sources).
-export const LIST_FRONTMATTER_KEYS = ["tags"] as const;
+const LIST_FRONTMATTER_KEYS = ["tags"] as const;
 
 export function isListFrontmatterKey(key: string): boolean {
   return (LIST_FRONTMATTER_KEYS as readonly string[]).includes(key);

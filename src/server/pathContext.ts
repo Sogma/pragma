@@ -25,7 +25,7 @@ import { isPrivateFile } from "./tree.ts";
 /** One file's longest share of a context, in characters, and the whole's. A
  * model on the writer's own machine may have a few thousand tokens in all. */
 export const CONTEXT_FILE_LIMIT = 8000;
-export const CONTEXT_LIMIT = 32000;
+const CONTEXT_LIMIT = 32000;
 
 /** Where a context path leads, spelled as on disk, and the folder of the
  * scope it sits in, "" for the space's own. */

@@ -73,7 +73,7 @@ function applyCancellations(body: unknown, authorized: AuthorizedRequest): void 
   }
 }
 
-export function createSpaceMcpServer(
+function createSpaceMcpServer(
   spaceRoot: string,
   authorized: AuthorizedRequest,
   spec: ProtocolSpec | undefined,

@@ -42,7 +42,7 @@ const PRESETS_FILE: EntryListFileKind = {
 
 /** The space's `_presets.json`, or why it lists nothing when it exists but
  * doesn't read. Missing lists nothing. */
-export function readPresetsFile(spaceRoot: string): { file: Record<string, unknown> | undefined; problem?: string } {
+function readPresetsFile(spaceRoot: string): { file: Record<string, unknown> | undefined; problem?: string } {
   return readEntryListFile(spaceRoot, PRESETS_FILE);
 }
 

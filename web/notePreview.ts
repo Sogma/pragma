@@ -235,7 +235,7 @@ function createOpenButton(target: OpenTarget): HTMLButtonElement {
 }
 
 /** A page's open button, in its corner over the page. */
-export function createOpenControl(target: OpenTarget): HTMLElement {
+function createOpenControl(target: OpenTarget): HTMLElement {
   const element = document.createElement("div");
   element.className = "preview-page-toolbar";
   element.append(createOpenButton(target));

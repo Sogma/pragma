@@ -81,7 +81,7 @@ export function sectionText(outline: MarkdownOutline, section: MarkdownSection):
 }
 
 /** Where a section starts, in characters from the document's start. */
-export function sectionOffset(outline: MarkdownOutline, section: MarkdownSection): number {
+function sectionOffset(outline: MarkdownOutline, section: MarkdownSection): number {
   return outline.lines.slice(0, section.start).reduce((sum, line) => sum + line.length + 1, 0);
 }
 

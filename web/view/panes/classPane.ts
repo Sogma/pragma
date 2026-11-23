@@ -176,7 +176,7 @@ export interface ClassPane extends EditorPane {
   openTool(tool: ClassTool | "new-note"): void;
 }
 
-export function isClassPane(pane: EditorPane): pane is ClassPane {
+function isClassPane(pane: EditorPane): pane is ClassPane {
   return pane.kind === "class";
 }
 

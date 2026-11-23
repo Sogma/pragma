@@ -22,7 +22,7 @@ import { createSetting, createZoomSetting, type Setting, type ZoomSetting } from
 
 // One of the built-in fonts' values, or an installed font's family name.
 export type ScreenplayFont = string;
-export const DEFAULT_SCREENPLAY_FONT: ScreenplayFont = "courier-prime";
+const DEFAULT_SCREENPLAY_FONT: ScreenplayFont = "courier-prime";
 
 const BUILT_IN: FontChoice[] = [
   {

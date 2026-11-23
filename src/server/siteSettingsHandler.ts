@@ -89,7 +89,7 @@ async function fieldsFor(
 /** How the form shows a file the publisher holds. Only a ready file has a
  * URL to show; anything else says where it stands instead of drawing a
  * broken picture. */
-export function imagePreview(file: SogmaFile): SiteImagePreview {
+function imagePreview(file: SogmaFile): SiteImagePreview {
   if (file.status === "ready" && file.url) return { url: file.url, label: file.filename ?? "Image" };
   if (file.status === "failed") return { url: null, label: file.error ?? "The publisher couldn't use this image." };
   return { url: null, label: "Still processing…" };

@@ -18,11 +18,7 @@ const MAX_TABLE_CELLS = 4_000_000;
  * suffix are trimmed first, so the O(n·m) table only ever covers the part that
  * actually differs — for a small edit in a large file that's a handful of
  * cells rather than millions. `eq` defaults to `===`. */
-export function diffSeq<T>(
-  a: readonly T[],
-  b: readonly T[],
-  eq: (x: T, y: T) => boolean = (x, y) => x === y,
-): DiffOp<T>[] {
+function diffSeq<T>(a: readonly T[], b: readonly T[], eq: (x: T, y: T) => boolean = (x, y) => x === y): DiffOp<T>[] {
   let lo = 0;
   while (lo < a.length && lo < b.length && eq(a[lo], b[lo])) lo++;
 

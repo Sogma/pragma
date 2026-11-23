@@ -9,7 +9,7 @@ import type { ContextMenuService, MenuRegistry } from "../services/menus.ts";
 import { type Disposable, DisposableStore, listen } from "./disposable.ts";
 
 export const COPY_PATH = "path.copy";
-export const PATH_CHIP_MENU = "pathChip";
+const PATH_CHIP_MENU = "pathChip";
 
 // The entry a chip's menu is opened on, `{ file }` or `{ folder }`, as the
 // open commands beside this one read it.

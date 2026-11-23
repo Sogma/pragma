@@ -114,7 +114,7 @@ export function composeDocumentHead(
  * nobody edited; else `# title`, its blanks folded as a title reads, written
  * to read back as typed, below the comments the file held above the heading.
  * A blank title writes no heading, only those comments. */
-export function titleHeading(title: string | undefined, read: ReadHeading | undefined, bodyFollows: boolean): string {
+function titleHeading(title: string | undefined, read: ReadHeading | undefined, bodyFollows: boolean): string {
   const typed = foldBlanks(title ?? "");
   const lead = read?.lead ?? "";
   if (!typed) return lead;

@@ -300,7 +300,7 @@ export type PdfZoom = "fit" | number;
 /** The zoom every PDF opens at, per browser as a screenplay's is: Fit to
  * width, adapting to each PDF, unless a step was picked. A stored value off
  * the steps reads as Fit to width. */
-export function createPdfZoomSetting(key: string): Setting<PdfZoom> {
+function createPdfZoomSetting(key: string): Setting<PdfZoom> {
   const stored = Number(localStorage.getItem(key));
   const emitter = new Emitter<PdfZoom>(PDF_ZOOM_LEVELS.includes(stored) ? stored : "fit");
   return {

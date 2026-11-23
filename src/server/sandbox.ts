@@ -159,7 +159,7 @@ const KINDS: Record<SandboxKind, KindRow> = {
   },
 };
 
-export function isSandboxKind(value: unknown): value is SandboxKind {
+function isSandboxKind(value: unknown): value is SandboxKind {
   return typeof value === "string" && Object.keys(KINDS).includes(value);
 }
 
@@ -486,7 +486,7 @@ export async function performSandboxAddRow(
 /** One `generateText` grant covers generate-options too: a different response
  * shape off the same model-call trust boundary, not a separate grantable
  * capability. */
-export async function requireGenerate(spaceRoot: string, doc: SandboxDocument): Promise<void> {
+async function requireGenerate(spaceRoot: string, doc: SandboxDocument): Promise<void> {
   if (!doc.capabilities.some((candidate) => candidate.type === "generateText")) {
     throw new SandboxRequestError(400, `${doc.label} doesn't declare the generateText capability`);
   }
@@ -752,7 +752,7 @@ function sentFrames(
 
 // The most a request's clips may come to in all. They are read whole for
 // the provider, so this bounds the host's memory; past it nothing is read.
-export const VIDEO_REFERENCE_BYTES_MAX = 256 * 1024 * 1024;
+const VIDEO_REFERENCE_BYTES_MAX = 256 * 1024 * 1024;
 
 /** Reads each clip a request sends, by the address its value names, under
  * the document's grants, once, so the bytes sent are the bytes checked
@@ -945,7 +945,7 @@ export async function startSandboxGenerateImage(
 
 /** What a run hands on once its image job saved `file`, as a clip's run
  * does: only the request that started the job reports what it cost. */
-export async function imageResponse(
+async function imageResponse(
   spaceRoot: string,
   started: { job: JobRecord; resumed: boolean; folder: string; model: string },
   file: string,
@@ -1181,7 +1181,7 @@ export async function startSandboxGenerateVideo(
 
 /** What a run hands on once its job saved `file`. One job, one price: only
  * the request that started it reports the quote. */
-export function videoResponse(
+function videoResponse(
   started: { job: JobRecord; resumed: boolean; folder: string; model: string },
   file: string,
 ): GenerateVideoResponse {

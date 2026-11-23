@@ -140,7 +140,7 @@ function describeChange(statusCode: string): "Add" | "Delete" | "Rename" | "Upda
 }
 
 /** Heuristic (non-LLM) commit message, e.g. "Update notes/todo.md" or "Add 2 files, update 1 file". */
-export function generateCommitMessage(files: GitFileEntry[]): string {
+function generateCommitMessage(files: GitFileEntry[]): string {
   if (files.length === 0) return "No changes";
   if (files.length === 1) return `${describeChange(files[0].statusCode)} ${files[0].path}`;
 

@@ -193,7 +193,7 @@ export class ApiError extends Error {
   }
 }
 
-export interface ApiRequestOptions {
+interface ApiRequestOptions {
   method?: string;
   // Serialized as the JSON body. A call that sends raw bytes builds its own
   // request instead.

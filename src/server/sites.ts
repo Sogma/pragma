@@ -253,7 +253,7 @@ export interface PendingEntry {
  * not `SitePublishTarget.siteDir` (space-relative) directly; join that
  * against `spaceRoot` first. */
 
-export function readPendingQueue(siteAbsoluteDir: string): PendingEntry[] {
+function readPendingQueue(siteAbsoluteDir: string): PendingEntry[] {
   const pendingPath = namedEntryPath(siteAbsoluteDir, QUEUE_FILENAME);
   if (!existsSync(pendingPath)) return [];
 
@@ -270,7 +270,7 @@ export function readPendingQueue(siteAbsoluteDir: string): PendingEntry[] {
  * the file rather than writing `[]` — a site with nothing pending has no
  * manifest. Same absolute-directory contract as the reader above. */
 
-export function writePendingQueue(siteAbsoluteDir: string, entries: PendingEntry[]): void {
+function writePendingQueue(siteAbsoluteDir: string, entries: PendingEntry[]): void {
   const pendingPath = namedEntryPath(siteAbsoluteDir, QUEUE_FILENAME);
   if (entries.length === 0) {
     if (existsSync(pendingPath)) unlinkSync(pendingPath);

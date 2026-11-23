@@ -43,7 +43,7 @@ function declaredLibraries(spaceRoot: string) {
 
 /** Applies one library's change to the space's `_libraries.json`. A file left
  * declaring none and holding nothing else is removed. */
-export async function changeSpaceLibrary(spaceRoot: string, change: LibraryChange): Promise<void> {
+async function changeSpaceLibrary(spaceRoot: string, change: LibraryChange): Promise<void> {
   await changeEntryListFile(spaceRoot, LIBRARIES_FILE, (file) => withLibraryChange(file, change));
 }
 

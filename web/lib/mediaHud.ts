@@ -105,7 +105,7 @@ export function showTransparency(img: HTMLImageElement, path: string): void {
 
 /** Whether a picture shown this size, in CSS pixels, has room for the bars.
  * Measuring decides only that; the bars' place is the frame's. */
-export function hudFits(width: number, height: number): boolean {
+function hudFits(width: number, height: number): boolean {
   return width >= HUD_MIN_WIDTH && height >= HUD_MIN_HEIGHT;
 }
 

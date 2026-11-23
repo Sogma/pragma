@@ -27,7 +27,7 @@ export const LOOK_REACH: Record<EffortLevel, LookReach> = {
 };
 
 /** The characters of the list of the scope's files a look starts with. */
-export const LOOK_LIST_LIMIT = 6000;
+const LOOK_LIST_LIMIT = 6000;
 
 // Enough of a search to choose what to read, never a file's worth.
 const SEARCH_MATCHES = 30;
