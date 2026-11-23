@@ -1,4 +1,4 @@
-# Pragma
+<img src="web/public/images/logo.svg" alt="Pragma" width="240">
 
 Pragma is a workspace for writing, data, Flows, and small applications, kept together as plain files in a folder you own.
 
