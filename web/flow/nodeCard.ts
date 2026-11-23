@@ -50,7 +50,6 @@ import {
 import type { WiredInputs } from "../../src/protocol/videoModes.ts";
 import { offeredResolutions, sentResolution } from "../../src/protocol/videoResolution.ts";
 import { type ChartView, createChartView } from "../chart/chartView.ts";
-import { openColorPicker } from "../colorPicker.ts";
 import type {
   AppletFileResponse,
   AppletImportSource,
@@ -58,6 +57,7 @@ import type {
   SandboxReadResult,
   SpaceTreeNode,
 } from "../core/apiClient.ts";
+import { openColorPicker } from "../lib/colorPicker.ts";
 import { type Disposable, toDisposable } from "../lib/disposable.ts";
 import { buildCopyButton } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";

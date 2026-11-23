@@ -51,7 +51,6 @@ import {
   TABLE_LAYOUTS,
   type TableColumn,
 } from "../../../src/protocol/types.ts";
-import { openColorPicker } from "../../colorPicker.ts";
 import {
   ApiError,
   type ClassFileResponse,
@@ -75,6 +74,7 @@ import {
 import { tagVocabulary } from "../../core/tagVocabulary.ts";
 import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
+import { openColorPicker } from "../../lib/colorPicker.ts";
 import {
   type CellControls,
   cardParts,
@@ -1424,10 +1424,9 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       render();
       if (open) showProperties(open.file);
     },
-    hasTransient: () => toolbar.isOpen() || media.isOpen() || find.isOpen(),
+    hasTransient: () => media.isOpen() || find.isOpen(),
     dismissTransient: () => {
       if (media.isOpen()) media.close();
-      else if (toolbar.isOpen()) toolbar.close();
       else find.close();
     },
     selectedFile: () => previewedFile(media.shownPath()),

@@ -1,14 +1,11 @@
 // An anchored color-picker popover: a grid of preset swatches over a custom
 // hex entry, kept standalone so any surface can use it (the `.table.html`
-// `color` column is one). It owns its whole DOM lifecycle — created on open,
-// removed on close, dismissed on outside pointer-down / Escape / resize — so
-// a call site adds no markup of its own.
+// `color` column is one). It is created on open and opens through flyout.ts,
+// which places and dismisses it, so a call site adds no markup of its own.
 
-import { normalizeHexColor } from "../src/protocol/types.ts";
-import { positionPopover } from "./lib/flyout.ts";
-import { LOGO_COLORS } from "./lib/logoColors.ts";
-import type { CommandRegistry } from "./services/commands.ts";
-import type { KeybindingRegistry } from "./services/keybindings.ts";
+import { normalizeHexColor } from "../../src/protocol/types.ts";
+import { openFlyout } from "./flyout.ts";
+import { LOGO_COLORS } from "./logoColors.ts";
 
 export interface ColorPickerOptions {
   /** The element the popover points at — placed just below it, flipped
@@ -55,19 +52,12 @@ const PRESET_COLORS: Preset[] = [
   { name: "Crimson", hex: LOGO_COLORS.crimson },
 ];
 
-// Only ever one open at a time — a fresh open closes the previous, and the
-// close handler nulls this back out.
-let teardown: (() => void) | null = null;
-
 function isPreset(hex: string): boolean {
   return PRESET_COLORS.some((preset) => preset.hex === hex);
 }
 
-/** Opens the popover anchored to `anchor`. A second call (or any of the
- * dismiss paths) closes whatever's open first. */
+/** Opens the popover anchored to `anchor`, closing any other popover. */
 export function openColorPicker({ anchor, value, onPick }: ColorPickerOptions): void {
-  closeColorPicker();
-
   const current = normalizeHexColor(value);
 
   const popover = document.createElement("div");
@@ -77,7 +67,7 @@ export function openColorPicker({ anchor, value, onPick }: ColorPickerOptions): 
 
   const commit = (next: string): void => {
     onPick(normalizeHexColor(next));
-    closeColorPicker();
+    flyout.close();
   };
 
   // --- Preset grid -----------------------------------------------------------
@@ -188,49 +178,8 @@ export function openColorPicker({ anchor, value, onPick }: ColorPickerOptions): 
   footer.append(toggle, custom);
   popover.appendChild(footer);
 
-  // --- Mount, position, focus --------------------------------------------
-  document.body.appendChild(popover);
-  positionPopover(popover, anchor);
-
+  // --- Mount, focus --------------------------------------------------------
+  const flyout = openFlyout(anchor, popover);
   const selected = swatches.find((swatch) => swatch.getAttribute("aria-pressed") === "true");
   (selected ?? swatches[0]).focus();
-
-  // --- Dismissal ---------------------------------------------------------
-  const onPointerDown = (event: PointerEvent): void => {
-    const target = event.target as Node;
-    if (!popover.contains(target) && !anchor.contains(target)) closeColorPicker();
-  };
-  const onResize = (): void => closeColorPicker();
-
-  // Deferred so the same click that opened the popover doesn't close it.
-  const armPointer = window.setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-  window.addEventListener("resize", onResize);
-
-  teardown = () => {
-    window.clearTimeout(armPointer);
-    document.removeEventListener("pointerdown", onPointerDown);
-    window.removeEventListener("resize", onResize);
-    // Focus goes back to the anchor when it was inside — an Escape, or a
-    // pick made with the keyboard.
-    const restore = popover.contains(document.activeElement);
-    popover.remove();
-    if (restore) anchor.focus();
-    teardown = null;
-  };
-}
-
-export function closeColorPicker(): void {
-  teardown?.();
-}
-
-// Escape reaches the picker through the keybinding dispatcher, below a
-// dialog and above a pane's own transient.
-export function registerColorPickerEscape(commands: CommandRegistry, keybindings: KeybindingRegistry): void {
-  commands.register({
-    id: "colorPicker.close",
-    label: "Close color picker",
-    when: () => teardown !== null,
-    run: closeColorPicker,
-  });
-  keybindings.register({ key: "Escape", command: "colorPicker.close", weight: 60 });
 }

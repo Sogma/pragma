@@ -1,15 +1,12 @@
 // An anchored date-picker popover: a month grid under a month/year header,
-// with Today and Clear. Same lifecycle as colorPicker.ts — a `position:
-// fixed` element created on open, removed on close, dismissed on outside
-// pointer-down / Escape / resize — so a call site needs only the one function.
+// with Today and Clear. Created on open, it opens through flyout.ts, which
+// places and dismisses it, so a call site needs only the one function.
 //
 // Values are plain `YYYY-MM-DD` strings, never Date objects: the day is
 // resolved in the calendar the grid shows, so no time zone can shift it by
 // one on the way in or out.
 
-import { positionPopover } from "./lib/flyout.ts";
-import type { CommandRegistry } from "./services/commands.ts";
-import type { KeybindingRegistry } from "./services/keybindings.ts";
+import { openFlyout } from "./flyout.ts";
 
 export interface DatePickerOptions {
   /** The element the popover points at — placed just below it, flipped
@@ -46,8 +43,6 @@ const MONTH_NAMES = [
 ];
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-let teardown: (() => void) | null = null;
-
 /** The leading `YYYY-MM-DD` of `value`, or undefined when it has none or
  * names a day that doesn't exist. */
 export function parseDatePrefix(value: string): Day | undefined {
@@ -78,11 +73,8 @@ function today(): Day {
   return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
 }
 
-/** Opens the popover anchored to `anchor`. A second call (or any of the
- * dismiss paths) closes whatever's open first. */
+/** Opens the popover anchored to `anchor`, closing any other popover. */
 export function openDatePicker({ anchor, value, onPick }: DatePickerOptions): void {
-  closeDatePicker();
-
   const selected = parseDatePrefix(value);
   const now = today();
   // The day keyboard focus sits on; the grid always shows its month.
@@ -95,7 +87,7 @@ export function openDatePicker({ anchor, value, onPick }: DatePickerOptions): vo
 
   const commit = (next: string): void => {
     onPick(next);
-    closeDatePicker();
+    flyout.close();
   };
 
   // --- Header: previous, month, year, next ---------------------------------
@@ -210,48 +202,11 @@ export function openDatePicker({ anchor, value, onPick }: DatePickerOptions): vo
     }
   });
 
-  // --- Mount, position, focus --------------------------------------------
-  document.body.appendChild(popover);
+  // --- Mount, focus --------------------------------------------------------
+  // Rendered first: the flyout measures the popover to place it.
   render(false);
-  positionPopover(popover, anchor);
+  const flyout = openFlyout(anchor, popover);
   grid.querySelector<HTMLButtonElement>('.date-picker-day[tabindex="0"]')?.focus();
-
-  // --- Dismissal ---------------------------------------------------------
-  const onPointerDown = (event: PointerEvent): void => {
-    const target = event.target as Node;
-    if (!popover.contains(target) && !anchor.contains(target)) closeDatePicker();
-  };
-  const onResize = (): void => closeDatePicker();
-
-  // Deferred so the same click that opened the popover doesn't close it.
-  const armPointer = window.setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-  window.addEventListener("resize", onResize);
-
-  teardown = () => {
-    window.clearTimeout(armPointer);
-    document.removeEventListener("pointerdown", onPointerDown);
-    window.removeEventListener("resize", onResize);
-    const restore = popover.contains(document.activeElement);
-    popover.remove();
-    if (restore) anchor.focus();
-    teardown = null;
-  };
-}
-
-export function closeDatePicker(): void {
-  teardown?.();
-}
-
-// Escape reaches the picker through the keybinding dispatcher, below a
-// dialog and above a pane's own transient.
-export function registerDatePickerEscape(commands: CommandRegistry, keybindings: KeybindingRegistry): void {
-  commands.register({
-    id: "datePicker.close",
-    label: "Close date picker",
-    when: () => teardown !== null,
-    run: closeDatePicker,
-  });
-  keybindings.register({ key: "Escape", command: "datePicker.close", weight: 60 });
 }
 
 function navButton(className: string, label: string): HTMLButtonElement {

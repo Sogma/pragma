@@ -3,7 +3,7 @@
 import { isListFrontmatterKey, PUBLICATION_DATE_KEY } from "../../src/protocol/frontmatter.ts";
 import { illegalTagNameReason, sameTag, tagNameOf, tagsOf } from "../../src/protocol/tags.ts";
 import { coerceScalarPropertyValue } from "../core/documentContent.ts";
-import { openDatePicker, parseDatePrefix } from "../datePicker.ts";
+import { openDatePicker, parseDatePrefix } from "../lib/datePicker.ts";
 import { propertyIcon } from "../lib/propertyIcon.ts";
 import { createPill, createTagPill, paintTagPills } from "../lib/tagPill.ts";
 import { attachTagSuggestions, type TagSource } from "../lib/tagSuggestions.ts";

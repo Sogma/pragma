@@ -1,5 +1,8 @@
 // A popover anchored to the control that opened it: where it sits, and what
-// dismisses it.
+// dismisses it. Every popover opens through here, so only one is ever open,
+// and one Escape command closes it wherever focus is.
+import type { CommandRegistry } from "../services/commands.ts";
+import type { KeybindingRegistry } from "../services/keybindings.ts";
 
 // Below the anchor, flipped above or clamped sideways when it wouldn't fit,
 // in viewport coordinates for a `position: fixed` popover. It measures the
@@ -22,10 +25,9 @@ export function positionPopover(popover: HTMLElement, anchor: HTMLElement): void
   popover.style.top = `${top}px`;
 }
 
-// Outside-click and resize dismissal for an anchored flyout (Escape is the
-// flyout's own). The returned teardown removes `el` itself, so a caller's
-// teardown only adds what its flyout needs, such as clearing its
-// module-level "open" variable.
+// Outside-click and resize dismissal for an anchored flyout. The returned
+// teardown removes `el` itself and hands focus back to `anchor` when it was
+// inside.
 //
 // A press outside closes the flyout only once it ends as a click, so a
 // press that becomes a drag, a file dragged in from the tree, leaves it
@@ -35,7 +37,7 @@ export function positionPopover(popover: HTMLElement, anchor: HTMLElement): void
 // A press in a menu leaves the flyout open: anything outside closes the
 // flyout first, so a menu showing over it was opened from it, as a Flow
 // picker is from a Class's Toolkit, and a pick there is part of its use.
-export function wireFlyoutDismiss(el: HTMLElement, anchor: HTMLElement, onDismiss: () => void): () => void {
+function wireFlyoutDismiss(el: HTMLElement, anchor: HTMLElement, onDismiss: () => void): () => void {
   const outside = (target: EventTarget | null): boolean => {
     if (!(target instanceof Node) || el.contains(target) || anchor.contains(target)) return false;
     return !(target instanceof Element && target.closest('[role="menu"]'));
@@ -80,30 +82,45 @@ export interface Flyout {
 let openFlyoutTeardown: (() => void) | null = null;
 
 /** Opens `element` as a popover under `anchor`, or above it where it won't
- * fit, closed by an outside click, a resize or Escape. `onClose` hears every
- * way it closes. */
+ * fit, closed by an outside click, a resize, Escape, or focus moving away.
+ * `onClose` hears every way it closes. */
 export function openFlyout(anchor: HTMLElement, element: HTMLElement, onClose?: () => void): Flyout {
   openFlyoutTeardown?.();
   document.body.appendChild(element);
   positionPopover(element, anchor);
 
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || event.defaultPrevented) return;
-    event.preventDefault();
-    event.stopPropagation();
+  // Focus leaving closes it as an outside click does, so a keyboard move
+  // into another editor group can't leave it open behind. A menu it opened,
+  // or a modal dialog over it, is part of its use and leaves it open.
+  const onFocusIn = (event: FocusEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Node) || element.contains(target) || anchor.contains(target)) return;
+    if (target instanceof Element && target.closest('[role="menu"], [aria-modal="true"]')) return;
     close();
   };
-  element.addEventListener("keydown", onKeyDown);
+  document.addEventListener("focusin", onFocusIn);
   const unwire = wireFlyoutDismiss(element, anchor, () => close());
   let closed = false;
   function close(): void {
     if (closed) return;
     closed = true;
-    element.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("focusin", onFocusIn);
     unwire();
     if (openFlyoutTeardown === close) openFlyoutTeardown = null;
     onClose?.();
   }
   openFlyoutTeardown = close;
   return { element, close, reposition: () => positionPopover(element, anchor) };
+}
+
+/** Escape closes the open popover wherever focus is: below a dialog and a
+ * menu, which claim it first, and above a pane's own transient. */
+export function registerFlyoutEscape(commands: CommandRegistry, keybindings: KeybindingRegistry): void {
+  commands.register({
+    id: "flyout.close",
+    label: "Close popover",
+    when: () => openFlyoutTeardown !== null,
+    run: () => openFlyoutTeardown?.(),
+  });
+  keybindings.register({ key: "Escape", command: "flyout.close", weight: 60 });
 }

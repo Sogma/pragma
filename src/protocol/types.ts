@@ -217,7 +217,7 @@ export interface TableFile {
  * user actually picks a color, so a value this reader doesn't recognize is
  * never destroyed.
  *
- * Shared by the cell renderer and web/colorPicker.ts so both agree on what a
+ * Shared by the cell renderer and web/lib/colorPicker.ts so both agree on what a
  * valid value is. */
 export function normalizeHexColor(raw: string): string {
   const value = raw.trim().toLowerCase();

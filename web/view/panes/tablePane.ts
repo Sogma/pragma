@@ -21,7 +21,7 @@ import {
 } from "../../lib/dataGrid.ts";
 import { buildTableRowDeleteButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
-import { positionPopover, wireFlyoutDismiss } from "../../lib/flyout.ts";
+import { type Flyout, openFlyout } from "../../lib/flyout.ts";
 import { createPageFind } from "../../pageFind.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
@@ -52,13 +52,10 @@ function slugifyColumnId(label: string, existingIds: ReadonlySet<string>): strin
   return `${base}-${suffix}`;
 }
 
-// Only ever one open at a time, same convention as web/colorPicker.ts's own
-// module-level `teardown` — a fresh open (or any dismiss path) closes
-// whatever's already open.
-let addColumnTeardown: (() => void) | null = null;
+let addColumnFlyout: Flyout | undefined;
 
 function closeAddColumnPopover(): void {
-  addColumnTeardown?.();
+  addColumnFlyout?.close();
 }
 
 // Opens the "Add column" popover anchored to `anchor`: the shared field form
@@ -71,8 +68,6 @@ function openAddColumnPopover(
   existingIds: ReadonlySet<string>,
   onAdd: (column: TableColumn) => void,
 ): void {
-  closeAddColumnPopover();
-
   const { element: popover, focus } = createFieldPopover({
     title: "Add column",
     nameLabel: "Column name",
@@ -88,15 +83,10 @@ function openAddColumnPopover(
     onCancel: closeAddColumnPopover,
   });
 
-  document.body.appendChild(popover);
-  positionPopover(popover, anchor);
+  addColumnFlyout = openFlyout(anchor, popover, () => {
+    addColumnFlyout = undefined;
+  });
   focus();
-
-  const unwireDismiss = wireFlyoutDismiss(popover, anchor, closeAddColumnPopover);
-  addColumnTeardown = () => {
-    unwireDismiss();
-    addColumnTeardown = null;
-  };
 }
 
 // Deleting a column only changes the working copy and schedules a debounced
@@ -668,10 +658,9 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       view.refresh();
       if (shown) showProperties(shown);
     },
-    hasTransient: () => addColumnTeardown !== null || media.isOpen() || find.isOpen(),
+    hasTransient: () => media.isOpen() || find.isOpen(),
     dismissTransient: () => {
       if (media.isOpen()) media.close();
-      else if (addColumnTeardown) closeAddColumnPopover();
       else find.close();
     },
     selectedFile: () => previewedFile(media.shownPath()),

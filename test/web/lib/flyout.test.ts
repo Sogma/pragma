@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openFlyout, positionPopover } from "../../../web/lib/flyout.ts";
+import { openFlyout, positionPopover, registerFlyoutEscape } from "../../../web/lib/flyout.ts";
+import { type CommandContext, createCommands } from "../../../web/services/commands.ts";
+import { createKeybindings } from "../../../web/services/keybindings.ts";
 
 // A flyout hears presses a tick after it opens.
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -98,5 +100,88 @@ describe("a popover's place", () => {
   it("keeps 4px off the right edge, and off the left one when it's wider than the window", () => {
     expect(place({ left: 900, top: 50, bottom: 70 }, 200, 100)).toEqual(["820px", "74px"]);
     expect(place({ left: 100, top: 50, bottom: 70 }, 1100, 100)).toEqual(["4px", "74px"]);
+  });
+});
+
+describe("one popover at a time", () => {
+  it("closes the open popover when another opens", async () => {
+    const first = await setup();
+    const second = await setup();
+    expect(first.panel.isConnected).toBe(false);
+    expect(first.onClose).toHaveBeenCalledOnce();
+    expect(second.panel.isConnected).toBe(true);
+  });
+});
+
+describe("a popover's Escape", () => {
+  const context = (): CommandContext => ({ tab: {} as CommandContext["tab"], pane: undefined });
+  const pressEscape = (target: Element) =>
+    target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+
+  function dispatcher() {
+    const commands = createCommands();
+    const keybindings = createKeybindings(commands);
+    registerFlyoutEscape(commands, keybindings);
+    return { commands, keybindings, attached: keybindings.attach(document, context) };
+  }
+
+  it("closes it with focus on its anchor or in a field of its own", async () => {
+    const { attached } = dispatcher();
+    const first = await setup();
+    first.anchor.focus();
+    pressEscape(first.anchor);
+    expect(first.panel.isConnected).toBe(false);
+
+    const second = await setup();
+    const field = document.createElement("input");
+    second.panel.append(field);
+    field.focus();
+    pressEscape(field);
+    expect(second.panel.isConnected).toBe(false);
+    attached.dispose();
+  });
+
+  // A dialog's Escape weighs 200 and a menu's 100: whichever is open over a
+  // popover takes the key before it.
+  it("leaves the key to a surface over it that claims Escape first", async () => {
+    const { commands, keybindings, attached } = dispatcher();
+    const closeMenu = vi.fn();
+    commands.register({ id: "test.menu", label: "Close menu", run: closeMenu });
+    keybindings.register({ key: "Escape", command: "test.menu", weight: 100 });
+    const { anchor, panel } = await setup();
+    pressEscape(anchor);
+    expect(closeMenu).toHaveBeenCalledOnce();
+    expect(panel.isConnected).toBe(true);
+    attached.dispose();
+  });
+});
+
+describe("focus leaving a popover", () => {
+  it("closes it once focus lands outside", async () => {
+    const { outside, panel, onClose } = await setup();
+    const elsewhere = document.createElement("button");
+    outside.append(elsewhere);
+    elsewhere.focus();
+    expect(panel.isConnected).toBe(false);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("leaves it open for focus on itself, its anchor, a menu or a modal dialog", async () => {
+    const { anchor, panel } = await setup();
+    const focusIn = (host: HTMLElement) => {
+      const button = document.createElement("button");
+      host.append(button);
+      if (!host.isConnected) document.body.append(host);
+      button.focus();
+    };
+    focusIn(panel);
+    anchor.focus();
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    focusIn(menu);
+    const dialog = document.createElement("div");
+    dialog.setAttribute("aria-modal", "true");
+    focusIn(dialog);
+    expect(panel.isConnected).toBe(true);
   });
 });

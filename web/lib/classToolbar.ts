@@ -70,7 +70,6 @@ export interface ClassToolbar {
   isFolded(): boolean;
   // Opens a button's panel, under the toolbar while the button is folded.
   openTool(tool: ClassTool): void;
-  isOpen(): boolean;
   close(): void;
 }
 
@@ -808,7 +807,6 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
     fitTo,
     isFolded: () => folded && !element.hidden,
     openTool: (tool) => tools[tool](),
-    isOpen: () => flyout !== undefined,
     close,
   };
 }

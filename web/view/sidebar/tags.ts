@@ -8,8 +8,8 @@
 
 import type { SpaceTagChangeRequestBody } from "../../../src/protocol/api.ts";
 import { illegalTagNameReason, sameTag, type TagDefinition, tagKey, tagNameOf } from "../../../src/protocol/tags.ts";
-import { openColorPicker } from "../../colorPicker.ts";
 import type { TagVocabulary } from "../../core/tagVocabulary.ts";
+import { openColorPicker } from "../../lib/colorPicker.ts";
 import { el } from "../../lib/dom.ts";
 import { flash } from "../../lib/flash.ts";
 import { attachEditInputHandlers } from "../../lib/inlineEdit.ts";

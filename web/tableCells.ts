@@ -2,7 +2,7 @@
 // it, so a picture or a path shows the same in both: a media cell by its
 // column's folder, strip and names, a path cell read from the Table's folder.
 import { dirnameOf } from "../src/protocol/rootedPath.ts";
-import { openColorPicker } from "./colorPicker.ts";
+import { openColorPicker } from "./lib/colorPicker.ts";
 import type { CellControls } from "./lib/dataGrid.ts";
 import type { DialogService } from "./services/dialog.ts";
 import { createMediaField, mediaImportFor } from "./services/mediaField.ts";

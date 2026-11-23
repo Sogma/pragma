@@ -5,7 +5,7 @@
 // timestamp shows as the text it is and stays on disk until a time is picked.
 import { formatTimestamp, parseTimestamp } from "../../src/protocol/types.ts";
 import { dateTimeLabel } from "./dateText.ts";
-import { positionPopover } from "./flyout.ts";
+import { openFlyout } from "./flyout.ts";
 
 export interface TimestampFieldSpec {
   value: string;
@@ -50,19 +50,10 @@ export function createTimestampField(spec: TimestampFieldSpec): HTMLButtonElemen
   return button;
 }
 
-// Only ever one open at a time, as with the color and date pickers.
-let teardown: (() => void) | null = null;
-
-export function closeTimestampPicker(): void {
-  teardown?.();
-}
-
 // The browser's date-and-time control, with Now and Clear. A change applies
 // at once and leaves the picker open, since a date and its time are set one
 // part after the other; Now and Clear apply and close.
 function openTimestampPicker(anchor: HTMLElement, value: string, onPick: (value: string) => void): void {
-  closeTimestampPicker();
-
   const popover = document.createElement("div");
   popover.className = "popover timestamp-picker";
   popover.setAttribute("role", "dialog");
@@ -88,7 +79,7 @@ function openTimestampPicker(anchor: HTMLElement, value: string, onPick: (value:
     button.textContent = label;
     button.addEventListener("click", () => {
       onPick(next());
-      closeTimestampPicker();
+      flyout.close();
     });
     return button;
   };
@@ -100,31 +91,6 @@ function openTimestampPicker(anchor: HTMLElement, value: string, onPick: (value:
   );
 
   popover.append(input, actions);
-  popover.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closeTimestampPicker();
-  });
-  document.body.appendChild(popover);
-  positionPopover(popover, anchor);
+  const flyout = openFlyout(anchor, popover);
   input.focus();
-
-  const onPointerDown = (event: PointerEvent): void => {
-    const target = event.target as Node;
-    if (!popover.contains(target) && !anchor.contains(target)) closeTimestampPicker();
-  };
-  const onResize = (): void => closeTimestampPicker();
-  // Deferred so the same click that opened the picker doesn't close it.
-  const armPointer = window.setTimeout(() => document.addEventListener("pointerdown", onPointerDown), 0);
-  window.addEventListener("resize", onResize);
-
-  teardown = () => {
-    window.clearTimeout(armPointer);
-    document.removeEventListener("pointerdown", onPointerDown);
-    window.removeEventListener("resize", onResize);
-    const restore = popover.contains(document.activeElement);
-    popover.remove();
-    if (restore) anchor.focus();
-    teardown = null;
-  };
 }

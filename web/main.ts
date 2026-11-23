@@ -1,5 +1,4 @@
 import { dirnameOf, isLibraryPath } from "../src/protocol/rootedPath.ts";
-import { registerColorPickerEscape } from "./colorPicker.ts";
 import {
   fetchAppletInfo,
   fetchFile,
@@ -23,13 +22,13 @@ import { chatScreen } from "./core/chatContext.ts";
 import * as spaceTree from "./core/spaceTree.ts";
 import { tagVocabulary } from "./core/tagVocabulary.ts";
 import * as workspace from "./core/workspace.ts";
-import { registerDatePickerEscape } from "./datePicker.ts";
 import { createEditorArea } from "./editorArea.ts";
 import { codeLayout, wireCodeSettings } from "./formats/code/settings.ts";
 import { markdownFormat } from "./formats/markdown/format.ts";
 import { screenplayFormat } from "./formats/screenplay/format.ts";
 import { createGraphTab } from "./graph/graphView.ts";
 import { ignoreStrayFileDrops, must } from "./lib/dom.ts";
+import { registerFlyoutEscape } from "./lib/flyout.ts";
 import { createListItemMenuButton } from "./lib/listItemMenu.ts";
 import { applyBrightSelection } from "./lib/selection.ts";
 import { spellcheckFields } from "./lib/spellcheck.ts";
@@ -221,8 +220,7 @@ async function main(): Promise<void> {
   // own transient — a popover, a selection — and, before that, the color or
   // date picker, popovers several panes share.
   registerPaneDismiss(commands, keybindings);
-  registerColorPickerEscape(commands, keybindings);
-  registerDatePickerEscape(commands, keybindings);
+  registerFlyoutEscape(commands, keybindings);
 
   // The space switcher menu behind the space name atop the tree
   // (view/spaceSwitcher.ts); the space manager below registers Manage Spaces….
