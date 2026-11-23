@@ -2,11 +2,7 @@ import { readFile } from "node:fs/promises";
 import { HTMLElement, parse } from "node-html-parser";
 import { readFieldColumns, readMetadataBlock } from "./tableFile.ts";
 import type { ClassFile, ClassRule, ClassView } from "./types.ts";
-import { parseTableLayout } from "./types.ts";
-
-export function emptyClass(): ClassFile {
-  return { version: "1.0", filter: [], fields: [], views: [], links: [] };
-}
+import { emptyClass, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, as for every other kind: a missing, empty or
  * malformed file reads as an empty Class. For callers that never save

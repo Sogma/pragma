@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { type HTMLElement, parse } from "node-html-parser";
 import type { MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
-import { parseFieldValueType, parseTableLayout } from "./types.ts";
-
-export function emptyTable(): TableFile {
-  return { version: "1.0", columns: [], rows: [] };
-}
+import { emptyTable, parseFieldValueType, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, same convention as every other file reader in
  * this codebase: a missing, empty, or malformed `.table.html` file never

@@ -27,14 +27,16 @@ import type {
   ThumbnailUsageResponse,
 } from "../../protocol/api.ts";
 import { contentHashFor, readAppletFile } from "../../protocol/appletFile.ts";
-import { emptyClass, parseClassFile } from "../../protocol/classFile.ts";
+import { parseClassFile } from "../../protocol/classFile.ts";
 import { flowActions } from "../../protocol/flowActions.ts";
 import { capabilityDigest, emptyFlowFile, parseFlowFile, readFlowFile } from "../../protocol/flowFile.ts";
 import { computeFlowCapabilities } from "../../protocol/flowNodes.ts";
 import { dirnameOf, formatRootedPath, isLibraryRoot } from "../../protocol/rootedPath.ts";
-import { emptyTable, parseTableFile } from "../../protocol/tableFile.ts";
+import { parseTableFile } from "../../protocol/tableFile.ts";
 import {
   documentTypeFor,
+  emptyClass,
+  emptyTable,
   isAppletFile,
   isClassFile,
   isFlowFile,

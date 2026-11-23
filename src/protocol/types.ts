@@ -211,6 +211,12 @@ export interface TableFile {
   layout?: TableLayout;
 }
 
+/** A Table with no columns or rows, at the version this build writes: what
+ * an empty file reads as, and what a new one starts from. */
+export function emptyTable(): TableFile {
+  return { version: "1.0", columns: [], rows: [] };
+}
+
 /** A `color` value is a CSS hex color: `#rgb` or `#rrggbb` in any case in,
  * lowercase `#rrggbb` out. Anything else — "" or a hand-written color name —
  * is "no color" and renders empty, but its raw text stays on disk until the
@@ -343,6 +349,12 @@ export interface ClassFile {
   // folder or an address; what a link gives the rows follows from what it
   // names.
   links: string[];
+}
+
+/** A Class with no rules, fields, views or links, at the version this build
+ * writes: what an empty file reads as, and what a new one starts from. */
+export function emptyClass(): ClassFile {
+  return { version: "1.0", filter: [], fields: [], views: [], links: [] };
 }
 
 export const CLASS_EXTENSION = ".class.html";

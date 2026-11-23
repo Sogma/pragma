@@ -37,8 +37,9 @@ import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
 import type { TemplateEntry } from "../../../src/protocol/templates.ts";
 import {
   CLASS_EXTENSION,
-  type ClassFile,
   type ClassRule,
+  emptyClass,
+  emptyTable,
   FLOW_EXTENSION,
   isClassFile,
   isFlowFile,
@@ -46,7 +47,6 @@ import {
   isMarkdownFile,
   isTableFile,
   TABLE_EXTENSION,
-  type TableFile,
 } from "../../../src/protocol/types.ts";
 import {
   fetchFile,
@@ -247,11 +247,7 @@ function seedForKind(kind: CreateKind | undefined, name: string): { fileName: st
   if (kind === "table") {
     return {
       fileName: isTableFile(name) ? name : `${name}${TABLE_EXTENSION}`,
-      content: serializeTableFile({
-        version: "1.0",
-        columns: [{ id: "name", type: "text", label: "Name" }],
-        rows: [],
-      } satisfies TableFile),
+      content: serializeTableFile({ ...emptyTable(), columns: [{ id: "name", type: "text", label: "Name" }] }),
     };
   }
   if (kind === "class") return { fileName: isClassFile(name) ? name : `${name}${CLASS_EXTENSION}` };
@@ -944,7 +940,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     const filter: ClassRule[] =
       parentPath === "" ? [] : [{ property: "file.folder", test: "is", values: [THIS_FOLDER] }];
     const fields = parentPath === "" ? [] : suggestedFields(await fetchFolderRows(parentPath).catch(() => []));
-    return serializeClassFile({ version: "1.0", filter, fields, views: [], links: [] } satisfies ClassFile);
+    return serializeClassFile({ ...emptyClass(), filter, fields });
   }
 
   // ---- rename ------------------------------------------------------------

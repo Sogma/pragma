@@ -54,12 +54,13 @@ import {
   type RootedPath,
 } from "../protocol/rootedPath.ts";
 import type { ScopeFolders } from "../protocol/scopes.ts";
-import { emptyTable, parseTableFile } from "../protocol/tableFile.ts";
+import { parseTableFile } from "../protocol/tableFile.ts";
 import { serializeTableFile } from "../protocol/tableHtml.ts";
 import {
   type ContextFile,
   type ContextMessage,
   type ContextSent,
+  emptyTable,
   extensionForMediaType,
   flowCapabilityKey,
   holdsPath,

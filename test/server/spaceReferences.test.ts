@@ -1,11 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { emptyClass, parseClassFile } from "../../src/protocol/classFile.ts";
+import { parseClassFile } from "../../src/protocol/classFile.ts";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
 import { parseFrontmatter } from "../../src/protocol/frontmatter.ts";
 import { parseTableFile } from "../../src/protocol/tableFile.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
+import { emptyClass } from "../../src/protocol/types.ts";
 import { rewriteMovedReferences } from "../../src/server/spaceReferences.ts";
 import { tempDir } from "../support/isolation.ts";
 

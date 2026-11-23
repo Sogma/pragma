@@ -1,8 +1,8 @@
 import { mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { emptyClass } from "../../src/protocol/classFile.ts";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
+import { emptyClass } from "../../src/protocol/types.ts";
 import {
   createDocumentIndex,
   documentIndex,
