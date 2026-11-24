@@ -2,7 +2,7 @@
   "name": "pragma",
   "version": "0.6.4",
   "private": true,
-  "description": "A protocol and local editor for AI-native workflows over a markdown/html/fountain space.",
+  "description": "An open protocol and local editor for AI-assisted work in a space you own. Keep your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.",
   "author": "SGM DevNet LLC",
   "repository": "github:sogma/pragma",
   "homepage": "https://github.com/sogma/pragma#readme",
