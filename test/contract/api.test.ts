@@ -2327,7 +2327,7 @@ describe("API contract — libraries", () => {
     expect(((await stills.json()) as FolderListingResponse).entries[0]).toMatchObject({ thumbnail: false });
   });
 
-  it("reports name, folder on disk, size and modified time for any entry, file or folder", async () => {
+  it("reports name, place on disk, size and modified time for any entry, file or folder", async () => {
     const info = async (target: string) =>
       fetch(`${testServer.baseUrl}/api/file/info?path=${encodeURIComponent(target)}`);
 
@@ -2339,6 +2339,7 @@ describe("API contract — libraries", () => {
       name: "take.mp4",
       size: videoBytes.length,
       systemFolder: path.join(libraryRoot, "takes"),
+      systemPath: path.join(libraryRoot, "takes", "take.mp4"),
     });
     expect(Number.isNaN(Date.parse(body.modified))).toBe(false);
 
@@ -2348,6 +2349,7 @@ describe("API contract — libraries", () => {
     expect(await (await info("clip.mp4")).json()).toMatchObject({
       name: "clip.mp4",
       systemFolder: testServer.spaceRoot,
+      systemPath: path.join(testServer.spaceRoot, "clip.mp4"),
     });
 
     // A root's own folder, which its gallery shows.
@@ -2359,6 +2361,7 @@ describe("API contract — libraries", () => {
         kind: "directory",
         name: path.basename(root),
         systemFolder: path.dirname(root),
+        systemPath: root,
       });
     }
 

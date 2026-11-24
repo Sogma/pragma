@@ -134,7 +134,7 @@ export function createPathLabel(
   const { libraryName, icon } = typeof names === "function" ? { libraryName: names, icon: undefined } : names;
   const label = part(standalone ? "path-label path-label-standalone" : "path-label");
   label.dataset.tooltip = path;
-  // What a right-click copies (pathChipMenu.ts), however much of the
+  // What a right-click copies (copyPath.ts), however much of the
   // path the label shows.
   label.dataset.path = path;
   label.dataset.pathType = type;

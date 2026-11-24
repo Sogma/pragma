@@ -33,11 +33,11 @@ import { registerFlowKeys } from "./flow/flowKeys.ts";
 import { CHIP_MENU, CLEAR_CHIP, chipClearOf } from "./flow/flowMenus.ts";
 import type { FlowView } from "./flow/xyflowAdapter.ts";
 import { GRAPH_NODE_MENU } from "./graph/graphView.ts";
+import { COPY_PATH, copyPathItem } from "./lib/copyPath.ts";
 import { DisposableStore, listen } from "./lib/disposable.ts";
 import { flash } from "./lib/flash.ts";
 import { createPlaceholder, createTitle, type NamingSurface } from "./lib/inlineEdit.ts";
 import { pixelToken, wirePanelResize } from "./lib/panelResize.ts";
-import { COPY_PATH } from "./lib/pathChipMenu.ts";
 import { PREVIEW_OPEN_MENU } from "./notePreview.ts";
 import { createScrollSync } from "./scrollSync.ts";
 import type { CommandContext, CommandRegistry } from "./services/commands.ts";
@@ -909,7 +909,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       { command: "library.show", arg: entry, group: "file" },
       { command: "file.showInFolder", arg: entry, group: "file" },
       // The space's own top has no path to copy.
-      ...(tab.path ? [{ command: COPY_PATH, arg: entry, group: "file" }] : []),
+      ...(tab.path ? [copyPathItem({ group: "file", arg: entry })] : []),
       ...(row?.type === "file"
         ? [
             {

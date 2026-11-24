@@ -390,6 +390,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       size: info.size,
       modified: info.mtime.toISOString(),
       systemFolder: path.dirname(filePath),
+      systemPath: filePath,
     });
   });
 

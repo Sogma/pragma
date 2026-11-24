@@ -13,6 +13,7 @@ import { entryNameKey } from "../../../src/protocol/entryName.ts";
 import { basenameOf, dirnameOf, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
 import { displayName, fileTypeLabel, noteDragInFlight, writeEntryDrag } from "../../core/paths.ts";
 import { entryIconAt, fileTypeAt } from "../../core/spaceTree.ts";
+import { copyPathItem } from "../../lib/copyPath.ts";
 import { el, renderTreeIcon } from "../../lib/dom.ts";
 import { type Bookmarks, bookmarkTargetOf, bookmarks as spaceBookmarks } from "../../services/bookmarks.ts";
 import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
@@ -279,6 +280,7 @@ export function createBookmarksView(deps: BookmarksViewDeps): SidebarView {
     { command: "editor.editToSide", group: "open" },
     { command: "gallery.openFolderInNewTab", group: "open" },
     { command: "gallery.openFolderToSide", group: "open" },
+    copyPathItem({ group: "copy" }),
     { command: "bookmarks.remove", group: "remove" },
   ]);
 

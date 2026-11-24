@@ -89,6 +89,7 @@ import {
 } from "../../core/paths.ts";
 import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
+import { copyPathItem } from "../../lib/copyPath.ts";
 import { countText, must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
 import { flash } from "../../lib/flash.ts";
@@ -1524,6 +1525,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     { command: "tree.context", group: "folder" },
     { command: "search.inFolder", group: "folder" },
     { command: "tree.findContext", group: "folder" },
+    copyPathItem({ group: "copy" }),
     { command: "tree.duplicate", group: "rename" },
     { command: "tree.rename", group: "rename" },
     {

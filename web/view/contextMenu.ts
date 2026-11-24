@@ -3,9 +3,11 @@
 // dismissed by a click elsewhere, a resize, or Escape through the keybinding
 // dispatcher. A picked item closes the menu first, then runs its command, or
 // its own action, with the context the menu was opened in.
+
+import { getFileInfo } from "../core/apiClient.ts";
+import { installCopyPath } from "../lib/copyPath.ts";
 import { DisposableStore, listen } from "../lib/disposable.ts";
 import { el, keyLabel, setEntryIcon } from "../lib/dom.ts";
-import { installPathChipMenu } from "../lib/pathChipMenu.ts";
 import { installTextMenu } from "../lib/textMenu.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
 import type { KeybindingRegistry } from "../services/keybindings.ts";
@@ -748,7 +750,8 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   // selects, which nothing nearer has taken, opens the text menu in the
   // browser's place. The chip's listener goes first, or a chip in a chat
   // note would open Copy and Select All.
-  store.add(installPathChipMenu({ commands: deps.commands, menus: deps.menus, menu }));
+  const systemPath = async (path: string) => (await getFileInfo(path)).systemPath;
+  store.add(installCopyPath({ commands: deps.commands, menus: deps.menus, menu, systemPath }));
   store.add(installTextMenu(menu));
   return menu;
 }

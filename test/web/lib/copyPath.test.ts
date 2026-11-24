@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { COPY_PATH, COPY_SYSTEM_PATH, copyPathItem, installCopyPath } from "../../../web/lib/copyPath.ts";
 import { createPathLabel } from "../../../web/lib/pathLabel.ts";
 import { type CommandContext, createCommands } from "../../../web/services/commands.ts";
 import { createKeybindings } from "../../../web/services/keybindings.ts";
@@ -102,5 +103,67 @@ describe("a path chip's right-click", () => {
     document.body.append(surface);
     rightClick(taken);
     expect(menu()).toBeNull();
+  });
+});
+
+describe("Copy path in an entry's menu", () => {
+  const onDisk = () => vi.fn(async (path: string): Promise<string | undefined> => `/home/you/space/${path}`);
+  function setup(systemPath = onDisk()) {
+    const commands = createCommands();
+    const menus = createMenus(commands);
+    const installed = installCopyPath({ commands, menus, menu: { open: vi.fn() }, systemPath });
+    menus.register("entry", [copyPathItem({ group: "copy" })]);
+    const items = (arg: unknown) => menus.resolve("entry", context, arg);
+    return { commands, menus, items, installed, systemPath };
+  }
+
+  it("is a flyout: the path from the space's folder, and from the system root", async () => {
+    const { commands, items, installed, systemPath } = setup();
+    const resolved = items({ node: { type: "directory", path: "projects" } });
+    expect(resolved.map((item) => [item.label, item.command])).toEqual([["Copy path", undefined]]);
+    const [fromSpace, fromSystem] = resolved[0].submenu ?? [];
+    expect([fromSpace.label, fromSystem.label]).toEqual(["from space folder", "from system root"]);
+
+    await commands.run(COPY_PATH, context, fromSpace.arg);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("projects");
+    await commands.run(COPY_SYSTEM_PATH, context, fromSystem.arg);
+    expect(systemPath).toHaveBeenCalledWith("projects");
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("/home/you/space/projects");
+    // A tree's empty area names no entry.
+    expect(items({ node: null })).toEqual([]);
+    installed.dispose();
+  });
+
+  it("names a library's entry from the library's folder, by its rooted path", async () => {
+    const { commands, items, installed, systemPath } = setup();
+    const [flyout] = items({ libraryId: "personas", node: { type: "file", path: "Lina/tester.png" } });
+    const [fromLibrary, fromSystem] = flyout.submenu ?? [];
+    expect(fromLibrary.label).toBe("from library folder");
+
+    await commands.run(COPY_PATH, context, fromLibrary.arg);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("lib:personas/Lina/tester.png");
+    await commands.run(COPY_SYSTEM_PATH, context, fromSystem.arg);
+    expect(systemPath).toHaveBeenCalledWith("lib:personas/Lina/tester.png");
+    installed.dispose();
+  });
+
+  it("copies nothing from the system root when no disk answers", async () => {
+    for (const systemPath of [
+      vi.fn(async () => undefined),
+      vi.fn(async () => Promise.reject(new Error("Not found"))),
+    ]) {
+      const { commands, installed } = setup(systemPath);
+      await commands.run(COPY_SYSTEM_PATH, context, { file: "gone.md" });
+      expect(systemPath).toHaveBeenCalledWith("gone.md");
+      installed.dispose();
+    }
+    expect(clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it("keeps a path chip's menu the one item", () => {
+    const { menus, installed } = setup();
+    const resolved = menus.resolve("pathChip", context, { file: "notes/a.md" });
+    expect(resolved.map((item) => [item.label, item.command])).toEqual([["Copy path", COPY_PATH]]);
+    installed.dispose();
   });
 });

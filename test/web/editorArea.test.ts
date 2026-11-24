@@ -8,8 +8,8 @@ import { NAME_ORDER, type SortChoice } from "../../src/protocol/folderSort.ts";
 import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClient.ts";
 import { PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
+import { COPY_PATH, COPY_SYSTEM_PATH, installCopyPath } from "../../web/lib/copyPath.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
-import { COPY_PATH, installPathChipMenu } from "../../web/lib/pathChipMenu.ts";
 import { PREVIEW_OPEN_MENU } from "../../web/notePreview.ts";
 import type { CommandContext } from "../../web/services/commands.ts";
 import type { DialogService } from "../../web/services/dialog.ts";
@@ -381,7 +381,7 @@ describe("editor area", () => {
   // locked Flow's chip doesn't.
   it("ends a node chip's menu with Copy path, then Clear where the chip clears", async () => {
     const { workspace, area, commands, menus, contextMenu } = await setup();
-    const installed = installPathChipMenu({ commands, menus, menu: contextMenu });
+    const installed = installCopyPath({ commands, menus, menu: contextMenu, systemPath: async () => undefined });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
     const labels = (arg: unknown) => menus.resolve(CHIP_MENU, context, arg).map((item) => item.label);
     expect(labels({ file: "a.md" }).at(-1)).toBe("Copy path");
@@ -443,7 +443,7 @@ describe("editor area", () => {
     commands.register({ id: "space.reveal", label: "Reveal in space", run: vi.fn() });
     commands.register({ id: "library.show", label: "Reveal in library", when: () => false, run: vi.fn() });
     commands.register({ id: "file.showInFolder", label: "Reveal in File Explorer", run: vi.fn() });
-    installPathChipMenu({ commands, menus, menu: contextMenu });
+    installCopyPath({ commands, menus, menu: contextMenu, systemPath: async (path) => `/home/you/space/${path}` });
   }
 
   it("lists what the tab menu shares in the ⋮'s order: split, find, the file's own, then its trash", async () => {
@@ -469,6 +469,28 @@ describe("editor area", () => {
     expect(pillMenu(harness, 0).map((item) => item.label)).not.toContain("Close all");
   });
 
+  // The flyout's rows read the menu's own argument, which names the tab, so
+  // each carries the tab's entry itself.
+  it("holds Copy path as a flyout, each row naming the tab's entry", async () => {
+    const harness = await setup();
+    registerFileCommands(harness);
+    await harness.tabs.openEntry("a.md");
+
+    const file = pillMenu(harness, 0).filter((item) => item.group === "file");
+    expect(file.map((item) => item.label)).toEqual([
+      "Rename…",
+      "Reveal in space",
+      "Reveal in File Explorer",
+      "Copy path",
+    ]);
+    const flyout = file.at(-1);
+    expect(flyout?.command).toBeUndefined();
+    expect(flyout?.submenu?.map((row) => [row.label, row.command, row.arg])).toEqual([
+      ["from space folder", COPY_PATH, { file: "a.md" }],
+      ["from system root", COPY_SYSTEM_PATH, { file: "a.md" }],
+    ]);
+  });
+
   // A gallery's tab names its folder, and never offers the folder's trash.
   it("names a tab's file, or a gallery's folder, to the file group, and trashes only a file", async () => {
     const harness = await setup();
@@ -491,7 +513,7 @@ describe("editor area", () => {
     const fileGroup = (index: number) =>
       pillMenu(harness, index)
         .filter((item) => item.group === "file" || item.group === "trash")
-        .map((item) => [item.command, item.arg]);
+        .map((item) => [item.command ?? item.label, item.arg]);
     const row = (path: string, type: string) =>
       expect.objectContaining({ node: expect.objectContaining({ path, type }) });
 
@@ -499,7 +521,7 @@ describe("editor area", () => {
       ["tree.rename", row("a.md", "file")],
       ["space.reveal", { file: "a.md" }],
       ["file.showInFolder", { file: "a.md" }],
-      [COPY_PATH, { file: "a.md" }],
+      ["Copy path", { file: "a.md" }],
       ["tree.delete", row("a.md", "file")],
     ]);
     const gallery = harness.workspace.focusedGroup().tabs.findIndex((tab) => tab.kind === "gallery");
@@ -507,7 +529,7 @@ describe("editor area", () => {
       ["tree.rename", row("shots", "directory")],
       ["space.reveal", { folder: "shots" }],
       ["file.showInFolder", { folder: "shots" }],
-      [COPY_PATH, { folder: "shots" }],
+      ["Copy path", { folder: "shots" }],
     ]);
   });
 

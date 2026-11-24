@@ -35,6 +35,7 @@ import {
 import { setLibraryPermissions } from "../../core/libraries.ts";
 import { desktopFiles, readDraggedPath, removalLabel } from "../../core/paths.ts";
 import { buildAccordionRow, setRowExpanded } from "../../lib/accordion.ts";
+import { copyPathItem } from "../../lib/copyPath.ts";
 import { renderTreeLoading } from "../../lib/dom.ts";
 import { flash } from "../../lib/flash.ts";
 import type { NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
@@ -1092,6 +1093,7 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     ),
     { command: "libraryTree.newNote", group: "create" },
     { command: "libraryTree.newFolder", group: "create" },
+    copyPathItem({ group: "copy" }),
     { command: "libraryTree.rename", group: "rename" },
     {
       command: "libraryTree.delete",
