@@ -75,6 +75,7 @@ import type {
   LibraryEntry,
   LibraryLabelRequestBody,
   LibraryOffer,
+  LinkRequest,
   ListedSpace,
   LocalSortRequestBody,
   McpServerConnectResponse,
@@ -544,6 +545,11 @@ export interface PragmaElectronBridge {
   // argument its item named. The subscription returns its unsubscribe.
   setMenuBar(menus: MenuBarMenu[]): Promise<void>;
   onMenuCommand(callback: (command: string, arg: unknown) => void): () => void;
+  // What the latest Pragma link asks of the window, handed over once, or null;
+  // and word that another has come, its subscription returning its
+  // unsubscribe.
+  takeLink(): Promise<LinkRequest | null>;
+  onLinkWaiting(callback: () => void): () => void;
 }
 
 declare global {

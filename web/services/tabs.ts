@@ -51,6 +51,12 @@ export interface OpenOptions {
   version?: HistoryVersion;
 }
 
+/** An open from a path, which may land in a new tab right after the current
+ * one rather than in its place. */
+export interface SpacePathOptions extends OpenOptions {
+  beside?: boolean;
+}
+
 export interface TabsDeps {
   documents: Pick<DocumentsService, "adopt" | "release" | "get">;
   loadFile: typeof fetchFile;
@@ -175,10 +181,11 @@ export interface Tabs {
    * just made both open this way. A file already open still focuses its
    * tab, and a blank current tab is replaced rather than kept beside it. */
   openEntryBeside(filePath: string, options?: OpenOptions): Promise<void>;
-  /** A path that didn't come from a rendered row (a reading-view link): the
-   * tree is expanded to it first, and a path the space doesn't hold is
-   * reported. A file under another root has no row and opens directly. */
-  openSpacePath(path: string, options?: OpenOptions): Promise<void>;
+  /** A path that didn't come from a rendered row (a reading-view link, a
+   * Pragma link): the tree is expanded to it first, and a path the space
+   * doesn't hold is reported. A file under another root has no row and opens
+   * directly. */
+  openSpacePath(path: string, options?: SpacePathOptions): Promise<void>;
   /** A folder as a gallery. A tab already showing it is focused instead;
    * `beside` opens it in a new tab after the current one rather than in its
    * place. */
@@ -701,6 +708,10 @@ export function createTabs(deps: TabsDeps): Tabs {
 
   const openEntry = (filePath: string, options?: OpenOptions) =>
     openInPlace(workspace.focusedGroup(), filePath, undefined, options);
+  const openBeside = (filePath: string, options?: OpenOptions) => {
+    const group = workspace.focusedGroup();
+    return openEntryIn(group, filePath, activeTabOf(group).kind !== "empty", undefined, options);
+  };
 
   // A step opens its place the way that place was first opened. A Find
   // Context answer comes back from the history itself, having no file to
@@ -1156,22 +1167,20 @@ export function createTabs(deps: TabsDeps): Tabs {
     },
 
     openEntry: (filePath, options) => openEntry(filePath, options),
-    openEntryBeside(filePath, options) {
-      const group = workspace.focusedGroup();
-      return openEntryIn(group, filePath, activeTabOf(group).kind !== "empty", undefined, options);
-    },
+    openEntryBeside: openBeside,
 
-    async openSpacePath(path, options) {
+    async openSpacePath(path, { beside = false, ...options } = {}) {
+      const open = beside ? openBeside : openEntry;
       // A path ending in `/` names a folder, as a link writes one.
-      if (path.endsWith("/")) return openFolder(path.slice(0, -1));
-      if (isForeignRootTab({ kind: "document", path })) return openEntry(path, options);
+      if (path.endsWith("/")) return openFolder(path.slice(0, -1), beside);
+      if (isForeignRootTab({ kind: "document", path })) return open(path, options);
       // A file of no kind is in no tree while every type isn't shown, and
       // goes where such a file goes rather than being called missing.
       if (!deps.revealInTree(path) && hasKnownKind(path)) {
         deps.notify(`File not found: ${path}`);
         return;
       }
-      await openEntry(path, options);
+      await open(path, options);
     },
 
     openFolder,

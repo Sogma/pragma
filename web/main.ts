@@ -50,6 +50,7 @@ import { createFormats } from "./services/formats.ts";
 import { gitStatusStore } from "./services/gitStatus.ts";
 import { inspectorTabs } from "./services/inspectorTabs.ts";
 import { codeMirrorChords, createKeybindings, currentPlatform } from "./services/keybindings.ts";
+import { takeLinkRequests } from "./services/linkRequests.ts";
 import { createMenus } from "./services/menus.ts";
 import { createModelConsole } from "./services/modelConsole.ts";
 import { createModelLists } from "./services/modelLists.ts";
@@ -825,6 +826,7 @@ async function main(): Promise<void> {
   sidebarViews.restore();
   await Promise.all([space.loadName(), space.refresh(), loadVersion()]);
   await tabs.showRestored();
+  takeLinkRequests(window.pragmaElectron, { tabs, notify: (message) => window.alert(message) });
   editorArea.focusDocumentIfIdle();
   void publishers.refresh();
   files.refresh();

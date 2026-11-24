@@ -766,6 +766,26 @@ describe("openSpacePath", () => {
     expect(workspace.focusedGroup().tabs.at(-1)).toMatchObject({ kind: "gallery", path: "" });
   });
 
+  // A Pragma link opens its entry beside what the group shows, as Open in new
+  // tab does, and a file it names that isn't there is reported the same way.
+  it("opens beside the current tab when asked, a folder's gallery too", async () => {
+    const { tabs, workspace } = await setup();
+    await tabs.openFolder("stills");
+    await tabs.openSpacePath("notes.md", { beside: true });
+    expect(workspace.focusedGroup().tabs).toEqual([
+      { kind: "gallery", path: "stills" },
+      { kind: "document", documentType: "note", path: "notes.md" },
+    ]);
+    await tabs.switchTo(GROUP, 0);
+    await tabs.openSpacePath("projects/a/", { beside: true });
+    expect(workspace.focusedGroup().tabs.map((tab) => ("path" in tab ? tab.path : tab.kind))).toEqual([
+      "stills",
+      "projects/a",
+      "notes.md",
+    ]);
+    expect(workspace.focusedGroup().activeTabIndex).toBe(1);
+  });
+
   // While every type isn't shown, a file of no kind is in no tree.
   it("opens a file of no kind the tree doesn't draw where such a file goes", async () => {
     const { tabs, deps } = await setup({ revealInTree: vi.fn(() => false) });

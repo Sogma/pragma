@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type {
   LibraryEntry,
   LibraryOffer,
+  LinkRequest,
   ListedSpace,
   MenuBarMenu,
   Misspelling,
@@ -99,5 +100,13 @@ contextBridge.exposeInMainWorld("pragmaElectron", {
     const handler = (_event: unknown, command: string, arg: unknown): void => callback(command, arg);
     ipcRenderer.on("pragma:menu-command", handler);
     return () => ipcRenderer.removeListener("pragma:menu-command", handler);
+  },
+  // Pragma links: what the latest asks of the window, taken once, and word
+  // that another has come while the window shows.
+  takeLink: (): Promise<LinkRequest | null> => invoke("pragma:take-link"),
+  onLinkWaiting: (callback: () => void): (() => void) => {
+    const handler = (): void => callback();
+    ipcRenderer.on("pragma:link-waiting", handler);
+    return () => ipcRenderer.removeListener("pragma:link-waiting", handler);
   },
 });
