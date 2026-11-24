@@ -156,7 +156,7 @@ describe("dialog service", () => {
         return element;
       };
       expect((drawn({ glyph: "flow" }) as HTMLElement).dataset.entryIcon).toBe("flow");
-      expect(drawn("space")?.querySelector(".space-icon-ring-top")).not.toBeNull();
+      expect(drawn("space")?.querySelector(".space-icon-face-top")).not.toBeNull();
       expect(drawn("pragma")?.getAttribute("src")).toBe("/images/mark.svg");
     });
 

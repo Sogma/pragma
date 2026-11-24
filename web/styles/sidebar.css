@@ -127,37 +127,72 @@
 }
 
 /* The Space view's icon is Pragma's signature: while the view is open, and in
-   a dialog's title, its rings and arcs take these colours. Otherwise the whole
-   icon follows the button's text colour, as every other glyph does, so the
-   rail at rest stays muted. */
-.rail-icon.active .space-icon-ring-top,
-.dialog-title-icon .space-icon-ring-top {
-  stroke: var(--pragma-crimson);
+   a dialog's title, its hexagon and spokes take shades of blue and its cube
+   shades of crimson, each part lighter or darker by the face beside it.
+   Otherwise the whole icon follows the button's text colour, as every other
+   glyph does, so the rail at rest stays muted. */
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-top-right {
+  stroke: color-mix(in srgb, var(--pragma-blue), white 35%);
 }
 
-.rail-icon.active .space-icon-ring-right,
-.dialog-title-icon .space-icon-ring-right {
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-spoke-top {
+  stroke: color-mix(in srgb, var(--pragma-blue), white 28%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-top-left {
+  stroke: color-mix(in srgb, var(--pragma-blue), white 21%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-spoke-top-left {
+  stroke: color-mix(in srgb, var(--pragma-blue), white 14%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-left {
+  stroke: color-mix(in srgb, var(--pragma-blue), white 7%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) :is(.space-icon-spoke-top-right, .space-icon-spoke-bottom-left) {
   stroke: var(--pragma-blue);
 }
 
-.rail-icon.active .space-icon-ring-left,
-.dialog-title-icon .space-icon-ring-left {
-  stroke: var(--pragma-orange);
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-bottom-left {
+  stroke: color-mix(in srgb, var(--pragma-blue), black 4%);
 }
 
-.rail-icon.active .space-icon-arc-right,
-.dialog-title-icon .space-icon-arc-right {
-  stroke: var(--pragma-green);
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-spoke-bottom {
+  stroke: color-mix(in srgb, var(--pragma-blue), black 8%);
 }
 
-.rail-icon.active .space-icon-arc-bottom,
-.dialog-title-icon .space-icon-arc-bottom {
-  stroke: var(--pragma-yellow);
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-bottom-right {
+  stroke: color-mix(in srgb, var(--pragma-blue), black 12%);
 }
 
-.rail-icon.active .space-icon-arc-left,
-.dialog-title-icon .space-icon-arc-left {
-  stroke: var(--pragma-red);
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-spoke-bottom-right {
+  stroke: color-mix(in srgb, var(--pragma-blue), black 16%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-side-right {
+  stroke: color-mix(in srgb, var(--pragma-blue), black 20%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-face-top {
+  stroke: color-mix(in srgb, var(--pragma-crimson), white 35%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-edge-top-left {
+  stroke: color-mix(in srgb, var(--pragma-crimson), white 18%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) :is(.space-icon-face-left, .space-icon-edge-top-right) {
+  stroke: var(--pragma-crimson);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-edge-bottom {
+  stroke: color-mix(in srgb, var(--pragma-crimson), black 10%);
+}
+
+:is(.rail-icon.active, .dialog-title-icon) .space-icon-face-right {
+  stroke: color-mix(in srgb, var(--pragma-crimson), black 20%);
 }
 
 /* A view's count or warning mark (count-badge.css), over the lower right of
