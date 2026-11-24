@@ -132,6 +132,34 @@
   line-height: 1.4;
 }
 
+/* What a form is about, above its fields: the frame Save frame saves. */
+.dialog-figure {
+  display: flex;
+  justify-content: center;
+}
+
+.dialog-figure > :is(img, canvas) {
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: var(--control-radius);
+}
+
+/* A text field with fixed text after it: the extension a name keeps. */
+.dialog-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialog-input-row > .dialog-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-input-suffix {
+  color: var(--text-muted);
+}
+
 select.dialog-input {
   cursor: pointer;
 }

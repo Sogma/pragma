@@ -1,15 +1,16 @@
 // A setting's folder chooser: the folders inside one context, drawn as the
 // space tree draws them, in its order, open where the sidebar's tree is and
 // on the folder the setting holds, and searched by name. A click on a row
-// picks it, one on its chevron opens or shuts it, and its Open button opens
-// the folder's gallery, as the tree's does.
+// picks it, one on its chevron opens or shuts it, and its Open button, where
+// the caller can open a gallery, opens the folder's, as the tree's does.
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
 import { entryNameKey } from "../../src/protocol/entryName.ts";
 import { dirnameOf, isWithin } from "../../src/protocol/rootedPath.ts";
 import { type EntryIcon, entryIcon } from "../core/paths.ts";
-import { findDirectoryChildren } from "../core/spaceTree.ts";
+import { findDirectoryChildren, pathNames } from "../core/spaceTree.ts";
 import { setEntryIcon } from "../lib/dom.ts";
 import { openFlyout } from "../lib/flyout.ts";
+import { createPathLabel } from "../lib/pathLabel.ts";
 
 export interface FolderChooserSpec {
   /** What opened it, where focus goes back. */
@@ -33,7 +34,7 @@ export interface FolderChooserSpec {
   /** Whether the sidebar's tree draws this folder open. */
   isOpen(folder: string): boolean;
   onPick(folder: string): void;
-  openFolder(folder: string): void;
+  openFolder?(folder: string): void;
   onClose?(): void;
 }
 
@@ -41,6 +42,9 @@ interface Row {
   node: SpaceTreeNode;
   depth: number;
 }
+
+// Kept between the chooser and the window's edges, and its anchor.
+const MARGIN = 4;
 
 const folderChildren = (node: SpaceTreeNode | undefined): SpaceTreeNode[] =>
   node?.children?.filter((child) => child.type === "directory") ?? [];
@@ -121,12 +125,15 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
     const name = document.createElement("span");
     name.className = "node-name";
     name.append(...withMatch(node.name, query));
-    const openButton = document.createElement("button");
-    openButton.type = "button";
-    openButton.className = "icon-button node-open";
-    openButton.tabIndex = -1;
-    openButton.setAttribute("aria-label", "Open gallery");
-    label.append(icon, name, openButton);
+    label.append(icon, name);
+    if (spec.openFolder) {
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "icon-button node-open";
+      openButton.tabIndex = -1;
+      openButton.setAttribute("aria-label", "Open gallery");
+      label.append(openButton);
+    }
     item.append(label);
 
     if (depth > 0) {
@@ -183,7 +190,7 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
     if (!label || path === undefined) return;
     if ((event.target as Element).closest(".node-open")) {
       flyout.close();
-      spec.openFolder(path);
+      spec.openFolder?.(path);
       return;
     }
     const icon = label.querySelector(".node-icon");
@@ -245,14 +252,92 @@ export function openFolderChooser(spec: FolderChooserSpec): void {
   });
 
   draw();
-  // Placed again now its rows are in: it was placed empty, so it fit below
-  // even an anchor at the window's foot, and the rows ran off the bottom.
-  flyout.reposition();
-  const box = spec.alignTo.getBoundingClientRect();
-  const left = Math.min(box.right - element.offsetWidth, window.innerWidth - 4 - element.offsetWidth);
-  element.style.left = `${Math.max(4, left)}px`;
+  place();
   search.focus();
   showCursor(true);
+
+  // Placed once its rows are in: below the anchor where they fit, else on
+  // the roomier side. Below, the list grows to the window's foot and no
+  // further; above, it keeps the height it opened at, so a folder opened or
+  // a search typed never moves the box off its anchor or past the window.
+  function place(): void {
+    const anchor = spec.anchor.getBoundingClientRect();
+    const chrome = element.offsetHeight - tree.offsetHeight;
+    const below = window.innerHeight - anchor.bottom - 2 * MARGIN - chrome;
+    const above = anchor.top - 2 * MARGIN - chrome;
+    const up = tree.offsetHeight > below && above > below;
+    if (up) tree.style.height = `${Math.max(0, Math.min(tree.offsetHeight, above))}px`;
+    else {
+      const longest = Number.parseFloat(getComputedStyle(tree).maxHeight) || Number.POSITIVE_INFINITY;
+      tree.style.maxHeight = `${Math.max(0, Math.min(longest, below))}px`;
+    }
+    element.style.top = `${up ? anchor.top - MARGIN - element.offsetHeight : anchor.bottom + MARGIN}px`;
+    const box = spec.alignTo.getBoundingClientRect();
+    const left = Math.min(box.right - element.offsetWidth, window.innerWidth - MARGIN - element.offsetWidth);
+    element.style.left = `${Math.max(MARGIN, left)}px`;
+  }
+}
+
+export interface FolderFieldSpec {
+  /** The folder shown first, rooted: "" is the space's top folder. */
+  value: string;
+  /** The folders offered: each root a row of its own, its folders under it,
+   * read as the chooser opens. The first starts open. */
+  roots(): Promise<SpaceTreeNode[]>;
+  /** A root's glyph; its folders draw as the tree draws them. */
+  rootIcon(root: SpaceTreeNode): EntryIcon;
+  label: string;
+}
+
+export interface FolderField {
+  readonly element: HTMLElement;
+  value(): string;
+}
+
+/** A form's folder: an input's box holding the folder picked, as its path,
+ * that opens the chooser over the field. */
+export function createFolderField(spec: FolderFieldSpec): FolderField {
+  let value = spec.value;
+  const entry = document.createElement("button");
+  entry.type = "button";
+  entry.className = "form-input dialog-input folder-field";
+  entry.setAttribute("aria-haspopup", "dialog");
+  entry.setAttribute("aria-expanded", "false");
+  const chevrons = document.createElement("span");
+  chevrons.className = "folder-field-chevrons";
+  chevrons.setAttribute("aria-hidden", "true");
+  const draw = () =>
+    entry.replaceChildren(createPathLabel(value, pathNames, { type: "directory", standalone: true }), chevrons);
+
+  entry.addEventListener("click", () => {
+    if (entry.getAttribute("aria-expanded") === "true") return;
+    entry.setAttribute("aria-expanded", "true");
+    const reset = () => entry.setAttribute("aria-expanded", "false");
+    void spec.roots().then((roots) => {
+      const tops = new Set(roots.map((root) => root.path));
+      openFolderChooser({
+        anchor: entry,
+        alignTo: entry,
+        within: "",
+        folders: roots,
+        icon: (node) => (tops.has(node.path) ? spec.rootIcon(node) : entryIcon(node)),
+        current: value,
+        label: spec.label,
+        isOpen: (folder) => folder === roots[0]?.path,
+        // A click on a row takes focus off the chooser's search box, so the
+        // chooser hands it back to nothing: the field takes it, in its dialog.
+        onPick: (folder) => {
+          value = folder;
+          draw();
+          entry.focus();
+        },
+        onClose: reset,
+      });
+    }, reset);
+  });
+
+  draw();
+  return { element: entry, value: () => value };
 }
 
 // A name with the part a search matched marked, as Search marks a hit. The

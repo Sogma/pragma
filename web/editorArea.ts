@@ -47,6 +47,7 @@ import type { FileNotices } from "./services/fileNotices.ts";
 import type { FormatRegistry } from "./services/formats.ts";
 import type { KeybindingRegistry } from "./services/keybindings.ts";
 import { COMMAND_PALETTE, type MenuItem, type MenuRegistry } from "./services/menus.ts";
+import { saveFrameMenuItem } from "./services/saveFrame.ts";
 import { formatColumn, type Setting } from "./services/settings.ts";
 import { inOneGroupOnly, type Tabs } from "./services/tabs.ts";
 import { guidesMenuItem, lutsMenuItem, MEDIA_MENU } from "./services/videoMenu.ts";
@@ -721,6 +722,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "editor.openToSide", group: "open" },
     guidesMenuItem(),
     lutsMenuItem(),
+    saveFrameMenuItem({ dialog: deps.dialog }),
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
   ]);

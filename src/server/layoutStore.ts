@@ -1,7 +1,8 @@
 // Each space's remembered layout on this install: the editor groups' open
 // tabs, which folders are folded, how each folder is sorted, how each Table
-// is laid out, and which Flows show App Mode. Host state, kept by the space's id and never inside
-// the space (docs/architecture.md, Space identity and state ownership).
+// is laid out, which Flows show App Mode, and where each context's frames
+// were last saved. Host state, kept by the space's id and never inside the
+// space (docs/architecture.md, Space identity and state ownership).
 import {
   HostStateParseError,
   readHostStateFile,
@@ -44,6 +45,9 @@ export interface LayoutStore {
   // Keyed by the Flow's rooted path.
   flowAppModes(spaceId: string): Promise<Record<string, boolean>>;
   updateFlowAppModes(spaceId: string, change: MapChange<boolean>): Promise<void>;
+  // A folder's rooted path, keyed by its context's.
+  frameFolders(spaceId: string): Promise<Record<string, string>>;
+  updateFrameFolders(spaceId: string, change: MapChange<string>): Promise<void>;
 }
 
 let installed: LayoutStore | undefined;
@@ -61,6 +65,7 @@ interface LayoutFile extends SavedFolders, SavedGroups {
   localSorts?: Record<string, unknown>;
   tableLayouts?: Record<string, unknown>;
   flowAppModes?: Record<string, unknown>;
+  frameFolders?: Record<string, unknown>;
 }
 
 const isMap = (value: unknown): value is Record<string, unknown> =>
@@ -92,6 +97,14 @@ function flowAppModesOf(file: LayoutFile): Record<string, boolean> {
   return modes;
 }
 
+function frameFoldersOf(file: LayoutFile): Record<string, string> {
+  const folders: Record<string, string> = {};
+  if (!isMap(file.frameFolders)) return folders;
+  for (const [context, folder] of Object.entries(file.frameFolders))
+    if (typeof folder === "string") folders[context] = folder;
+  return folders;
+}
+
 /** One file per space: layouts are written on every tab change, and
  * processes sharing the config directory would otherwise overwrite each
  * other's spaces.
@@ -104,9 +117,26 @@ export function createFileLayoutStore(fileOf: (spaceId: string) => string = glob
     try {
       const parsed = readHostStateFile<LayoutFile>(fileOf(spaceId));
       if (parsed === undefined) return {};
-      const { collapsedFolders, expandedFolders, groups, focusedGroup, localSorts, tableLayouts, flowAppModes } =
-        parsed;
-      return { collapsedFolders, expandedFolders, groups, focusedGroup, localSorts, tableLayouts, flowAppModes };
+      const {
+        collapsedFolders,
+        expandedFolders,
+        groups,
+        focusedGroup,
+        localSorts,
+        tableLayouts,
+        flowAppModes,
+        frameFolders,
+      } = parsed;
+      return {
+        collapsedFolders,
+        expandedFolders,
+        groups,
+        focusedGroup,
+        localSorts,
+        tableLayouts,
+        flowAppModes,
+        frameFolders,
+      };
     } catch (error) {
       if (error instanceof HostStateParseError) return {};
       throw error;
@@ -151,6 +181,12 @@ export function createFileLayoutStore(fileOf: (spaceId: string) => string = glob
       change(spaceId, (file) => {
         const next = edit(flowAppModesOf(file));
         return next && { ...file, flowAppModes: next };
+      }),
+    frameFolders: async (spaceId) => frameFoldersOf(read(spaceId)),
+    updateFrameFolders: (spaceId, edit) =>
+      change(spaceId, (file) => {
+        const next = edit(frameFoldersOf(file));
+        return next && { ...file, frameFolders: next };
       }),
   };
 }

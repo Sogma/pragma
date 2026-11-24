@@ -4,6 +4,7 @@ import { type GuidesChoice, NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import type { LutChoice } from "../../../web/lib/videoLut.ts";
 import {
   createVideoPlayer,
+  type FrameGrab,
   type LoopChoice,
   type PlayerLayout,
   timecode,
@@ -53,7 +54,7 @@ function setup(
     lut?: LutChoice;
     rangeKey?: string;
     pictureClick?: () => void;
-    moreOptions?: (anchor: HTMLElement) => void;
+    moreOptions?: (anchor: HTMLElement, frame?: () => FrameGrab) => void;
   } = {},
 ) {
   const video = clip();
@@ -475,7 +476,8 @@ describe("createVideoPlayer", () => {
     surface.focus();
 
     button("more").click();
-    expect(moreOptions).toHaveBeenCalledWith(button("more"));
+    // No frame is decoded yet, so none is offered.
+    expect(moreOptions).toHaveBeenCalledWith(button("more"), undefined);
     // As the menu does when a row is picked.
     button("more").focus();
     expect(document.activeElement).toBe(surface);
@@ -487,6 +489,33 @@ describe("createVideoPlayer", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     button("more").focus();
     expect(document.activeElement).toBe(button("more"));
+  });
+
+  // Save frame takes it as the item is picked, not as the menu opens, and
+  // leaves the clip paused on the frame it saves.
+  it("offers More options the frame on screen once one is decoded, taken at the clip's own size", () => {
+    const moreOptions = vi.fn();
+    const { video, button } = setup("review", { moreOptions });
+    Object.defineProperties(video, {
+      readyState: { value: HTMLMediaElement.HAVE_CURRENT_DATA, configurable: true },
+      videoWidth: { value: 640, configurable: true },
+      videoHeight: { value: 360, configurable: true },
+    });
+    const drawImage = vi.fn();
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    void video.play();
+    video.currentTime = 2.5;
+
+    button("more").click();
+    const take = moreOptions.mock.lastCall?.[1] as () => FrameGrab;
+    expect(drawImage).not.toHaveBeenCalled();
+    const frame = take();
+    expect(video.paused).toBe(true);
+    expect([frame.canvas.width, frame.canvas.height, frame.seconds]).toEqual([640, 360, 2.5]);
+    expect(drawImage).toHaveBeenCalledWith(video, 0, 0);
+    getContext.mockRestore();
   });
 
   it("stops following the shared Loop and volume once disposed", () => {

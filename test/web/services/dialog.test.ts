@@ -285,6 +285,38 @@ describe("dialog service", () => {
       expect(control("access").hasAttribute("maxlength")).toBe(false);
       expect(control("name").hasAttribute("maxlength")).toBe(false);
     });
+
+    // Save frame's: the frame, a name before its extension, and a folder field.
+    it("shows a figure above its fields, fixed text after a field, and a control the caller draws", async () => {
+      const picture = document.createElement("canvas");
+      const folder = document.createElement("button");
+      let chosen = "a/stills";
+      const answer = service().form({
+        title: "Save frame",
+        figure: picture,
+        fields: [
+          { id: "name", label: "Name", value: "one 00-00-01-00", suffix: ".png" },
+          { id: "folder", label: "Folder", control: { element: folder, value: () => chosen } },
+        ],
+        submitLabel: "Save",
+      });
+      const [panel] = panels();
+      const body = panel.querySelector(".dialog-body") as HTMLElement;
+      expect(body.firstElementChild?.className).toBe("dialog-figure");
+      expect(body.firstElementChild?.firstElementChild).toBe(picture);
+      const name = panel.querySelector<HTMLInputElement>("#dialog-field-name") as HTMLInputElement;
+      expect(name.parentElement?.className).toBe("dialog-input-row");
+      expect(name.nextElementSibling?.textContent).toBe(".png");
+      expect(document.activeElement).toBe(name);
+      expect(folder.id).toBe("dialog-field-folder");
+      expect(folder.getAttribute("aria-labelledby")).toBe("dialog-field-folder-label dialog-field-folder");
+      expect(panel.querySelector("#dialog-field-folder-label")?.textContent).toBe("Folder");
+      expect(panel.querySelector<HTMLLabelElement>("label[for='dialog-field-name']")?.textContent).toBe("Name");
+
+      chosen = "b";
+      name.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+      await expect(answer).resolves.toEqual({ name: "one 00-00-01-00", folder: "b" });
+    });
   });
 
   describe("pick", () => {

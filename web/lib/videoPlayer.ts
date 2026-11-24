@@ -54,8 +54,16 @@ export interface VideoPlayerOptions {
    * the picture opens the clip somewhere bigger. Its double-click then goes
    * nowhere, the click having acted already; the buttons still play. */
   pictureClick?: () => void;
-  /** Opens the More options menu under its button, or closes it there. */
-  moreOptions(anchor: HTMLElement): void;
+  /** Opens the More options menu under its button, or closes it there.
+   * `frame` takes the frame on screen; absent until one is decoded. */
+  moreOptions(anchor: HTMLElement, frame?: () => FrameGrab): void;
+}
+
+/** The frame a player showed, drawn at the clip's own size, and where in the
+ * clip it stands. */
+export interface FrameGrab {
+  canvas: HTMLCanvasElement;
+  seconds: number;
 }
 
 export interface VideoPlayer {
@@ -72,7 +80,7 @@ export interface VideoPlayer {
 const SPEEDS = [0.5, 1, 1.5, 2];
 // What a timecode counts and a step moves by until the header read names
 // the clip's own rate, or where it names none.
-const FALLBACK_FPS = 30;
+export const FALLBACK_FPS = 30;
 // A volume key's step, and how long its change shows the slider.
 const VOLUME_STEP = 0.05;
 const VOLUME_SHOWN_MS = 1000;
@@ -132,7 +140,9 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   volumeSlider.setAttribute("aria-valuemin", "0");
   volumeSlider.setAttribute("aria-valuemax", "100");
   const volumeBox = box("video-player-volume", mute, box("video-player-volume-popup", volumeSlider));
-  const more = store.add(moreOptionsButton("video-player-more", (anchor) => options.moreOptions(anchor))).element;
+  const more = store.add(
+    moreOptionsButton("video-player-more", (anchor) => options.moreOptions(anchor, frameGrab())),
+  ).element;
   const fullScreen = controlButton("video-player-full-screen", "Full screen");
   const markIn = controlButton("video-player-mark is-in", "Set In point");
   const markOut = controlButton("video-player-mark is-out", "Set Out point");
@@ -197,6 +207,20 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
   // Where playback stood at the last frame drawn. A loop turns back at Out
   // only when playback reaches it from before, so a seek past Out plays on.
   let lastTime = video.currentTime;
+
+  // Taking the frame pauses on it, so the picture left on screen is the one
+  // taken, not one a few frames on.
+  const frameGrab = (): (() => FrameGrab) | undefined => {
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || video.videoWidth === 0) return undefined;
+    return () => {
+      video.pause();
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d")?.drawImage(video, 0, 0);
+      return { canvas, seconds: video.currentTime };
+    };
+  };
 
   const rate = () => fps ?? FALLBACK_FPS;
   const length = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);

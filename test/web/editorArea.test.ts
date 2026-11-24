@@ -664,6 +664,13 @@ describe("editor area", () => {
       "Guides",
       "Bookmark",
     ]);
+    // A player with a frame on screen offers to save it, under Looks with no line between.
+    const playing = menus.resolve(MEDIA_MENU, context, { file: "b.mp4", bookmark: "b.mp4", frame: vi.fn() });
+    expect(playing.map((item) => [item.label, item.group]).slice(-3)).toEqual([
+      ["Looks", "guides"],
+      ["Save frame…", "guides"],
+      ["Bookmark", "bookmark"],
+    ]);
   });
 
   // A group holds one tab per file, so Open and Open in new tab would stay put.

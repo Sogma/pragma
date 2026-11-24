@@ -1772,6 +1772,19 @@ export interface FlowAppModeRequestBody {
   appMode: boolean;
 }
 
+// GET /api/space/frame-folder?clip=: the folder a frame of that clip saves to
+// by default, on this install. A rooted path, "" for the space's top folder.
+export interface FrameFolderResponse {
+  folder: string;
+}
+
+// POST /api/space/frame-folder: remembers the folder a frame of `clip` was
+// saved to, for every clip in its context.
+export interface FrameFolderRequestBody {
+  clip: string;
+  folder: string;
+}
+
 // POST /api/space/order
 export interface SetOrderRequestBody {
   dir: string;

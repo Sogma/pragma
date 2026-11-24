@@ -39,3 +39,27 @@
   color: var(--text-muted);
   font-size: var(--control-font-size);
 }
+
+/* A form's folder field: an input's box holding the folder's path, its
+   chevrons saying it opens the chooser above. */
+.folder-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: start;
+  cursor: pointer;
+}
+
+.folder-field > .path-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-field-chevrons {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  background-color: var(--text-muted);
+  mask: var(--icon-chevrons-up-down) center / contain no-repeat;
+}

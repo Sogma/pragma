@@ -116,3 +116,18 @@ export async function updateFlowAppModes(
 ): Promise<void> {
   await layoutStore().updateFlowAppModes(registered(spaceRoot), change);
 }
+
+/** The folder each context's frames were last saved to on this install. */
+export async function readFrameFolders(spaceRoot: string): Promise<Record<string, string>> {
+  const id = spaceIdOf(spaceRoot);
+  return id === undefined ? {} : layoutStore().frameFolders(id);
+}
+
+/** Rewrites every context's frame folder through `change`, as the Flows'
+ * App Mode is rewritten above. */
+export async function updateFrameFolders(
+  spaceRoot: string,
+  change: (folders: Record<string, string>) => Record<string, string> | undefined,
+): Promise<void> {
+  await layoutStore().updateFrameFolders(registered(spaceRoot), change);
+}

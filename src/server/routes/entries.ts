@@ -37,8 +37,9 @@ import { sameRoot } from "../../protocol/rootedPath.ts";
 import { isMarkdownFile, rawFileTypeForPath } from "../../protocol/types.ts";
 import { documentIndex } from "../documentIndex.ts";
 import { readFolderProperties, writeFolderProperties } from "../folderProperties.ts";
+import { forgottenFrameFolders, movedFrameFolders } from "../frameFolders.ts";
 import { moveHistory } from "../history.ts";
-import { updateFlowAppModes, updateLocalSorts, updateTableLayouts } from "../layout.ts";
+import { updateFlowAppModes, updateFrameFolders, updateLocalSorts, updateTableLayouts } from "../layout.ts";
 import {
   duplicatedLocalSorts,
   forgottenByPath,
@@ -127,6 +128,15 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
   const keepFlowAppModes = async (change: Parameters<typeof updateFlowAppModes>[1]): Promise<void> => {
     try {
       await updateFlowAppModes(spaceRoot, change);
+    } catch {
+      // best-effort only — the entry already changed
+    }
+  };
+
+  // And the folder a context's frames were last saved to.
+  const keepFrameFolders = async (change: Parameters<typeof updateFrameFolders>[1]): Promise<void> => {
+    try {
+      await updateFrameFolders(spaceRoot, change);
     } catch {
       // best-effort only — the entry already changed
     }
@@ -329,6 +339,9 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     await keepFlowAppModes((modes) =>
       movedByPath(modes, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
     );
+    await keepFrameFolders((folders) =>
+      movedFrameFolders(folders, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
+    );
     // A bookmark follows its entry, in any root, as a sort does.
     await keepSpaceBookmarks(spaceRoot, (file) =>
       bookmarksAfterMove(file, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
@@ -455,6 +468,7 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     await keepLocalSorts((sorts) => forgottenLocalSorts(sorts, formatWithinRoot(target, targetPath)));
     await keepTableLayouts((layouts) => forgottenByPath(layouts, formatWithinRoot(target, targetPath)));
     await keepFlowAppModes((modes) => forgottenByPath(modes, formatWithinRoot(target, targetPath)));
+    await keepFrameFolders((folders) => forgottenFrameFolders(folders, formatWithinRoot(target, targetPath)));
     await keepSpaceBookmarks(spaceRoot, (file) => bookmarksAfterDelete(file, formatWithinRoot(target, targetPath)));
     await keepSpacePresets(spaceRoot, (file) => presetsAfterDelete(file, formatWithinRoot(target, targetPath)));
 

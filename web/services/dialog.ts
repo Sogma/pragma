@@ -105,11 +105,18 @@ export interface FormField {
   // A line of help under the control, for a field whose label can't carry
   // the whole story — a setting described by whoever defined it, say.
   description?: string;
+  // Fixed text after a text field: the extension a name keeps.
+  suffix?: string;
+  /** A control the caller draws, in place of a text field or dropdown; its
+   * value is read when the form submits. */
+  control?: { element: HTMLElement; value(): string };
 }
 
 export interface FormOptions extends ActionOptions {
   title: string;
   icon?: DialogIcon;
+  // What the form is about, shown above everything else: a picture.
+  figure?: HTMLElement;
   // A line above the fields.
   message?: string;
   fields: readonly FormField[];
@@ -431,15 +438,33 @@ export function createDialogService(root: HTMLElement = document.body, deps?: Di
           resolve(value);
         };
         const content = el("div", "dialog-body");
+        if (options.figure) {
+          const figure = el("div", "dialog-figure");
+          figure.append(options.figure);
+          content.append(figure);
+        }
         if (options.message) content.append(el("p", "dialog-message", options.message));
         const controls = new Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>();
+        const drawn = new Map<string, () => string>();
         for (const field of options.fields) {
           const wrapper = el("div", "dialog-field");
-          if (field.label) {
-            const label = el("label", "dialog-field-label", field.label);
-            label.htmlFor = `dialog-field-${field.id}`;
-            wrapper.append(label);
+          const label = field.label ? el("label", "dialog-field-label", field.label) : undefined;
+          if (label) wrapper.append(label);
+          // A drawn control is a button showing its value, which a <label for>
+          // would replace as its name: the label and the value name it together.
+          if (field.control) {
+            const { element } = field.control;
+            element.id = `dialog-field-${field.id}`;
+            if (label) {
+              label.id = `dialog-field-${field.id}-label`;
+              element.setAttribute("aria-labelledby", `${label.id} ${element.id}`);
+            }
+            drawn.set(field.id, field.control.value);
+            wrapper.append(element);
+            content.append(wrapper);
+            continue;
           }
+          if (label) label.htmlFor = `dialog-field-${field.id}`;
           let control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
           if (field.choices) {
             control = el("select", "form-input dialog-input");
@@ -477,7 +502,11 @@ export function createDialogService(root: HTMLElement = document.body, deps?: Di
           if (field.maxLength !== undefined && !(control instanceof HTMLSelectElement))
             control.maxLength = field.maxLength;
           controls.set(field.id, control);
-          wrapper.append(control);
+          if (field.suffix) {
+            const row = el("div", "dialog-input-row");
+            row.append(control, el("span", "dialog-input-suffix", field.suffix));
+            wrapper.append(row);
+          } else wrapper.append(control);
           if (field.description) {
             const description = el("p", "caption dialog-field-description", field.description);
             description.id = `dialog-field-${field.id}-description`;
@@ -508,6 +537,7 @@ export function createDialogService(root: HTMLElement = document.body, deps?: Di
             for (const [id, control] of controls) {
               values[id] = control.value;
             }
+            for (const [id, value] of drawn) values[id] = value();
             const invalid = options.validate?.(values);
             const submitter = options.submit;
             // A refused field fails the submit as a refused submit does.

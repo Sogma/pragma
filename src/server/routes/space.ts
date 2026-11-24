@@ -17,6 +17,8 @@ import type {
   FolderEntry,
   FolderLayoutRequestBody,
   FolderListingResponse,
+  FrameFolderRequestBody,
+  FrameFolderResponse,
   LayoutGroup,
   LayoutRequestBody,
   LayoutResponse,
@@ -49,6 +51,7 @@ import { isFlowFile, isTableFile, isTableLayout, thumbnailKindForPath } from "..
 import { classRows, folderRows, scopeFolderOf } from "../classRows.ts";
 import { entryDescription, entryExcerpt } from "../descriptions.ts";
 import { EntryListFileError } from "../entryListFile.ts";
+import { frameFolderFor, rememberFrameFolder } from "../frameFolders.ts";
 import { clearSpaceGrants } from "../grants.ts";
 import { noticeRevision } from "../history.ts";
 import {
@@ -676,6 +679,34 @@ export function mountSpaceRoutes(
     if (!(await stat(resolved.filePath)).isFile()) return c.text("Not a Flow", 400);
     const own = parseFlowFile(await readFile(resolved.filePath, "utf8"))?.graph.appModeActive === true;
     await saveFlowAppMode(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.appMode, own);
+    return c.body(null, 204);
+  });
+
+  // Where a frame of a clip saves by default, and the folder one was saved
+  // to, remembered for the clip's context: the same host state, so a frame
+  // of a read-only library's clip takes one too.
+  app.all("/api/space/frame-folder", async (c) => {
+    if (c.req.method === "GET") {
+      const clip = c.req.query("clip");
+      if (!clip) return c.text("clip must be a file path", 400);
+      const resolved = resolveRootedPath(spaceRoot, clip, "read");
+      const folder = await frameFolderFor(spaceRoot, formatWithinRoot(resolved, resolved.filePath));
+      return c.json<FrameFolderResponse>({ folder });
+    }
+
+    if (c.req.method !== "POST") return c.body(null, 405);
+
+    const body = (await c.req.json()) as Incoming<FrameFolderRequestBody>;
+    if (typeof body.clip !== "string" || !body.clip) return c.text("clip must be a file path", 400);
+    if (typeof body.folder !== "string") return c.text("folder must be a folder path", 400);
+    const clip = resolveRootedPath(spaceRoot, body.clip, "read");
+    const folder = resolveRootedPath(spaceRoot, body.folder, "write");
+    if (!(await stat(folder.filePath)).isDirectory()) return c.text("Not a folder", 400);
+    await rememberFrameFolder(
+      spaceRoot,
+      formatWithinRoot(clip, clip.filePath),
+      formatWithinRoot(folder, folder.filePath),
+    );
     return c.body(null, 204);
   });
 }

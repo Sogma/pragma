@@ -8,6 +8,8 @@
 // no file in it hides its item. `looks: false` comes from a viewer with no
 // LOOK badge, whose picture shows no look, and leaves Looks out, and
 // `guides: false` from one that draws no guides, leaving Guides out.
+//
+// A player adds `frame` once a frame is on screen, for Save frame to take.
 import { vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import {
   FILM_FRAMES,
@@ -20,6 +22,7 @@ import {
   toggleFrame,
 } from "../lib/videoGuides.ts";
 import { LOOKS, type LutChoice, lookLabel } from "../lib/videoLut.ts";
+import type { FrameGrab } from "../lib/videoPlayer.ts";
 import { looks } from "./looks.ts";
 import type { ContextMenuService, MenuItem, MenuRange, MenuTile } from "./menus.ts";
 import { type PresetRow, presetMenuItems, presetSearch, presetSources } from "./presetMenu.ts";
@@ -183,24 +186,24 @@ function showsLooks(arg: unknown): boolean {
   return looks !== false && (typeof file !== "string" || vectorImageMediaTypeForPath(file) === undefined);
 }
 
-/** The menu a media file's ⋮ opens, given `{ file, bookmark, looks?, guides? }`. */
+/** The menu a media file's ⋮ opens, given `{ file, bookmark, looks?, guides?, frame? }`. */
 export const MEDIA_MENU = "media.more";
 
 /** Opens `menu` for the file at `path` under its ⋮, or closes it there. A
  * viewer with no LOOK badge passes `looks: false`, and one that draws no
- * guides `guides: false`. */
+ * guides `guides: false`; a player passes `frame` with each open. */
 export function moreOptionsMenu(
   contextMenu: ContextMenuService,
   path: string,
   { menu = MEDIA_MENU, looks = true, guides = true }: { menu?: string; looks?: boolean; guides?: boolean } = {},
-): (anchor: HTMLElement) => void {
-  const arg = { file: path, bookmark: path, ...(looks ? {} : { looks: false }), ...(guides ? {} : { guides: false }) };
-  return (anchor) => {
+): (anchor: HTMLElement, frame?: () => FrameGrab) => void {
+  const base = { file: path, bookmark: path, ...(looks ? {} : { looks: false }), ...(guides ? {} : { guides: false }) };
+  return (anchor, frame) => {
     if (contextMenu.isOpen(anchor)) contextMenu.close();
     else {
       contextMenu.open({
         menu,
-        arg,
+        arg: frame ? { ...base, frame } : base,
         anchor,
         align: "end",
         ariaLabel: "More options",

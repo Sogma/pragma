@@ -47,6 +47,15 @@ describe("moreOptionsMenu", () => {
     moreOptionsMenu(contextMenu, "takes/a.mp4", { guides: false })(document.createElement("button"));
     expect(contextMenu.opened[0]?.arg).toEqual({ file: "takes/a.mp4", bookmark: "takes/a.mp4", guides: false });
   });
+
+  // Save frame reads it from there; a still's ⋮ passes none.
+  it("carries the frame a player offers in the menu's argument", () => {
+    const contextMenu = fakeContextMenu();
+    const frame = vi.fn();
+    moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false })(document.createElement("button"), frame);
+    expect(contextMenu.opened[0]?.arg).toEqual({ file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false, frame });
+    expect(frame).not.toHaveBeenCalled();
+  });
 });
 
 describe("lutsMenuItem", () => {

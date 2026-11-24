@@ -46,6 +46,8 @@ import type {
   FlowAppModeRequestBody,
   FolderLayoutRequestBody,
   FolderListingResponse,
+  FrameFolderRequestBody,
+  FrameFolderResponse,
   GenerateImageRequestBody,
   GenerateImageRouteResponse,
   GenerateOptionsRequestBody,
@@ -924,6 +926,22 @@ export async function postFlowAppMode(path: string, appMode: boolean): Promise<v
     method: "POST",
     body: { path, appMode } satisfies FlowAppModeRequestBody,
     fallback: "Remembering App Mode failed",
+  });
+}
+
+/** The folder a frame of the clip at `clip` saves to by default. */
+export async function fetchFrameFolder(clip: string): Promise<string> {
+  const answer = await request<FrameFolderResponse>(`/api/space/frame-folder?clip=${encodeURIComponent(clip)}`, {
+    fallback: "Reading the frame folder failed",
+  });
+  return answer.folder;
+}
+
+export async function postFrameFolder(clip: string, folder: string): Promise<void> {
+  await requestVoid("/api/space/frame-folder", {
+    method: "POST",
+    body: { clip, folder } satisfies FrameFolderRequestBody,
+    fallback: "Remembering the frame folder failed",
   });
 }
 
