@@ -10,6 +10,7 @@ import {
   TABLE_LAYOUTS,
 } from "../../../src/protocol/types.ts";
 import { type FileResponse, postTableLayout, type TableFileResponse } from "../../core/apiClient.ts";
+import { contextOfTab } from "../../core/tabContext.ts";
 import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
 import {
   cardParts,
@@ -586,9 +587,13 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
   const frame = document.createElement("div");
   frame.className = "editor-table-pane";
   frame.append(element);
+  // The context the tab is seen in, whose guides and look a previewed
+  // still or clip shows.
+  let context = "";
   const media = createMediaPreview({
     ...deps.previewSources,
     host: frame,
+    context: () => context,
     fields: element,
     loadFile: deps.loadFile,
     formats: deps.formats,
@@ -627,6 +632,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       if (file.kind !== "table") throw new Error(`${tab.path} is not a table`);
       deps.noteRevision(file.path, file.revision);
       if (shown?.path !== file.path) media.close(false);
+      context = contextOfTab(tab);
       view.render(file);
       shown = file;
       find.show(file.path);

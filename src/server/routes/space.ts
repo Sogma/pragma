@@ -12,6 +12,8 @@ import {
 } from "../../config/loadConfig.ts";
 import type {
   ClassRowsResponse,
+  ContextViewRequestBody,
+  ContextViewResponse,
   FileTypeSettings,
   FlowAppModeRequestBody,
   FolderEntry,
@@ -49,6 +51,7 @@ import { formatRootedPath } from "../../protocol/rootedPath.ts";
 import { parseTableFile } from "../../protocol/tableFile.ts";
 import { isFlowFile, isTableFile, isTableLayout, thumbnailKindForPath } from "../../protocol/types.ts";
 import { classRows, folderRows, scopeFolderOf } from "../classRows.ts";
+import { contextViewFor, readContext, rememberContextView } from "../contextMemory.ts";
 import { entryDescription, entryExcerpt } from "../descriptions.ts";
 import { EntryListFileError } from "../entryListFile.ts";
 import { frameFolderFor, rememberFrameFolder } from "../frameFolders.ts";
@@ -683,30 +686,64 @@ export function mountSpaceRoutes(
   });
 
   // Where a frame of a clip saves by default, and the folder one was saved
-  // to, remembered for the clip's context: the same host state, so a frame
-  // of a read-only library's clip takes one too.
+  // to, remembered for the context it was seen in: host state, so a frame of
+  // a read-only library's clip takes one too. A context naming no folder,
+  // one deleted since, has nothing remembered.
   app.all("/api/space/frame-folder", async (c) => {
     if (c.req.method === "GET") {
       const clip = c.req.query("clip");
       if (!clip) return c.text("clip must be a file path", 400);
       const resolved = resolveRootedPath(spaceRoot, clip, "read");
-      const folder = await frameFolderFor(spaceRoot, formatWithinRoot(resolved, resolved.filePath));
+      const context = await readContext(spaceRoot, c.req.query("context"));
+      const folder = await frameFolderFor(spaceRoot, formatWithinRoot(resolved, resolved.filePath), context);
       return c.json<FrameFolderResponse>({ folder });
     }
 
     if (c.req.method !== "POST") return c.body(null, 405);
 
     const body = (await c.req.json()) as Incoming<FrameFolderRequestBody>;
-    if (typeof body.clip !== "string" || !body.clip) return c.text("clip must be a file path", 400);
+    const context = await readContext(spaceRoot, body.context);
+    if (context === undefined) return c.text(CONTEXT_REFUSAL, 400);
     if (typeof body.folder !== "string") return c.text("folder must be a folder path", 400);
-    const clip = resolveRootedPath(spaceRoot, body.clip, "read");
     const folder = resolveRootedPath(spaceRoot, body.folder, "write");
     if (!(await stat(folder.filePath)).isDirectory()) return c.text("Not a folder", 400);
-    await rememberFrameFolder(
-      spaceRoot,
-      formatWithinRoot(clip, clip.filePath),
-      formatWithinRoot(folder, folder.filePath),
-    );
+    await rememberFrameFolder(spaceRoot, context, formatWithinRoot(folder, folder.filePath));
     return c.body(null, 204);
   });
+
+  // The guides and look a context's media show on this install, and a
+  // change to either. Kept as the client sent them, which reads what it
+  // doesn't know as none; the cap keeps a stray body out of the layout.
+  app.all("/api/space/context-view", async (c) => {
+    if (c.req.method === "GET") {
+      const asked = c.req.query("context");
+      if (asked === undefined) return c.text(CONTEXT_REFUSAL, 400);
+      const context = await readContext(spaceRoot, asked);
+      const view = context === undefined ? { guides: null, look: null } : await contextViewFor(spaceRoot, context);
+      return c.json<ContextViewResponse>(view);
+    }
+
+    if (c.req.method !== "POST") return c.body(null, 405);
+
+    const body = (await c.req.json()) as Incoming<ContextViewRequestBody>;
+    const context = await readContext(spaceRoot, body.context);
+    if (context === undefined) return c.text(CONTEXT_REFUSAL, 400);
+    const { guides, look } = body;
+    if (!isViewValue(guides) || !isViewValue(look)) return c.text("guides and look must be small objects", 400);
+    await rememberContextView(spaceRoot, context, {
+      ...(guides === undefined ? {} : { guides }),
+      ...(look === undefined ? {} : { look }),
+    });
+    return c.body(null, 204);
+  });
+}
+
+const CONTEXT_REFUSAL = 'context must be "" or a folder of the space';
+
+const VIEW_VALUE_LIMIT = 4096;
+
+function isViewValue(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return JSON.stringify(value).length <= VIEW_VALUE_LIMIT;
 }

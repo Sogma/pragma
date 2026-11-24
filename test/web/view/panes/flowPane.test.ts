@@ -161,7 +161,7 @@ describe("flowPane", () => {
     expect(contextMenu.open).toHaveBeenCalledWith(
       expect.objectContaining({
         menu: MEDIA_MENU,
-        arg: { file: "art/a-0123456789ab.png", bookmark: "art/a-0123456789ab.png" },
+        arg: { file: "art/a-0123456789ab.png", bookmark: "art/a-0123456789ab.png", context: "" },
       }),
     );
 

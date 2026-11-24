@@ -58,6 +58,7 @@ function setup(nodes: FlowNodeInstance[], overrides: Partial<AppModeDeps> = {}) 
     }),
     injectAppletRuntime: vi.fn(() => ""),
     previewResult: vi.fn(),
+    viewContext: () => "projects/film",
     ...overrides,
   };
   return { appMode: createAppMode(deps), deps, elements, graph, opened };

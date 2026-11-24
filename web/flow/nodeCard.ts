@@ -305,6 +305,8 @@ export interface NodeCardDeps {
   fileMissing(nodeId: string, message: string | undefined): void;
   // A Generate node's result file, by tree path, previewed over the pane.
   previewResult(path: string): void;
+  // The context the Flow's tab is seen in.
+  viewContext(): string;
 }
 
 /** Marks each card with what a run does with it (nodesLeftOut): a disabled
@@ -454,6 +456,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     layoutChanged: deps.onLayoutChange,
     previewResult: deps.previewResult,
     contextMenu: deps.contextMenu,
+    viewContext: deps.viewContext,
     showPinValues,
   });
 

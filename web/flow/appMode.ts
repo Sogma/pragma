@@ -148,6 +148,8 @@ export interface AppModeDeps {
   remountNodes(nodeIds: string[]): void;
   // A Generate node's result file, by tree path, previewed over the pane.
   previewResult(path: string): void;
+  // The context the Flow's tab is seen in.
+  viewContext(): string;
 }
 
 export interface RunOutcome {
@@ -338,7 +340,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     const value = document.createElement("div");
     appModeClipViews.set(node.id, {
       value,
-      clip: createResultClip("flow-app-clip", deps.previewResult, deps.contextMenu),
+      clip: createResultClip("flow-app-clip", deps.previewResult, deps.contextMenu, deps.viewContext),
       port: port.id,
     });
     showAppModeClip(node.id, undefined);
@@ -579,6 +581,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       layoutChanged: () => {},
       previewResult: deps.previewResult,
       contextMenu: deps.contextMenu,
+      viewContext: deps.viewContext,
       showPinValues: () => {},
     });
   }

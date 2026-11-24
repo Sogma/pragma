@@ -50,39 +50,50 @@ function locate(root: string, id: string, access: "read-only" | "read-write"): s
 describe("the folder a frame saves to by default", () => {
   it("is beside the clip until a folder is picked for its context", async () => {
     const root = space();
-    expect(await frameFolderFor(root, "a/shots/one.mp4")).toBe("a/shots");
-    expect(await frameFolderFor(root, "loose/four.mp4")).toBe("loose");
+    expect(await frameFolderFor(root, "a/shots/one.mp4", "a")).toBe("a/shots");
+    expect(await frameFolderFor(root, "loose/four.mp4", "")).toBe("loose");
   });
 
-  it("is the folder picked last for any clip in the same context, and only there", async () => {
+  it("is the folder picked last for any clip seen in the same context, and only there", async () => {
     const root = space();
-    await rememberFrameFolder(root, "a/shots/one.mp4", "a/stills");
-    expect(await frameFolderFor(root, "a/shots/two.mp4")).toBe("a/stills");
-    // Another project keeps its own, and a clip in no project the space's.
-    expect(await frameFolderFor(root, "b/shots/three.mp4")).toBe("b/shots");
-    expect(await frameFolderFor(root, "loose/four.mp4")).toBe("loose");
+    await rememberFrameFolder(root, "a", "a/stills");
+    expect(await frameFolderFor(root, "a/shots/two.mp4", "a")).toBe("a/stills");
+    // Another project keeps its own, and the space its.
+    expect(await frameFolderFor(root, "b/shots/three.mp4", "b")).toBe("b/shots");
+    expect(await frameFolderFor(root, "loose/four.mp4", "")).toBe("loose");
 
-    await rememberFrameFolder(root, "loose/four.mp4", "b/stills");
-    expect(await frameFolderFor(root, "loose/four.mp4")).toBe("b/stills");
-    expect(await frameFolderFor(root, "a/shots/one.mp4")).toBe("a/stills");
+    await rememberFrameFolder(root, "", "b/stills");
+    expect(await frameFolderFor(root, "loose/four.mp4", "")).toBe("b/stills");
+    expect(await frameFolderFor(root, "a/shots/one.mp4", "a")).toBe("a/stills");
     expect(await readFrameFolders(root)).toEqual({ a: "a/stills", "": "b/stills" });
+  });
+
+  // The context is where the clip is seen, not where it lives: another
+  // project's clip in this project's Table saves where this project's go.
+  it("follows the context a clip is seen in, wherever the clip lives", async () => {
+    const root = space();
+    await rememberFrameFolder(root, "a", "a/stills");
+    expect(await frameFolderFor(root, "b/shots/three.mp4", "a")).toBe("a/stills");
+    // A context naming no folder remembers nothing.
+    expect(await frameFolderFor(root, "b/shots/three.mp4", undefined)).toBe("b/shots");
   });
 
   it("passes over a remembered folder that is gone", async () => {
     const root = space();
-    await rememberFrameFolder(root, "a/shots/one.mp4", "a/stills");
+    await rememberFrameFolder(root, "a", "a/stills");
     await rm(path.join(root, "a", "stills"), { recursive: true });
-    expect(await frameFolderFor(root, "a/shots/one.mp4")).toBe("a/shots");
+    expect(await frameFolderFor(root, "a/shots/one.mp4", "a")).toBe("a/shots");
   });
 
   it("is the space's top folder for a clip in a read-only library, until one is picked", async () => {
     const root = space();
     const footage = locate(root, "footage", "read-only");
     writeFileSync(path.join(footage, "take.mp4"), "clip");
-    expect(await frameFolderFor(root, "lib:footage/take.mp4")).toBe("");
+    expect(await frameFolderFor(root, "lib:footage/take.mp4", "lib:footage")).toBe("");
 
-    await rememberFrameFolder(root, "lib:footage/take.mp4", "a/stills");
-    expect(await frameFolderFor(root, "lib:footage/take.mp4")).toBe("a/stills");
+    // Seen in its own tab, the clip is in its library's context.
+    await rememberFrameFolder(root, "lib:footage", "a/stills");
+    expect(await frameFolderFor(root, "lib:footage/take.mp4", "lib:footage")).toBe("a/stills");
     expect(await readFrameFolders(root)).toEqual({ "lib:footage": "a/stills" });
   });
 
@@ -91,7 +102,7 @@ describe("the folder a frame saves to by default", () => {
     const renders = locate(root, "renders", "read-write");
     mkdirSync(path.join(renders, "day1"));
     writeFileSync(path.join(renders, "day1", "take.mp4"), "clip");
-    expect(await frameFolderFor(root, "lib:renders/day1/take.mp4")).toBe("lib:renders/day1");
+    expect(await frameFolderFor(root, "lib:renders/day1/take.mp4", "lib:renders")).toBe("lib:renders/day1");
   });
 });
 
@@ -121,8 +132,9 @@ describe("a remembered folder after a move or a delete", () => {
 
 describe("the frame folder route", () => {
   const routes = (root: string) => spaceRoutes(createServedSpace(root), { ownMachine: true })();
-  const read = async (root: string, clip: string) => {
-    const response = await routes(root).request(`/api/space/frame-folder?clip=${encodeURIComponent(clip)}`);
+  const read = async (root: string, clip: string, context: string) => {
+    const query = `clip=${encodeURIComponent(clip)}&context=${encodeURIComponent(context)}`;
+    const response = await routes(root).request(`/api/space/frame-folder?${query}`);
     return (await response.json()).folder;
   };
   const post = (root: string, route: string, body: unknown) =>
@@ -132,32 +144,39 @@ describe("the frame folder route", () => {
       body: JSON.stringify(body),
     });
 
-  it("answers the default, and remembers a folder for the clip's context", async () => {
+  it("answers the default, and remembers a folder for the context", async () => {
     const root = space();
-    expect(await read(root, "a/shots/one.mp4")).toBe("a/shots");
-    const saved = await post(root, "/api/space/frame-folder", { clip: "a/shots/one.mp4", folder: "a/stills" });
+    expect(await read(root, "a/shots/one.mp4", "a")).toBe("a/shots");
+    const saved = await post(root, "/api/space/frame-folder", { context: "a", folder: "a/stills" });
     expect(saved.status).toBe(204);
-    expect(await read(root, "a/shots/two.mp4")).toBe("a/stills");
+    expect(await read(root, "a/shots/two.mp4", "a")).toBe("a/stills");
+    // A context deleted since answers as one with nothing remembered.
+    expect(await read(root, "a/shots/two.mp4", "gone")).toBe("a/shots");
   });
 
-  it("refuses a folder Pragma can't write to, and a missing clip or folder", async () => {
+  it("refuses a folder Pragma can't write to, and a missing or unknown context or folder", async () => {
     const root = space();
     locate(root, "footage", "read-only");
-    const refused = await post(root, "/api/space/frame-folder", { clip: "a/shots/one.mp4", folder: "lib:footage" });
+    const refused = await post(root, "/api/space/frame-folder", { context: "a", folder: "lib:footage" });
     expect(refused.status).toBe(403);
     expect((await post(root, "/api/space/frame-folder", { folder: "a/stills" })).status).toBe(400);
-    expect((await post(root, "/api/space/frame-folder", { clip: "a/shots/one.mp4" })).status).toBe(400);
+    expect((await post(root, "/api/space/frame-folder", { context: "a" })).status).toBe(400);
+    // A context is the space, a folder of it or a library's top, never a file
+    // or a library's folder.
+    for (const context of ["gone", "a/AGENTS.md", "lib:footage/day1", "lib:elsewhere"]) {
+      expect((await post(root, "/api/space/frame-folder", { context, folder: "a/stills" })).status).toBe(400);
+    }
     expect((await routes(root).request("/api/space/frame-folder")).status).toBe(400);
     expect(await readFrameFolders(root)).toEqual({});
   });
 
   it("keeps a remembered folder through a rename, and forgets it with a delete", async () => {
     const root = space();
-    await post(root, "/api/space/frame-folder", { clip: "a/shots/one.mp4", folder: "a/stills" });
+    await post(root, "/api/space/frame-folder", { context: "a", folder: "a/stills" });
     expect((await post(root, "/api/space/move", { from: "a/stills", to: "a/frames" })).status).toBe(200);
-    expect(await read(root, "a/shots/one.mp4")).toBe("a/frames");
+    expect(await read(root, "a/shots/one.mp4", "a")).toBe("a/frames");
     expect((await post(root, "/api/space/delete", { path: "a/frames" })).status).toBe(200);
     expect(await readFrameFolders(root)).toEqual({});
-    expect(await read(root, "a/shots/one.mp4")).toBe("a/shots");
+    expect(await read(root, "a/shots/one.mp4", "a")).toBe("a/shots");
   });
 });

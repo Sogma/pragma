@@ -3,8 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuRange, MenuTileSection } from "../../../web/services/menus.ts";
-import { guidesMenuItem, lutsMenuItem, MEDIA_MENU, moreOptionsMenu } from "../../../web/services/videoMenu.ts";
-import { memoryLook, memorySetting } from "../support/editorLayout.ts";
+import {
+  guidesMenuItem,
+  lutsMenuItem,
+  MEDIA_MENU,
+  menuContext,
+  moreOptionsMenu,
+} from "../../../web/services/videoMenu.ts";
+import { memorySetting, memoryViews } from "../support/editorLayout.ts";
 import { fakeContextMenu } from "../support/fakeContextMenu.ts";
 
 const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
@@ -14,13 +20,13 @@ describe("moreOptionsMenu", () => {
   it("opens the media menu for the file under its button, and closes it from there", () => {
     const contextMenu = fakeContextMenu();
     const anchor = document.createElement("button");
-    const open = moreOptionsMenu(contextMenu, "lib:takes/a.mp4");
+    const open = moreOptionsMenu(contextMenu, "lib:takes/a.mp4", { context: () => "projects/film" });
 
     open(anchor);
     expect(contextMenu.opened).toEqual([
       {
         menu: MEDIA_MENU,
-        arg: { file: "lib:takes/a.mp4", bookmark: "lib:takes/a.mp4" },
+        arg: { file: "lib:takes/a.mp4", bookmark: "lib:takes/a.mp4", context: "projects/film" },
         anchor,
         align: "end",
         ariaLabel: "More options",
@@ -33,9 +39,21 @@ describe("moreOptionsMenu", () => {
     expect(contextMenu.opened).toHaveLength(1);
   });
 
+  // Read as it opens: the viewer's tab may be seen in another context by then.
+  it("names the context the viewer is seen in as the menu opens", () => {
+    const contextMenu = fakeContextMenu();
+    let context = "a";
+    const open = moreOptionsMenu(contextMenu, "takes/a.mp4", { context: () => context });
+    context = "b";
+    open(document.createElement("button"));
+    expect(menuContext(contextMenu.opened[0]?.arg)).toBe("b");
+    // An argument naming none is the space's own.
+    expect([menuContext(undefined), menuContext({ file: "takes/a.mp4" })]).toEqual(["", ""]);
+  });
+
   it("says so in the menu's argument for a viewer that shows no look", () => {
     const contextMenu = fakeContextMenu();
-    moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false })(document.createElement("button"));
+    moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false, context: () => "" })(document.createElement("button"));
     expect(contextMenu.opened[0]).toMatchObject({
       menu: MEDIA_MENU,
       arg: { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false },
@@ -44,16 +62,28 @@ describe("moreOptionsMenu", () => {
 
   it("says so in the menu's argument for a viewer that draws no guides", () => {
     const contextMenu = fakeContextMenu();
-    moreOptionsMenu(contextMenu, "takes/a.mp4", { guides: false })(document.createElement("button"));
-    expect(contextMenu.opened[0]?.arg).toEqual({ file: "takes/a.mp4", bookmark: "takes/a.mp4", guides: false });
+    moreOptionsMenu(contextMenu, "takes/a.mp4", { guides: false, context: () => "" })(document.createElement("button"));
+    expect(contextMenu.opened[0]?.arg).toEqual({
+      file: "takes/a.mp4",
+      bookmark: "takes/a.mp4",
+      guides: false,
+      context: "",
+    });
   });
 
   // Save frame reads it from there; a still's ⋮ passes none.
   it("carries the frame a player offers in the menu's argument", () => {
     const contextMenu = fakeContextMenu();
     const frame = vi.fn();
-    moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false })(document.createElement("button"), frame);
-    expect(contextMenu.opened[0]?.arg).toEqual({ file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false, frame });
+    const open = moreOptionsMenu(contextMenu, "takes/a.mp4", { looks: false, context: () => "" });
+    open(document.createElement("button"), frame);
+    expect(contextMenu.opened[0]?.arg).toEqual({
+      file: "takes/a.mp4",
+      bookmark: "takes/a.mp4",
+      looks: false,
+      context: "",
+      frame,
+    });
     expect(frame).not.toHaveBeenCalled();
   });
 });
@@ -61,7 +91,7 @@ describe("moreOptionsMenu", () => {
 describe("lutsMenuItem", () => {
   // A look grades pixels, which a vector image has none of.
   it("offers Looks for a clip or a raster still, never for a vector image", () => {
-    const { when } = lutsMenuItem(Object.assign(memoryLook(), { tryLook: vi.fn() }));
+    const { when } = lutsMenuItem(memoryViews().views);
     const offered = (file: string) => when?.(context, { file, bookmark: file });
     expect([offered("takes/a.mp4"), offered("stills/a.png"), offered("art/logo.svg")]).toEqual([true, true, false]);
     expect(when?.(context, undefined)).toBe(true);
@@ -69,14 +99,16 @@ describe("lutsMenuItem", () => {
 
   // A Flow's clip shows no look, having no LOOK badge to say one is on.
   it("leaves Looks out of a viewer that shows no look", () => {
-    const { when } = lutsMenuItem(Object.assign(memoryLook(), { tryLook: vi.fn() }));
+    const { when } = lutsMenuItem(memoryViews().views);
     expect(when?.(context, { file: "takes/a.mp4", bookmark: "takes/a.mp4", looks: false })).toBe(false);
   });
 
-  it("opens Looks onto Pragma's own Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player", () => {
-    const lut = Object.assign(memoryLook(), { tryLook: vi.fn() });
-    const { label, submenu } = lutsMenuItem(lut);
-    const rows = typeof submenu === "function" ? submenu(context, undefined) : (submenu ?? []);
+  it("opens Looks onto Pragma's own Panchromatic and Orthochromatic, the one on checked, turning it on and off for every player in the context", () => {
+    const held = memoryViews();
+    const lut = held.of("projects/film").look;
+    const { label, submenu } = lutsMenuItem(held.views);
+    const arg = { file: "takes/a.mp4", bookmark: "takes/a.mp4", context: "projects/film" };
+    const rows = typeof submenu === "function" ? submenu(context, arg) : (submenu ?? []);
     expect(label).toBe("Looks");
     expect(rows.map((row) => row.label)).toEqual(["Pragma", "Panchromatic", "Orthochromatic"]);
     const [, panchromatic, orthochromatic] = rows;
@@ -98,13 +130,16 @@ describe("lutsMenuItem", () => {
 
     panchromatic.run?.(context, undefined);
     expect(lut.get()).toEqual({ lut: "panchromatic", on: true });
+    // Another context's look is its own.
+    expect(held.of("").look.get()).toEqual({ lut: null, on: false });
   });
 });
 
 describe("lutsMenuItem's preview", () => {
   it("tries a look on the picture while it is pointed at, and ends the try after", () => {
-    const lut = Object.assign(memoryLook(), { tryLook: vi.fn() });
-    const { submenu } = lutsMenuItem(lut);
+    const held = memoryViews();
+    const lut = held.of("").look;
+    const { submenu } = lutsMenuItem(held.views);
     const rows = typeof submenu === "function" ? submenu(context, undefined) : (submenu ?? []);
     rows[1].preview?.show();
     expect(lut.tryLook).toHaveBeenLastCalledWith("panchromatic");
@@ -114,14 +149,17 @@ describe("lutsMenuItem's preview", () => {
 });
 
 describe("guidesMenuItem", () => {
-  function sections(guides = memorySetting(NO_GUIDES)): MenuTileSection[] {
-    const { tiles } = guidesMenuItem(guides);
-    return typeof tiles === "function" ? tiles(context, undefined) : (tiles ?? []);
+  // The tiles of the menu opened in `at`, setting `guides` there.
+  function sections(guides = memorySetting(NO_GUIDES), at = "projects/film"): MenuTileSection[] {
+    const held = memoryViews();
+    const { tiles } = guidesMenuItem((asked) => (asked === at ? { ...held.of(asked), guides } : held.of(asked)));
+    const arg = { file: "takes/a.mp4", bookmark: "takes/a.mp4", context: at };
+    return typeof tiles === "function" ? tiles(context, arg) : (tiles ?? []);
   }
 
   // A Flow's clip draws no guides, so a pick there would change nothing on it.
   it("is offered on every viewer but one that draws no guides", () => {
-    const { when } = guidesMenuItem(memorySetting(NO_GUIDES));
+    const { when } = guidesMenuItem(memoryViews().views);
     const offered = (arg: unknown) => when?.(context, arg);
     expect([
       offered({ file: "takes/a.mp4", bookmark: "takes/a.mp4" }),
@@ -160,6 +198,20 @@ describe("guidesMenuItem", () => {
   });
 
   // With no frame on, None is lit and the guides keep the picture's own shape.
+  it("sets the guides of the context the menu was opened in, and no other's", () => {
+    const held = memoryViews();
+    const { tiles } = guidesMenuItem(held.views);
+    const opened = (at: string) => {
+      const arg = { file: "takes/a.mp4", bookmark: "takes/a.mp4", context: at };
+      return typeof tiles === "function" ? tiles(context, arg) : (tiles ?? []);
+    };
+    opened("projects/film")[1].tiles[4].pick();
+    opened("projects/social")[0].tiles[2].pick();
+    expect(held.of("projects/film").guides.get().frames).toEqual(["2.39"]);
+    expect(held.of("projects/social").guides.get().frames).toEqual(["9:16"]);
+    expect(held.of("").guides.get().frames).toEqual([]);
+  });
+
   it("turns frames of either row on and off by themselves, and None turns them all off", () => {
     const guides = memorySetting({ ...NO_GUIDES, shown: false });
     const [social, film] = sections(guides);

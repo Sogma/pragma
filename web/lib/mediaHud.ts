@@ -63,7 +63,11 @@ export function lookBadge(choice: LutChoice): LookBadge {
     const named = trying ? lut : kept.lut;
     element.classList.toggle("is-missing", missing);
     element.textContent = named === null ? "" : "LOOK";
-    if (named === null) return;
+    // A viewer moved to a context with no look keeps no word of the last.
+    if (named === null) {
+      for (const name of ["aria-label", "aria-pressed", "data-tooltip"]) element.removeAttribute(name);
+      return;
+    }
     const name = lookLabel(named);
     element.setAttribute("aria-label", missing ? `${name} look, missing` : `${name} look`);
     element.setAttribute("aria-pressed", String(on));

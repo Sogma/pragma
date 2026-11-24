@@ -7,7 +7,7 @@ import { findSpaceId, loadGlobalConfig } from "../config/loadConfig.ts";
 import type { LayoutResponse } from "../protocol/api.ts";
 import type { LocalSort } from "../protocol/localSort.ts";
 import type { TableLayout } from "../protocol/types.ts";
-import { layoutStore } from "./layoutStore.ts";
+import { type ContextViewRecord, layoutStore } from "./layoutStore.ts";
 import { namedEntryPath } from "./rootedFiles.ts";
 import { listRootPaths } from "./tree.ts";
 
@@ -130,4 +130,19 @@ export async function updateFrameFolders(
   change: (folders: Record<string, string>) => Record<string, string> | undefined,
 ): Promise<void> {
   await layoutStore().updateFrameFolders(registered(spaceRoot), change);
+}
+
+/** The guides and look each context's media show on this install. */
+export async function readContextViews(spaceRoot: string): Promise<Record<string, ContextViewRecord>> {
+  const id = spaceIdOf(spaceRoot);
+  return id === undefined ? {} : layoutStore().contextViews(id);
+}
+
+/** Rewrites every context's guides and look through `change`, as its frame
+ * folder is rewritten above. */
+export async function updateContextViews(
+  spaceRoot: string,
+  change: (views: Record<string, ContextViewRecord>) => Record<string, ContextViewRecord> | undefined,
+): Promise<void> {
+  await layoutStore().updateContextViews(registered(spaceRoot), change);
 }

@@ -71,6 +71,7 @@ import {
   scopesOf,
   writePathFrom,
 } from "../../core/spaceTree.ts";
+import { contextOfTab } from "../../core/tabContext.ts";
 import { tagVocabulary } from "../../core/tagVocabulary.ts";
 import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
@@ -279,9 +280,13 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     dialog: deps.dialog,
   });
   // A media value shows over the Class on a click, as a Table's does.
+  // The context the tab is seen in, whose guides and look a previewed
+  // still or clip shows.
+  let context = "";
   const media = createMediaPreview({
     ...deps.previewSources,
     host: frame,
+    context: () => context,
     fields: element,
     loadFile: deps.loadFile,
     formats: deps.formats,
@@ -1394,6 +1399,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       const rows = file.locked === "unreadable" ? [] : await deps.loadRows(file.path);
       if (!ctx.isCurrent()) return;
       deps.noteRevision(file.path, file.revision);
+      context = contextOfTab(tab);
       // The view picked stays while the same Class is shown again.
       const another = open?.file.path !== file.path;
       if (another) {

@@ -63,6 +63,7 @@ function setup(overrides: Partial<PickerDeps> = {}) {
     layoutChanged: vi.fn(),
     remount: vi.fn(),
     previewResult: vi.fn(),
+    viewContext: () => "projects/film",
     contextMenu: fakeContextMenu(),
     showPinValues: vi.fn(),
     ...overrides,
@@ -1060,11 +1061,13 @@ describe("a loader's dot values", () => {
     expect(picker.el.querySelector(".video-guides")).toBeNull();
 
     picker.el.querySelector<HTMLButtonElement>(".video-player-more")?.click();
+    // Save frame there offers the folder of the Flow's context.
     expect(contextMenu.opened.at(-1)?.arg).toEqual({
       file: "shots/take.mp4",
       bookmark: "shots/take.mp4",
       looks: false,
       guides: false,
+      context: "projects/film",
     });
   });
 

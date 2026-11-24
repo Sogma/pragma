@@ -31,19 +31,19 @@ function lookChoice(initial: Look, files: Record<string, Lut> = {}): LutChoice {
 
 describe("readLook", () => {
   it("reads each look back, on or off, and anything else as none", () => {
-    expect(readLook(JSON.stringify(on("panchromatic")))).toEqual(on("panchromatic"));
-    expect(readLook(JSON.stringify(off("orthochromatic")))).toEqual(off("orthochromatic"));
-    expect(readLook('{"lut":"panchromatic"}')).toEqual(off("panchromatic"));
-    for (const stored of [null, "", "panchromatic", "{", "null", '{"lut":"sepia","on":true}', '{"lut":"toString"}']) {
-      expect(readLook(stored)).toEqual(NO_LOOK);
+    expect(readLook(on("panchromatic"))).toEqual(on("panchromatic"));
+    expect(readLook(off("orthochromatic"))).toEqual(off("orthochromatic"));
+    expect(readLook({ lut: "panchromatic" })).toEqual(off("panchromatic"));
+    for (const kept of [null, undefined, "", "panchromatic", 7, { lut: "sepia", on: true }, { lut: "toString" }]) {
+      expect(readLook(kept)).toEqual(NO_LOOK);
     }
   });
 
   it("reads a LUT file's look by its rooted path, and nothing that names no LUT file", () => {
-    expect(readLook(JSON.stringify(on("presets/luts/warm.cube")))).toEqual(on("presets/luts/warm.cube"));
-    expect(readLook(JSON.stringify(off("lib:film/Print/2383.CUBE")))).toEqual(off("lib:film/Print/2383.CUBE"));
+    expect(readLook(on("presets/luts/warm.cube"))).toEqual(on("presets/luts/warm.cube"));
+    expect(readLook(off("lib:film/Print/2383.CUBE"))).toEqual(off("lib:film/Print/2383.CUBE"));
     for (const lut of ["presets/luts/warm.png", "../warm.cube", "foo:warm.cube", "lib:film"]) {
-      expect(readLook(JSON.stringify(on(lut))), lut).toEqual(NO_LOOK);
+      expect(readLook(on(lut)), lut).toEqual(NO_LOOK);
     }
   });
 });

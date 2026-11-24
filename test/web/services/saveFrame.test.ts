@@ -11,18 +11,22 @@ const api = vi.hoisted(() => ({
   frameRate: 25 as number | null,
   uploads: [] as { dir: string; name: string; type: string }[],
   remembered: [] as [string, string][],
+  asked: [] as [string, string][],
 }));
 
 vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../web/core/apiClient.ts")>()),
-  fetchFrameFolder: () => api.folder,
+  fetchFrameFolder: (clip: string, context: string) => {
+    api.asked.push([clip, context]);
+    return api.folder;
+  },
   getVideoFormat: async () => ({ frameRate: api.frameRate }),
   postUploadFile: async (dir: string, name: string, file: Blob) => {
     api.uploads.push({ dir, name, type: file.type });
     return { path: dir ? `${dir}/${name}` : name, name };
   },
-  postFrameFolder: async (clip: string, folder: string) => {
-    api.remembered.push([clip, folder]);
+  postFrameFolder: async (context: string, folder: string) => {
+    api.remembered.push([context, folder]);
   },
 }));
 
@@ -43,6 +47,7 @@ afterEach(() => {
   api.frameRate = 25;
   api.uploads = [];
   api.remembered = [];
+  api.asked = [];
   tree.noted = 0;
   document.body.replaceChildren();
 });
@@ -141,7 +146,9 @@ describe("Save frame…", () => {
     ];
     tree.space[0].children?.[0].children?.push({ name: "Hero.PNG", path: "a/stills/Hero.PNG", type: "file" });
     const { take, blobs } = frame();
-    const options = await open({ file: "a/shots/one.mp4", frame: take }).form();
+    // Seen in the context of project b, whose folder it asks for and remembers.
+    const options = await open({ file: "a/shots/one.mp4", frame: take, context: "b" }).form();
+    expect(api.asked).toEqual([["a/shots/one.mp4", "b"]]);
 
     expect(await options.submit?.({ name: "hero", folder: "a/stills" })).toBe('"hero.png" is already in that folder.');
     expect(api.uploads).toEqual([]);
@@ -149,7 +156,7 @@ describe("Save frame…", () => {
     expect(await options.submit?.({ name: "hero 2", folder: "a/stills" })).toBeUndefined();
     expect(blobs).toEqual(["image/png"]);
     expect(api.uploads).toEqual([{ dir: "a/stills", name: "hero 2.png", type: "image/png" }]);
-    expect(api.remembered).toEqual([["a/shots/one.mp4", "a/stills"]]);
+    expect(api.remembered).toEqual([["b", "a/stills"]]);
     expect(tree.noted).toBe(1);
   });
 });

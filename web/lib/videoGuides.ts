@@ -213,15 +213,9 @@ export function matteOutside(width: number, height: number, boxes: readonly Box[
   return shapes.join(" ");
 }
 
-/** Guides read back from storage, where anything missing or unknown reads
- * as no guide. */
-export function readGuides(stored: string | null): Guides {
-  let value: unknown;
-  try {
-    value = stored ? JSON.parse(stored) : undefined;
-  } catch {
-    value = undefined;
-  }
+/** Guides read back from where they were kept, where anything missing or
+ * unknown reads as no guide. */
+export function readGuides(value: unknown): Guides {
   if (typeof value !== "object" || value === null) return NO_GUIDES;
   const record = value as Record<string, unknown>;
   const flag = (key: keyof Guides, fallback: boolean) =>

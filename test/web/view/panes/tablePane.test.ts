@@ -10,8 +10,10 @@ import { createFormats } from "../../../../web/services/formats.ts";
 import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import { createTablePane, tablePane } from "../../../../web/view/panes/tablePane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
+import { memoryViews } from "../../support/editorLayout.ts";
 import { testMetadataProperties } from "../../support/metadataProperties.ts";
 import { testPreviewSources } from "../../support/previewSources.ts";
+import { listSpace, unlistSpace } from "../../support/spaceListing.ts";
 import { testContextMenu } from "../../support/testContextMenu.ts";
 
 // Find measures its matches, which jsdom's Range can't.
@@ -31,7 +33,7 @@ function file(overrides: Partial<TableFileResponse> = {}): TableFileResponse {
   } as TableFileResponse;
 }
 
-function setup(loaded: FileResponse = file()) {
+function setup(loaded: FileResponse = file(), held = memoryViews()) {
   const loadFile = vi.fn(async () => loaded);
   const onRendered = vi.fn();
   const scheduleSave = vi.fn<(path: string, content: string) => void>();
@@ -48,7 +50,7 @@ function setup(loaded: FileResponse = file()) {
     scheduleSave,
     onRendered,
     openPath,
-    previewSources: testPreviewSources(),
+    previewSources: testPreviewSources(held),
     formats: createFormats(),
     dialogHost: document.body,
     metadataProperties: testMetadataProperties(),
@@ -281,6 +283,35 @@ describe("a media cell's preview", () => {
     expect(document.activeElement).toBe(thumbs(pane)[4]);
   });
 
+  // A project's Table showing a library's stills: they are seen in the
+  // project's context, taking its look and guides, never the library's.
+  it("previews a library's still in the context of the Table's project", async () => {
+    await listSpace({
+      files: ["projects/film/models.table.html"],
+      folders: ["projects", "projects/film"],
+      scopes: ["projects/film"],
+    });
+    try {
+      const held = memoryViews();
+      held.of("projects/film").look.set({ lut: "panchromatic", on: true });
+      const loaded = file({
+        columns: [{ id: "shot", label: "Shot", type: "media" }],
+        rows: [{ values: { shot: "lib:footage/a.png" } }],
+      });
+      const { pane, contextMenu } = setup(loaded, held);
+      await pane.setInput({ kind: "table", path: "projects/film/models.table.html" }, current);
+      thumbs(pane)[0].click();
+      const badge = previewOf(pane).querySelector(".media-hud-badge");
+      expect([badge?.textContent, badge?.getAttribute("aria-pressed")]).toEqual(["LOOK", "true"]);
+
+      const open = vi.spyOn(contextMenu, "open");
+      (previewOf(pane).querySelector(".media-hud-more") as HTMLButtonElement).click();
+      expect(open.mock.lastCall?.[0].arg).toMatchObject({ file: "lib:footage/a.png", context: "projects/film" });
+    } finally {
+      await unlistSpace();
+    }
+  });
+
   it("points the copilot at the file its preview shows, and at nothing once it closes", async () => {
     const { pane } = setup(shots());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
@@ -311,7 +342,10 @@ describe("a media cell's preview", () => {
     const open = vi.spyOn(contextMenu, "open");
     (preview.querySelector(".media-hud-more") as HTMLButtonElement).click();
     expect(open).toHaveBeenCalledWith(
-      expect.objectContaining({ menu: MEDIA_MENU, arg: { file: "stills/a.png", bookmark: "stills/a.png" } }),
+      expect.objectContaining({
+        menu: MEDIA_MENU,
+        arg: { file: "stills/a.png", bookmark: "stills/a.png", context: "" },
+      }),
     );
   });
 

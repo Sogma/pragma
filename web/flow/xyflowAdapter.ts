@@ -89,6 +89,9 @@ export interface FlowViewDeps {
   showRuns: () => void;
   // A Generate node's result file, by tree path, previewed over the pane.
   previewResult: (path: string) => void;
+  // The context the Flow's tab is seen in, whose folder a result clip's
+  // Save frame offers.
+  viewContext: () => string;
 }
 
 export interface FlowView {
@@ -432,6 +435,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     loadFile: (stored: string) => fetchFile(flowTreePath(flowPath(), stored)),
     injectAppletRuntime: injectAppletNodeRuntime,
     previewResult: deps.previewResult,
+    viewContext: deps.viewContext,
   };
 
   // The node cards (nodeCard.ts), over those and the canvas and its menus;

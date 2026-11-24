@@ -9,8 +9,11 @@
 // LOOK badge, whose picture shows no look, and leaves Looks out, and
 // `guides: false` from one that draws no guides, leaving Guides out.
 //
-// A player adds `frame` once a frame is on screen, for Save frame to take.
+// `context` is the one the viewer's tab is seen in: Guides and Looks set
+// that context's, and Save frame offers its folder. A player adds `frame`
+// once a frame is on screen, for Save frame to take.
 import { vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
+import type { ContextView, LookChoice } from "../lib/contextView.ts";
 import {
   FILM_FRAMES,
   type FrameChoice,
@@ -21,12 +24,11 @@ import {
   SOCIAL_FRAMES,
   toggleFrame,
 } from "../lib/videoGuides.ts";
-import { LOOKS, type LutChoice, lookLabel } from "../lib/videoLut.ts";
+import { LOOKS, lookLabel } from "../lib/videoLut.ts";
 import type { FrameGrab } from "../lib/videoPlayer.ts";
-import { looks } from "./looks.ts";
-import type { ContextMenuService, MenuItem, MenuRange, MenuTile } from "./menus.ts";
+import { contextView } from "./contextViews.ts";
+import type { ContextMenuService, MenuItem, MenuRange, MenuTile, MenuTileSection } from "./menus.ts";
 import { type PresetRow, presetMenuItems, presetSearch, presetSources } from "./presetMenu.ts";
-import { videoGuides } from "./settings.ts";
 
 // Each frame's glyph: its shape cut from a wider box. 1.77 is 16:9.
 const FRAME_GLYPHS: Record<GuideFrame, string> = {
@@ -77,12 +79,29 @@ const FRAME_MARKERS: GuideTile[] = [
   },
 ];
 
+/** The context a media menu was opened in, the space's own where its
+ * argument names none. */
+export function menuContext(arg: unknown): string {
+  if (typeof arg !== "object" || arg === null) return "";
+  const { context } = arg as { context?: unknown };
+  return typeof context === "string" ? context : "";
+}
+
 /** The Guides row above Bookmark in the More options of a player that draws
- * guides: tiles setting the guides those players share. A pick shows the
- * guides again if G hid them. Each frame turns on and off by itself, and
- * None, lit while no frame is on, turns them all off. Protection, under the
- * frames, keeps a share of every frame around its framing. */
-export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
+ * guides: tiles setting the guides of the context it was opened in. A pick
+ * shows the guides again if G hid them. Each frame turns on and off by
+ * itself; None, lit while no frame is on, turns them all off. Protection,
+ * under the frames, keeps a share of every frame around its framing. */
+export function guidesMenuItem(views: (context: string) => ContextView = contextView): MenuItem {
+  return {
+    label: "Guides",
+    group: "guides",
+    when: (_, arg) => drawsGuides(arg),
+    tiles: (_, arg) => guideTiles(views(menuContext(arg)).guides),
+  };
+}
+
+function guideTiles(guides: GuidesChoice): MenuTileSection[] {
   const change = (patch: Partial<Guides>) => guides.set({ ...guides.get(), ...patch, shown: true });
   const frameTiles = (frames: readonly FrameChoice[]): MenuTile[] =>
     frames.map((frame) => ({
@@ -120,17 +139,12 @@ export function guidesMenuItem(guides: GuidesChoice = videoGuides): MenuItem {
         guides.set(next);
       },
     }));
-  return {
-    label: "Guides",
-    group: "guides",
-    when: (_, arg) => drawsGuides(arg),
-    tiles: () => [
-      { label: "Social media", tiles: frameTiles(SOCIAL_FRAMES) },
-      { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)], range: protection },
-      { label: "Safe area", tiles: toggleTiles(SAFE_AREAS) },
-      { label: "Frame markers", tiles: toggleTiles(FRAME_MARKERS) },
-    ],
-  };
+  return [
+    { label: "Social media", tiles: frameTiles(SOCIAL_FRAMES) },
+    { label: "Broadcast and film", tiles: [none, ...frameTiles(FILM_FRAMES)], range: protection },
+    { label: "Safe area", tiles: toggleTiles(SAFE_AREAS) },
+    { label: "Frame markers", tiles: toggleTiles(FRAME_MARKERS) },
+  ];
 }
 
 // Pragma's own looks, after the space's and its libraries'.
@@ -141,36 +155,41 @@ const PRAGMA_LOOKS: PresetRow[] = LOOKS.map(({ lut, label }) => ({
   pragma: true,
 }));
 
-/** The Looks row under Guides: a flyout of the LUTs a viewer with a LOOK
- * badge shows its picture through, searched by name. Pointing at one tries
- * it on the picture; picking the one on turns it off and keeps it, for the
- * badge to turn back on. A vector image has no pixels to grade, so its menu
- * leaves the row out, as does a viewer with no badge. */
-export function lutsMenuItem(lut: LutChoice & { tryLook(lut: string | null): void } = looks): MenuItem {
+/** The Looks row under Guides: the LUTs a viewer with a LOOK badge shows
+ * its picture through, as its context's look, searched by name. Pointing at
+ * one tries it; picking the one on turns it off and keeps it, for the badge
+ * to turn back on. A vector image has no pixels to grade, so its menu leaves
+ * the row out, as does a viewer with no badge. */
+export function lutsMenuItem(views: (context: string) => ContextView = contextView): MenuItem {
+  const sources = () => presetSources("luts", PRAGMA_LOOKS);
+  const look = (arg: unknown) => views(menuContext(arg)).look;
+  return {
+    label: "Looks",
+    group: "guides",
+    when: (_, arg) => showsLooks(arg),
+    search: (_, arg) => presetSearch(sources(), "Search looks", lookLeaf(look(arg))),
+    submenu: (_, arg) => [...missingLook(look(arg)), ...presetMenuItems(sources(), lookLeaf(look(arg)))],
+  };
+}
+
+function lookLeaf(lut: LookChoice): (row: PresetRow) => MenuItem {
   const kept = () => lut.kept?.() ?? lut.get();
   const isOn = (name: string) => kept().on && kept().lut === name;
-  const leaf = (row: PresetRow): MenuItem => ({
+  return (row) => ({
     label: row.label,
     checked: () => isOn(row.path),
     run: () => lut.set({ lut: row.path, on: !isOn(row.path) }),
     preview: { show: () => lut.tryLook(row.path), end: () => lut.tryLook(null) },
     ...(row.pragma ? {} : { tooltip: row.path }),
   });
-  const sources = () => presetSources("luts", PRAGMA_LOOKS);
-  // A kept look whose file is gone heads the list, saying so.
-  const missing = (): MenuItem[] => {
-    const name = kept().lut;
-    if (!lut.missing?.() || name === null) return [];
-    const row = { label: lookLabel(name), icon: true, entryIcon: { glyph: "lut" as const }, detail: "Missing" };
-    return [{ ...row, group: "missing", className: "is-missing" }];
-  };
-  return {
-    label: "Looks",
-    group: "guides",
-    when: (_, arg) => showsLooks(arg),
-    search: () => presetSearch(sources(), "Search looks", leaf),
-    submenu: () => [...missing(), ...presetMenuItems(sources(), leaf)],
-  };
+}
+
+// A kept look whose file is gone heads the list, saying so.
+function missingLook(lut: LookChoice): MenuItem[] {
+  const name = (lut.kept?.() ?? lut.get()).lut;
+  if (!lut.missing?.() || name === null) return [];
+  const row = { label: lookLabel(name), icon: true, entryIcon: { glyph: "lut" as const }, detail: "Missing" };
+  return [{ ...row, group: "missing", className: "is-missing" }];
 }
 
 // Whether a menu's argument comes from a viewer that draws guides.
@@ -186,8 +205,17 @@ function showsLooks(arg: unknown): boolean {
   return looks !== false && (typeof file !== "string" || vectorImageMediaTypeForPath(file) === undefined);
 }
 
-/** The menu a media file's ⋮ opens, given `{ file, bookmark, looks?, guides?, frame? }`. */
+/** The menu a media file's ⋮ opens, given
+ * `{ file, bookmark, context, looks?, guides?, frame? }`. */
 export const MEDIA_MENU = "media.more";
+
+interface MoreOptions {
+  /** The context the viewer's tab is seen in, read as the menu opens. */
+  context: () => string;
+  menu?: string;
+  looks?: boolean;
+  guides?: boolean;
+}
 
 /** Opens `menu` for the file at `path` under its ⋮, or closes it there. A
  * viewer with no LOOK badge passes `looks: false`, and one that draws no
@@ -195,15 +223,16 @@ export const MEDIA_MENU = "media.more";
 export function moreOptionsMenu(
   contextMenu: ContextMenuService,
   path: string,
-  { menu = MEDIA_MENU, looks = true, guides = true }: { menu?: string; looks?: boolean; guides?: boolean } = {},
+  { context, menu = MEDIA_MENU, looks = true, guides = true }: MoreOptions,
 ): (anchor: HTMLElement, frame?: () => FrameGrab) => void {
   const base = { file: path, bookmark: path, ...(looks ? {} : { looks: false }), ...(guides ? {} : { guides: false }) };
   return (anchor, frame) => {
     if (contextMenu.isOpen(anchor)) contextMenu.close();
     else {
+      const arg = { ...base, context: context() };
       contextMenu.open({
         menu,
-        arg: frame ? { ...base, frame } : base,
+        arg: frame ? { ...arg, frame } : arg,
         anchor,
         align: "end",
         ariaLabel: "More options",

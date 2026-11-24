@@ -3,7 +3,15 @@
 // here: a host hands one the folders its scopes open over, and never
 // restates it.
 import { entryNameKey } from "./entryName.ts";
-import { basenameOf, dirnameOf, isLibraryRoot, type RootedPath, sameRoot } from "./rootedPath.ts";
+import {
+  basenameOf,
+  dirnameOf,
+  formatRootedPath,
+  isLibraryRoot,
+  parseRootedPath,
+  type RootedPath,
+  sameRoot,
+} from "./rootedPath.ts";
 
 /** Whether the document at `path` opens a scope: an `AGENTS.md`, its name in
  * any case, whose frontmatter holds a `pragma` key. The key's presence is
@@ -38,6 +46,15 @@ export function scopeOf(scopes: ScopeFolders, path: string): string {
     if (scopes.has(current)) return current;
   }
   return "";
+}
+
+/** The scope the entry at the rooted path `rooted` sits in, as that scope's
+ * folder's rooted path: in the space, the deepest one at or above it, "" for
+ * the space's own; anywhere in a library, the library's top, a library being
+ * one scope. `scopes` are the folders scopes open over in the space. */
+export function rootedScopeOf(scopes: ScopeFolders, rooted: string): string {
+  const { root, path } = parseRootedPath(rooted);
+  return formatRootedPath({ root, path: isLibraryRoot(root) ? "" : scopeOf(scopes, path) });
 }
 
 /** Whether two entries sit in one scope, so a path between them is written

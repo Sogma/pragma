@@ -6,6 +6,7 @@
 import { spendEntry } from "../../../src/protocol/flowExecutors.ts";
 import { basenameOf } from "../../../src/protocol/rootedPath.ts";
 import { type FileResponse, postFlowAppMode, type Tab } from "../../core/apiClient.ts";
+import { contextOfTab } from "../../core/tabContext.ts";
 import {
   createFilePreview,
   type FilePreviewDeps,
@@ -31,7 +32,7 @@ import type { MetadataProperties } from "../metadataProperties.ts";
 export interface FlowPaneDeps
   extends Omit<
       FlowViewDeps,
-      "problems" | "spent" | "previewResult" | "onRunsChange" | "onViewportChange" | "onAppModeChange"
+      "problems" | "spent" | "previewResult" | "viewContext" | "onRunsChange" | "onViewportChange" | "onAppModeChange"
     >,
     CanvasRunHost {
   // How many runs and jobs of the shown Flow are going, for the toolbar.
@@ -174,8 +175,12 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     ...viewDeps
   } = deps;
   const elements = createFlowElements();
+  // The context the Flow's tab is seen in: its previews' guides and look,
+  // and the folder Save frame offers for its clips.
+  let context = "";
   const results = createResultPreview(elements.root, {
     ...previewSources,
+    context: () => context,
     loadFile,
     formats,
     contextMenu: deps.contextMenu,
@@ -210,6 +215,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
   const flowView = createFlowView(elements, {
     ...viewDeps,
     previewResult: results.show,
+    viewContext: () => context,
     problems,
     onRunsChange: (runs) => {
       const now = new Set(runs.map((run) => run.flowPath));
@@ -252,6 +258,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
       if (tab.kind !== "flow") throw new Error(`the flow pane can't show a "${tab.kind}" tab`);
       const file = prefetched ?? (await loadFile(tab.path));
       if (!ctx.isCurrent()) return;
+      context = contextOfTab(tab);
       if (file.kind !== "flow") throw new Error(`${tab.path} is not a flow`);
       deps.noteRevision(file.path, file.revision);
       // Before the cards are built, not after: one may save while it's built,

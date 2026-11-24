@@ -22,11 +22,13 @@ export interface ResultClip {
 }
 
 /** `preview` opens the clip's file, by tree path, over the pane; the
- * player's More options menu opens in `contextMenu`. */
+ * player's More options menu opens in `contextMenu`, in the context the
+ * Flow's tab is seen in. */
 export function createResultClip(
   className: string,
   preview: (path: string) => void,
   contextMenu: ContextMenuService,
+  context: () => string,
 ): ResultClip {
   const video = document.createElement("video");
   video.preload = "metadata";
@@ -73,7 +75,7 @@ export function createResultClip(
         loop: videoLoop,
         volume: videoVolume,
         pictureClick,
-        moreOptions: moreOptionsMenu(contextMenu, path, { looks: false, guides: false }),
+        moreOptions: moreOptionsMenu(contextMenu, path, { looks: false, guides: false, context }),
       });
       frame.append(player.element);
     },

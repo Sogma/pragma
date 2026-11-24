@@ -1,7 +1,8 @@
 // Save frame…, in the More options of a player with a frame on screen: the
 // frame taken as the item is picked, saved as a PNG named after its clip and
 // timecode, never over a file. The folder offered first is the one a frame
-// of a clip in the same context went to last (the server's frameFolders.ts).
+// seen in the same context went to last (the server's frameFolders.ts), the
+// context being the one the menu was opened in.
 import type { SpaceTreeNode } from "../../src/protocol/api.ts";
 import { entryNameKey, illegalEntryNameReason } from "../../src/protocol/entryName.ts";
 import { basenameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../../src/protocol/rootedPath.ts";
@@ -19,6 +20,7 @@ import { FALLBACK_FPS, type FrameGrab, timecode } from "../lib/videoPlayer.ts";
 import type { DialogService } from "./dialog.ts";
 import { createFolderField } from "./folderChooser.ts";
 import type { MenuItem } from "./menus.ts";
+import { menuContext } from "./videoMenu.ts";
 
 const EXTENSION = ".png";
 
@@ -92,12 +94,12 @@ export interface SaveFrameDeps {
   dialog(): DialogService;
 }
 
-async function saveFrame(deps: SaveFrameDeps, clip: string, frame: FrameGrab): Promise<void> {
+async function saveFrame(deps: SaveFrameDeps, clip: string, frame: FrameGrab, context: string): Promise<void> {
   // A dialog opens in the page, under a player's full screen, where it would
   // wait unseen.
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
   const [folder, fps] = await Promise.all([
-    fetchFrameFolder(clip).catch(() => ""),
+    fetchFrameFolder(clip, context).catch(() => ""),
     getVideoFormat(clip).then(
       (format) => format.frameRate,
       () => null,
@@ -124,7 +126,7 @@ async function saveFrame(deps: SaveFrameDeps, clip: string, frame: FrameGrab): P
       if (refusal) return refusal;
       await postUploadFile(values.folder, name, await pngOf(frame.canvas));
       noteUnlistedWrites();
-      await postFrameFolder(clip, values.folder).catch(() => undefined);
+      await postFrameFolder(context, values.folder).catch(() => undefined);
       return undefined;
     },
   });
@@ -148,7 +150,7 @@ export function saveFrameMenuItem(deps: SaveFrameDeps): MenuItem {
     when: (_, arg) => frameArg(arg) !== undefined,
     run: (_, arg) => {
       const offered = frameArg(arg);
-      return offered ? saveFrame(deps, offered.clip, offered.take()) : undefined;
+      return offered ? saveFrame(deps, offered.clip, offered.take(), menuContext(arg)) : undefined;
     },
   };
 }

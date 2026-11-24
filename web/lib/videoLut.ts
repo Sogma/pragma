@@ -48,14 +48,9 @@ function isFileLook(lut: string): boolean {
   }
 }
 
-/** A look read back from storage, where anything unknown reads as none. */
-export function readLook(stored: string | null): Look {
-  let value: unknown;
-  try {
-    value = stored ? JSON.parse(stored) : undefined;
-  } catch {
-    value = undefined;
-  }
+/** A look read back from where it was kept, where anything unknown reads as
+ * none. */
+export function readLook(value: unknown): Look {
   if (typeof value !== "object" || value === null) return NO_LOOK;
   const { lut, on } = value as Record<string, unknown>;
   if (typeof lut !== "string" || !(isBuiltInLook(lut) || isFileLook(lut))) return NO_LOOK;

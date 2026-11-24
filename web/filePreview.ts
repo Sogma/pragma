@@ -19,22 +19,23 @@ import {
 } from "./core/apiClient.ts";
 import { type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
 import { readingResolvers } from "./core/spaceTree.ts";
+import { type ContextView, createViewBinding } from "./lib/contextView.ts";
 import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
 import { fitHud, hudCells, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
 import { canAnimate, frameZoom, shownPercent } from "./lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
-import { type GuidesChoice, toggleGuides } from "./lib/videoGuides.ts";
-import { type LutChoice, toggleLook } from "./lib/videoLut.ts";
+import { toggleGuides } from "./lib/videoGuides.ts";
+import { toggleLook } from "./lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "./lib/videoPlayer.ts";
 import { createPage, fitPage, loadPage, PAGE_PREVIEW_SCALE, releasePage } from "./notePreview.ts";
+import { contextView } from "./services/contextViews.ts";
 import type { DialogService } from "./services/dialog.ts";
 import type { FormatRegistry } from "./services/formats.ts";
-import { looks } from "./services/looks.ts";
 import { focusMediaField, mediaFieldPath, mediaStrip } from "./services/mediaField.ts";
 import type { ContextMenuService } from "./services/menus.ts";
-import { readableLineLength, type Setting, videoGuides, videoLoop, videoVolume } from "./services/settings.ts";
+import { readableLineLength, type Setting, videoLoop, videoVolume } from "./services/settings.ts";
 import { MEDIA_MENU, moreOptionsMenu } from "./services/videoMenu.ts";
 
 export type PreviewKind = "image" | "svg" | "video" | PageKind;
@@ -72,10 +73,9 @@ export interface PreviewSources {
   videoLoop: LoopChoice;
   /** The volume a previewed clip's player shares with every other. */
   videoVolume: VolumeChoice;
-  /** The guides a previewed still or clip shares with every viewer. */
-  videoGuides: GuidesChoice;
-  /** The LUT a previewed still or clip shares with every viewer. */
-  videoLut: LutChoice;
+  /** Each context's guides and look, which a previewed still or clip shares
+   * with every viewer seen in the same context. */
+  views: (context: string) => ContextView;
 }
 
 /** The server's routes and this browser's settings. */
@@ -88,8 +88,7 @@ export function servedPreviewSources(): PreviewSources {
     readableLineLength,
     videoLoop,
     videoVolume,
-    videoGuides,
-    videoLut: looks,
+    views: contextView,
   };
 }
 
@@ -101,6 +100,9 @@ export interface FilePreviewDeps extends PreviewSources {
   /** The pane's box, which the preview fills. A run of clicks is told apart
    * by where its first press landed, here or on the preview. */
   host: HTMLElement;
+  /** The context the pane's tab is seen in, whose guides and look a still or
+   * clip shows, wherever the file lives. */
+  context(): string;
   /** Puts focus back when a press or a key closes the preview. */
   refocus(): void;
   /** The list the arrows step through: its length, and its file at `index`,
@@ -192,6 +194,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   const stopLineLength = deps.readableLineLength.subscribe((on) => preview.classList.toggle("wide-editor", !on));
 
   let previewIndex: number | undefined;
+  const view = createViewBinding(deps.views);
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
   let previewMore: MoreOptionsButton | undefined;
@@ -200,7 +203,10 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
   // player's own.
   function fileMoreOptions(path: string, menu: string): HTMLButtonElement {
-    previewMore = moreOptionsButton("media-hud-more", moreOptionsMenu(deps.contextMenu, path, { menu }));
+    previewMore = moreOptionsButton(
+      "media-hud-more",
+      moreOptionsMenu(deps.contextMenu, path, { menu, context: view.context }),
+    );
     previewMore.element.tabIndex = -1;
     return previewMore.element;
   }
@@ -244,6 +250,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const opening = previewIndex === undefined;
     settleClose();
     stopPreviewMedia();
+    view.bind(deps.context());
     const frame = isPageKind(shown.kind) ? pagePreview(shown.file, shown.kind) : mediaPreview(shown.file, shown.kind);
     previewStage.append(frame);
     preview.hidden = false;
@@ -275,7 +282,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const [name, dimensions, topRight] = hudCells(3);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    previewLook = isVideo || rasterType ? lookBadge(deps.videoLut) : undefined;
+    previewLook = isVideo || rasterType ? lookBadge(view.look) : undefined;
     const top = previewLook ? [dimensions, previewLook.element, topRight] : [dimensions, topRight];
     const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {
@@ -313,8 +320,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       showTransparency(img, file.path);
       const standIn = kind === "svg" ? readSvgStandInSize(deps.fetchFile, file.path) : undefined;
       const stillLayers = createPictureLayers(img, {
-        guides: deps.videoGuides,
-        lut: rasterType ? deps.videoLut : undefined,
+        guides: view.guides,
+        lut: rasterType ? view.look : undefined,
         type: rasterType,
       });
       layers = stillLayers;
@@ -339,9 +346,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         layout: "pill",
         loop: deps.videoLoop,
         volume: deps.videoVolume,
-        guides: deps.videoGuides,
-        lut: deps.videoLut,
-        moreOptions: moreOptionsMenu(deps.contextMenu, file.path),
+        guides: view.guides,
+        lut: view.look,
+        moreOptions: moreOptionsMenu(deps.contextMenu, file.path, { context: view.context }),
       });
       frame.append(previewPlayer.element);
     }
@@ -550,8 +557,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       else if (key === "ArrowLeft") stepPreview(-1);
       else if (key === " ") closePreview();
       else if (key === "Enter" && deps.openInPlace) deps.openInPlace(previewIndex);
-      else if ((key === "d" || key === "D") && previewLook) toggleLook(deps.videoLut);
-      else if ((key === "g" || key === "G") && (previewPlayer || previewLayers)) toggleGuides(deps.videoGuides);
+      else if ((key === "d" || key === "D") && previewLook) toggleLook(view.look);
+      else if ((key === "g" || key === "G") && (previewPlayer || previewLayers)) toggleGuides(view.guides);
       else return scrollPage(key);
       return true;
     },

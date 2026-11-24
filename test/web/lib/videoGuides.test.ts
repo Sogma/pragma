@@ -72,7 +72,7 @@ describe("framingBox", () => {
 });
 
 describe("readGuides", () => {
-  it("reads back what was stored", () => {
+  it("reads back what was kept", () => {
     const stored: Guides = {
       shown: false,
       frames: ["4:5", "2.39"],
@@ -85,26 +85,25 @@ describe("readGuides", () => {
       level: true,
       protection: 0.07,
     };
-    expect(readGuides(JSON.stringify(stored))).toEqual(stored);
+    expect(readGuides(stored)).toEqual(stored);
   });
 
-  it("reads anything missing, unknown or broken as no guide", () => {
-    expect(readGuides(null)).toEqual(NO_GUIDES);
-    expect(readGuides("{")).toEqual(NO_GUIDES);
-    expect(readGuides("7")).toEqual(NO_GUIDES);
-    expect(readGuides(JSON.stringify({ frames: "9:16", title: "yes" }))).toEqual(NO_GUIDES);
-    expect(readGuides(JSON.stringify({ title: true }))).toEqual({ ...NO_GUIDES, title: true });
+  it("reads anything missing or unknown as no guide", () => {
+    for (const kept of [null, undefined, "{}", 7, { frames: "9:16", title: "yes" }]) {
+      expect(readGuides(kept)).toEqual(NO_GUIDES);
+    }
+    expect(readGuides({ title: true })).toEqual({ ...NO_GUIDES, title: true });
     // A lone `frame`, which this reader doesn't know, reads as none.
-    expect(readGuides(JSON.stringify({ frame: "9:16", title: true }))).toEqual({ ...NO_GUIDES, title: true });
+    expect(readGuides({ frame: "9:16", title: true })).toEqual({ ...NO_GUIDES, title: true });
   });
 
   it("keeps a protection in whole percents up to a quarter, and reads any other as none", () => {
-    const protection = (value: unknown) => readGuides(JSON.stringify({ protection: value })).protection;
+    const protection = (value: unknown) => readGuides({ protection: value }).protection;
     expect([0.07, 0.25, 0.088, 0.3, -0.05, "0.1", null].map(protection)).toEqual([0.07, 0.25, 0.09, 0, 0, 0, 0]);
   });
 
   it("keeps the frames it knows, once each, in the menu's order", () => {
-    expect(readGuides(JSON.stringify({ frames: ["2.39", "3:2", "9:16", "9:16"] })).frames).toEqual(["9:16", "2.39"]);
+    expect(readGuides({ frames: ["2.39", "3:2", "9:16", "9:16"] }).frames).toEqual(["9:16", "2.39"]);
   });
 });
 

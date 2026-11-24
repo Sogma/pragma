@@ -50,7 +50,9 @@ import {
   wireEntryDrag,
 } from "../../core/paths.ts";
 import { entryIconAt, fileTypeAt, findEntry, readingResolvers } from "../../core/spaceTree.ts";
+import { contextOfTab } from "../../core/tabContext.ts";
 import { createFilePreview, type PreviewKind, previewKind } from "../../filePreview.ts";
+import type { ContextView } from "../../lib/contextView.ts";
 import { dateTimeLabel } from "../../lib/dateText.ts";
 import {
   appendMetaRow,
@@ -71,15 +73,13 @@ import {
 import { createInlineError } from "../../lib/inlineError.ts";
 import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "../../lib/mediaDetails.ts";
 import { type ThumbnailHud, thumbnailHud } from "../../lib/mediaHud.ts";
-import type { GuidesChoice } from "../../lib/videoGuides.ts";
-import type { LutChoice } from "../../lib/videoLut.ts";
 import type { LoopChoice, VolumeChoice } from "../../lib/videoPlayer.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
+import { contextView } from "../../services/contextViews.ts";
 import type { DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import { type SortByTarget, setFolderLayout, setLocalSort, sortByItems } from "../../services/folderSorts.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
-import { looks } from "../../services/looks.ts";
 import type { ContextMenuService, MenuItem, MenuRegistry } from "../../services/menus.ts";
 import type { Setting } from "../../services/settings.ts";
 import * as settings from "../../services/settings.ts";
@@ -261,10 +261,9 @@ export interface GalleryPaneDeps {
   videoLoop: LoopChoice;
   /** The volume a previewed clip's player shares with every other. */
   videoVolume: VolumeChoice;
-  /** The guides a previewed clip's player shares with every other. */
-  videoGuides: GuidesChoice;
-  /** The LUT a previewed clip's player shares with every other. */
-  videoLut: LutChoice;
+  /** Each context's guides and look; a previewed still or clip shows the
+   * ones of the context the gallery's tab is seen in. */
+  views: (context: string) => ContextView;
   tileSize: Pick<Setting<string>, "get" | "set" | "subscribe">;
   /** Lays the folder out as tiles or cards on this install; every gallery
    * showing it lists it again. */
@@ -318,6 +317,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
   details.body.className = "meta-rows";
 
   let folderPath: string | undefined;
+  let context = "";
   let listed: FolderEntry[] = [];
   let order: FolderOrder | undefined;
   let entries: FolderEntry[] = [];
@@ -356,8 +356,8 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     readableLineLength: deps.readableLineLength,
     videoLoop: deps.videoLoop,
     videoVolume: deps.videoVolume,
-    videoGuides: deps.videoGuides,
-    videoLut: deps.videoLut,
+    views: deps.views,
+    context: () => context,
     openPath: deps.openPath,
     openInPlace: (index) => open(index),
     shown: (index) => select(index),
@@ -1059,6 +1059,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
       if (tab.kind !== "gallery") throw new Error(`the gallery pane can't show a "${tab.kind}" tab`);
       clearInput();
       folderPath = tab.path;
+      context = contextOfTab(tab);
       canvas.style.height = "0";
       deps.onRendered();
       await load(false);
@@ -1257,8 +1258,7 @@ export function galleryPane(wiring: GalleryWiring): EditorPaneDescriptor {
     readableLineLength: settings.readableLineLength,
     videoLoop: settings.videoLoop,
     videoVolume: settings.videoVolume,
-    videoGuides: settings.videoGuides,
-    videoLut: looks,
+    views: contextView,
     tileSize: settings.galleryTileSize,
     setLayout: setFolderLayout,
   };

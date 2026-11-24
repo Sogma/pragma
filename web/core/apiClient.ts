@@ -21,6 +21,8 @@ import type {
   ClassRowsResponse,
   ClipFactsResponse,
   ClipHeaderResponse,
+  ContextViewRequestBody,
+  ContextViewResponse,
   CreateApiTokenRequestBody,
   CreateApiTokenResponse,
   CreateEntryRequestBody,
@@ -929,19 +931,36 @@ export async function postFlowAppMode(path: string, appMode: boolean): Promise<v
   });
 }
 
-/** The folder a frame of the clip at `clip` saves to by default. */
-export async function fetchFrameFolder(clip: string): Promise<string> {
-  const answer = await request<FrameFolderResponse>(`/api/space/frame-folder?clip=${encodeURIComponent(clip)}`, {
+/** The folder a frame of the clip at `clip`, seen in `context`, saves to by
+ * default. */
+export async function fetchFrameFolder(clip: string, context: string): Promise<string> {
+  const query = `clip=${encodeURIComponent(clip)}&context=${encodeURIComponent(context)}`;
+  const answer = await request<FrameFolderResponse>(`/api/space/frame-folder?${query}`, {
     fallback: "Reading the frame folder failed",
   });
   return answer.folder;
 }
 
-export async function postFrameFolder(clip: string, folder: string): Promise<void> {
+export async function postFrameFolder(context: string, folder: string): Promise<void> {
   await requestVoid("/api/space/frame-folder", {
     method: "POST",
-    body: { clip, folder } satisfies FrameFolderRequestBody,
+    body: { context, folder } satisfies FrameFolderRequestBody,
     fallback: "Remembering the frame folder failed",
+  });
+}
+
+/** The guides and look this install keeps for `context`'s media. */
+export async function fetchContextView(context: string): Promise<ContextViewResponse> {
+  return request<ContextViewResponse>(`/api/space/context-view?context=${encodeURIComponent(context)}`, {
+    fallback: "Reading the guides and look failed",
+  });
+}
+
+export async function postContextView(change: ContextViewRequestBody): Promise<void> {
+  await requestVoid("/api/space/context-view", {
+    method: "POST",
+    body: change,
+    fallback: "Keeping the guides and look failed",
   });
 }
 

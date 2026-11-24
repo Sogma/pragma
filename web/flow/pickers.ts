@@ -94,8 +94,10 @@ export interface PickerDeps {
   layoutChanged(nodeId: string): void;
   // A Generate node's result file, by tree path, previewed over the pane.
   previewResult(path: string): void;
-  // Where a result clip's More options menu opens.
+  // Where a result clip's More options menu opens, and the context the
+  // Flow's tab is seen in, which Save frame there offers its folder for.
   contextMenu: ContextMenuService;
+  viewContext(): string;
   // What a loader's output dots show on hover: the facts of the file it read,
   // by output port; a port left out shows nothing.
   showPinValues(node: FlowNodeInstance, values: Record<string, string | undefined>): void;
@@ -781,7 +783,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     const wrap = document.createElement("div");
     wrap.className = "flow-node-config";
     const target = loaderTarget(node, "file", "Drag a clip from your space here");
-    const clip = createResultClip("flow-node-video-result", deps.previewResult, deps.contextMenu);
+    const clip = createResultClip("flow-node-video-result", deps.previewResult, deps.contextMenu, deps.viewContext);
     const stored = () => (typeof node.config.videoPath === "string" ? node.config.videoPath : "");
     target.setPath(stored());
     clearsTo(node, target, () => delete node.config.videoPath);
@@ -1554,7 +1556,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     // No port carries a video, so a clip is shown from the file its `path` names.
     const clip =
       node.type === "generateVideo"
-        ? createResultClip("flow-node-video-result", deps.previewResult, deps.contextMenu)
+        ? createResultClip("flow-node-video-result", deps.previewResult, deps.contextMenu, deps.viewContext)
         : undefined;
     const picture = document.createElement("img");
     picture.className = "flow-node-image-result";

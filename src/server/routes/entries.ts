@@ -35,11 +35,18 @@ import { presetsAfterDelete, presetsAfterMove } from "../../protocol/presets.ts"
 import { deleteSogmaDocument } from "../../protocol/publisher.ts";
 import { sameRoot } from "../../protocol/rootedPath.ts";
 import { isMarkdownFile, rawFileTypeForPath } from "../../protocol/types.ts";
+import { forgottenContexts, movedContexts } from "../contextMemory.ts";
 import { documentIndex } from "../documentIndex.ts";
 import { readFolderProperties, writeFolderProperties } from "../folderProperties.ts";
 import { forgottenFrameFolders, movedFrameFolders } from "../frameFolders.ts";
 import { moveHistory } from "../history.ts";
-import { updateFlowAppModes, updateFrameFolders, updateLocalSorts, updateTableLayouts } from "../layout.ts";
+import {
+  updateContextViews,
+  updateFlowAppModes,
+  updateFrameFolders,
+  updateLocalSorts,
+  updateTableLayouts,
+} from "../layout.ts";
 import {
   duplicatedLocalSorts,
   forgottenByPath,
@@ -137,6 +144,15 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
   const keepFrameFolders = async (change: Parameters<typeof updateFrameFolders>[1]): Promise<void> => {
     try {
       await updateFrameFolders(spaceRoot, change);
+    } catch {
+      // best-effort only — the entry already changed
+    }
+  };
+
+  // And the guides and look a context's media show.
+  const keepContextViews = async (change: Parameters<typeof updateContextViews>[1]): Promise<void> => {
+    try {
+      await updateContextViews(spaceRoot, change);
     } catch {
       // best-effort only — the entry already changed
     }
@@ -342,6 +358,9 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     await keepFrameFolders((folders) =>
       movedFrameFolders(folders, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
     );
+    await keepContextViews((views) =>
+      movedContexts(views, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
+    );
     // A bookmark follows its entry, in any root, as a sort does.
     await keepSpaceBookmarks(spaceRoot, (file) =>
       bookmarksAfterMove(file, formatWithinRoot(from, fromPath), formatWithinRoot(to, toPath)),
@@ -469,6 +488,7 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     await keepTableLayouts((layouts) => forgottenByPath(layouts, formatWithinRoot(target, targetPath)));
     await keepFlowAppModes((modes) => forgottenByPath(modes, formatWithinRoot(target, targetPath)));
     await keepFrameFolders((folders) => forgottenFrameFolders(folders, formatWithinRoot(target, targetPath)));
+    await keepContextViews((views) => forgottenContexts(views, formatWithinRoot(target, targetPath)));
     await keepSpaceBookmarks(spaceRoot, (file) => bookmarksAfterDelete(file, formatWithinRoot(target, targetPath)));
     await keepSpacePresets(spaceRoot, (file) => presetsAfterDelete(file, formatWithinRoot(target, targetPath)));
 

@@ -1,7 +1,8 @@
-// The look every viewer with a LOOK badge shows its picture through: the one
-// kept, or one tried from Looks before it is picked. A LUT file's cube is
-// read once, through the raw route, and a kept file look whose file has left
-// its preset folder shows nothing and says so.
+// A context's look, which every viewer with a LOOK badge seen in that
+// context shows its picture through: the one kept for it, or one tried from
+// Looks before it is picked. A LUT file's cube is read once, through the raw
+// route, for every context, and a kept file look whose file has left its
+// preset folder shows nothing and says so.
 
 import { entryNameKey } from "../../src/protocol/entryName.ts";
 import { type Lut, readLutFile } from "../../src/protocol/lutFile.ts";
@@ -9,11 +10,11 @@ import type { LutEntry } from "../../src/protocol/presets.ts";
 import { presetFolderAt, presetFolderOf } from "../../src/protocol/presets.ts";
 import { fetchFileRaw } from "../core/apiClient.ts";
 import { onPresetsChanged, presetFoldersOf, presets } from "../core/presets.ts";
+import type { LookChoice } from "../lib/contextView.ts";
 import { Emitter } from "../lib/emitter.ts";
-import { builtInCube, isBuiltInLook, type Look, type LutChoice } from "../lib/videoLut.ts";
-import { videoLut } from "./settings.ts";
+import { builtInCube, isBuiltInLook, type Look } from "../lib/videoLut.ts";
+import type { Setting } from "./settings.ts";
 
-let trying: string | null = null;
 const files = new Map<string, Lut | "loading" | "unreadable">();
 
 // Every LUT the listed folders hold, by its folded rooted path.
@@ -42,29 +43,16 @@ function isMissing(look: Look): boolean {
   return presetFolderAt(folders, look.lut, "luts") !== undefined;
 }
 
-function shown(): Look {
-  if (trying !== null) return { lut: trying, on: true };
-  const kept = videoLut.get();
-  if (kept.lut !== null && !isBuiltInLook(kept.lut) && !listed.has(entryNameKey(kept.lut))) {
-    return { ...kept, on: false };
-  }
-  return kept;
-}
-
-// Told only when what shows changes, or a cube it waited for lands: a viewer
-// told again restarts its drawing.
-const changes = new Emitter<Look>(shown());
-function announce(landed = false): void {
-  const next = shown();
-  const now = changes.get();
-  if (!landed && next.lut === now.lut && next.on === now.on) return;
-  changes.set(next);
-}
+// Each context's look, told when the listed LUTs change or a cube lands.
+const announcers = new Set<(landed: boolean) => void>();
+const announceAll = (landed: boolean) => {
+  for (const announce of announcers) announce(landed);
+};
 
 onPresetsChanged(() => {
   readListed();
   for (const path of files.keys()) if (!listed.has(entryNameKey(path))) files.delete(path);
-  announce();
+  announceAll(false);
 });
 
 async function load(path: string): Promise<void> {
@@ -76,29 +64,60 @@ async function load(path: string): Promise<void> {
   } catch {
     files.set(path, "unreadable");
   }
-  announce(true);
+  announceAll(true);
 }
 
-export const looks: LutChoice & { tryLook(lut: string | null): void } = {
-  get: shown,
-  set(look) {
-    trying = null;
-    videoLut.set(look);
-    announce(true);
-  },
-  subscribe: (listener) => changes.subscribe(listener),
-  cube(lut) {
-    if (isBuiltInLook(lut)) return builtInCube(lut);
-    const held = files.get(lut);
-    if (held === undefined) void load(lut);
-    return typeof held === "object" ? held : undefined;
-  },
-  kept: () => videoLut.get(),
-  trying: () => trying !== null,
-  missing: () => trying === null && isMissing(videoLut.get()),
-  tryLook(lut) {
-    if (lut === trying) return;
-    trying = lut;
-    announce();
-  },
-};
+function cube(lut: string): Lut | undefined {
+  if (isBuiltInLook(lut)) return builtInCube(lut);
+  const held = files.get(lut);
+  if (held === undefined) void load(lut);
+  return typeof held === "object" ? held : undefined;
+}
+
+/** The look of a context whose kept look is `kept`. */
+export function createLookChoice(kept: Setting<Look>): LookChoice {
+  let trying: string | null = null;
+  const shown = (): Look => {
+    if (trying !== null) return { lut: trying, on: true };
+    const look = kept.get();
+    if (look.lut !== null && !isBuiltInLook(look.lut) && !listed.has(entryNameKey(look.lut))) {
+      return { ...look, on: false };
+    }
+    return look;
+  };
+  // Told only when what shows changes, or a cube it waited for lands: a
+  // viewer told again restarts its drawing.
+  const changes = new Emitter<Look>(shown());
+  const announce = (landed = false) => {
+    const next = shown();
+    const now = changes.get();
+    if (!landed && next.lut === now.lut && next.on === now.on) return;
+    changes.set(next);
+  };
+  announcers.add(announce);
+  // A kept look arriving from the server shows; a pick announces itself.
+  let picking = false;
+  kept.subscribe(() => {
+    if (!picking) announce();
+  });
+  return {
+    get: shown,
+    set(look) {
+      trying = null;
+      picking = true;
+      kept.set(look);
+      picking = false;
+      announce(true);
+    },
+    subscribe: (listener) => changes.subscribe(listener),
+    cube,
+    kept: () => kept.get(),
+    trying: () => trying !== null,
+    missing: () => trying === null && isMissing(kept.get()),
+    tryLook(lut) {
+      if (lut === trying) return;
+      trying = lut;
+      announce();
+    },
+  };
+}

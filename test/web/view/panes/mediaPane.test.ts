@@ -2,13 +2,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClipHeaderResponse, PixelFormatResponse } from "../../../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../../../web/core/paths.ts";
-import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
-import { NO_LOOK } from "../../../../web/lib/videoLut.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
 import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
 import { createImagePane, createVideoPane, imagePane, videoPane } from "../../../../web/view/panes/mediaPane.ts";
 import { fireDrag } from "../../support/drag.ts";
-import { memoryLook, memorySetting } from "../../support/editorLayout.ts";
+import { memorySetting, memoryViews } from "../../support/editorLayout.ts";
 import { fakeContextMenu } from "../../support/fakeContextMenu.ts";
 import { fakePaneGroup } from "../../support/paneGroup.ts";
 
@@ -44,20 +42,20 @@ function setup(
   const headFile = vi.fn(head);
   const pixelFormat = vi.fn(format);
   const fetchFile = vi.fn(file);
-  const guides = memorySetting(NO_GUIDES);
-  const lut = memoryLook();
+  // The space's own context is the one a space file in no scope is seen in.
+  const held = memoryViews();
+  const { guides, look: lut } = held.of("");
   const contextMenu = fakeContextMenu();
   const pane = createImagePane({
     rawFileUrl: (path) => `/raw?path=${path}`,
     headFile,
     pixelFormat,
     fetchFile,
-    guides,
-    lut,
+    views: held.views,
     contextMenu,
   });
   document.body.append(pane.element);
-  return { pane, headFile, pixelFormat, fetchFile, guides, lut, contextMenu };
+  return { pane, headFile, pixelFormat, fetchFile, guides, lut, held, contextMenu };
 }
 
 // Lets every lookup the open started settle.
@@ -252,6 +250,28 @@ describe("imagePane", () => {
     expect(guides.get().shown).toBe(true);
   });
 
+  // A library is one scope, its own, as the space is at its top: a
+  // library's picture shows that library's guides and look, and the next
+  // tab, in the space's own context, shows the space's.
+  it("shows the guides and look of the context its tab is seen in, moving with the next tab's", async () => {
+    const { pane, held, contextMenu } = setup();
+    held.of("lib:footage").look.set({ lut: "panchromatic", on: true });
+    held.of("lib:footage").guides.set({ ...held.of("lib:footage").guides.get(), frames: ["2.39"] });
+    await pane.setInput({ kind: "image", path: "lib:footage/day1/still.png" }, current);
+    await settle();
+    describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [450.5, 600.75]);
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | LOOK | 75%");
+    expect(pane.element.querySelector(".video-guides")?.hasAttribute("hidden")).toBe(false);
+    (pane.element.querySelector(".media-hud-more") as HTMLButtonElement).click();
+    expect(contextMenu.opened.at(-1)?.arg).toMatchObject({ context: "lib:footage" });
+
+    await pane.setInput(tab, current);
+    await settle();
+    describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [450.5, 600.75]);
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) |  | 75%");
+    expect(pane.element.querySelector(".video-guides")?.hasAttribute("hidden")).toBe(true);
+  });
+
   // The menu every media file's ⋮ opens, which knows its own tab.
   it("opens the file's media menu from the ⋮ that ends its bottom bar", async () => {
     const { pane, contextMenu } = setup();
@@ -262,7 +282,7 @@ describe("imagePane", () => {
     expect(contextMenu.opened).toEqual([
       {
         menu: MEDIA_MENU,
-        arg: { file: "art/cover.png", bookmark: "art/cover.png" },
+        arg: { file: "art/cover.png", bookmark: "art/cover.png", context: "" },
         anchor: more,
         align: "end",
         ariaLabel: "More options",
@@ -637,8 +657,9 @@ function videoSetup(ok = true, format: (path: string) => Promise<ClipHeaderRespo
   const videoFormat = vi.fn(format);
   const loop = memorySetting(false);
   const volume = memorySetting({ level: 1, muted: false });
-  const guides = memorySetting(NO_GUIDES);
-  const lut = memoryLook();
+  // The clips are a library's, seen in its context.
+  const held = memoryViews();
+  const lut = held.of("lib:takes").look;
   const contextMenu = fakeContextMenu();
   const pane = createVideoPane({
     rawFileUrl: (path) => `/raw?path=${path}`,
@@ -646,12 +667,11 @@ function videoSetup(ok = true, format: (path: string) => Promise<ClipHeaderRespo
     videoFormat,
     loop,
     volume,
-    guides,
-    lut,
+    views: held.views,
     contextMenu,
   });
   document.body.append(pane.element);
-  return { pane, headFile, videoFormat, loop, lut, contextMenu, release: () => release() };
+  return { pane, headFile, videoFormat, loop, lut, held, contextMenu, release: () => release() };
 }
 
 const videoTab = { kind: "video" as const, path: "lib:takes/BR2-FINAL-LYRA-001.mp4" };
@@ -998,8 +1018,7 @@ describe("videoPane", () => {
       videoFormat: h264At25,
       loop: memorySetting(false),
       volume: memorySetting({ level: 1, muted: false }),
-      guides: memorySetting(NO_GUIDES),
-      lut: memoryLook(NO_LOOK),
+      views: memoryViews().views,
       contextMenu: fakeContextMenu(),
     });
     await pane.setInput(videoTab, current);
@@ -1018,7 +1037,7 @@ describe("videoPane", () => {
     expect(contextMenu.opened).toHaveLength(1);
     const [menu] = contextMenu.opened;
     expect(menu?.menu).toBe(MEDIA_MENU);
-    expect(menu?.arg).toEqual({ file: videoTab.path, bookmark: videoTab.path });
+    expect(menu?.arg).toEqual({ file: videoTab.path, bookmark: videoTab.path, context: "lib:takes" });
     expect(menu?.anchor).toBe(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
 

@@ -7,6 +7,7 @@ import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats } from "../../web/services/formats.ts";
 import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
 import { fireDrag } from "./support/drag.ts";
+import { memoryViews } from "./support/editorLayout.ts";
 import { fakeContextMenu } from "./support/fakeContextMenu.ts";
 import { testPreviewSources } from "./support/previewSources.ts";
 
@@ -59,17 +60,19 @@ afterEach(() => {
 
 const STILLS = ["stills/a.png", "stills/b.png"];
 
-// `inPlace` false is a pane that opens nothing in place.
-function setup({ files = STILLS, inPlace = true } = {}) {
+// `inPlace` false is a pane that opens nothing in place; `at` is the context
+// the pane's tab is seen in.
+function setup({ files = STILLS, inPlace = true, at = "" } = {}) {
   const host = document.createElement("div");
   document.body.append(host);
   const refocus = vi.fn();
   const openInPlace = inPlace ? vi.fn() : undefined;
   const contextMenu = fakeContextMenu();
-  const sources = testPreviewSources();
+  const held = memoryViews();
   const preview = createFilePreview({
-    ...sources,
+    ...testPreviewSources(held),
     host,
+    context: () => at,
     refocus,
     count: () => files.length,
     fileAt: (index) => (files[index] ? { path: files[index], name: files[index].split("/").pop() ?? "" } : undefined),
@@ -89,8 +92,9 @@ function setup({ files = STILLS, inPlace = true } = {}) {
     refocus,
     openInPlace,
     contextMenu,
-    look: sources.videoLut,
-    guides: sources.videoGuides,
+    look: held.of(at).look,
+    guides: held.of(at).guides,
+    held,
   };
 }
 
@@ -305,7 +309,7 @@ describe("a previewed file's More options", () => {
   }
 
   it("opens the media menu for the clip's file under its player's button", () => {
-    const { preview, overlay, contextMenu } = setup({ files: ["clips/a.mp4"] });
+    const { preview, overlay, contextMenu } = setup({ files: ["clips/a.mp4"], at: "projects/film" });
     preview.show(0);
     const more = overlay.querySelector(".video-player-more") as HTMLButtonElement;
     expect(overlay.querySelector(".media-hud-more")).toBeNull();
@@ -314,7 +318,7 @@ describe("a previewed file's More options", () => {
     expect(contextMenu.opened).toEqual([
       {
         menu: MEDIA_MENU,
-        arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4" },
+        arg: { file: "clips/a.mp4", bookmark: "clips/a.mp4", context: "projects/film" },
         anchor: more,
         align: "end",
         ariaLabel: "More options",
@@ -338,7 +342,7 @@ describe("a previewed file's More options", () => {
     expect(contextMenu.opened).toEqual([
       {
         menu: MEDIA_MENU,
-        arg: { file: "stills/a.png", bookmark: "stills/a.png" },
+        arg: { file: "stills/a.png", bookmark: "stills/a.png", context: "" },
         anchor: more,
         align: "end",
         ariaLabel: "More options",
@@ -353,7 +357,7 @@ describe("a previewed file's More options", () => {
     // The next file's bar has its own, for its own file.
     preview.key("ArrowRight");
     (overlay.querySelector(".media-hud-more") as HTMLButtonElement).click();
-    expect(contextMenu.opened.at(-1)?.arg).toEqual({ file: "stills/b.png", bookmark: "stills/b.png" });
+    expect(contextMenu.opened.at(-1)?.arg).toEqual({ file: "stills/b.png", bookmark: "stills/b.png", context: "" });
   });
 
   it("ends a page's bar, after its name and count", async () => {

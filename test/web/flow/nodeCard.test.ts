@@ -50,6 +50,7 @@ function setup(edges: FlowEdgeInstance[] = []) {
     remount: vi.fn(),
     fileMissing: vi.fn(),
     previewResult: vi.fn(),
+    viewContext: () => "projects/film",
   };
   return { cards: createNodeCards(deps), deps, graph, modelFields, opened };
 }

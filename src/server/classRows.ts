@@ -20,8 +20,8 @@ import { parseClassFile } from "../protocol/classFile.ts";
 import { isNamed } from "../protocol/entryName.ts";
 import { fountainTitlePage } from "../protocol/fountainLines.ts";
 import { isHiddenPath } from "../protocol/relativeReference.ts";
-import { basenameOf, dirnameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../protocol/rootedPath.ts";
-import { scopeOf } from "../protocol/scopes.ts";
+import { basenameOf, dirnameOf, formatRootedPath } from "../protocol/rootedPath.ts";
+import { rootedScopeOf } from "../protocol/scopes.ts";
 import { type ClassFile, formatTimestamp, splitDocumentName } from "../protocol/types.ts";
 import { documentIndex } from "./documentIndex.ts";
 import { presetPaths } from "./presets.ts";
@@ -32,12 +32,9 @@ function isFile(absolutePath: string): boolean {
   return lstatSync(absolutePath, { throwIfNoEntry: false })?.isFile() ?? false;
 }
 
-/** The scope `folder` sits in, as a rooted folder: the deepest one at or
- * above it in the space, the space's own at the top, and a library's root,
- * a library being one scope. */
+/** The scope `folder` sits in, as a rooted folder, by the scopes on disk. */
 export function scopeFolderOf(spaceRoot: string, folder: string): string {
-  const { root, path } = parseRootedPath(folder);
-  return formatRootedPath({ root, path: isLibraryRoot(root) ? "" : scopeOf(scopesOnDisk(spaceRoot), path) });
+  return rootedScopeOf(scopesOnDisk(spaceRoot), folder);
 }
 
 function classPlaceOf(spaceRoot: string, classPath: string): ClassPlace {

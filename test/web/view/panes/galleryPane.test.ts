@@ -14,7 +14,6 @@ import { noteDragInFlight } from "../../../../web/core/paths.ts";
 import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
 import { PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
 import type { NamingSurface } from "../../../../web/lib/inlineEdit.ts";
-import { NO_GUIDES } from "../../../../web/lib/videoGuides.ts";
 import { PAGE_PREVIEW_SCALE, pageZoom } from "../../../../web/notePreview.ts";
 import { type CommandContext, createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
@@ -37,7 +36,7 @@ import {
   visibleRange,
 } from "../../../../web/view/panes/galleryPane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
-import { memoryLook } from "../../support/editorLayout.ts";
+import { memoryViews } from "../../support/editorLayout.ts";
 import { testFormats } from "../../support/formats.ts";
 
 polyfillRangeRects();
@@ -153,8 +152,7 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
     readableLineLength: setting(true),
     videoLoop: setting(false),
     videoVolume: setting({ level: 1, muted: false }),
-    videoGuides: setting(NO_GUIDES),
-    videoLut: memoryLook(),
+    views: memoryViews().views,
     tileSize: setting("medium"),
     setLayout: vi.fn(async () => undefined),
     onRendered: vi.fn(),
@@ -549,10 +547,16 @@ describe("the gallery pane", () => {
   // The space tree is what knows a folder's site and scope, so it is listed
   // for real here, and emptied again after.
   it("draws a folder tile's icon as the tree does: a site's globe, a scope's folder", async () => {
+    // The tree, and the path listing it comes with, whose scopes a tab's
+    // context is read from.
     const listing = async (tree: unknown[]) => {
+      const paths = { files: [], folders: [], scopes: [] };
       vi.stubGlobal(
         "fetch",
-        vi.fn(async () => new Response(JSON.stringify(tree), { status: 200 })),
+        vi.fn(
+          async (url: string) =>
+            new Response(JSON.stringify(url.includes("/api/space/paths") ? paths : tree), { status: 200 }),
+        ),
       );
       await refreshSpaceTree();
       vi.unstubAllGlobals();
@@ -1500,7 +1504,7 @@ describe("the gallery pane", () => {
     button.click();
     expect(deps.contextMenu.open).toHaveBeenCalledWith({
       menu: MEDIA_MENU,
-      arg: { file: "lib:footage/frame.png", bookmark: "lib:footage/frame.png" },
+      arg: { file: "lib:footage/frame.png", bookmark: "lib:footage/frame.png", context: "lib:footage" },
       anchor: button,
       align: "end",
       ariaLabel: "More options",
@@ -1593,7 +1597,10 @@ describe("a previewed note", () => {
     }
     expect(deps.contextMenu.open).toHaveBeenCalledTimes(2);
     expect(deps.contextMenu.open).toHaveBeenCalledWith(
-      expect.objectContaining({ menu: PREVIEW_PAGE_MENU, arg: { file: "notes/scene.md", bookmark: "notes/scene.md" } }),
+      expect.objectContaining({
+        menu: PREVIEW_PAGE_MENU,
+        arg: { file: "notes/scene.md", bookmark: "notes/scene.md", context: "" },
+      }),
     );
     expect(deps.openEntry).not.toHaveBeenCalled();
     expect(previewOf(pane).hidden).toBe(false);

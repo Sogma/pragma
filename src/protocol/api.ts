@@ -1772,17 +1772,34 @@ export interface FlowAppModeRequestBody {
   appMode: boolean;
 }
 
-// GET /api/space/frame-folder?clip=: the folder a frame of that clip saves to
-// by default, on this install. A rooted path, "" for the space's top folder.
+// GET /api/space/frame-folder?clip=&context=: the folder a frame of that
+// clip, seen in that context, saves to by default on this install. A rooted
+// path, "" for the space's top folder. A context is the scope a surface's
+// tab is seen in, its folder's rooted path, "" for the space's own.
 export interface FrameFolderResponse {
   folder: string;
 }
 
-// POST /api/space/frame-folder: remembers the folder a frame of `clip` was
-// saved to, for every clip in its context.
+// POST /api/space/frame-folder: remembers the folder a frame seen in
+// `context` was saved to, for every clip seen there.
 export interface FrameFolderRequestBody {
-  clip: string;
+  context: string;
   folder: string;
+}
+
+// GET /api/space/context-view?context=: the guides and look this install
+// keeps for a context's media, each null where none was kept. They are the
+// client's own shapes, which it reads as none where it doesn't know them.
+export interface ContextViewResponse {
+  guides: unknown;
+  look: unknown;
+}
+
+// POST /api/space/context-view: keeps a context's guides, its look or both.
+export interface ContextViewRequestBody {
+  context: string;
+  guides?: unknown;
+  look?: unknown;
 }
 
 // POST /api/space/order

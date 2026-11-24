@@ -18,6 +18,8 @@ import {
   rawFileUrl,
 } from "../../core/apiClient.ts";
 import { wireEntryDrag } from "../../core/paths.ts";
+import { contextOfTab } from "../../core/tabContext.ts";
+import { type ContextView, createViewBinding } from "../../lib/contextView.ts";
 import {
   appendMetaRow,
   createInspectorSection,
@@ -33,13 +35,13 @@ import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "../../lib/pictureLayers.ts";
 import { dragToScroll, keepClickedPoint, shownPercent, zoomFrom } from "../../lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "../../lib/svgSize.ts";
-import { type GuidesChoice, toggleGuides } from "../../lib/videoGuides.ts";
+import { toggleGuides } from "../../lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "../../lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "../../lib/videoPlayer.ts";
+import { contextView } from "../../services/contextViews.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
-import { looks } from "../../services/looks.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
-import { videoGuides, videoLoop, videoVolume } from "../../services/settings.ts";
+import { videoLoop, videoVolume } from "../../services/settings.ts";
 import { moreOptionsMenu } from "../../services/videoMenu.ts";
 
 export interface MediaPaneDeps {
@@ -55,8 +57,8 @@ export interface ImagePaneDeps extends MediaPaneDeps {
   pixelFormat: (path: string) => Promise<PixelFormatResponse>;
   // A GET against the raw-file route, for an SVG's own text.
   fetchFile: (path: string) => Promise<Response>;
-  guides: GuidesChoice;
-  lut: LutChoice;
+  // Each context's guides and look; the pane shows its tab's.
+  views: (context: string) => ContextView;
   // Where the overlay's More options menu opens.
   contextMenu: ContextMenuService;
 }
@@ -66,8 +68,8 @@ export interface VideoPaneDeps extends MediaPaneDeps {
   videoFormat: (path: string) => Promise<ClipHeaderResponse>;
   loop: LoopChoice;
   volume: VolumeChoice;
-  guides: GuidesChoice;
-  lut: LutChoice;
+  // Each context's guides and look; the pane shows its tab's.
+  views: (context: string) => ContextView;
   // Where the player's More options menu opens.
   contextMenu: ContextMenuService;
 }
@@ -113,8 +115,7 @@ export function imagePane(contextMenu: ContextMenuService): EditorPaneDescriptor
     headFile: headFileRaw,
     pixelFormat: getPixelFormat,
     fetchFile: fetchFileRaw,
-    guides: videoGuides,
-    lut: looks,
+    views: contextView,
     contextMenu,
   };
   return { kind: "image", chrome: CHROME, create: () => createImagePane(deps) };
@@ -132,8 +133,7 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
     videoFormat: getVideoFormat,
     loop: videoLoop,
     volume: videoVolume,
-    guides: videoGuides,
-    lut: looks,
+    views: contextView,
     contextMenu,
   };
   return { kind: "video", chrome: CHROME, create: () => createVideoPane(deps) };
@@ -191,11 +191,12 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   let shownPath: string | undefined;
   // A look grades pixels: a raster image's, never a vector image's.
   let gradable = false;
+  const view = createViewBinding(deps.views);
   const more = moreOptionsButton("media-hud-more", (anchor) => {
-    if (shownPath !== undefined) moreOptionsMenu(deps.contextMenu, shownPath)(anchor);
+    if (shownPath !== undefined) moreOptionsMenu(deps.contextMenu, shownPath, { context: view.context })(anchor);
   });
   more.element.tabIndex = -1;
-  const hud = createImageHud(deps.lut, more.element);
+  const hud = createImageHud(view.look, more.element);
   let layers: PictureLayers | undefined;
   let shown: HTMLImageElement | undefined;
   // The width the picture counts as at 100%: its own, or an SVG's stand-in.
@@ -224,8 +225,8 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   element.addEventListener("pointerdown", () => element.focus({ preventScroll: true }));
   element.addEventListener("keydown", (event) => {
     if (event.target !== element || event.metaKey || event.ctrlKey || event.altKey || !shown) return;
-    if (event.key === "g" || event.key === "G") toggleGuides(deps.guides);
-    else if ((event.key === "d" || event.key === "D") && gradable) toggleLook(deps.lut);
+    if (event.key === "g" || event.key === "G") toggleGuides(view.guides);
+    else if ((event.key === "d" || event.key === "D") && gradable) toggleLook(view.look);
     else return;
     event.preventDefault();
   });
@@ -271,6 +272,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       element.replaceChildren();
       layers?.dispose();
       setActualSize(false);
+      view.bind(contextOfTab(tab));
 
       // A vector image has no pixel format, so it gets no rows for one, and
       // no look.
@@ -294,8 +296,8 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       shown = img;
       fullWidth = 0;
       const imageLayers = createPictureLayers(img, {
-        guides: deps.guides,
-        lut: raster ? deps.lut : undefined,
+        guides: view.guides,
+        lut: raster ? view.look : undefined,
         type: rasterType,
       });
       layers = imageLayers;
@@ -385,7 +387,8 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
   const element = document.createElement("div");
   element.className = "editor-video";
   const details = detailsSection("Video");
-  const hud = createVideoHud(deps.lut);
+  const view = createViewBinding(deps.views);
+  const hud = createVideoHud(view.look);
   let mounted: HTMLVideoElement | undefined;
   let player: VideoPlayer | undefined;
 
@@ -427,6 +430,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
       if (tab.kind !== "video") throw new Error(`the video pane can't show a "${tab.kind}" tab`);
       stop();
       element.replaceChildren();
+      view.bind(contextOfTab(tab));
 
       const values = fillDetails(details.body, ["Dimensions", "Duration", "Frame rate", "Codec"]);
       details.section.hidden = false;
@@ -443,10 +447,10 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
         layout: "review",
         loop: deps.loop,
         volume: deps.volume,
-        guides: deps.guides,
-        lut: deps.lut,
+        guides: view.guides,
+        lut: view.look,
         rangeKey: tab.path,
-        moreOptions: moreOptionsMenu(deps.contextMenu, tab.path),
+        moreOptions: moreOptionsMenu(deps.contextMenu, tab.path, { context: view.context }),
       });
       // The overlay follows the player: `video:hover + .media-hud`. Its bar
       // lies in a band above it (media-bands.css).

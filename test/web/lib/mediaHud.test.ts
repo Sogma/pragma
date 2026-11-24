@@ -136,6 +136,16 @@ describe("a clip's LOOK badge", () => {
     look.set({ lut: "orthochromatic", on: false });
     expect(element.getAttribute("aria-pressed")).toBe("false");
     expect(element.dataset.tooltip).toBe("Orthochromatic off, click to turn on (D)");
+
+    // As a viewer moves to a context with no look picked.
+    look.set({ lut: "panchromatic", on: true });
+    look.set(NO_LOOK);
+    expect(element.textContent).toBe("");
+    expect(["aria-label", "aria-pressed", "data-tooltip"].map((name) => element.hasAttribute(name))).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("turns the look off and back on at each click, a press leaving focus where it was, until disposed", () => {

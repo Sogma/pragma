@@ -1,7 +1,5 @@
 import { CHAT_MODES, type ChatMode } from "../../src/protocol/api.ts";
 import { Emitter } from "../lib/emitter.ts";
-import { type Guides, readGuides } from "../lib/videoGuides.ts";
-import { type Look, readLook } from "../lib/videoLut.ts";
 import type { Volume } from "../lib/videoPlayer.ts";
 
 // Typed get/set/subscribe per `pragma:*` localStorage key — the one owner of
@@ -149,33 +147,6 @@ export const videoVolume: Setting<Volume> = {
     videoVolumeEmitter.set(value);
   },
   subscribe: (listener) => videoVolumeEmitter.subscribe(listener),
-};
-
-// And one set of guides over every player's picture, none until a player's
-// More options picks some. A stored value that doesn't read is none.
-const VIDEO_GUIDES_KEY = "pragma:video-guides";
-const videoGuidesEmitter = new Emitter<Guides>(readGuides(localStorage.getItem(VIDEO_GUIDES_KEY)));
-export const videoGuides: Setting<Guides> = {
-  get: () => videoGuidesEmitter.get(),
-  set(value: Guides): void {
-    localStorage.setItem(VIDEO_GUIDES_KEY, JSON.stringify(value));
-    videoGuidesEmitter.set(value);
-  },
-  subscribe: (listener) => videoGuidesEmitter.subscribe(listener),
-};
-
-// And one look every viewer with a LOOK badge shows its picture through,
-// none until a viewer's More options picks one. A stored look that doesn't
-// read is none.
-const VIDEO_LUT_KEY = "pragma:video-lut";
-const videoLutEmitter = new Emitter<Look>(readLook(localStorage.getItem(VIDEO_LUT_KEY)));
-export const videoLut: Setting<Look> = {
-  get: () => videoLutEmitter.get(),
-  set(value: Look): void {
-    localStorage.setItem(VIDEO_LUT_KEY, JSON.stringify(value));
-    videoLutEmitter.set(value);
-  },
-  subscribe: (listener) => videoLutEmitter.subscribe(listener),
 };
 
 // Where a panel's drag left it, in px, or for the split editor the left

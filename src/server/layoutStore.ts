@@ -1,8 +1,8 @@
-// Each space's remembered layout on this install: the editor groups' open
-// tabs, which folders are folded, how each folder is sorted, how each Table
-// is laid out, which Flows show App Mode, and where each context's frames
-// were last saved. Host state, kept by the space's id and never inside the
-// space (docs/architecture.md, Space identity and state ownership).
+// Each space's remembered layout on this install: open tabs, folded and
+// sorted folders, each Table's layout, which Flows show App Mode, and each
+// context's frame folder, guides and look. Host state, kept by the space's
+// id and never inside the space (docs/architecture.md, Space identity and
+// state ownership).
 import {
   HostStateParseError,
   readHostStateFile,
@@ -28,6 +28,13 @@ export interface SavedGroups {
 
 type MapChange<T> = (current: Record<string, T>) => Record<string, T> | undefined;
 
+/** A context's guides and look, as the client sent them: it reads what it
+ * doesn't know as none. */
+export interface ContextViewRecord {
+  guides?: unknown;
+  look?: unknown;
+}
+
 /** Where layouts are kept, by space id. A list or map is replaced whole, as
  * the editor sends it; a change that returns nothing writes nothing. A host
  * with other storage installs its own before any layout is read. */
@@ -48,6 +55,9 @@ export interface LayoutStore {
   // A folder's rooted path, keyed by its context's.
   frameFolders(spaceId: string): Promise<Record<string, string>>;
   updateFrameFolders(spaceId: string, change: MapChange<string>): Promise<void>;
+  // Keyed by the context's folder, as frame folders are.
+  contextViews(spaceId: string): Promise<Record<string, ContextViewRecord>>;
+  updateContextViews(spaceId: string, change: MapChange<ContextViewRecord>): Promise<void>;
 }
 
 let installed: LayoutStore | undefined;
@@ -66,6 +76,7 @@ interface LayoutFile extends SavedFolders, SavedGroups {
   tableLayouts?: Record<string, unknown>;
   flowAppModes?: Record<string, unknown>;
   frameFolders?: Record<string, unknown>;
+  contextViews?: Record<string, unknown>;
 }
 
 const isMap = (value: unknown): value is Record<string, unknown> =>
@@ -105,6 +116,17 @@ function frameFoldersOf(file: LayoutFile): Record<string, string> {
   return folders;
 }
 
+function contextViewsOf(file: LayoutFile): Record<string, ContextViewRecord> {
+  const views: Record<string, ContextViewRecord> = {};
+  if (!isMap(file.contextViews)) return views;
+  for (const [context, view] of Object.entries(file.contextViews)) {
+    if (!isMap(view)) continue;
+    const { guides, look } = view;
+    views[context] = { ...(guides === undefined ? {} : { guides }), ...(look === undefined ? {} : { look }) };
+  }
+  return views;
+}
+
 /** One file per space: layouts are written on every tab change, and
  * processes sharing the config directory would otherwise overwrite each
  * other's spaces.
@@ -126,6 +148,7 @@ export function createFileLayoutStore(fileOf: (spaceId: string) => string = glob
         tableLayouts,
         flowAppModes,
         frameFolders,
+        contextViews,
       } = parsed;
       return {
         collapsedFolders,
@@ -136,6 +159,7 @@ export function createFileLayoutStore(fileOf: (spaceId: string) => string = glob
         tableLayouts,
         flowAppModes,
         frameFolders,
+        contextViews,
       };
     } catch (error) {
       if (error instanceof HostStateParseError) return {};
@@ -187,6 +211,12 @@ export function createFileLayoutStore(fileOf: (spaceId: string) => string = glob
       change(spaceId, (file) => {
         const next = edit(frameFoldersOf(file));
         return next && { ...file, frameFolders: next };
+      }),
+    contextViews: async (spaceId) => contextViewsOf(read(spaceId)),
+    updateContextViews: (spaceId, edit) =>
+      change(spaceId, (file) => {
+        const next = edit(contextViewsOf(file));
+        return next && { ...file, contextViews: next };
       }),
   };
 }
