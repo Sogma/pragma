@@ -8,7 +8,7 @@ import { NAME_ORDER, type SortChoice } from "../../src/protocol/folderSort.ts";
 import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClient.ts";
 import { PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
-import { COPY_PATH, COPY_SYSTEM_PATH, installCopyPath } from "../../web/lib/copyPath.ts";
+import { COPY_PATH, COPY_PRAGMA_URL, COPY_SYSTEM_PATH, installCopyPath } from "../../web/lib/copyPath.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
 import { PREVIEW_OPEN_MENU } from "../../web/notePreview.ts";
 import type { CommandContext } from "../../web/services/commands.ts";
@@ -386,6 +386,7 @@ describe("editor area", () => {
       menus,
       menu: contextMenu,
       systemPath: async (path) => `/home/you/space/${path}`,
+      spaceName: undefined,
     });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
     const labels = (arg: unknown) => menus.resolve(CHIP_MENU, context, arg).map((item) => item.label);
@@ -453,7 +454,13 @@ describe("editor area", () => {
     commands.register({ id: "space.reveal", label: "Reveal in space", run: vi.fn() });
     commands.register({ id: "library.show", label: "Reveal in library", when: () => false, run: vi.fn() });
     commands.register({ id: "file.showInFolder", label: "Reveal in File Explorer", run: vi.fn() });
-    installCopyPath({ commands, menus, menu: contextMenu, systemPath: async (path) => `/home/you/space/${path}` });
+    installCopyPath({
+      commands,
+      menus,
+      menu: contextMenu,
+      systemPath: async (path) => `/home/you/space/${path}`,
+      spaceName: async () => "Notes",
+    });
   }
 
   it("lists what the tab menu shares in the ⋮'s order: split, find, the file's own, then its trash", async () => {
@@ -496,6 +503,7 @@ describe("editor area", () => {
     const flyout = file.at(-1);
     expect(flyout?.command).toBeUndefined();
     expect(flyout?.submenu?.map((row) => [row.label, row.command, row.arg])).toEqual([
+      ["as Pragma URL", COPY_PRAGMA_URL, { file: "a.md" }],
       ["from space folder", COPY_PATH, { file: "a.md" }],
       ["from system root", COPY_SYSTEM_PATH, { file: "a.md" }],
     ]);

@@ -4,7 +4,7 @@
 // dispatcher. A picked item closes the menu first, then runs its command, or
 // its own action, with the context the menu was opened in.
 
-import { getSystemPath } from "../core/apiClient.ts";
+import { fetchSpaceInfo, getSystemPath } from "../core/apiClient.ts";
 import { installCopyPath } from "../lib/copyPath.ts";
 import { DisposableStore, listen } from "../lib/disposable.ts";
 import { el, keyLabel, setEntryIcon } from "../lib/dom.ts";
@@ -750,7 +750,16 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   // selects, which nothing nearer has taken, opens the text menu in the
   // browser's place. The chip's listener goes first, or a chip in a chat
   // note would open Copy and Select All.
-  store.add(installCopyPath({ commands: deps.commands, menus: deps.menus, menu, systemPath: getSystemPath }));
+  // Only the desktop app opens a Pragma link, so only it offers to copy one.
+  const spaceName = window.pragmaElectron
+    ? async () => {
+        const info = await fetchSpaceInfo();
+        return info.label || info.name;
+      }
+    : undefined;
+  store.add(
+    installCopyPath({ commands: deps.commands, menus: deps.menus, menu, systemPath: getSystemPath, spaceName }),
+  );
   store.add(installTextMenu(menu));
   return menu;
 }

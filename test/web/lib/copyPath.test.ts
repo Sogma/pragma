@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { COPY_PATH, COPY_SYSTEM_PATH, copyPathItem, installCopyPath } from "../../../web/lib/copyPath.ts";
+import {
+  COPY_PATH,
+  COPY_PRAGMA_URL,
+  COPY_SYSTEM_PATH,
+  copyPathItem,
+  installCopyPath,
+} from "../../../web/lib/copyPath.ts";
 import { createPathLabel } from "../../../web/lib/pathLabel.ts";
 import { type CommandContext, createCommands } from "../../../web/services/commands.ts";
 import { createKeybindings } from "../../../web/services/keybindings.ts";
@@ -109,10 +115,10 @@ describe("a path chip's right-click", () => {
 
 describe("Copy path in an entry's menu", () => {
   const onDisk = () => vi.fn(async (path: string): Promise<string> => `/home/you/space/${path}`);
-  function setup(systemPath = onDisk()) {
+  function setup(systemPath = onDisk(), spaceName?: () => Promise<string>) {
     const commands = createCommands();
     const menus = createMenus(commands);
-    const installed = installCopyPath({ commands, menus, menu: { open: vi.fn() }, systemPath });
+    const installed = installCopyPath({ commands, menus, menu: { open: vi.fn() }, systemPath, spaceName });
     menus.register("entry", [copyPathItem({ group: "copy" })]);
     const items = (arg: unknown) => menus.resolve("entry", context, arg);
     return { commands, menus, items, installed, systemPath };
@@ -155,6 +161,38 @@ describe("Copy path in an entry's menu", () => {
     expect(systemPath).toHaveBeenCalledWith("lib:gone/a.md");
     expect(clipboard.writeText).not.toHaveBeenCalled();
     installed.dispose();
+  });
+
+  // Only the desktop app opens a Pragma link, so only it hands over the
+  // space's name the row needs.
+  it("leads with the entry's Pragma link in the desktop app", async () => {
+    const { commands, items, installed } = setup(onDisk(), async () => "My Notes");
+    const rows = (arg: unknown) => items(arg)[0].submenu ?? [];
+    const file = rows({ node: { type: "file", path: "projects/My Draft.md" } });
+    expect(file.map((row) => row.label)).toEqual(["as Pragma URL", "from space folder", "from system root"]);
+
+    await commands.run(COPY_PRAGMA_URL, context, file[0].arg);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/projects/My%20Draft.md");
+    await commands.run(COPY_PRAGMA_URL, context, rows({ folder: "projects" })[0].arg);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/projects/");
+    const library = { libraryId: "personas", node: { type: "file", path: "Lina/tester.png" } };
+    await commands.run(COPY_PRAGMA_URL, context, rows(library)[0].arg);
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/lib:personas/Lina/tester.png");
+    installed.dispose();
+  });
+
+  it("offers no Pragma link in the browser, and copies none when the space's name can't be read", async () => {
+    const browser = setup();
+    expect(browser.items({ file: "a.md" })[0].submenu?.map((row) => row.label)).toEqual([
+      "from space folder",
+      "from system root",
+    ]);
+    browser.installed.dispose();
+
+    const unread = setup(onDisk(), async () => Promise.reject(new Error("Failed to load space info")));
+    await unread.commands.run(COPY_PRAGMA_URL, context, { file: "a.md" });
+    expect(clipboard.writeText).not.toHaveBeenCalled();
+    unread.installed.dispose();
   });
 
   it("gives a path chip the same flyout", () => {

@@ -1,7 +1,7 @@
 // Copy path, one control wherever a menu names an entry or a path chip: a
-// flyout holding the path from the space's or the library's folder, and the
-// path from the system root, which the server works out, for a missing file
-// too.
+// flyout holding the entry's Pragma link, in the desktop app, which alone
+// opens one; the path from the space's or the library's folder; and the path
+// from the system root, which the server works out, for a missing file too.
 //
 // A chip copies its whole path as its tooltip shows it, `lib:<id>/…` for a
 // library's, however much of it the chip shows. A chip whose surface takes
@@ -9,6 +9,7 @@
 // other path label boxed in running text gets this one. A standalone label
 // is a value, not a chip, and gets none.
 
+import { formatPragmaUrl } from "../../src/protocol/pragmaUrl.ts";
 import { formatRootedPath, isLibraryPath } from "../../src/protocol/rootedPath.ts";
 import type { CommandRegistry } from "../services/commands.ts";
 import type { ContextMenuService, MenuItem, MenuRegistry } from "../services/menus.ts";
@@ -16,6 +17,7 @@ import { type Disposable, DisposableStore, listen } from "./disposable.ts";
 
 export const COPY_PATH = "path.copy";
 export const COPY_SYSTEM_PATH = "path.copySystemPath";
+export const COPY_PRAGMA_URL = "path.copyPragmaUrl";
 const PATH_CHIP_MENU = "pathChip";
 
 /** The entry a menu's argument names, as Copy path copies it: `{ file }` or
@@ -23,18 +25,28 @@ const PATH_CHIP_MENU = "pathChip";
  * a library's tree adding its `libraryId`. Undefined for a tree's empty area,
  * which hides the items. */
 export function copiedPathOf(arg: unknown): string | undefined {
-  if (typeof arg !== "object" || arg === null) return undefined;
-  const path = "file" in arg ? arg.file : "folder" in arg ? arg.folder : rowPathOf(arg);
-  return typeof path === "string" && path !== "" ? path : undefined;
+  return copiedEntryOf(arg)?.path;
 }
 
-function rowPathOf(arg: object): string | undefined {
+/** The same entry, and whether it is a folder, which its link marks. */
+export function copiedEntryOf(arg: unknown): { path: string; folder: boolean } | undefined {
+  if (typeof arg !== "object" || arg === null) return undefined;
+  const named =
+    "file" in arg
+      ? { path: arg.file, folder: false }
+      : "folder" in arg
+        ? { path: arg.folder, folder: true }
+        : rowOf(arg);
+  return typeof named?.path === "string" && named.path !== "" ? { path: named.path, folder: named.folder } : undefined;
+}
+
+function rowOf(arg: object): { path: string; folder: boolean } | undefined {
   if (!("node" in arg)) return undefined;
-  const { node, libraryId } = arg as { node?: { path?: unknown } | null; libraryId?: unknown };
+  const { node, libraryId } = arg as { node?: { path?: unknown; type?: unknown } | null; libraryId?: unknown };
   if (typeof node?.path !== "string" || node.path === "") return undefined;
-  return typeof libraryId === "string"
-    ? formatRootedPath({ root: { library: libraryId }, path: node.path })
-    : node.path;
+  const path =
+    typeof libraryId === "string" ? formatRootedPath({ root: { library: libraryId }, path: node.path }) : node.path;
+  return { path, folder: node.type === "directory" };
 }
 
 /** Copy path as an entry's menu holds it, in `group`. `arg` names the entry
@@ -44,6 +56,7 @@ export function copyPathItem(options: { group?: string; arg?: unknown } = {}): M
   // A flyout's rows read the menu's argument, not the flyout's, so each
   // carries `arg` itself.
   const rows: MenuItem[] = [
+    { command: COPY_PRAGMA_URL, arg, label: "as Pragma URL" },
     {
       command: COPY_PATH,
       arg,
@@ -66,6 +79,9 @@ export interface CopyPathDeps {
   /** Where a space or `lib:` path sits on disk, as the system spells it,
    * whether or not anything is there. */
   systemPath(path: string): Promise<string>;
+  /** The open space's name, for its Pragma links: undefined where nothing
+   * opens one, in the browser. */
+  spaceName: (() => Promise<string>) | undefined;
 }
 
 export function installCopyPath(deps: CopyPathDeps): Disposable {
@@ -93,6 +109,21 @@ export function installCopyPath(deps: CopyPathDeps): Disposable {
       },
     }),
   );
+  const { spaceName } = deps;
+  if (spaceName) {
+    store.add(
+      deps.commands.register({
+        id: COPY_PRAGMA_URL,
+        label: "Copy as Pragma URL",
+        when: (_, arg) => copiedEntryOf(arg) !== undefined,
+        run: async (_, arg) => {
+          const entry = copiedEntryOf(arg);
+          const space = entry === undefined ? undefined : await spaceName().catch(() => undefined);
+          if (entry !== undefined && space !== undefined) await copy(formatPragmaUrl({ space, ...entry }));
+        },
+      }),
+    );
+  }
   store.add(deps.menus.register(PATH_CHIP_MENU, [copyPathItem()]));
   store.add(
     listen(document, "contextmenu", (event) => {
