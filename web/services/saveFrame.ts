@@ -22,10 +22,10 @@ import type { MenuItem } from "./menus.ts";
 
 const EXTENSION = ".png";
 
-/** A frame's name before its extension: its clip's, then the timecode it
- * stands at, with dashes for the colons no name may hold. */
+/** A frame's name before its extension: its clip's, an underscore, then the
+ * timecode it stands at, with dashes for the colons no name may hold. */
 export function frameName(clip: string, seconds: number, fps: number): string {
-  return `${stripExtension(basenameOf(clip))} ${timecode(seconds, fps).replaceAll(":", "-")}`;
+  return `${stripExtension(basenameOf(clip))}_${timecode(seconds, fps).replaceAll(":", "-")}`;
 }
 
 /** The file a typed name saves as: the field shows the extension after it,

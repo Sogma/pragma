@@ -48,9 +48,9 @@ afterEach(() => {
 });
 
 describe("a frame's name", () => {
-  it("is its clip's, then the timecode it stands at, dashed", () => {
-    expect(frameName("lib:takes/shot_010.mp4", 64.5, 24)).toBe("shot_010 00-01-04-12");
-    expect(frameName("one.mov", 0, 25)).toBe("one 00-00-00-00");
+  it("is its clip's and the timecode it stands at, dashed, joined by an underscore", () => {
+    expect(frameName("lib:takes/shot_010.mp4", 64.5, 24)).toBe("shot_010_00-01-04-12");
+    expect(frameName("one.mov", 0, 25)).toBe("one_00-00-00-00");
   });
 
   it("saves as a PNG, an extension typed as well not doubled", () => {
@@ -118,7 +118,7 @@ describe("Save frame…", () => {
     expect(options.title).toBe("Save frame");
     expect(options.figure?.tagName).toBe("CANVAS");
     const [name, folder] = options.fields;
-    expect([name.value, name.suffix]).toEqual(["one 00-00-02-00", ".png"]);
+    expect([name.value, name.suffix]).toEqual(["one_00-00-02-00", ".png"]);
     expect(folder.control?.value()).toBe("a/stills");
   });
 
@@ -126,7 +126,7 @@ describe("Save frame…", () => {
     api.frameRate = null;
     api.folder = Promise.reject(new Error("offline"));
     const options = await open({ file: "one.mp4", frame: frame().take }).form();
-    expect(options.fields[0].value).toBe("one 00-00-02-00");
+    expect(options.fields[0].value).toBe("one_00-00-02-00");
     expect(options.fields[1].control?.value()).toBe("");
   });
 

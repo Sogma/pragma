@@ -295,7 +295,7 @@ describe("dialog service", () => {
         title: "Save frame",
         figure: picture,
         fields: [
-          { id: "name", label: "Name", value: "one 00-00-01-00", suffix: ".png" },
+          { id: "name", label: "Name", value: "one_00-00-01-00", suffix: ".png" },
           { id: "folder", label: "Folder", control: { element: folder, value: () => chosen } },
         ],
         submitLabel: "Save",
@@ -315,7 +315,7 @@ describe("dialog service", () => {
 
       chosen = "b";
       name.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
-      await expect(answer).resolves.toEqual({ name: "one 00-00-01-00", folder: "b" });
+      await expect(answer).resolves.toEqual({ name: "one_00-00-01-00", folder: "b" });
     });
   });
 
