@@ -8,9 +8,9 @@
    just then, the fit measures the stage without the bar's room, and the
    page comes out short of its bottom bar.
 
-   The top padding is the row of the group's toolbar, which the backdrop
-   dims, 18px down and 36px tall, and the 12px the arrows keep from the
-   stage: a picture as tall as the stage never runs under that toolbar. */
+   The same padding top and bottom: the group's toolbar lies under the
+   backdrop, dimmed and out of reach while the preview is open, so a
+   picture as tall as the stage may cover it. */
 .file-preview {
   position: absolute;
   inset: 0;
@@ -18,7 +18,7 @@
   overflow: clip;
   display: flex;
   gap: 12px;
-  padding: 66px 12px 24px;
+  padding: 24px 12px;
   background: var(--dialog-backdrop);
 }
 
