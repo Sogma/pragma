@@ -152,7 +152,7 @@
   margin: 4px 0 0 6px;
   color: var(--media-guide-line);
   font-family: var(--font-hud);
-  font-size: var(--small-font-size);
+  font-size: var(--ui-font-size);
   line-height: 1;
   white-space: nowrap;
 }
