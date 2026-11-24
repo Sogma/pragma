@@ -1,6 +1,6 @@
 {
   "name": "pragma",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
   "description": "A protocol and local editor for AI-native workflows over a markdown/html/fountain space.",
   "author": "SGM DevNet LLC",
