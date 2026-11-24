@@ -663,6 +663,12 @@ function reportUnreadableConfig(error: HostStateParseError): void {
 
 app.whenReady().then(async () => {
   if (!firstCopy) return;
+  // Windows learns the pragma: link scheme from the app itself, at each
+  // launch of an installed copy, so a link opens the copy that ran last. The
+  // `--` ends the switches, so a crafted link can't be read as one.
+  if (process.platform === "win32" && app.isPackaged) {
+    app.setAsDefaultProtocolClient("pragma", process.execPath, ["--"]);
+  }
   applyMenuBar();
   // Keys and sign-ins rest in the encrypted credential store, protected
   // through the async safeStorage calls, which only exist once the app is ready.
