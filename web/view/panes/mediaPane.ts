@@ -315,7 +315,8 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       // observer saw can't leave it showing a stale scale.
       img.addEventListener("pointerenter", place);
       // The overlay follows the image: `.media-frame > img:hover + .media-hud`.
-      const frame = mediaFrame(img, hud.root, "editor-image-frame");
+      // Its bars lie in bands above and below it (media-bands.css).
+      const frame = mediaFrame(img, hud.root, "editor-image-frame has-bands");
       frame.append(imageLayers.element);
       scroller.replaceChildren(frame);
       element.append(scroller);
@@ -438,8 +439,9 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
         rangeKey: tab.path,
         moreOptions: moreOptionsMenu(deps.contextMenu, tab.path),
       });
-      // The overlay follows the player: `video:hover + .media-hud`.
-      const frame = mediaFrame(video, hud.root, "editor-video-stage");
+      // The overlay follows the player: `video:hover + .media-hud`. Its bar
+      // lies in a band above it (media-bands.css).
+      const frame = mediaFrame(video, hud.root, "editor-video-stage has-bands");
       frame.append(player.element);
       element.append(frame);
 

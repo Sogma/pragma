@@ -420,16 +420,15 @@ describe("a previewed still's scale", () => {
   });
 });
 
-// The stylesheet lays a still's bars in bands of its mat, and keeps a
-// clip's over it, beside its player's pill.
+// The stylesheets lay a still's or a clip's bars in bands of its mat.
 describe("a previewed file's bands", () => {
-  it("marks a still's frame for bands in its mat, and not a clip's", () => {
+  it("marks a still's frame and a clip's for bands in the mat", () => {
     const { preview, overlay } = setup({ files: ["stills/a.png", "clips/b.mp4"] });
     const hasBands = () => overlay.querySelector(".file-preview-frame")?.classList.contains("has-bands");
     preview.show(0);
     expect(hasBands()).toBe(true);
     preview.show(1);
-    expect(hasBands()).toBe(false);
+    expect(hasBands()).toBe(true);
   });
 });
 

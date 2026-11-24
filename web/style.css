@@ -49,6 +49,7 @@
 @import "./styles/panes.css" layer(components);
 @import "./styles/media-panes.css" layer(components);
 @import "./styles/video-player.css" layer(components);
+@import "./styles/media-bands.css" layer(components);
 @import "./styles/video-volume.css" layer(components);
 @import "./styles/video-guides.css" layer(components);
 @import "./styles/video-lut.css" layer(components);

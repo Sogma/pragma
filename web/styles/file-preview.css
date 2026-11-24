@@ -181,33 +181,34 @@
   cursor: grabbing;
 }
 
-/* A still's bars lie in bands of its mat, above and below the picture,
-   rather than over it. The picture is fitted short of the stage by the
-   bands' reach, so nothing moves as they open. Zoomed, or too small for
-   the bars, it keeps the overlay. */
+/* A previewed still's or clip's bands (media-bands.css) lie in its mat,
+   which reaches into each, and run across the mat's sides. The media is
+   fitted short of the stage by both reaches, so nothing moves as they
+   open. */
 .file-preview-frame.has-bands {
   --band-reach: 24px;
   --band-height: calc(var(--mat-width) + var(--band-reach));
+  --band-side: var(--mat-width);
 }
 
-.file-preview-frame.has-bands:not(.is-zoomed) > img {
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen) > :is(img, video) {
   max-height: calc(100cqh - 2 * var(--band-reach));
 }
 
-.file-preview-frame.has-bands:not(.is-zoomed) > img.is-unsized {
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen) > img.is-unsized {
   width: min(var(--svg-width), 100cqw, (100cqh - 2 * var(--band-reach)) * var(--svg-ratio));
 }
 
 /* The mat is drawn behind the frame, not as its background, so it can reach
-   into the bands while the picture stays put. */
-.file-preview-frame.has-bands:not(.is-zoomed) {
+   into the bands while the media stays put. */
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen) {
   position: relative;
   isolation: isolate;
   background: none;
   box-shadow: none;
 }
 
-.file-preview-frame.has-bands:not(.is-zoomed)::before {
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -217,61 +218,21 @@
   transition: inset 150ms ease;
 }
 
-/* Open while the bars show (media-panes.css): the picture or a bar hovered,
-   or the ⋮'s menu open. */
-.file-preview-frame.has-bands:not(.is-zoomed, :has(> .media-hud.is-bare)):has(
-  > img:hover,
-  > .media-hud:hover,
-  .media-hud-more[aria-expanded="true"]
+/* Open while the bars show: the media or a band under the pointer, or a menu
+   opened from the frame. A clip's player holds its own controls, so it has
+   no band below. */
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen, :has(> .media-hud:is(.is-bare, [hidden]))):is(
+  :hover,
+  :has([aria-expanded="true"])
 )::before {
-  inset: calc(-1 * var(--band-reach)) 0;
+  top: calc(-1 * var(--band-reach));
 }
 
-/* Each bar fills its band, across the mat's sides too, and takes the
-   pointer, so the bands stay open wherever the pointer crosses one. Its
-   facts line up with the picture's edges and lie on the mat with no fill of
-   their own. */
-.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar {
-  height: var(--band-height);
-  align-items: center;
-  margin-inline: calc(-1 * var(--mat-width));
-  padding-block: 0;
-  padding-inline: var(--mat-width);
-  overflow-y: visible;
-  pointer-events: auto;
-}
-
-.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar::before {
-  content: none;
-}
-
-.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar:first-child {
-  transform: translateY(-100%);
-}
-
-.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar:last-child {
-  transform: translateY(100%);
-}
-
-/* The overlay's 28px ⋮ would all but fill its band, against the band's hard
-   edge: a smaller box keeps 4px clear above and below, and ends where the
-   picture does. */
-.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) .media-hud-more {
-  width: 24px;
-  height: 24px;
-  margin: 0 0 0 -4px;
-}
-
-/* A look that is on keeps its badge over the picture, where the overlay
-   holds it, and the badge rides up into its band as the bands open. Off,
-   it stays in the band and fades with the facts. */
-.file-preview-frame.has-bands:not(.is-zoomed)
-  > .media-hud:not(.is-bare)
-  .media-hud-badge:is([aria-pressed="true"], .is-missing) {
-  transform: translateY(calc((1 - var(--hud-shown)) * var(--band-height)));
-  transition:
-    opacity 150ms ease,
-    transform 150ms ease;
+.file-preview-frame.has-bands:not(.is-zoomed, :fullscreen, :has(> .media-hud:is(.is-bare, [hidden]))):is(
+  :hover,
+  :has([aria-expanded="true"])
+):has(> .media-hud > .media-hud-bar + .media-hud-bar)::before {
+  bottom: calc(-1 * var(--band-reach));
 }
 
 /* A document or a Table is shown as wide as its page (note-preview.css), at

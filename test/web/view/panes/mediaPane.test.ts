@@ -156,7 +156,7 @@ describe("imagePane", () => {
     // The overlay follows the picture in the frame they share, never placed
     // by measuring it.
     const hud = img.nextElementSibling as HTMLElement;
-    expect(img.parentElement?.className).toBe("media-frame editor-image-frame");
+    expect(img.parentElement?.className).toBe("media-frame editor-image-frame has-bands");
     expect(hud.className).toBe("media-hud");
     expect(hud.hidden).toBe(true);
 
@@ -673,7 +673,7 @@ describe("videoPane", () => {
     // Opening a tab must cost a header, not a four-gigabyte clip.
     expect(video?.preload).toBe("metadata");
     // The player sits in its own frame, with its overlay and its controls.
-    expect(video?.parentElement?.className).toBe("media-frame editor-video-stage");
+    expect(video?.parentElement?.className).toBe("media-frame editor-video-stage has-bands");
     expect(video?.parentElement?.querySelector(".video-player.is-review")).not.toBeNull();
     expect(details(pane).querySelector(".inspector-section-title")?.textContent).toBe("Video");
     expect(rows(pane)).toEqual({ Dimensions: "…", Duration: "…", "Frame rate": "…", Codec: "…" });
