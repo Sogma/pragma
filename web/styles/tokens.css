@@ -203,7 +203,7 @@
   --media-hud-accent: #66a8f6;
   --media-hud-badge-bg: #fff;
   --media-hud-badge-fg: #000;
-  --media-hud-badge-off-bg: #787878;
+  --media-hud-badge-off-bg: #5a5a5a;
   /* A player's guides (video-guides.css), on the picture too: lines, the matte outside a frame, the lines' halo. */
   --media-guide-line: rgba(255, 255, 255, 0.75);
   --media-guide-matte: rgba(0, 0, 0, 0.25);
