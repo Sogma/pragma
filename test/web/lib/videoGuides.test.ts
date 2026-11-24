@@ -348,7 +348,7 @@ describe("createGuidesOverlay", () => {
     expect(box(title)).toEqual(["182.4", "214.64", "1555.2", "650.71"]);
     expect(names()).toEqual([
       ["2.39", 5, 16.53],
-      ["10%", 0, 0],
+      ["10%", 0, 12.81],
     ]);
   });
 
@@ -424,20 +424,31 @@ describe("createGuidesOverlay", () => {
     expect(box(action)).toEqual(["156.48", "88.02", "1607.04", "903.96"]);
   });
 
-  // Named once for every frame: each frame's ratio sits inside its own corner, the protection inside the picture's.
-  it("names the protection once, inside the picture's top left corner, from 7%", () => {
+  // Named once for every frame: each frame's ratio sits inside its own corner, the protection inside the cut it is
+  // kept in, the first outer frame's.
+  it("names the protection once, inside the top left corner of the first outer frame's cut, from 7%", () => {
     const { choice, overlay, names } = draw({ ...NO_GUIDES, frames: ["9:16", "2.39"], protection: 0.1 });
     overlay.setSize(1920, 1080);
     expect(names()).toEqual([
       ["9:16", 35.76, 5],
       ["2.39", 5, 16.53],
-      ["10%", 0, 0],
+      ["10%", 34.18, 0],
     ]);
+    expect(overlay.element.querySelector(".video-guides-name.is-protection")?.textContent).toBe("10%");
+    // The 9:16 frame lies inside the square, so the square's cut keeps the protection.
     choice.set({ ...NO_GUIDES, frames: ["9:16", "1:1"], protection: 0.07 });
     expect(names()).toEqual([
       ["9:16", 35.29, 3.5],
       ["1:1", 23.84, 3.5],
-      ["7%", 0, 0],
+      ["7%", 21.88, 0],
+    ]);
+    // A wide frame on a portrait picture: the protection by the frame it is kept for, not up in the picture's corner.
+    choice.set({ ...NO_GUIDES, frames: ["16:9", "2.39"], protection: 0.07 });
+    overlay.setSize(960, 1200);
+    expect(names()).toEqual([
+      ["16:9", 3.5, 29.08],
+      ["2.39", 3.5, 34.44],
+      ["7%", 0, 27.5],
     ]);
   });
 

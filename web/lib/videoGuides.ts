@@ -120,10 +120,10 @@ export function frameBox(width: number, height: number, aspect: number): Box & {
 
 export const MAX_PROTECTION = 0.25;
 
-// From this protection, in whole percents, it is named inside the picture's
-// top left corner. Below it, the dark band a frame of the picture's shape
-// leaves there is too thin for the name on a picture fitted to its pane, so
-// the outer frame's own name carries its framing's share of the cut instead.
+// From this protection, in whole percents, it is named inside the top left
+// corner of the outer frame's cut. Below it, the band between that cut and
+// its framing is too thin for the name on a picture fitted to its pane, so
+// the frame's own name carries its framing's share of the cut instead.
 const PROTECTION_IN_CORNER = 7;
 
 /** The framing of a frame cut as `box`, shrunk inside it by `protection` of
@@ -426,27 +426,29 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
       ]),
     );
     names.style.setProperty("--guides-aspect", String(width / height));
-    const name = (text: string, corner: Box) => {
+    const name = (text: string, corner: Box, kind = "") => {
       const node = document.createElement("span");
-      node.className = "video-guides-name";
+      node.className = kind ? `video-guides-name ${kind}` : "video-guides-name";
       node.textContent = text;
       node.style.left = `${(corner.x / width) * 100}%`;
       node.style.top = `${(corner.y / height) * 100}%`;
       return node;
     };
-    // The protection is named once: inside the picture's top left corner,
-    // dark whenever protection is on, or, too thin there, after the first
-    // outer frame's ratio as its framing's share.
+    // The protection is named once, on the first outer frame: inside its
+    // cut's top left corner, dark whenever protection is on, or, too thin
+    // there, after its ratio as its framing's share. With no frame lit, or
+    // one of the picture's shape, that cut is the picture.
     const percent = Math.round(kept * 100);
     const inCorner = percent >= PROTECTION_IN_CORNER;
-    const shared = percent > 0 && !inCorner ? framed.find((box) => box.outer) : undefined;
+    const protectedCut = framed.find((box) => box.outer) ?? whole;
+    const shared = percent > 0 && !inCorner ? protectedCut : undefined;
     names.replaceChildren(
       ...drawn.flatMap((box) => {
         const own = box.id === undefined ? "" : (FRAMES.find((choice) => choice.id === box.id)?.label ?? box.id);
         const text = box === shared ? [own, `${100 - percent}%`].filter(Boolean).join(" ") : own;
         return text ? [name(text, box.framing)] : [];
       }),
-      ...(inCorner ? [name(`${percent}%`, whole)] : []),
+      ...(inCorner ? [name(`${percent}%`, protectedCut, "is-protection")] : []),
     );
     const frame = framingBox(sharedBox(width, height, boxes), kept);
     place(extents, frame);

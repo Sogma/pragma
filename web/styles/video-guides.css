@@ -146,7 +146,7 @@
 }
 
 /* A frame's ratio, just inside its top left corner, and the protection, just
-   inside the picture's. */
+   inside that of the cut it is kept in. */
 .video-guides-name {
   position: absolute;
   margin: 4px 0 0 6px;
@@ -155,4 +155,12 @@
   font-size: var(--ui-font-size);
   line-height: 1;
   white-space: nowrap;
+}
+
+/* Tighter in its corner than a ratio in its own: at the smallest share it is
+   named at, the band beside a wide frame's line on a portrait picture is
+   barely wider than the name, and a ratio's inset would push it onto the
+   line. */
+.video-guides-name.is-protection {
+  margin: 2px 0 0 3px;
 }
