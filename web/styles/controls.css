@@ -149,9 +149,10 @@
   color: var(--text-primary);
 }
 
-/* A primary action's solid blue: Run, Restore, Sync, a dialog's confirm,
-   the chat's send. The fill and the label's colour only; each keeps its own
-   shape, and after .icon-button so its fill wins there too. */
+/* A primary action's solid blue: Run, Restore, Sync, the chat's send. Never
+   a dialog's confirm, which takes .dialog-primary (dialog.css). The fill and
+   the label's colour only; each keeps its own shape, and after .icon-button
+   so its fill wins there too. */
 .primary-fill {
   border-color: var(--color-primary);
   background: var(--color-primary);

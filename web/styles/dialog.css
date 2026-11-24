@@ -31,13 +31,15 @@
 .dialog-panel {
   --dialog-padding: 16px;
   --dialog-gap: 10px;
-  /* A destructive action's colours: the text colours inverted, red only
-     under the pointer. The close disc rests in the same fill, so both read
-     it here. The fill is the tooltip's, not --text-primary, which reads dim
-     as a fill in the dark theme. */
-  --dialog-danger-bg: var(--tooltip-bg);
-  --dialog-danger-border: var(--text-primary);
-  --dialog-danger-text: var(--bg-primary);
+  /* A confirm's colors: the text colors inverted, never blue, which marks
+     selection. Under the pointer it eases toward the page, or turns red when
+     it destroys. The close disc rests in the same fill, so both read it
+     here. The fill is the tooltip's, not --text-primary, which reads dim as
+     a fill in the dark theme. */
+  --dialog-confirm-bg: var(--tooltip-bg);
+  --dialog-confirm-border: var(--text-primary);
+  --dialog-confirm-text: var(--bg-primary);
+  --dialog-confirm-bg-hover: color-mix(in srgb, var(--tooltip-bg) 85%, var(--bg-primary));
   --dialog-danger-bg-hover: var(--color-danger);
   --dialog-danger-text-hover: var(--text-on-primary);
   width: 480px;
@@ -190,18 +192,24 @@ select.dialog-input {
   gap: 8px;
 }
 
-/* A dialog's buttons are .btn.btn-large, its confirm also .primary-fill. A
-   destructive confirm (delete, remove sorting, grant a capability) takes the
-   panel's danger colours instead: the dialog's variant beside .btn.danger's
-   tint, scoped to .btn so it outranks that tint. */
-.dialog-primary {
+/* A dialog's buttons are .btn.btn-large, its confirm also .dialog-primary in
+   the panel's confirm colors. A destructive confirm (delete, grant a
+   capability) adds .danger, which changes only the hover. Scoped to .btn so
+   these outrank .btn's hover fill and .btn.danger's tint.
+
+   The rest rule names .danger too, to outrank .btn.danger:hover, which has
+   no :disabled guard: a busy destructive confirm keeps its rest look. */
+.btn.dialog-primary,
+.btn.dialog-primary.danger {
+  border-color: var(--dialog-confirm-border);
+  background: var(--dialog-confirm-bg);
+  color: var(--dialog-confirm-text);
   font-weight: 600;
 }
 
-.btn.dialog-primary.danger {
-  border-color: var(--dialog-danger-border);
-  background: var(--dialog-danger-bg);
-  color: var(--dialog-danger-text);
+.btn.dialog-primary:hover:not(:disabled) {
+  border-color: var(--dialog-confirm-bg-hover);
+  background: var(--dialog-confirm-bg-hover);
 }
 
 .btn.dialog-primary.danger:hover:not(:disabled) {

@@ -458,7 +458,7 @@ export function createSiteDialogs(deps: SiteDialogsDeps): SiteDialogs {
     const actions = el("div", "site-settings-actions");
     const error = el("div", "inline-error");
     error.hidden = true;
-    const save = el("button", "btn primary", "Save");
+    const save = el("button", "btn dialog-primary", "Save");
     save.type = "button";
     actions.append(error, save);
     body.append(actions);

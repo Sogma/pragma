@@ -41,7 +41,7 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
     const actions = el("div", "dialog-actions");
     const copy = el("button", "btn btn-large", "Copy");
     copy.type = "button";
-    const done = el("button", "btn btn-large primary-fill dialog-primary", "Done");
+    const done = el("button", "btn btn-large dialog-primary", "Done");
     done.type = "button";
     actions.append(copy, done);
     body.append(value, warning, actions);

@@ -280,7 +280,7 @@ function showOfflineDetails(dialog: DialogService, details: OfflineDetails): voi
   actions.className = "dialog-actions";
   const ok = document.createElement("button");
   ok.type = "button";
-  ok.className = "btn btn-large";
+  ok.className = "btn btn-large dialog-primary";
   ok.textContent = "OK";
   actions.append(ok);
   content.append(reason, facts, actions);
