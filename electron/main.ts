@@ -54,7 +54,7 @@ import { listedSpaces } from "../src/server/spaceList.ts";
 import { readStaticFile } from "../src/server/staticFiles.ts";
 import { pragmaVersion } from "../src/server/version.ts";
 import { openAboutWindow } from "./aboutWindow.ts";
-import { checkForUpdates, setupAutoUpdater } from "./autoUpdate.ts";
+import { checkForUpdates, checkForUpdatesAtLaunch, setupAutoUpdater } from "./autoUpdate.ts";
 import { menuBarTemplate } from "./menuBar.ts";
 import { framePermits } from "./permissions.ts";
 import { windowBackground } from "./windowBackground.ts";
@@ -493,9 +493,9 @@ ipcMain.handle("pragma:set-spellcheck-languages", (event, codes: unknown) => {
   if (known.length > 0) checker.setSpellCheckerLanguages(known);
 });
 
-// Settings → General's "Check for updates" button (web/main.ts, behind
-// window.pragmaElectron). The updater itself, its event stream, and the
-// "restart to install" dialog all live in electron/autoUpdate.ts.
+// Settings → General's "Check for updates" button (web/view/updateControl.ts,
+// behind window.pragmaElectron). The updater itself, its event stream, and
+// its prompts all live in electron/autoUpdate.ts.
 ipcMain.handle("pragma:check-for-updates", () => checkForUpdates());
 
 // Settings → General's "Automatic updates", read once at launch below.
@@ -620,12 +620,12 @@ app.whenReady().then(async () => {
   // After the credential store, which a provider's sign-in is read through.
   resumeJobs();
 
-  // No-op on macOS and in unpackaged dev (see autoUpdate.ts). The startup check
-  // is quiet — outcomes surface only in the Settings row, and the sole proactive
-  // interrupt is the "restart to install" dialog once an update has downloaded.
+  // The launch check is quiet: outcomes surface in the Settings row, and the
+  // only interrupts are the "restart to install" prompt once an update has
+  // downloaded and, on macOS, the offer of a newer release, once per version.
   // Turning "Automatic updates" off skips it; the Settings button still checks.
   setupAutoUpdater(() => win);
-  if (updatesAutomatically(loadGlobalConfig())) setTimeout(() => void checkForUpdates(), 4000);
+  if (updatesAutomatically(loadGlobalConfig())) setTimeout(() => void checkForUpdatesAtLaunch(), 4000);
 
   // With no main window, a Dock click brings one back even while the About
   // window is up.

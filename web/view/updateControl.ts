@@ -1,14 +1,14 @@
 // Settings → General's version row. "Check for updates" is two mechanisms
-// behind one always-shown button: Windows/Linux Electron runs electron-updater
-// over the bridge (electron/autoUpdate.ts) and reports download progress;
-// macOS Electron (auto-update is off there) and the browser targets
-// fall back to a read-only version check against /api/updates/check.
+// behind one always-shown button: the desktop app checks in its main process
+// over the bridge (electron/autoUpdate.ts), where Windows and Linux go on to
+// download the update and report progress; a browser tab falls back to a
+// read-only version check against /api/updates/check.
 //
-// Only the wording differs otherwise, hence `autoDownloads` as a parameter
-// rather than two copies of the status text.
+// A release the app can't install itself (macOS) comes with its download
+// link, and the button offers Download until the next check.
 //
-// "Automatic updates" shows only where electron-updater runs: it gates the
-// launch check, which the other targets don't make.
+// "Automatic updates" shows only in the desktop app: it gates the launch
+// check, which a browser tab doesn't make.
 import type { AppletInfoResponse, UpdateStatus } from "../../src/protocol/api.ts";
 import { fetchUpdateCheck } from "../core/apiClient.ts";
 import { must } from "../lib/dom.ts";
@@ -32,6 +32,7 @@ function statusText(status: UpdateStatus, autoDownloads: boolean): string {
     case "checking":
       return "Checking for updates…";
     case "available":
+      if (status.downloadUrl) return `Update ${status.version} available.`;
       return autoDownloads
         ? `Update ${status.version} available, downloading…`
         : `Update ${status.version} available. See the release notes.`;
@@ -50,6 +51,10 @@ function statusText(status: UpdateStatus, autoDownloads: boolean): string {
   }
 }
 
+// In the words of the offer the launch check makes on macOS.
+export const INSTALL_STEPS =
+  "When it has downloaded, quit Pragma, open the disk image, and drag Pragma to Applications, choosing Replace.";
+
 export interface VersionRow {
   /** Names the running version, and links its release notes when it has some. */
   show(info: AppletInfoResponse): void;
@@ -60,16 +65,6 @@ export function wireUpdateControl(page: HTMLElement, deps: UpdateControlDeps): V
   const { alert, bindToggle } = deps;
   const button = must<HTMLButtonElement>("#setting-check-updates", page);
   const status = must<HTMLElement>("#setting-update-status", page);
-  // The button's own check, on the General page where its outcome shows. A
-  // click on the button, so a check already running isn't started again.
-  deps.commands.register({
-    id: "settings.checkForUpdates",
-    label: "Check for Updates",
-    run: (context) => {
-      void deps.commands.run("settings.open", context, "general");
-      button.click();
-    },
-  });
   const versionValue = must<HTMLElement>("#setting-version-value", page);
   const releaseNotesLine = must<HTMLElement>("#setting-release-notes-line", page);
   const releaseNotes = must<HTMLButtonElement>("#setting-release-notes", page);
@@ -86,30 +81,64 @@ export function wireUpdateControl(page: HTMLElement, deps: UpdateControlDeps): V
     },
   };
 
+  const bridge = window.pragmaElectron;
+  const autoDownloads = bridge !== undefined && bridge.platform !== "darwin";
   // Electron reports one failed check several times (the updater's error
   // event, then the check's own answer), so only the turn into "error"
   // writes a Console entry.
   let shownPhase: UpdateStatus["phase"] | undefined;
-  function render(next: UpdateStatus, autoDownloads: boolean): void {
+  let downloadUrl: string | undefined;
+  function render(next: UpdateStatus): void {
     if (next.phase === "error" && shownPhase !== "error") {
       deps.modelConsole.logEntry("error", "Updates", "Update check failed", next.message);
     }
     shownPhase = next.phase;
+    downloadUrl = next.phase === "available" ? next.downloadUrl : undefined;
+    button.textContent = downloadUrl ? "Download" : "Check for updates";
+    button.classList.toggle("primary", downloadUrl !== undefined);
     // Disabled for every phase that is still going somewhere, so a second
     // click can't start a parallel check or interrupt a download.
-    button.disabled = next.phase === "checking" || next.phase === "available" || next.phase === "downloading";
+    button.disabled =
+      next.phase === "checking" || (next.phase === "available" && !downloadUrl) || next.phase === "downloading";
     status.textContent = statusText(next, autoDownloads);
     status.hidden = false;
   }
 
-  const bridge = window.pragmaElectron;
-  if (bridge && bridge.platform !== "darwin") {
-    bridge.onUpdateStatus((next) => render(next, true));
-    button.addEventListener("click", () => {
-      render({ phase: "checking" }, true);
-      void bridge.checkForUpdates().then((next) => render(next, true));
-    });
+  const check = bridge
+    ? () => {
+        render({ phase: "checking" });
+        void bridge.checkForUpdates().then(render);
+      }
+    : () => {
+        render({ phase: "checking" });
+        void fetchUpdateCheck()
+          .then(render)
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : "Network error";
+            render({ phase: "error", message });
+          });
+      };
+  button.addEventListener("click", () => {
+    if (downloadUrl === undefined) {
+      check();
+      return;
+    }
+    openExternalLink(downloadUrl);
+    status.textContent = INSTALL_STEPS;
+  });
+  // The menu's check, on the General page where its outcome shows. It checks
+  // even while the button offers Download, and not while a check is running.
+  deps.commands.register({
+    id: "settings.checkForUpdates",
+    label: "Check for Updates",
+    run: (context) => {
+      void deps.commands.run("settings.open", context, "general");
+      if (!button.disabled) check();
+    },
+  });
 
+  if (bridge) {
+    bridge.onUpdateStatus(render);
     const automatic = createServerSetting({
       initial: true,
       fetch: () => bridge.getAutomaticUpdates(),
@@ -120,17 +149,6 @@ export function wireUpdateControl(page: HTMLElement, deps: UpdateControlDeps): V
     bindToggle(must<HTMLButtonElement>("#setting-automatic-updates", page), automatic);
     must<HTMLElement>("#setting-automatic-updates-group", page).hidden = false;
     void automatic.refresh();
-    return row;
   }
-
-  button.addEventListener("click", () => {
-    render({ phase: "checking" }, false);
-    void fetchUpdateCheck()
-      .then((next) => render(next, false))
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : "Network error";
-        render({ phase: "error", message }, false);
-      });
-  });
   return row;
 }

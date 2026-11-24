@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { URL as NodeURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UpdateStatus } from "../../../src/protocol/api.ts";
 import type { PragmaElectronBridge } from "../../../web/core/apiClient.ts";
 import { bindToggle } from "../../../web/lib/toggleRow.ts";
 import { createCommands } from "../../../web/services/commands.ts";
-import { wireUpdateControl } from "../../../web/view/updateControl.ts";
+import { INSTALL_STEPS, wireUpdateControl } from "../../../web/view/updateControl.ts";
 
 function setup(bridge?: Partial<PragmaElectronBridge>) {
   window.pragmaElectron = bridge as PragmaElectronBridge | undefined;
@@ -78,9 +80,12 @@ describe("Release notes", () => {
 });
 
 describe("Automatic updates", () => {
-  it("stays hidden in a browser tab and on macOS, where no launch check runs", () => {
+  it("stays hidden in a browser tab, where no launch check runs", () => {
     expect(setup().automaticGroup.hidden).toBe(true);
-    expect(setup(electron("darwin", true)).automaticGroup.hidden).toBe(true);
+  });
+
+  it("shows in the desktop app on macOS too, whose launch check offers a download", () => {
+    expect(setup(electron("darwin", true)).automaticGroup.hidden).toBe(false);
   });
 
   it("shows the main process's value and saves a flip back to it", async () => {
@@ -164,5 +169,56 @@ describe("Check for Updates", () => {
     button.click();
     await vi.waitFor(() => expect(status.textContent).toBe("Update check failed."));
     expect(logEntry).toHaveBeenCalledExactlyOnceWith("error", "Updates", "Update check failed", "GitHub returned 404");
+  });
+});
+
+describe("A release to install by hand", () => {
+  const DMG = "https://github.com/sogma/pragma/releases/download/v0.7.0/Pragma-0.7.0-universal.dmg";
+  const FOUND = { phase: "available", version: "0.7.0", downloadUrl: DMG } satisfies UpdateStatus;
+
+  it("turns the button into Download, which opens the disk image's link and says how to install it", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const checkForUpdates = vi.fn(async () => FOUND);
+    const { button, status } = setup({ ...electron("darwin", true), checkForUpdates });
+
+    button.click();
+    await vi.waitFor(() => expect(button.textContent).toBe("Download"));
+    expect(status.textContent).toBe("Update 0.7.0 available.");
+    expect(button.disabled).toBe(false);
+    expect(button.classList.contains("primary")).toBe(true);
+
+    button.click();
+    expect(open).toHaveBeenCalledExactlyOnceWith(DMG, "_blank", "noopener,noreferrer");
+    expect(status.textContent).toBe(INSTALL_STEPS);
+    expect(checkForUpdates).toHaveBeenCalledOnce();
+  });
+
+  it("shows what the launch check found, and Check for Updates checks again instead of downloading", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    let report: (status: UpdateStatus) => void = () => undefined;
+    const checkForUpdates = vi.fn(async () => ({ phase: "not-available" as const }));
+    const { button, commands, status } = setup({
+      ...electron("darwin", true),
+      onUpdateStatus: (callback) => {
+        report = callback;
+        return () => undefined;
+      },
+      checkForUpdates,
+    });
+
+    report(FOUND);
+    expect(button.textContent).toBe("Download");
+
+    await commands.run("settings.checkForUpdates", { tab: { kind: "empty" }, pane: undefined });
+    expect(checkForUpdates).toHaveBeenCalledOnce();
+    expect(open).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(status.textContent).toBe("Pragma is up to date."));
+    expect(button.textContent).toBe("Check for updates");
+    expect(button.classList.contains("primary")).toBe(false);
+  });
+
+  it("words the install steps as the launch check's offer does", () => {
+    const offer = readFileSync(new NodeURL("../../../electron/autoUpdate.ts", import.meta.url), "utf8");
+    expect(offer).toContain(JSON.stringify(INSTALL_STEPS));
   });
 });

@@ -34,6 +34,9 @@ export interface PragmaGlobalConfig {
   // Electron-only: whether the app checks for updates at launch (Settings →
   // General, "Automatic updates"). Absent is on: only an explicit false skips it.
   automaticUpdates?: boolean;
+  // Electron-only, macOS: the newest version the launch check has offered to
+  // download. The offer isn't made again for it, so a Later stays answered.
+  offeredUpdate?: string;
   // Whether a write keeps the version it replaces (Settings → Files,
   // "History"). Absent is on: only an explicit false stops it.
   keepHistory?: boolean;

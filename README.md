@@ -55,7 +55,7 @@ Download the Mac disk image, Windows installer, or Linux AppImage from the [late
 
 The Windows installer isn't signed during the beta, so Windows may stop it with "Windows protected your PC". Choose **More info**, then **Run anyway**.
 
-Windows and Linux check for updates at launch; you can also use Settings → General → Check for updates. On a Mac, Check for updates reports new releases, which you download and install yourself.
+The desktop app checks for updates at launch; you can also use Settings → General → Check for updates. On a Mac, Pragma offers the new disk image to download, and you install it yourself.
 
 ### From npm
 

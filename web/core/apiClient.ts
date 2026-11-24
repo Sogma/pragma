@@ -509,9 +509,9 @@ export interface PragmaElectronBridge {
   setNativeTheme(theme: "system" | "light" | "dark"): Promise<void>;
   // The whole window's zoom, 1 for 100%, iframes included.
   setZoomFactor(factor: number): void;
-  // Windows/Linux packaged builds only — resolves to { phase: "unsupported" }
-  // on macOS and in unpackaged dev. onUpdateStatus streams the follow-on
-  // states and returns an unsubscribe fn.
+  // Resolves to { phase: "unsupported" } in unpackaged dev. On macOS it only
+  // finds a newer release, which carries its download link. onUpdateStatus
+  // streams the follow-on states and returns an unsubscribe fn.
   checkForUpdates(): Promise<UpdateStatus>;
   onUpdateStatus(callback: (status: UpdateStatus) => void): () => void;
   // Whether the launch check runs, held in the main process's config.json.
@@ -662,8 +662,8 @@ export async function fetchAppletInfo(): Promise<AppletInfoResponse> {
   return request<AppletInfoResponse>("/api/applet/info", { fallback: "Failed to load version info" });
 }
 
-// Settings → General "Check for updates" outside the Windows/Linux Electron
-// bridge — see the call site in main.ts and the route in src/server/routes.ts.
+// Settings → General's "Check for updates" in a browser tab, which has no
+// Electron bridge: the route is in src/server/routes/updates.ts.
 export async function fetchUpdateCheck(): Promise<UpdateStatus> {
   return request<UpdateStatus>("/api/updates/check", { fallback: "Failed to check for updates" });
 }

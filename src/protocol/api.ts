@@ -1503,13 +1503,15 @@ export interface AppletInfoResponse {
   releaseNotesUrl?: string;
 }
 
-// The full update lifecycle. The HTTP route only ever reports the
-// checking-for-a-newer-version phases ("checking", "available",
-// "not-available", "error"); the desktop shell's electron-updater flow
-// (electron/autoUpdate.ts) adds the download phases and "unsupported".
+// The full update lifecycle. A check that installs nothing (a browser tab's,
+// the macOS desktop app's) reports only "checking", "available",
+// "not-available" and "error"; the desktop app on Windows and Linux adds the
+// download phases, and an unpackaged build answers "unsupported".
+//
+// `downloadUrl`: where to download a release the app can't install itself.
 export type UpdateStatus =
   | { phase: "checking" }
-  | { phase: "available"; version: string }
+  | { phase: "available"; version: string; downloadUrl?: string }
   | { phase: "not-available" }
   | { phase: "downloading"; percent: number }
   | { phase: "downloaded"; version: string }
