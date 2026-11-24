@@ -27,7 +27,7 @@ import {
   formatFrameRate,
   must,
 } from "../../lib/dom.ts";
-import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "../../lib/mediaDetails.ts";
+import { clipDetailRows, pictureDetailRows, pixelFormatRows, pixelFormatText } from "../../lib/mediaDetails.ts";
 import { fitHud, hudCells, hudRoot, lookBadge, mediaFrame, showTransparency } from "../../lib/mediaHud.ts";
 import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "../../lib/pictureLayers.ts";
@@ -140,15 +140,16 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
 }
 
 /** The image's overlay: dimensions, the LOOK badge once a look has been
- * picked, and display scale along the top edge; file name, size and the ⋮
- * along the bottom. The top holds three facts at most, so the badge stays
- * centred on the picture (web/styles/media-panes.css). */
+ * picked, and display scale along the top edge; the file's details and the
+ * ⋮ along the bottom, its name being the status bar's. The top holds three
+ * facts at most, so the badge stays centred on the picture
+ * (web/styles/media-panes.css). */
 function createImageHud(lut: LutChoice, more: HTMLButtonElement) {
-  const [name, size, dimensions, scale] = hudCells(4);
-  name.className = "media-hud-name";
+  const [details, dimensions, scale] = hudCells(3);
+  details.className = "media-hud-details";
   const look = lookBadge(lut);
-  const root = hudRoot([dimensions, look.element, scale], [name, size, more]);
-  return { root, name, size, dimensions, scale, look };
+  const root = hudRoot([dimensions, look.element, scale], [details, more]);
+  return { root, details, dimensions, scale, look };
 }
 
 /** The video's overlay: dimensions, codec, display scale, the LOOK badge
@@ -284,8 +285,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
 
       const name = basenameOf(tab.path);
       hud.root.hidden = true;
-      hud.name.textContent = name;
-      for (const cell of [hud.size, hud.dimensions, hud.scale]) cell.textContent = "";
+      for (const cell of [hud.details, hud.dimensions, hud.scale]) cell.textContent = "";
 
       const img = document.createElement("img");
       img.src = deps.rawFileUrl(tab.path);
@@ -321,12 +321,19 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       scroller.replaceChildren(frame);
       element.append(scroller);
 
-      // A missing or failed answer leaves the size out; the Info tab has
-      // its own lookup and says so there.
+      // The details along the bottom: the color mode and depth, then the
+      // size, each once it is known. A missing or failed answer leaves its
+      // fact out; the Info tab has its own lookups and says so there.
+      const facts: { pixels?: string; size?: string } = {};
+      const showFacts = () => {
+        hud.details.textContent = [facts.pixels, facts.size].filter(Boolean).join(" · ");
+      };
       deps.headFile(tab.path).then(
         (response) => {
           const length = response.headers.get("content-length");
-          if (ctx.isCurrent() && response.ok && length !== null) hud.size.textContent = formatFileSize(Number(length));
+          if (!ctx.isCurrent() || !response.ok || length === null) return;
+          facts.size = formatFileSize(Number(length));
+          showFacts();
         },
         () => {},
       );
@@ -342,6 +349,8 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
         (format) => {
           if (!ctx.isCurrent()) return;
           fillPixelRows(format);
+          facts.pixels = pixelFormatText(format);
+          showFacts();
           for (const row of pictureDetailRows(format)) appendMetaRow(details.body, row.label, row.value);
         },
         () => {

@@ -144,10 +144,10 @@ describe("imagePane", () => {
     pane.element.querySelector("img")?.dispatchEvent(new Event("load"));
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "…", "Color mode": "…", "Bit depth": "…" });
-    expect(hudText(pane)).toEqual([" |  | ", "cover.png |  | "]);
+    expect(hudText(pane)).toEqual([" |  | ", " | "]);
   });
 
-  it("lays name, size, dimensions, scale and the ⋮ over the picture, in its own frame", async () => {
+  it("lays the details, dimensions, scale and the ⋮ over the picture, in its own frame", async () => {
     const { pane } = setup();
     await pane.setInput(tab, current);
     await settle();
@@ -162,7 +162,7 @@ describe("imagePane", () => {
 
     describeDecoded(img, [600, 800], [450.5, 600.75]);
     expect(hud.hidden).toBe(false);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 75%", "cover.png | 84 KB | "]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 75%", "RGBA 8-bit · 84 KB | "]);
     expect(hud.querySelector(".media-hud-bar:last-child > :last-child")?.getAttribute("aria-label")).toBe(
       "More options",
     );
@@ -195,7 +195,18 @@ describe("imagePane", () => {
     await pane.setInput(tab, current);
     await settle();
     describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [600, 800]);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 100%", "cover.png |  | "]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 100%", "RGBA 8-bit | "]);
+  });
+
+  it("puts the color mode before the size, whichever arrives first", async () => {
+    let read: (format: PixelFormatResponse) => void = () => {};
+    const { pane } = setup(sized, () => new Promise((resolve) => (read = resolve)));
+    await pane.setInput(tab, current);
+    await settle();
+    expect(hudText(pane)[1]).toBe("84 KB | ");
+    read(await rgba8());
+    await settle();
+    expect(hudText(pane)[1]).toBe("RGBA 8-bit · 84 KB | ");
   });
 
   // As the video tab shows a clip, through the guides and the look every
@@ -288,20 +299,22 @@ describe("imagePane", () => {
     expect(Object.keys(rows(plain.pane))).not.toContain("Source");
   });
 
-  it("shows the color rows as Unknown when the header can't be read", async () => {
+  it("shows the color rows as Unknown, and the size alone, when the header can't be read", async () => {
     const { pane } = setup(sized, async () => Promise.reject(new Error("422")));
     await pane.setInput(tab, current);
     await settle();
     expect(rows(pane)).toMatchObject({ "Color mode": "Unknown", "Bit depth": "Unknown" });
+    expect(hudText(pane)[1]).toBe("84 KB | ");
   });
 
   // A vector has no pixel format to read.
-  it("asks nothing of an SVG's header and gives it no color rows", async () => {
+  it("asks nothing of an SVG's header: no color rows, and its size alone for details", async () => {
     const { pane, pixelFormat } = setup();
     await pane.setInput({ kind: "image", path: "art/logo.svg" }, current);
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "…" });
     expect(pixelFormat).not.toHaveBeenCalled();
+    expect(hudText(pane)[1]).toBe("84 KB | ");
   });
 
   // With no size of its own, the picture has nothing for its frame to hug

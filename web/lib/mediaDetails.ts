@@ -28,6 +28,11 @@ function colorModeName({ colorModel, alpha }: PixelFormat): string {
   return colorModel === "rgb" ? "RGBA" : `${COLOR_MODEL_NAMES[colorModel]} + alpha`;
 }
 
+/** The mode with its depth in one, as a bar shows it: `RGBA 8-bit`. */
+export function pixelFormatText(pixels: PixelFormat): string {
+  return `${colorModeName(pixels)} ${pixels.bitDepth}-bit`;
+}
+
 /** A raster still's Color mode and Bit depth rows. Without a pixel format
  * both read `unknown`: Unknown where its header gave none, or a stand-in
  * while it is read. */

@@ -219,7 +219,8 @@
   bottom: calc(-1 * var(--hud-stick, 0px));
 }
 
-.media-hud-name {
+.media-hud-name,
+.media-hud-details {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -227,8 +228,9 @@
 
 /* A fact that hasn't arrived, or that the header didn't give, is an empty
    cell: dropped, so the facts around it still spread evenly rather than
-   leaving a double gap. A ⋮ draws its glyph from no content of its own. */
-.media-hud-bar > :empty:not(.media-hud-more) {
+   leaving a double gap. A ⋮ draws its glyph from no content of its own, and
+   the details before one stay, empty, to keep it at the right. */
+.media-hud-bar > :empty:not(.media-hud-more, .media-hud-details) {
   display: none;
 }
 

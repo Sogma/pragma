@@ -4,6 +4,7 @@ import {
   clipDetailRows,
   pictureDetailRows,
   pixelFormatRows,
+  pixelFormatText,
   sourceTypeText,
 } from "../../../web/lib/mediaDetails.ts";
 
@@ -88,5 +89,14 @@ describe("pixelFormatRows", () => {
   it("says Unknown for both without a pixel format, or the stand-in it is given while one is read", () => {
     expect(pixelFormatRows(null).map((row) => row.value)).toEqual(["Unknown", "Unknown"]);
     expect(pixelFormatRows(null, "…").map((row) => row.value)).toEqual(["…", "…"]);
+  });
+});
+
+// The image tab's bottom bar: the mode and its depth in one.
+describe("pixelFormatText", () => {
+  it("puts the depth after the mode's name", () => {
+    expect(pixelFormatText({ colorModel: "rgb", alpha: true, bitDepth: 8 })).toBe("RGBA 8-bit");
+    expect(pixelFormatText({ colorModel: "grayscale", alpha: true, bitDepth: 16 })).toBe("Grayscale + alpha 16-bit");
+    expect(pixelFormatText({ colorModel: "indexed", alpha: false, bitDepth: 4 })).toBe("Indexed 4-bit");
   });
 });
