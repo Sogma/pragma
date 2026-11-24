@@ -10,6 +10,7 @@ import { withoutComments } from "../src/protocol/markdownComments.ts";
 import { destinationText, foldReferenceLabel, referenceLabel } from "../src/protocol/markdownLinks.ts";
 import { titleHeadingSpan } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
+import { hasPragmaScheme } from "../src/protocol/pragmaUrl.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
 import { splitWikilinkLabel } from "../src/protocol/wikilink.ts";
@@ -73,9 +74,11 @@ const SAFE_URL = /^(https?:|mailto:)/i;
 const inSpaceHref = (spacePath: string) => `#${encodeURIComponent(spacePath)}`;
 
 /** Whether a link to `href` leaves the space: reading view gives it a live
- * href, where any other target must resolve to a space file. */
+ * href, where any other target must resolve to a space file. A Pragma link
+ * is one, which the desktop app opens itself and a browser hands to the
+ * system; an image never loads from one. */
 export function isSafeHref(href: string): boolean {
-  return SAFE_URL.test(href);
+  return SAFE_URL.test(href) || hasPragmaScheme(href);
 }
 
 /** Where an autolink's text, its `<` and `>` dropped, leads: as written
@@ -618,9 +621,9 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
         appendUnresolvedReference(node, doc, container, resolvers);
         return;
       }
-      const spacePath = SAFE_URL.test(href) ? undefined : resolvers.link(href);
+      const spacePath = isSafeHref(href) ? undefined : resolvers.link(href);
       const el =
-        SAFE_URL.test(href) || spacePath !== undefined ? document.createElement("a") : document.createElement("span");
+        isSafeHref(href) || spacePath !== undefined ? document.createElement("a") : document.createElement("span");
       if (el instanceof HTMLAnchorElement) {
         if (spacePath !== undefined) {
           // Kept in the page, not target=_blank: main.ts's click handler
@@ -633,7 +636,7 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
         }
       }
       appendLinkLabel(node, doc, el, resolvers);
-      const lead: LinkLead = SAFE_URL.test(href) ? { url: href } : { form: "markdown", written: href, path: spacePath };
+      const lead: LinkLead = isSafeHref(href) ? { url: href } : { form: "markdown", written: href, path: spacePath };
       addLinkHint(el, lead, resolvers);
       container.appendChild(el);
       return;
@@ -673,7 +676,7 @@ function renderNode(node: SyntaxNode, doc: string, container: Node, resolvers: M
       let text = doc.slice(node.from, node.to);
       if (text.startsWith("<") && text.endsWith(">")) text = text.slice(1, -1);
       const href = autolinkHref(text);
-      const el = SAFE_URL.test(href) ? document.createElement("a") : document.createElement("span");
+      const el = isSafeHref(href) ? document.createElement("a") : document.createElement("span");
       if (el instanceof HTMLAnchorElement) {
         el.href = href;
         markExternalLink(el);

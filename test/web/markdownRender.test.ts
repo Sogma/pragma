@@ -114,6 +114,21 @@ describe("a web link in reading view", () => {
   });
 });
 
+describe("a Pragma link in reading view", () => {
+  // Live, so the desktop app can take it and a browser can hand it on; an
+  // image never loads from one.
+  it("is a live link, written as a link or an autolink, but no image source", () => {
+    const host = render("[scene](pragma://Notes/a.md) <pragma://Notes/b/> ![pic](pragma://Notes/p.png)");
+    const anchors = [...host.querySelectorAll("a")];
+    expect(anchors.map((a) => [a.getAttribute("href"), a.getAttribute("target")])).toEqual([
+      ["pragma://Notes/a.md", "_blank"],
+      ["pragma://Notes/b/", "_blank"],
+    ]);
+    expect(host.querySelector("img")).toBeNull();
+    expect(host.textContent).toContain("[image: pic]");
+  });
+});
+
 describe("a list in reading view", () => {
   const tightness = (markdown: string) =>
     [...render(markdown).querySelectorAll("ul, ol")].map((list) => list.classList.contains("tight-list"));

@@ -33,6 +33,7 @@ import {
   windowTheme,
 } from "../src/config/loadConfig.ts";
 import type { LibraryEntry, LibraryOffer, LinkRequest, Misspelling, SpellcheckLanguages } from "../src/protocol/api.ts";
+import { hasPragmaScheme } from "../src/protocol/pragmaUrl.ts";
 import { scaffoldSpace } from "../src/protocol/scaffoldSpace.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../src/server/apiServer.ts";
 import { defaultAppTarget, systemTarget } from "../src/server/defaultApp.ts";
@@ -337,7 +338,7 @@ app.on("second-instance", (_event, argv) => {
 });
 
 function linkIn(argv: readonly string[]): string | undefined {
-  return argv.find((arg) => /^pragma:/i.test(arg));
+  return argv.find(hasPragmaScheme);
 }
 
 // Routes a link and holds what it asks of the window. Answers the folder of
@@ -761,19 +762,22 @@ function reopenMainWindow(): void {
 // "Watch on YouTube" — goes to the system browser. Electron would otherwise
 // open it as a bare app window, with none of the browser's own safeguards.
 // Registered per webContents so an embedded frame's request is caught too.
+// A Pragma link is taken as one from the system is, without the trip there.
 //
 // A page navigating its own window away is caught the same way, whatever
 // sent it: another origin loaded there would get the preload's bridge. Only
 // the app's own origin stays in the window.
 app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) void shell.openExternal(url);
+    if (hasPragmaScheme(url)) void receiveLink(url);
+    else if (/^https?:/i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
   contents.on("will-navigate", (event) => {
     if (sameOrigin(event.url, contents.getURL())) return;
     event.preventDefault();
-    if (/^https?:/i.test(event.url)) void shell.openExternal(event.url);
+    if (hasPragmaScheme(event.url)) void receiveLink(event.url);
+    else if (/^https?:/i.test(event.url)) void shell.openExternal(event.url);
   });
   if (contents.getType() === "window") {
     wireDevTools(contents);

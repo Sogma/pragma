@@ -30,6 +30,12 @@ const SCHEME = /^pragma:\/\//i;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: a control character in a link is what this refuses
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
+/** Whether `input` claims the Pragma scheme: a link to hand to the parser,
+ * which may still refuse it. */
+export function hasPragmaScheme(input: string): boolean {
+  return /^pragma:/i.test(input);
+}
+
 /** The link to `link`, every name percent-encoded. A path keeps its `:`, so a
  * library's address reads as Pragma writes it everywhere else. */
 export function formatPragmaUrl(link: PragmaLink): string {

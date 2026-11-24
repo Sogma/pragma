@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatPragmaUrl,
+  hasPragmaScheme,
   MAX_PRAGMA_URL_LENGTH,
   type PragmaLink,
   parsePragmaUrl,
@@ -165,5 +166,15 @@ describe("reading a Pragma link", () => {
     const long = `pragma://Notes/${"a".repeat(MAX_PRAGMA_URL_LENGTH)}.md`;
     expect(read(long)).toEqual({ refusal: `A Pragma link can't be longer than ${MAX_PRAGMA_URL_LENGTH} characters` });
     expect(refused(`pragma://Notes/${"a".repeat(MAX_PRAGMA_URL_LENGTH - 20)}`)).toBe(false);
+  });
+});
+
+describe("telling a Pragma link from other text", () => {
+  // Any link claiming the scheme goes to the parser, which says why it refuses one.
+  it("claims a link by its scheme alone, in any case", () => {
+    expect(["pragma://Notes/a.md", "PRAGMA://Notes", "pragma:Notes/a.md"].every(hasPragmaScheme)).toBe(true);
+    expect(
+      ["https://a.com", "pragma-app://app/welcome.html", " pragma://Notes", "notes/pragma:a.md"].some(hasPragmaScheme),
+    ).toBe(false);
   });
 });

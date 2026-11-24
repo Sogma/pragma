@@ -36,6 +36,14 @@ describe("webLinksIn", () => {
     expect(linksIn("[d](<https://d.com>)")).toEqual([{ text: "[d](<https://d.com>)", href: "https://d.com" }]);
   });
 
+  // The desktop app takes a Pragma link itself; a bare one in prose is no link.
+  it("finds a Pragma link written as a link or an autolink", () => {
+    expect(linksIn("[scene](pragma://Notes/a.md) <pragma://Notes/b/> pragma://Notes/c.md")).toEqual([
+      { text: "[scene](pragma://Notes/a.md)", href: "pragma://Notes/a.md" },
+      { text: "<pragma://Notes/b/>", href: "pragma://Notes/b/" },
+    ]);
+  });
+
   it("leaves mail, space links, wikilinks, images, definitions and code alone", () => {
     const doc = [
       "a@b.com mailto:a@b.com <a@b.com> [mail](mailto:a@b.com)",

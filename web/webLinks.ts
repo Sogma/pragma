@@ -8,6 +8,7 @@ import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewU
 import type { SyntaxNode } from "@lezer/common";
 import { Autolink, type MarkdownConfig } from "@lezer/markdown";
 import { destinationText } from "../src/protocol/markdownLinks.ts";
+import { hasPragmaScheme } from "../src/protocol/pragmaUrl.ts";
 import { openExternalLink } from "./lib/externalLinks.ts";
 
 const WEB_URL = /^https?:/i;
@@ -66,7 +67,8 @@ export function webLinksIn(state: EditorState, from: number, to: number): WebLin
         case "Autolink": {
           const url = node.name === "Link" ? linkDestination(node.node) : node.node.getChild("URL");
           const href = url ? destinationText(state.sliceDoc(url.from, url.to)) : "";
-          if (WEB_URL.test(href)) links.push({ from: node.from, to: node.to, href });
+          // A Pragma link opens as a web link does: the desktop app takes it.
+          if (WEB_URL.test(href) || hasPragmaScheme(href)) links.push({ from: node.from, to: node.to, href });
           return false;
         }
         // Neither is a link in reading view: an image embeds, and a
