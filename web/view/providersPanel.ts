@@ -19,6 +19,7 @@ import { defaultModels, PROVIDER_PRESETS as PRESETS, PROVIDER_PRESET_IDS } from 
 import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
 import { type PickerChoice, wireChoicePicker } from "../lib/picker.ts";
+import { createSettingsMessage } from "../lib/settingsMessage.ts";
 import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -114,7 +115,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   const videoModelsList = must<HTMLDivElement>("#providers-form-video-models-list", root);
   const videoModelAddInput = must<HTMLInputElement>("#providers-form-video-model-add", root);
   const refreshButton = must<HTMLButtonElement>("#providers-form-refresh", root);
-  const messageLine = must<HTMLParagraphElement>("#providers-form-message", root);
+  const message = createSettingsMessage(must<HTMLParagraphElement>("#providers-form-message", root));
   const formTitle = must<HTMLHeadingElement>("#providers-form-title", root);
   const removeButton = must<HTMLButtonElement>("#providers-form-remove", root);
   // A ChatGPT plan signs in where every other provider takes a key.
@@ -195,15 +196,6 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
             : "";
   }
 
-  // Every message in the line goes through here: a failure that follows a
-  // confirmation would otherwise keep the confirmation's green.
-  function showMessage(message: string, level: "error" | "success" = "error"): void {
-    messageLine.textContent = message;
-    messageLine.classList.toggle("inline-error", level === "error");
-    messageLine.classList.toggle("inline-success", level === "success");
-    messageLine.hidden = false;
-  }
-
   // Resolves to whether the selection was saved.
   async function saveModels(...lists: ModelList[]): Promise<boolean> {
     // The checklist renders from `enabled`, not the reply, so a failed
@@ -211,7 +203,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     try {
       await postSaveProviderModels(formProviderId, Object.fromEntries(lists.map((list) => [list.field, list.enabled])));
     } catch (error) {
-      showMessage(error instanceof Error ? error.message : "Couldn't save the model selection");
+      message.show(error instanceof Error ? error.message : "Couldn't save the model selection");
       return false;
     }
     deps.onProvidersChanged();
@@ -290,7 +282,8 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   }
 
   // What the sign-in row shows, from `signIn`: a way in while signed out, the
-  // account and a way out while signed in, and whether the plan is in use.
+  // account and a way out while signed in, and whether the plan is in use. A
+  // failed sign-in is the form's error, so it goes to the top of the form.
   function renderSignIn(): void {
     const signedIn = signIn.state === "signed-in";
     accountText.textContent = signedIn
@@ -307,7 +300,6 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     allowPlanButton.disabled = !signInAllowed;
     signOutButton.hidden = !signedIn;
     const note: Node[] = [...signInNote];
-    let failed = false;
     if (signIn.state === "pending") {
       note.push(text("Finish signing in in your browser."));
       if (authorizationUrl) note.push(text(" "), link("Open the sign-in page again", authorizationUrl));
@@ -316,11 +308,9 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     } else if (signedIn) {
       note.push(text("Signed in, but Pragma isn't allowed to use your ChatGPT plan, so its models can't run."));
     } else if (signIn.message) {
-      note.push(text(signIn.message));
-      failed = true;
+      message.show(signIn.message);
     }
     signInStatus.replaceChildren(...note);
-    signInStatus.classList.toggle("inline-error", failed);
     signInStatus.hidden = note.length === 0;
   }
 
@@ -338,7 +328,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       renderChecklists(discovered);
     } catch (error) {
       renderChecklists();
-      showMessage(error instanceof Error ? error.message : "Couldn't list the plan's models.");
+      message.show(error instanceof Error ? error.message : "Couldn't list the plan's models.");
     }
   }
 
@@ -376,7 +366,6 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   // Continue with ChatGPT, and Allow plan use after it was declined. A fresh
   // provider is saved first: the sign-in belongs to its entry.
   async function onContinue(planUsage: boolean): Promise<void> {
-    messageLine.hidden = true;
     signInNote = [];
     const preset = currentPreset();
     const firstTime = !editing;
@@ -389,6 +378,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       deps.onProvidersChanged();
     }
     const url = await postProviderSignIn(formProviderId, { planUsage });
+    message.clear();
     authorizationUrl = url;
     openExternalLink(url);
     signIn = { state: "pending" };
@@ -433,7 +423,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
     stopPolling();
     authorizationUrl = undefined;
     signInNote = [];
-    messageLine.hidden = true;
+    message.clear();
     keyInput.value = "";
     keyInput.disabled = false;
     setButton.textContent = "Set";
@@ -462,7 +452,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       setKeyPlaceholder(row.keySource, Boolean(PRESETS[presetKey]?.keyless));
       // Why the saved key can't be used, in the line a failed Set reports in.
       if (row.keyProblem) {
-        showMessage(row.keyProblem);
+        message.show(row.keyProblem);
       }
       renderNameHint();
       showSignIn(Boolean(PRESETS[presetKey]?.signIn));
@@ -486,7 +476,6 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   // pick step wherever the preset allows it. The subpage stays open on that
   // checklist; Back returns to the provider list.
   async function onSet(): Promise<void> {
-    messageLine.hidden = true;
     const preset = currentPreset();
     // Nothing to set: the sign-in row's buttons save a ChatGPT plan.
     if (preset.signIn) return;
@@ -560,11 +549,11 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
       renderChecklists(discovered);
       if (saved) {
         const tickedCount = textModels.enabled.length + imageModels.enabled.length + videoModels.enabled.length;
-        showMessage(setConfirmation(formLabel, discovered, keySource !== "none", tickedCount), "success");
+        message.show(setConfirmation(formLabel, discovered, keySource !== "none", tickedCount), "success");
       }
     } catch (error) {
       renderChecklists();
-      showMessage(error instanceof Error ? error.message : "Couldn't list models. Add them by id below.");
+      message.show(error instanceof Error ? error.message : "Couldn't list models. Add them by id below.");
     } finally {
       setButton.disabled = false;
       setButton.textContent = "Set";
@@ -645,7 +634,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   }
 
   const reportSignInError = (error: unknown): void => {
-    showMessage(error instanceof Error ? error.message : "Couldn't sign in");
+    message.show(error instanceof Error ? error.message : "Couldn't sign in");
   };
   continueButton.addEventListener("click", () => void onContinue(false).catch(reportSignInError));
   allowPlanButton.addEventListener("click", () => void onContinue(true).catch(reportSignInError));
@@ -653,12 +642,15 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   nameInput.addEventListener("input", renderNameHint);
   addButton.addEventListener("click", () => openForm());
   removeButton.addEventListener("click", () => void onRemove());
-  // A new attempt clears what the last one said, a Set's confirmation too.
+  // A Refresh that works says nothing, so it clears what the last attempt
+  // said, a Set's confirmation too.
   refreshButton.addEventListener("click", () => {
-    messageLine.hidden = true;
     void discover()
-      .then(renderChecklists)
-      .catch((error: unknown) => showMessage(error instanceof Error ? error.message : "Couldn't list models"));
+      .then((discovered) => {
+        renderChecklists(discovered);
+        message.clear();
+      })
+      .catch((error: unknown) => message.show(error instanceof Error ? error.message : "Couldn't list models"));
   });
 
   for (const [input, list] of [
@@ -682,7 +674,7 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void onSet().catch((error: unknown) => {
-      showMessage(error instanceof Error ? error.message : "Couldn't save the provider");
+      message.show(error instanceof Error ? error.message : "Couldn't save the provider");
     });
   });
 

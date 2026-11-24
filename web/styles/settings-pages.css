@@ -110,9 +110,10 @@
   margin-top: -8px;
 }
 
-/* A form's own message, 6px under its actions like a group's note. */
-.settings-form-stack > .settings-group-note {
-  margin-top: -14px;
+/* A form's errors, warnings and confirmations, first under its title. A box
+   spans the cards' edges, where a note's text lines up with theirs. */
+.settings-form-message {
+  margin: 0;
 }
 
 .settings-group {

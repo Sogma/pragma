@@ -14,6 +14,7 @@ import {
 } from "../core/apiClient.ts";
 import { dateLabel } from "../lib/dateText.ts";
 import { buildRevokeButton, el } from "../lib/dom.ts";
+import { createSettingsMessage } from "../lib/settingsMessage.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface ApiPanelDeps {
@@ -97,7 +98,7 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
   const nameInput = q<HTMLInputElement>("#api-token-name");
   const readOnlySwitch = q<HTMLButtonElement>("#api-token-read-only");
   const createButton = q<HTMLButtonElement>("#api-token-create");
-  const formError = q<HTMLElement>("#api-token-error");
+  const formMessage = createSettingsMessage(q<HTMLElement>("#api-token-error"));
 
   let current: ApiSettingsResponse | undefined;
 
@@ -187,7 +188,7 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
   function openForm(): void {
     nameInput.value = "";
     readOnlySwitch.setAttribute("aria-checked", "true");
-    formError.hidden = true;
+    formMessage.clear();
     deps.openSettingsSubpage("api-token");
     // The page is still sliding in, so a scrolling focus would chase it.
     nameInput.focus({ preventScroll: true });
@@ -198,7 +199,6 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
   // throw away the one chance to copy it. Back to the list first, so Done
   // lands on the new token's row.
   async function onCreate(): Promise<void> {
-    formError.hidden = true;
     const label = nameInput.value.trim();
     if (!label) throw new Error("Give the token a name.");
     createButton.disabled = true;
@@ -219,8 +219,7 @@ export function wireApiPanel(root: HTMLElement, deps: ApiPanelDeps): () => void 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void onCreate().catch((thrown: unknown) => {
-      formError.textContent = thrown instanceof Error ? thrown.message : "Couldn't create the token";
-      formError.hidden = false;
+      formMessage.show(thrown instanceof Error ? thrown.message : "Couldn't create the token");
     });
   });
 

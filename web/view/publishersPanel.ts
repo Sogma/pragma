@@ -7,6 +7,7 @@ import {
 } from "../core/apiClient.ts";
 import { buildOpenRow, must, replaceRows } from "../lib/dom.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
+import { createSettingsMessage } from "../lib/settingsMessage.ts";
 import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 import type { ContextMenuService } from "../services/menus.ts";
@@ -56,7 +57,7 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
   const baseUrlInput = must<HTMLInputElement>("#publishers-form-baseurl", root);
   const keyInput = must<HTMLInputElement>("#publishers-form-key", root);
   const setButton = must<HTMLButtonElement>("#publishers-form-set", root);
-  const messageLine = must<HTMLParagraphElement>("#publishers-form-message", root);
+  const message = createSettingsMessage(must<HTMLParagraphElement>("#publishers-form-message", root));
   const formTitle = must<HTMLHeadingElement>("#publishers-form-title", root);
   const removeButton = must<HTMLButtonElement>("#publishers-form-remove", root);
 
@@ -137,15 +138,6 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
     renderNameHint();
   }
 
-  // Every message in the line goes through here, so each one sets its own
-  // level and none keeps the last one's colour.
-  function showMessage(message: string, level: "error" | "warning" = "error"): void {
-    messageLine.textContent = message;
-    messageLine.classList.toggle("inline-error", level === "error");
-    messageLine.classList.toggle("inline-warning", level === "warning");
-    messageLine.hidden = false;
-  }
-
   // A saved publisher's preset can't change, so the picker is hidden while
   // editing: the subpage title carries the identity.
   function setEditing(on: boolean): void {
@@ -156,7 +148,7 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
   }
 
   function openForm(row?: PublisherRow): void {
-    messageLine.hidden = true;
+    message.clear();
     keyInput.value = "";
     setButton.textContent = "Set";
     formTitle.textContent = row ? row.label : "Add publisher";
@@ -176,7 +168,7 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
       setEditing(true);
       setKeyPlaceholder(row.keySource);
       // Why the saved key can't be used, in the line a failed Set reports in.
-      if (row.keyProblem) showMessage(row.keyProblem);
+      if (row.keyProblem) message.show(row.keyProblem);
       renderNameHint();
     } else {
       presetPicker.show("sogma");
@@ -188,7 +180,6 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
   }
 
   async function onSet(): Promise<void> {
-    messageLine.hidden = true;
     const isCustom = presetPicker.value === "custom";
     const preset = PRESETS[presetPicker.value] ?? PRESETS.custom;
 
@@ -229,7 +220,7 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
         setEditing(true);
         setKeyPlaceholder("stored");
         renderNameHint();
-        showMessage(`Saved, but Pragma couldn't reach ${label} to check the key: ${result.error}`, "warning");
+        message.show(`Saved, but Pragma couldn't reach ${label} to check the key: ${result.error}`, "warning");
         return;
       }
       // A saved publisher is a finished job — unlike a model provider, whose
@@ -309,7 +300,7 @@ export function wirePublishersPanel(root: HTMLElement, deps: PublishersPanelDeps
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void onSet().catch((error: unknown) => {
-      showMessage(error instanceof Error ? error.message : "Couldn't save the publisher");
+      message.show(error instanceof Error ? error.message : "Couldn't save the publisher");
     });
   });
 

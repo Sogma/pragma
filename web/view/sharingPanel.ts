@@ -6,6 +6,7 @@ import {
   type SharingResponse,
 } from "../core/apiClient.ts";
 import { buildOpenRow, must, replaceRows } from "../lib/dom.ts";
+import { createSettingsMessage } from "../lib/settingsMessage.ts";
 import type { DialogService } from "../services/dialog.ts";
 
 export interface SharingPanelDeps {
@@ -32,17 +33,10 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
   const secretInput = must<HTMLInputElement>("#sharing-form-secret", root);
   const saveButton = must<HTMLButtonElement>("#sharing-form-save", root);
   const checkButton = must<HTMLButtonElement>("#sharing-form-check", root);
-  const messageLine = must<HTMLParagraphElement>("#sharing-form-message", root);
+  const message = createSettingsMessage(must<HTMLParagraphElement>("#sharing-form-message", root));
   const removeButton = must<HTMLButtonElement>("#sharing-form-remove", root);
 
   let current: SharingResponse["sharing"] = null;
-
-  function showMessage(message: string, level: "error" | "success" = "error"): void {
-    messageLine.textContent = message;
-    messageLine.classList.toggle("inline-error", level === "error");
-    messageLine.classList.toggle("inline-success", level === "success");
-    messageLine.hidden = false;
-  }
 
   function setSecretPlaceholder(): void {
     secretInput.placeholder =
@@ -54,7 +48,7 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
   }
 
   function openForm(): void {
-    messageLine.hidden = true;
+    message.clear();
     endpointInput.value = current?.endpoint ?? "";
     bucketInput.value = current?.bucket ?? "";
     regionInput.value = current?.region ?? "";
@@ -63,14 +57,13 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
     setSecretPlaceholder();
     checkButton.hidden = current === null;
     removeButton.hidden = current === null;
-    if (current?.keyProblem) showMessage(current.keyProblem);
+    if (current?.keyProblem) message.show(current.keyProblem);
     deps.openSettingsSubpage("sharing");
   }
 
   // A save is kept only once the server has put a file in the bucket and
   // read it back by its link, which takes a moment.
   async function onSave(): Promise<void> {
-    messageLine.hidden = true;
     saveButton.disabled = true;
     saveButton.textContent = "…";
     try {
@@ -87,7 +80,7 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
       setSecretPlaceholder();
       checkButton.hidden = false;
       removeButton.hidden = false;
-      showMessage("Saved. A file went into the bucket, opened by its link and was deleted.", "success");
+      message.show("Saved. A file went into the bucket, opened by its link and was deleted.", "success");
     } finally {
       saveButton.disabled = false;
       saveButton.textContent = "Save";
@@ -95,13 +88,12 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
   }
 
   async function onCheck(): Promise<void> {
-    messageLine.hidden = true;
     checkButton.disabled = true;
     try {
       await postCheckSharing();
-      showMessage("Sharing works. A file went into the bucket, opened by its link and was deleted.", "success");
+      message.show("Sharing works. A file went into the bucket, opened by its link and was deleted.", "success");
     } catch (error) {
-      showMessage(error instanceof Error ? error.message : "Couldn't reach the bucket");
+      message.show(error instanceof Error ? error.message : "Couldn't reach the bucket");
     } finally {
       checkButton.disabled = false;
     }
@@ -150,7 +142,7 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void onSave().catch((error: unknown) => {
-      showMessage(error instanceof Error ? error.message : "Couldn't save Sharing");
+      message.show(error instanceof Error ? error.message : "Couldn't save Sharing");
     });
   });
 

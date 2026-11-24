@@ -40,11 +40,11 @@ beforeEach(() => {
     <div id="settings-body">
       <div id="sharing-list"></div>
       <form id="sharing-form">
+        <p id="sharing-form-message" hidden></p>
         <input id="sharing-form-endpoint" /><button id="sharing-form-check" type="button"></button>
         <input id="sharing-form-bucket" /><input id="sharing-form-region" />
         <input id="sharing-form-access-key" />
         <input id="sharing-form-secret" /><button id="sharing-form-save" type="submit">Save</button>
-        <p id="sharing-form-message" hidden></p>
       </form>
       <button id="sharing-form-remove" hidden></button>
     </div>`;
@@ -128,6 +128,33 @@ describe("Settings → Files → Sharing", () => {
       expect(byId("sharing-form-message").textContent).toBe("The bucket answered 403: AccessDenied."),
     );
     expect(byId("sharing-form-message").classList.contains("inline-error")).toBe(true);
+  });
+
+  // A line emptied as the attempt starts would move the fields under it twice.
+  it("keeps the last message up while the next attempt runs, then puts its own in its place", async () => {
+    vi.mocked(fetchSharing).mockResolvedValue(saved);
+    vi.mocked(postCheckSharing).mockRejectedValueOnce(new Error("The bucket answered 403: AccessDenied."));
+    wire();
+    await vi.waitFor(() => expect(row()).not.toBeNull());
+    row()?.click();
+    const line = byId("sharing-form-message");
+    byId("sharing-form-check").click();
+    await vi.waitFor(() => expect(line.textContent).toBe("The bucket answered 403: AccessDenied."));
+
+    let answer = () => {};
+    vi.mocked(postCheckSharing).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    byId("sharing-form-check").click();
+    expect(line.hidden).toBe(false);
+    expect(line.textContent).toBe("The bucket answered 403: AccessDenied.");
+
+    answer();
+    await vi.waitFor(() => expect(line.classList.contains("inline-success")).toBe(true));
+    expect(line.textContent).toBe("Sharing works. A file went into the bucket, opened by its link and was deleted.");
+    expect(line.classList.contains("inline-error")).toBe(false);
   });
 
   it("removes the setup inside the confirmation, then goes back to Files", async () => {

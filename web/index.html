@@ -824,6 +824,7 @@
                   <h3 id="mcp-form-title" class="settings-subpage-title">Add MCP server</h3>
                 </div>
                 <form id="mcp-server-form" class="settings-form-stack">
+                  <p id="mcp-form-message" class="settings-form-message" hidden></p>
                   <p id="mcp-form-trust" class="settings-intro">Only add servers you trust.</p>
                   <div class="settings-group">
                     <div class="settings-card">
@@ -871,7 +872,6 @@
                     <button id="mcp-form-sign-in" type="button" class="btn" hidden>Sign in</button>
                     <button id="mcp-form-set" type="submit" class="btn primary">Add</button>
                   </div>
-                  <p id="mcp-form-error" class="inline-error settings-group-note" hidden></p>
                 </form>
                 <div class="settings-group">
                   <div class="settings-card">
@@ -888,6 +888,7 @@
                   <h3 class="settings-subpage-title">Sharing</h3>
                 </div>
                 <form id="sharing-form" class="settings-form-stack">
+                  <p id="sharing-form-message" class="settings-form-message" hidden></p>
                   <p class="settings-intro">Some providers take reference images and videos only as links. Pragma puts each file in a bucket of your own, gives the provider a link that expires after a day, and deletes the file when the job ends.</p>
                   <div class="settings-group">
                     <div class="settings-card">
@@ -915,7 +916,6 @@
                       </div>
                     </div>
                     <p class="settings-group-note">Works with any S3-compatible storage. Saving puts a small file in the bucket, opens it by its link and deletes it, so a bucket that can't share files is never saved.</p>
-                    <p id="sharing-form-message" class="inline-error settings-group-note" hidden></p>
                   </div>
                 </form>
                 <div class="settings-group">
@@ -933,6 +933,7 @@
                   <h3 id="publishers-form-title" class="settings-subpage-title">Add publisher</h3>
                 </div>
                 <form id="publishers-form" class="settings-form-stack">
+                  <p id="publishers-form-message" class="settings-form-message" hidden></p>
                   <div class="settings-group">
                     <div class="settings-card">
                       <div class="settings-field" id="publishers-form-preset-row">
@@ -955,7 +956,6 @@
                     </div>
                     <p class="settings-group-note settings-custom-only" hidden>Connect to any service that implements Sogma’s publishing API.</p>
                     <p id="publishers-form-name-hint" class="settings-group-note" hidden></p>
-                    <p id="publishers-form-message" class="inline-error settings-group-note" hidden></p>
                   </div>
                 </form>
                 <div class="settings-group">
@@ -973,6 +973,7 @@
                   <h3 id="providers-form-title" class="settings-subpage-title">Add provider</h3>
                 </div>
                 <form id="providers-form" class="settings-form-stack">
+                  <p id="providers-form-message" class="settings-form-message" hidden></p>
                   <div class="settings-group">
                     <div class="settings-card">
                       <div class="settings-field" id="providers-form-preset-row">
@@ -1006,7 +1007,6 @@
                     <p id="providers-form-sign-in-status" class="settings-group-note" hidden></p>
                     <p class="settings-group-note settings-custom-only" hidden>Connect to any service that provides an OpenAI-compatible API, such as LM Studio or Ollama.</p>
                     <p id="providers-form-name-hint" class="settings-group-note" hidden></p>
-                    <p id="providers-form-message" class="inline-error settings-group-note" hidden></p>
                   </div>
                   <div id="providers-form-models" class="settings-form-stack" hidden>
                     <div class="settings-group">
@@ -1056,6 +1056,7 @@
                   <h3 class="settings-subpage-title">Create token</h3>
                 </div>
                 <form id="api-token-form" class="settings-form-stack">
+                  <p id="api-token-error" class="settings-form-message" hidden></p>
                   <div class="settings-group">
                     <div class="settings-card">
                       <div class="settings-field">
@@ -1081,7 +1082,6 @@
                   <div class="settings-form-actions">
                     <button id="api-token-create" type="submit" class="btn primary">Create</button>
                   </div>
-                  <p id="api-token-error" class="inline-error settings-group-note" hidden></p>
                 </form>
               </section>
               <section class="settings-subpage" data-settings-subpage="added-words" data-settings-parent="editor" hidden>

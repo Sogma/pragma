@@ -13,6 +13,7 @@ import {
 import { PROVIDER_PRESET_IDS } from "../core/providerPresets.ts";
 import { buildOpenRow, countText, must, replaceRows } from "../lib/dom.ts";
 import { markExternalLink, openExternalLink } from "../lib/externalLinks.ts";
+import { createSettingsMessage, type SettingsMessageLevel } from "../lib/settingsMessage.ts";
 import { uniqueSlug } from "../lib/slug.ts";
 import type { DialogService } from "../services/dialog.ts";
 
@@ -82,8 +83,10 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   const signInButton = must<HTMLButtonElement>("#mcp-form-sign-in", root);
   const setButton = must<HTMLButtonElement>("#mcp-form-set", root);
   const testButton = must<HTMLButtonElement>("#mcp-form-test", root);
+  // The connection's progress, a note under its card; what came of it is the
+  // form's message.
   const statusLine = must<HTMLParagraphElement>("#mcp-form-status", root);
-  const errorLine = must<HTMLParagraphElement>("#mcp-form-error", root);
+  const message = createSettingsMessage(must<HTMLParagraphElement>("#mcp-form-message", root));
   const removeButton = must<HTMLButtonElement>("#mcp-form-remove", root);
   const formSection = must<HTMLElement>('[data-settings-subpage="mcp-server"]', root);
 
@@ -103,7 +106,6 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   let authorizationUrl: string | undefined;
   let pollTimer: number | undefined;
   let status: Node[] = [];
-  let statusFailed = false;
   // Whether this visit to the form created the server, and the word for the
   // list's note once a pending sign-in finishes.
   let addedHere = false;
@@ -169,13 +171,18 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
         : "";
 
     statusLine.replaceChildren(...status);
-    statusLine.classList.toggle("inline-error", statusFailed);
     statusLine.hidden = status.length === 0;
   }
 
-  function setStatus(nodes: Node[], failed = false): void {
+  function setStatus(nodes: Node[]): void {
     status = nodes;
-    statusFailed = failed;
+  }
+
+  // What came of connecting or signing in replaces the progress note.
+  function report(outcome: string, level?: SettingsMessageLevel): void {
+    setStatus([]);
+    message.show(outcome, level);
+    render();
   }
 
   function stopPolling(): void {
@@ -230,8 +237,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
         deps.onServersChanged();
         await connect({ afterSignIn: true, verb: finishVerb });
       } else {
-        setStatus([text(signIn.message ?? "The sign-in didn't finish.")], true);
-        render();
+        report(signIn.message ?? "The sign-in didn't finish.");
       }
       void load();
     };
@@ -244,6 +250,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
     openExternalLink(url);
     signIn = { state: "pending" };
     setStatus([text("Finish signing in in your browser."), ...signInLink()]);
+    message.clear();
     render();
     pollSignIn(formServerId);
   }
@@ -263,22 +270,21 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
         return;
       }
       if (result.state === "connected") {
-        setStatus([text(toolSummary(result.tools))]);
+        report(toolSummary(result.tools), "success");
       } else if (result.state === "needs-token") {
+        // Asks for the token beside its field, so it stays a note.
         setStatus([text(result.message)]);
+        message.clear();
         render();
         keyInput.focus();
-        return;
       } else if (afterSignIn) {
-        setStatus([text("Signed in, but the server still refused the connection.")], true);
+        report("Signed in, but the server still refused the connection.");
       } else {
         beginSignIn(result.authorizationUrl, verb ?? "Signed in to");
-        return;
       }
     } catch (error) {
-      setStatus([text(error instanceof Error ? error.message : "Couldn't connect")], true);
+      report(error instanceof Error ? error.message : "Couldn't connect");
     }
-    render();
   }
 
   function openForm(row?: McpServerRow): void {
@@ -286,7 +292,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
     listNote.hidden = true;
     addedHere = false;
     finishVerb = "Saved";
-    errorLine.hidden = true;
+    message.clear();
     keyInput.value = "";
     editing = Boolean(row);
     formServerId = row?.id ?? "";
@@ -298,24 +304,22 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
     flowsAvailable = row?.flowsAvailable ?? false;
     tokenSet = row?.keySource === "stored";
     tokenUnreadable = row?.keySource === "unreadable";
-    // Why the saved token can't be used, in the line a failed Save reports in.
-    if (row?.keyProblem) {
-      errorLine.textContent = row.keyProblem;
-      errorLine.hidden = false;
-    }
     needsToken = false;
     signIn = row?.signIn ?? { state: "signed-out" };
     authorizationUrl = undefined;
     if (signIn.state === "pending") setStatus([text("Finish signing in in your browser.")]);
     else if (signIn.state === "signed-in") setStatus([text("Signed in. Remove the server to sign out.")]);
-    else setStatus(signIn.message ? [text(signIn.message)] : [], true);
+    else setStatus([]);
+    // Why the last sign-in failed and why the saved token can't be used, in
+    // the line a failed Save reports in.
+    const problems = [signIn.state === "signed-out" && signIn.message, row?.keyProblem].filter(Boolean);
+    if (problems.length > 0) message.show(problems.join("\n"));
     render();
     if (row && signIn.state === "pending") pollSignIn(row.id);
     deps.openSettingsSubpage("mcp-server");
   }
 
   async function onSubmit(): Promise<void> {
-    errorLine.hidden = true;
     const adding = !editing;
     // A saved server's URL is fixed (the save route refuses a change), so only
     // Add reads the field.
@@ -361,10 +365,9 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
     try {
       beginSignIn(await postMcpSignIn(formServerId), "Signed in to");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Couldn't start signing in";
-      signIn = { state: "signed-out", message };
-      setStatus([text(message)], true);
-      render();
+      const failure = error instanceof Error ? error.message : "Couldn't start signing in";
+      signIn = { state: "signed-out", message: failure };
+      report(failure);
     }
   }
 
@@ -394,8 +397,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
       void load();
     } catch (error) {
       undo();
-      errorLine.textContent = error instanceof Error ? error.message : "Couldn't save the server";
-      errorLine.hidden = false;
+      message.show(error instanceof Error ? error.message : "Couldn't save the server");
       render();
     }
   }
@@ -467,8 +469,7 @@ export function wireMcpServersPanel(root: HTMLElement, deps: McpServersPanelDeps
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void onSubmit().catch((error: unknown) => {
-      errorLine.textContent = error instanceof Error ? error.message : "Couldn't save the server";
-      errorLine.hidden = false;
+      message.show(error instanceof Error ? error.message : "Couldn't save the server");
     });
   });
 

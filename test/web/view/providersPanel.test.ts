@@ -63,6 +63,7 @@ beforeEach(() => {
       <button id="providers-add"></button>
       <h3 id="providers-form-title"></h3>
       <form id="providers-form">
+        <p id="providers-form-message"></p>
         <div class="settings-field" id="providers-form-preset-row"><button id="providers-form-preset"></button></div>
         <input id="providers-form-name" /><p id="providers-form-name-hint"></p>
         <input id="providers-form-baseurl" />
@@ -79,7 +80,7 @@ beforeEach(() => {
         <div id="providers-form-video-models">
           <div id="providers-form-video-models-list"></div><input id="providers-form-video-model-add" />
         </div>
-        <button id="providers-form-refresh" type="button"></button><p id="providers-form-message"></p>
+        <button id="providers-form-refresh" type="button"></button>
       </form>
       <button id="providers-form-remove" hidden></button>
     </div>`;
@@ -351,6 +352,17 @@ describe("Settings → AI Models' ChatGPT plan", () => {
     vi.spyOn(window, "open").mockReturnValue(null);
     byId("providers-form-allow-plan").click();
     await vi.waitFor(() => expect(postProviderSignIn).toHaveBeenCalledWith("chatgpt", { planUsage: true }));
+  });
+
+  it("says a failed sign-in at the top of the form, where its errors go", async () => {
+    listChatGpt({ state: "signed-out", message: "The sign-in was cancelled." });
+    wire();
+    await vi.waitFor(() => expect(rows()).toHaveLength(1));
+    rows()[0].click();
+
+    expect(text("providers-form-message")).toBe("The sign-in was cancelled.");
+    expect(byId("providers-form-message").classList.contains("inline-error")).toBe(true);
+    expect(byId("providers-form-sign-in-status").hidden).toBe(true);
   });
 
   it("offers no sign-in on a host whose browser can't reach the sign-in's return", async () => {

@@ -23,10 +23,10 @@ beforeEach(() => {
     <p id="api-error" hidden></p>
     <section data-settings-subpage="api-token">
       <form id="api-token-form">
+        <p id="api-token-error" hidden></p>
         <input id="api-token-name" />
         <button id="api-token-read-only" type="button" role="switch" aria-checked="true"></button>
         <button id="api-token-create" type="submit"></button>
-        <p id="api-token-error" hidden></p>
       </form>
     </section>`;
 });
