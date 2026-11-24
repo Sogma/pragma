@@ -57,6 +57,8 @@ The Windows installer isn't signed during the beta, so Windows may stop it with 
 
 The desktop app checks for updates at launch; you can also use Settings → General → Check for updates. On a Mac, Pragma offers the new disk image to download, and you install it yourself.
 
+The desktop app opens Pragma links, `pragma://<space>/<path>`, which Copy path → as Pragma URL copies. On Linux, an AppImage opens them once it's integrated into your desktop.
+
 ### From npm
 
 Requires [Node.js 24+](https://nodejs.org).

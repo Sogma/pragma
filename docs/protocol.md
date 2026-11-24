@@ -291,6 +291,16 @@ A screenplay links the names it already spells, with nothing written into the fi
 
 In a location or a run, the longest span that resolves wins, scanning from the left: `THE THING EMERGES` links `THE THING`. A word ending in `'s` is tried with it, then without. No link is stored, so a renamed world file changes which names link and leaves every screenplay as it was.
 
+### Pragma links
+
+A Pragma link names a file or folder from outside Pragma as `pragma://<space>/<path>`, every name in it percent-encoded:
+
+- `<space>` names a space on the computer that follows the link: by its display name, its folder's name or the id its host gave it. Names compare as [entry names](#entry-names) do, display names before folder names; a name more than one space answers to names none.
+- `<path>` is an [address](#addresses-and-libraries) in that space: a space path, or `lib:<id>/…` for a library's entry. A folder's path ends with `/`, and a link with no path names the space itself.
+- A host splits the path at `/` before decoding it, then refuses a link with a query or a fragment, an empty, `.` or `..` name, a name that decodes to hold `/` or `\`, an entry whose name starts with a dot, a control character, a broken percent code, or more than 4,096 characters.
+
+Following a link opens what it names and nothing else: it never runs or writes, and an entry that isn't there is reported, not created. In a document, a Pragma link is a URL, never a path (see [Links](#links)): it has no backlink, and moving its entry leaves it as written.
+
 ### Project context
 
 For anything that needs more context than a single document provides, the host resolves the **nearest ancestor `README.md`**:

@@ -48,7 +48,7 @@ Authentication and same-origin checks precede Hono for every `/api/*` request. T
 
 ### Desktop boundary
 
-The preload bridge is the renderer's only connection to Electron's main process. Its windows display only the app's origin; external navigation and new windows use the system browser.
+The preload bridge is the renderer's only connection to Electron's main process. Its windows display only the app's origin; external navigation and new windows use the system browser, except a Pragma link, which the main process takes as it takes one from the system. A Pragma link is untrusted input wherever it comes from: the protocol's one parser reads it, and it only opens what it names.
 
 Opening a space file externally requires trust and a main-process check at handoff; executable types, platform executable extensions and executable files are refused. File-manager reveals remain unrestricted.
 
