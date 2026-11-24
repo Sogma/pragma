@@ -32,13 +32,14 @@ import {
   updatesAutomatically,
   windowTheme,
 } from "../src/config/loadConfig.ts";
-import type { LibraryEntry, LibraryOffer, Misspelling, SpellcheckLanguages } from "../src/protocol/api.ts";
+import type { LibraryEntry, LibraryOffer, LinkRequest, Misspelling, SpellcheckLanguages } from "../src/protocol/api.ts";
 import { scaffoldSpace } from "../src/protocol/scaffoldSpace.ts";
 import { type AgentEndpoint, createAgentEndpoint } from "../src/server/apiServer.ts";
 import { defaultAppTarget, systemTarget } from "../src/server/defaultApp.ts";
 import { resumeJobs } from "../src/server/jobRunner.ts";
 import { createLaunchTokenAuth, LAUNCH_TOKEN_COOKIE } from "../src/server/launchTokenAuth.ts";
 import { listeningPort } from "../src/server/listeningPort.ts";
+import { routePragmaLink } from "../src/server/pragmaLinks.ts";
 import { createProductionServer, type ProductionServer } from "../src/server/productionServer.ts";
 import { newSpaceFolderIn } from "../src/server/rootedFiles.ts";
 import { createServedSpace, type ServedSpace } from "../src/server/servedSpace.ts";
@@ -69,6 +70,19 @@ const preloadPath = path.join(app.getAppPath(), "dist/electron/preload.js");
 let win: BrowserWindow | null = null;
 let welcome: BrowserWindow | null = null;
 let production: ProductionServer | null = null;
+
+// One running copy per user-data folder: a second launch, a clicked Pragma
+// link's included, hands its arguments to this copy and quits. A run given
+// its own `--user-data-dir` holds a lock of its own.
+const firstCopy = app.requestSingleInstanceLock();
+if (!firstCopy) app.quit();
+
+// Pragma links from the system wait here until the launch has opened a
+// space, a cold start's link picking which. The pending one is what the
+// latest link asks of the window, until the window takes it.
+const earlyLinks: string[] = [];
+let launched = false;
+let pendingLink: LinkRequest | null = null;
 
 // The pages that come from the build, not the server, load over this scheme:
 // the first-run window's, since no server runs before a space exists, and
@@ -302,6 +316,89 @@ ipcMain.handle("pragma:relocate-space", async (_event, id: string) => {
 ipcMain.handle("pragma:open-space-folder", async () => {
   const picked = await pickSpace();
   if (picked) await openSpace(picked);
+});
+
+// ---- Pragma links
+
+// macOS hands a link over as this event, a cold start's before the app is
+// ready, so it is listened to from here or that link is lost.
+app.on("will-finish-launching", () => {
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    void receiveLink(url);
+  });
+});
+
+// Windows and Linux start a second copy with the link among its arguments.
+app.on("second-instance", (_event, argv) => {
+  const link = linkIn(argv);
+  if (link === undefined) bringForward();
+  else void receiveLink(link);
+});
+
+function linkIn(argv: readonly string[]): string | undefined {
+  return argv.find((arg) => /^pragma:/i.test(arg));
+}
+
+// Routes a link and holds what it asks of the window. Answers the folder of
+// the space to show, or undefined when the link opens nothing.
+function holdLink(input: string): string | undefined {
+  const route = routePragmaLink(loadGlobalConfig(), input);
+  if ("refusal" in route) {
+    pendingLink = { refusal: route.refusal };
+    return undefined;
+  }
+  if (!existsSync(route.spacePath)) {
+    pendingLink = { refusal: `No folder at "${route.spacePath}" for the space "${route.link.space}"` };
+    return undefined;
+  }
+  pendingLink = { open: { path: route.link.path, folder: route.link.folder } };
+  return route.spacePath;
+}
+
+// Another space reloads the window, which asks for the link as it boots; a
+// window already showing the space is told one is waiting.
+async function receiveLink(input: string): Promise<void> {
+  if (!launched) {
+    earlyLinks.push(input);
+    return;
+  }
+  const spacePath = holdLink(input);
+  const showing = served?.root();
+  if (spacePath !== undefined && (showing === undefined || path.resolve(showing) !== path.resolve(spacePath))) {
+    await openSpace(spacePath);
+  } else if (showing === undefined) {
+    refuseWithoutSpace();
+  } else {
+    win?.webContents.send("pragma:link-waiting");
+  }
+  bringForward();
+}
+
+// The welcome window shows no notices, so a link refused while it is the
+// only window says why in a box of its own.
+function refuseWithoutSpace(): void {
+  if (pendingLink === null || !("refusal" in pendingLink)) return;
+  const options = { type: "warning" as const, message: "Pragma can't open that link", detail: pendingLink.refusal };
+  pendingLink = null;
+  void (welcome ? dialog.showMessageBox(welcome, options) : dialog.showMessageBox(options));
+}
+
+function bringForward(): void {
+  if (win === null && welcome === null) reopenMainWindow();
+  const shown = win ?? welcome;
+  if (!shown) return;
+  if (shown.isMinimized()) shown.restore();
+  shown.show();
+  shown.focus();
+}
+
+// What the latest link asks of the window, handed over once.
+ipcMain.handle("pragma:take-link", (event): LinkRequest | null => {
+  if (!fromOwnWindow(event)) return null;
+  const held = pendingLink;
+  pendingLink = null;
+  return held;
 });
 
 // ---- Libraries
@@ -565,6 +662,7 @@ function reportUnreadableConfig(error: HostStateParseError): void {
 }
 
 app.whenReady().then(async () => {
+  if (!firstCopy) return;
   applyMenuBar();
   // Keys and sign-ins rest in the encrypted credential store, protected
   // through the async safeStorage calls, which only exist once the app is ready.
@@ -615,8 +713,14 @@ app.whenReady().then(async () => {
       ? new Response(new Uint8Array(file.content), { headers: { "content-type": file.type } })
       : new Response(null, { status: 404 });
   });
+  // A launch by a link opens the space the link names, in place of the last.
+  const coldLink = linkIn(process.argv) ?? earlyLinks.shift();
+  if (coldLink !== undefined) initialSpace = holdLink(coldLink) ?? initialSpace;
   if (initialSpace) await openSpace(initialSpace);
   else openWelcome();
+  launched = true;
+  if (!served) refuseWithoutSpace();
+  for (const link of earlyLinks.splice(0)) void receiveLink(link);
   // After the credential store, which a provider's sign-in is read through.
   resumeJobs();
 
@@ -627,24 +731,25 @@ app.whenReady().then(async () => {
   setupAutoUpdater(() => win);
   if (updatesAutomatically(loadGlobalConfig())) setTimeout(() => void checkForUpdatesAtLaunch(), 4000);
 
-  // With no main window, a Dock click brings one back even while the About
-  // window is up.
-  app.on("activate", () => {
-    if (win === null && welcome === null && production) {
-      const { port } = production.server.address() as AddressInfo;
-      win = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        title: "Pragma",
-        backgroundColor: windowBackground(nativeTheme),
-        ...windowChromeOptions(),
-        webPreferences: { contextIsolation: true, nodeIntegration: false, preload: preloadPath },
-      });
-      followMainWindow(win);
-      void win.loadURL(`http://127.0.0.1:${port}/`);
-    }
-  });
+  app.on("activate", () => reopenMainWindow());
 });
+
+// With no main window, a Dock click or a link brings one back, over the
+// space already served, even while the About window is up.
+function reopenMainWindow(): void {
+  if (win !== null || welcome !== null || !production) return;
+  const { port } = production.server.address() as AddressInfo;
+  win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    title: "Pragma",
+    backgroundColor: windowBackground(nativeTheme),
+    ...windowChromeOptions(),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: preloadPath },
+  });
+  followMainWindow(win);
+  void win.loadURL(`http://127.0.0.1:${port}/`);
+}
 
 // Every new window a page asks for — a reading-view link, a video player's
 // "Watch on YouTube" — goes to the system browser. Electron would otherwise

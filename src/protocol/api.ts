@@ -1539,6 +1539,11 @@ export interface SpellcheckLanguages {
   available: string[];
 }
 
+// What a Pragma link asks of the desktop app's window, once the space it
+// names is open: an entry to open there ("" for the space itself), or why
+// the link opens nothing.
+export type LinkRequest = { open: { path: string; folder: boolean } } | { refusal: string };
+
 // The desktop app's macOS menu bar as the page describes it, for the main
 // process to draw. A pick of a command item comes back to the page as its
 // command and argument; a role is one of macOS's own items, run by the
