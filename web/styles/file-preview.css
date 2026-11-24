@@ -95,12 +95,12 @@
   container-type: size;
 }
 
-/* The mat (tokens.css says why it is one grey) is the frame's padding,
+/* The mat (tokens.css says why both themes share it) is the frame's padding,
    never a border on the picture: the hover bars cover the picture's whole
    box, and would cover the mat too. */
 .file-preview-frame {
   padding: var(--mat-width);
-  background: var(--neutral-bg);
+  background: var(--preview-mat-bg);
   box-shadow: var(--shadow-menu);
 }
 
@@ -212,7 +212,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: var(--neutral-bg);
+  background: var(--preview-mat-bg);
   box-shadow: var(--shadow-menu);
   transition: inset 150ms ease;
 }

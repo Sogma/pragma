@@ -212,9 +212,11 @@
   --media-guide-marker: #b0ffa8;
   --media-guide-level-mark: #fff;
   /* One dark grey for both themes, behind what must look the same in either:
-     a previewed picture's mat, and a screenplay's link glyph, whose lime is
-     one value in both themes too. */
+     a screenplay's link glyph, whose lime is one value in both themes too. */
   --neutral-bg: #252525;
+  /* A previewed picture's mat and its bands, one near-black for both themes,
+     so a picture looks the same in either. */
+  --preview-mat-bg: #151515;
   --link-note-glyph: #e3ff39;
   /* A highlight's fill and text, the same in both themes: the dark theme's
      own text is too light to read on the fill. */
