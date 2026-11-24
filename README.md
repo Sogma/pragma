@@ -1,6 +1,6 @@
 <img src="web/public/images/logo.svg" alt="Pragma" width="240">
 
-Pragma is a workspace for writing, data, Flows, and small applications, kept together as plain files in a folder you own.
+Pragma is an open protocol and local editor for AI-assisted work in a space you own. A space is a folder that keeps your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.
 
 Move between doing the work yourself, shaping the tools that help you, and delegating to agents. Keep the context close, the results inspectable, and the authority to act in your hands.
 
