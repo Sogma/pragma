@@ -38,8 +38,8 @@
   white-space: nowrap;
 }
 
-/* The dimensions at the left, a clip's frame rate or a still's color mode at
-   the right. A fact with no room beside the dimensions drops out whole,
+/* The dimensions at the left, a clip's frame rate or a still's scale at the
+   right. A fact with no room beside the dimensions drops out whole,
    never cut off: it wraps to a second line, which the bar's one-line height
    hides. That height is its content box's, so the padding stays around it. */
 .thumbnail-hud-bar.is-top {

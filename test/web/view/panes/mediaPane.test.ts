@@ -144,10 +144,10 @@ describe("imagePane", () => {
     pane.element.querySelector("img")?.dispatchEvent(new Event("load"));
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "…", "Color mode": "…", "Bit depth": "…" });
-    expect(hudText(pane)).toEqual([" |  |  | ", "cover.png |  | "]);
+    expect(hudText(pane)).toEqual([" |  | ", "cover.png |  | "]);
   });
 
-  it("lays name, size, dimensions, color mode, scale and the ⋮ over the picture, in its own frame", async () => {
+  it("lays name, size, dimensions, scale and the ⋮ over the picture, in its own frame", async () => {
     const { pane } = setup();
     await pane.setInput(tab, current);
     await settle();
@@ -162,11 +162,22 @@ describe("imagePane", () => {
 
     describeDecoded(img, [600, 800], [450.5, 600.75]);
     expect(hud.hidden).toBe(false);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 75% |  | RGBA 8-bit", "cover.png | 84 KB | "]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 75%", "cover.png | 84 KB | "]);
     expect(hud.querySelector(".media-hud-bar:last-child > :last-child")?.getAttribute("aria-label")).toBe(
       "More options",
     );
     expect(hud.getAttribute("style")).toBeNull();
+  });
+
+  // The top bar's middle fact is centred on the picture, so the badge stays
+  // there whether its look is on or off.
+  it("puts a picked look's badge between the dimensions and the scale", async () => {
+    const { pane, lut } = setup();
+    lut.set({ lut: "panchromatic", on: false });
+    await pane.setInput(tab, current);
+    await settle();
+    describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [450.5, 600.75]);
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | LOOK | 75%");
   });
 
   // A thumbnail-sized picture would be all bar, so only its ⋮ stays.
@@ -184,7 +195,7 @@ describe("imagePane", () => {
     await pane.setInput(tab, current);
     await settle();
     describeDecoded(pane.element.querySelector("img") as HTMLImageElement, [600, 800], [600, 800]);
-    expect(hudText(pane)).toEqual(["600 × 800 (3:4) | 100% |  | RGBA 8-bit", "cover.png |  | "]);
+    expect(hudText(pane)).toEqual(["600 × 800 (3:4) |  | 100%", "cover.png |  | "]);
   });
 
   // As the video tab shows a clip, through the guides and the look every
@@ -249,27 +260,20 @@ describe("imagePane", () => {
   });
 
   it.each([
-    [{ colorModel: "rgb", alpha: false, bitDepth: 16, sourceType: null }, "RGB", "16 bits per channel", "RGB 16-bit"],
-    [{ colorModel: "cmyk", alpha: false, bitDepth: 8, sourceType: null }, "CMYK", "8 bits per channel", "CMYK 8-bit"],
+    [{ colorModel: "rgb", alpha: false, bitDepth: 16, sourceType: null }, "RGB", "16 bits per channel"],
+    [{ colorModel: "cmyk", alpha: false, bitDepth: 8, sourceType: null }, "CMYK", "8 bits per channel"],
     [
       { colorModel: "grayscale", alpha: true, bitDepth: 8, sourceType: null },
       "Grayscale + alpha",
       "8 bits per channel",
-      "Grayscale + alpha 8-bit",
     ],
     // A palette's depth is its index's: one per pixel, not per channel.
-    [
-      { colorModel: "indexed", alpha: false, bitDepth: 1, sourceType: null },
-      "Indexed",
-      "1 bit per pixel",
-      "Indexed 1-bit",
-    ],
-  ] as const)("names %o the way an image editor's Mode menu does", async (format, mode, depth, overlay) => {
+    [{ colorModel: "indexed", alpha: false, bitDepth: 1, sourceType: null }, "Indexed", "1 bit per pixel"],
+  ] as const)("names %o the way an image editor's Mode menu does", async (format, mode, depth) => {
     const { pane } = setup(sized, async () => format);
     await pane.setInput(tab, current);
     await settle();
     expect(rows(pane)).toMatchObject({ "Color mode": mode, "Bit depth": depth });
-    expect(pane.element.querySelectorAll(".media-hud-bar span")[2].textContent).toBe(overlay);
   });
 
   it("names a picture's source from the IPTC source type its header declares, and none without one", async () => {
@@ -289,7 +293,6 @@ describe("imagePane", () => {
     await pane.setInput(tab, current);
     await settle();
     expect(rows(pane)).toMatchObject({ "Color mode": "Unknown", "Bit depth": "Unknown" });
-    expect(hudText(pane)[0]).toBe(" |  |  | ");
   });
 
   // A vector has no pixel format to read.
@@ -315,7 +318,7 @@ describe("imagePane", () => {
     describeDecoded(img, [300, 141], [651.5, 307.25]);
     await settle();
     expect(rows(pane)).toEqual({ Dimensions: "2412 × 1137px (2.12:1)" });
-    expect(hudText(pane)[0]).toBe("2412 × 1137 (2.12:1) | 27% |  | ");
+    expect(hudText(pane)[0]).toBe("2412 × 1137 (2.12:1) |  | 27%");
     expect(pane.element.className).toBe("editor-image is-zoomable");
   });
 
@@ -378,12 +381,12 @@ describe("imagePane", () => {
     describeShown(img, [600, 800]);
     img.dispatchEvent(new MouseEvent("click", { clientX: 100, clientY: 100 }));
     expect(pane.element.className).toBe("editor-image is-actual-size");
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 100% |  | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) |  | 100%");
 
     describeShown(img, [450, 600]);
     img.dispatchEvent(new MouseEvent("click", { clientX: 100, clientY: 100 }));
     expect(pane.element.className).toBe("editor-image is-zoomable");
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 75% |  | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) |  | 75%");
   });
 
   it("leaves a picture already at 100% or more as it is on a click", async () => {
@@ -404,7 +407,7 @@ describe("imagePane", () => {
     describeDecoded(img, [600, 800], [450, 600]);
     describeShown(img, [453, 604], 38);
     img.dispatchEvent(new Event("pointerenter"));
-    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) | 76% |  | RGBA 8-bit");
+    expect(hudText(pane)[0]).toBe("600 × 800 (3:4) |  | 76%");
     describeShown(img, [150, 200]);
     img.dispatchEvent(new Event("pointerenter"));
     expect([hud.hidden, hud.classList.contains("is-bare")]).toEqual([false, true]);
@@ -535,7 +538,7 @@ describe("imagePane", () => {
       runs[0].finish();
       await settle();
       expect(pane.element.className).toBe("editor-image is-actual-size");
-      expect(hudText(pane)[0]).toBe("2400 × 1600 (3:2) | 100% |  | RGBA 8-bit");
+      expect(hudText(pane)[0]).toBe("2400 × 1600 (3:2) |  | 100%");
 
       img.dispatchEvent(new MouseEvent("click"));
       expect(pane.element.className).toBe("editor-image is-zooming");

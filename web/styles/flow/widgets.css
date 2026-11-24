@@ -80,6 +80,20 @@
   font-size: var(--small-font-size);
 }
 
+/* The dimensions at the left and the scale at the right. The scale with no
+   room beside the dimensions drops out whole, never cut off, as on a
+   thumbnail: it wraps to a second line, which the one-line height hides. */
+.flow-picture-facts {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 8px;
+  min-width: 0;
+  height: 1lh;
+  overflow: hidden;
+}
+
 /* Shown only in an App Mode tile too narrow for the dimensions, which the
    ratio alone stands in for there (app-mode.css). */
 .flow-picture-ratio {

@@ -11,7 +11,6 @@ export function testPreviewSources(): PreviewSources {
     rawFileUrl: (path) => `/raw?path=${path}`,
     fetchFile: vi.fn(async () => new Response("")),
     videoFormat: vi.fn(async () => ({ codec: "H.264", frameRate: 24, variableFrameRate: false })),
-    pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: false, bitDepth: 8, sourceType: null })),
     readingResolvers: vi.fn(() => ({
       image: () => undefined,
       link: () => undefined,

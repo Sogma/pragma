@@ -9,11 +9,11 @@
 //
 // A thumbnail's bars are the small form, on a gallery tile and a media
 // field alike, holding what their box's width has room for.
-import type { PictureDetails, VideoFormatResponse } from "../../src/protocol/api.ts";
+import type { VideoFormatResponse } from "../../src/protocol/api.ts";
 import { formatAspectRatio } from "../../src/protocol/aspectRatio.ts";
 import { rasterImageMediaTypeForPath, vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import { formatDimensions, formatDuration, formatFileSize, formatFrameRate } from "./dom.ts";
-import { pixelFormatText } from "./mediaDetails.ts";
+import { shownPercent } from "./pictureZoom.ts";
 import { type LutChoice, lookLabel, toggleLook } from "./videoLut.ts";
 
 // Below this, in CSS pixels, the bars would cover most of the picture they
@@ -103,6 +103,14 @@ export function showTransparency(img: HTMLImageElement, path: string): void {
   });
 }
 
+/** The scale a picture of `width` × `height` pixels is drawn at, contained
+ * whole in `box`: at the box's width or its height, whichever it reaches
+ * first. A whole percent, empty until both sizes are known. */
+export function containedScale(box: HTMLElement, width: number, height: number): string {
+  const drawn = width > 0 && height > 0 ? Math.min(box.clientWidth, (box.clientHeight * width) / height) : 0;
+  return drawn > 0 ? `${shownPercent(drawn, width)}%` : "";
+}
+
 /** Whether a picture shown this size, in CSS pixels, has room for the bars.
  * Measuring decides only that; the bars' place is the frame's. */
 function hudFits(width: number, height: number): boolean {
@@ -129,19 +137,20 @@ export interface ThumbnailFacts {
   duration?: number;
   /** What a clip's header says, which gives its frame rate. */
   clip?: VideoFormatResponse;
-  /** What a still's header says, which gives its color mode. */
-  picture?: PictureDetails;
 }
 
 export interface ThumbnailHud {
   fill(facts: ThumbnailFacts): void;
+  /** Shows the scale a still is drawn at in its box. The box follows its
+   * pane's size, so the hover that shows the bars calls this. */
+  measure(): void;
   /** Whether the box is wide enough to show the bars at all. */
   shown(): boolean;
 }
 
 /** Hover bars on a thumbnail's own box (web/styles/thumbnail-hud.css): the
- * dimensions with their ratio, then a clip's frame rate or a still's color
- * mode, and the ratio alone for a narrow box, along the top; a clip's
+ * dimensions with their ratio, then a clip's frame rate or a still's display
+ * scale, and the ratio alone for a narrow box, along the top; a clip's
  * duration and the size along the bottom. The box's width decides what they
  * hold. They repeat the Info tab, so assistive technology skips them. */
 export function thumbnailHud(box: HTMLElement): ThumbnailHud {
@@ -149,9 +158,10 @@ export function thumbnailHud(box: HTMLElement): ThumbnailHud {
   const root = document.createElement("span");
   root.className = "thumbnail-hud";
   root.setAttribute("aria-hidden", "true");
-  const [dimensions, format, ratio, duration, size] = hudCells(5);
+  const [dimensions, format, scale, ratio, duration, size] = hudCells(6);
   dimensions.className = "thumbnail-hud-dimensions";
   format.className = "thumbnail-hud-format";
+  scale.className = "thumbnail-hud-scale";
   ratio.className = "thumbnail-hud-ratio";
   const bar = (edge: "top" | "bottom", ...cells: HTMLElement[]) => {
     const row = document.createElement("span");
@@ -160,23 +170,34 @@ export function thumbnailHud(box: HTMLElement): ThumbnailHud {
     root.append(row);
     return row;
   };
-  const top = bar("top", dimensions, format, ratio);
+  const top = bar("top", dimensions, format, scale, ratio);
   const bottom = bar("bottom", duration, size);
   box.append(root);
+  let width = 0;
+  let height = 0;
+  // Once a still has been measured, facts that arrive later, while its bars
+  // may be up, are measured at once rather than at the next hover.
+  let scaled = false;
+  // Every thumbnail box with room for the bars contains its picture whole.
+  const measure = () => {
+    scaled = true;
+    scale.textContent = containedScale(box, width, height);
+  };
   return {
     fill(facts) {
-      const width = facts.width ?? 0;
-      const height = facts.height ?? 0;
+      width = facts.width ?? 0;
+      height = facts.height ?? 0;
       const measured = width > 0 && height > 0;
       dimensions.textContent = measured ? formatDimensions(width, height, "") : "";
-      const pixels = facts.picture?.pixels;
-      format.textContent = facts.clip ? (formatFrameRate(facts.clip) ?? "") : pixels ? pixelFormatText(pixels) : "";
+      format.textContent = facts.clip ? (formatFrameRate(facts.clip) ?? "") : "";
+      if (scaled) measure();
       ratio.textContent = measured ? formatAspectRatio(width, height) : "";
       duration.textContent = facts.duration === undefined ? "" : formatDuration(facts.duration);
       size.textContent = facts.size === undefined ? "" : formatFileSize(facts.size);
       top.hidden = !measured;
       bottom.hidden = facts.duration === undefined && facts.size === undefined;
     },
+    measure,
     shown: () => getComputedStyle(root).display !== "none",
   };
 }

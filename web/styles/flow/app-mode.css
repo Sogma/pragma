@@ -180,7 +180,7 @@
    does. */
 @container (max-width: 150px) {
   .flow-app-field .flow-picture > .media-hud > .media-hud-bar:last-child,
-  .flow-app-field .flow-picture > .media-hud > .media-hud-bar:first-child > :first-child {
+  .flow-app-field .flow-picture-facts {
     display: none;
   }
 

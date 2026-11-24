@@ -257,7 +257,7 @@ describe("a previewed clip's or still's LOOK badge", () => {
     expect(look.get()).toEqual({ lut: "panchromatic", on: true });
   });
 
-  it("sits between a still's dimensions and its color mode, D turning the look", () => {
+  it("sits between a still's dimensions and its scale, D turning the look", () => {
     const { preview, overlay, look } = setup();
     look.set({ lut: "orthochromatic", on: true });
     preview.show(0);
@@ -328,7 +328,7 @@ describe("a previewed file's More options", () => {
     preview.show(0);
     decode(overlay, [600, 450]);
     expect(bars(overlay)).toEqual([
-      ["4000 × 3000 (4:3)", "", ""],
+      ["4000 × 3000 (4:3)", "", "15%"],
       ["a.png", "⋮"],
     ]);
     const more = overlay.querySelector(".media-hud-more") as HTMLButtonElement;
@@ -397,6 +397,26 @@ describe("a previewed file's More options", () => {
     const broken = overlay.querySelector(".media-hud") as HTMLElement;
     overlay.querySelector(".file-preview-frame img")?.dispatchEvent(new Event("error"));
     expect([broken.hidden, broken.classList.contains("is-bare")]).toEqual([false, true]);
+  });
+});
+
+// As the image view's: how big a still is shown against its own pixels, at
+// the top bar's right, measured again whenever the preview is fitted.
+describe("a previewed still's scale", () => {
+  it("follows the picture as a resized pane fits the preview again", () => {
+    const { preview, overlay } = setup();
+    preview.show(0);
+    const img = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 4000 });
+    Object.defineProperty(img, "naturalHeight", { value: 3000 });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 450 }) as DOMRect;
+    img.dispatchEvent(new Event("load"));
+    const topRight = () => overlay.querySelector(".media-hud-bar")?.lastElementChild?.textContent;
+    expect(topRight()).toBe("15%");
+
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 750 }) as DOMRect;
+    preview.fit();
+    expect(topRight()).toBe("25%");
   });
 });
 

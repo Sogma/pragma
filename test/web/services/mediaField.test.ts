@@ -454,15 +454,15 @@ describe("a media field checked against the space's listing", () => {
 });
 
 // A gallery tile's hover bars, on the picture: what the file decodes to at
-// once, and on the first hover that shows them the size, which a cell
-// doesn't hold.
+// once, a still's scale at each hover that shows them, and on the first the
+// size, which a cell doesn't hold.
 describe("a media field's hover bars", () => {
   const barsOf = (thumb: HTMLElement) =>
     [...thumb.querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
       bar.hidden ? "(hidden)" : [...bar.children].map((cell) => cell.textContent).join(" | "),
     );
 
-  it("give a still its dimensions as it loads, and its size from the file on the first hover", async () => {
+  it("give a still its dimensions as it loads, its scale at each hover, and its size from the file on the first", async () => {
     const info = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(JSON.stringify({ kind: "file", size: 2048, modified: "2026-11-03T00:00:00Z" })));
@@ -473,10 +473,17 @@ describe("a media field's hover bars", () => {
       Object.defineProperty(img, "naturalWidth", { value: 1600 });
       Object.defineProperty(img, "naturalHeight", { value: 900 });
       img.dispatchEvent(new Event("load"));
-      expect(barsOf(thumb)).toEqual(["1600 × 900 (16:9) |  | 16:9", "(hidden)"]);
+      expect(barsOf(thumb)).toEqual(["1600 × 900 (16:9) |  |  | 16:9", "(hidden)"]);
 
+      // jsdom lays nothing out: the thumbnail gets a card picture's inside,
+      // which a wider card then widens.
+      let inside = [320, 180];
+      Object.defineProperties(thumb, { clientWidth: { get: () => inside[0] }, clientHeight: { get: () => inside[1] } });
       thumb.dispatchEvent(new Event("pointerenter"));
+      expect(barsOf(thumb)[0]).toBe("1600 × 900 (16:9) |  | 20% | 16:9");
+      inside = [400, 225];
       thumb.dispatchEvent(new Event("pointerenter"));
+      expect(barsOf(thumb)[0]).toBe("1600 × 900 (16:9) |  | 25% | 16:9");
       await vi.waitFor(() => expect(barsOf(thumb)[1]).toBe(` | ${formatFileSize(2048)}`));
       expect(info).toHaveBeenCalledTimes(1);
       expect(String(info.mock.calls[0][0])).toContain("/api/file/info?path=projects%2Fdemo%2Fcover.png");
@@ -485,15 +492,27 @@ describe("a media field's hover bars", () => {
     }
   });
 
-  it("give a clip its dimensions and duration once its metadata is in", () => {
-    const { element } = field("take.mp4");
-    const thumb = element.querySelector(".media-field-thumb") as HTMLElement;
-    const video = thumb.querySelector("video") as HTMLVideoElement;
-    Object.defineProperty(video, "videoWidth", { value: 1920 });
-    Object.defineProperty(video, "videoHeight", { value: 1080 });
-    Object.defineProperty(video, "duration", { value: 7 });
-    video.dispatchEvent(new Event("loadedmetadata"));
-    expect(barsOf(thumb)).toEqual(["1920 × 1080 (16:9) |  | 16:9", "0:07 | "]);
+  it("give a clip its dimensions and duration once its metadata is in, and no scale on a hover", async () => {
+    const info = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ kind: "file", size: 2048, modified: "2026-11-03T00:00:00Z" })));
+    try {
+      const { element } = field("take.mp4");
+      const thumb = element.querySelector(".media-field-thumb") as HTMLElement;
+      const video = thumb.querySelector("video") as HTMLVideoElement;
+      Object.defineProperty(video, "videoWidth", { value: 1920 });
+      Object.defineProperty(video, "videoHeight", { value: 1080 });
+      Object.defineProperty(video, "duration", { value: 7 });
+      video.dispatchEvent(new Event("loadedmetadata"));
+      expect(barsOf(thumb)).toEqual(["1920 × 1080 (16:9) |  |  | 16:9", "0:07 | "]);
+
+      Object.defineProperties(thumb, { clientWidth: { value: 320 }, clientHeight: { value: 180 } });
+      thumb.dispatchEvent(new Event("pointerenter"));
+      await vi.waitFor(() => expect(barsOf(thumb)[1]).toBe(`0:07 | ${formatFileSize(2048)}`));
+      expect(barsOf(thumb)[0]).toBe("1920 × 1080 (16:9) |  |  | 16:9");
+    } finally {
+      info.mockRestore();
+    }
   });
 
   it("put none on an empty field", () => {

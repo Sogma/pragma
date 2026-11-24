@@ -13,7 +13,7 @@
 // arranges while that is manual order.
 import type { FolderLayout } from "../../../src/protocol/localSort.ts";
 import { dirnameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
-import { hasKnownKind } from "../../../src/protocol/types.ts";
+import { hasKnownKind, rasterImageMediaTypeForPath } from "../../../src/protocol/types.ts";
 import {
   type ClipFactsResponse,
   type FileResponse,
@@ -69,7 +69,7 @@ import {
   type PendingCreate,
 } from "../../lib/inlineEdit.ts";
 import { createInlineError } from "../../lib/inlineError.ts";
-import { clipDetailRows, pictureDetailRows } from "../../lib/mediaDetails.ts";
+import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "../../lib/mediaDetails.ts";
 import { type ThumbnailHud, thumbnailHud } from "../../lib/mediaHud.ts";
 import type { GuidesChoice } from "../../lib/videoGuides.ts";
 import type { LutChoice } from "../../lib/videoLut.ts";
@@ -228,7 +228,9 @@ export interface GalleryPaneDeps {
   clipFacts(path: string, version: string): Promise<ClipFactsResponse>;
   /** A previewed clip's codec and frame rate, read from its header by the server. */
   videoFormat(path: string): Promise<VideoFormatResponse>;
-  /** A previewed still's color mode and bit depth, read from its header by the server. */
+  /** For a still listed without its header's facts, as one whose thumbnail
+   * this browser made is: its color mode, bit depth and source, read from
+   * its header by the server. */
   pixelFormat(path: string): Promise<PixelFormatResponse>;
   /** A file as a document route reads it, for its page. */
   loadFile(path: string): Promise<FileResponse>;
@@ -346,7 +348,6 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     rawFileUrl: deps.rawFileUrl,
     fetchFile: deps.fetchFile,
     videoFormat: deps.videoFormat,
-    pixelFormat: deps.pixelFormat,
     loadFile: deps.loadFile,
     readingResolvers: deps.readingResolvers,
     formats: deps.formats,
@@ -388,18 +389,38 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     if (entry.width && entry.height)
       appendMetaRow(details.body, "Dimensions", formatDimensions(entry.width, entry.height));
     if (entry.duration !== undefined) appendMetaRow(details.body, "Duration", formatDuration(entry.duration));
+    const still = entry.type === "file" && rasterImageMediaTypeForPath(entry.path) !== undefined;
+    if (still && !entry.picture) readPicture(entry);
     const rows = entry.clip
       ? [
           ...(entry.clip.frameRate === null ? [] : [{ label: "Frame rate", value: formatFrameRate(entry.clip) ?? "" }]),
           ...(entry.clip.codec === null ? [] : [{ label: "Codec", value: entry.clip.codec }]),
           ...clipDetailRows(entry.clip),
         ]
-      : entry.picture
-        ? pictureDetailRows(entry.picture)
-        : [];
+      : [
+          ...(still ? pixelFormatRows(entry.picture?.pixels ?? null, entry.picture ? "Unknown" : "…") : []),
+          ...(entry.picture ? pictureDetailRows(entry.picture) : []),
+        ];
     for (const row of rows) appendMetaRow(details.body, row.label, row.value);
     if (entry.type === "file") appendMetaRow(details.body, "Size", formatFileSize(entry.size));
     appendMetaRow(details.body, "Modified", dateTimeLabel(entry.modified));
+  }
+
+  // A still whose thumbnail this browser made was listed without its
+  // header's facts. They are read once, when it is first selected, and kept
+  // on the entry, as a clip's are.
+  const readingPictures = new WeakSet<FolderEntry>();
+  function readPicture(entry: FolderEntry): void {
+    if (readingPictures.has(entry)) return;
+    readingPictures.add(entry);
+    const keep = (picture: NonNullable<FolderEntry["picture"]>) => {
+      Object.assign(entry, { picture });
+      if (selected !== undefined && entries[selected] === entry) renderDetails();
+    };
+    deps.pixelFormat(entry.path).then(
+      ({ sourceType, ...pixels }) => keep({ sourceType, pixels }),
+      () => keep({ sourceType: null, pixels: null }),
+    );
   }
 
   // ---- tiles ------------------------------------------------------------
@@ -561,6 +582,9 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
       hud = thumbnailHud(frame);
       hud.fill(entry);
     }
+    // A still's scale is measured as the pointer enters the tile, whose hover
+    // shows the bars: the square follows the pane's width.
+    if (kind === "image" || kind === "svg") tile.addEventListener("pointerenter", () => hud?.measure());
 
     return {
       element: tile,

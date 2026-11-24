@@ -27,13 +27,7 @@ import {
   formatFrameRate,
   must,
 } from "../../lib/dom.ts";
-import {
-  bitDepthText,
-  clipDetailRows,
-  colorModeName,
-  pictureDetailRows,
-  pixelFormatText,
-} from "../../lib/mediaDetails.ts";
+import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "../../lib/mediaDetails.ts";
 import { fitHud, hudCells, hudRoot, lookBadge, mediaFrame, showTransparency } from "../../lib/mediaHud.ts";
 import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "../../lib/pictureLayers.ts";
@@ -145,15 +139,16 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
   return { kind: "video", chrome: CHROME, create: () => createVideoPane(deps) };
 }
 
-/** The image's overlay: dimensions, display scale, the LOOK badge once a
- * look has been picked, and color mode along the top edge; file name, size
- * and the ⋮ along the bottom. */
+/** The image's overlay: dimensions, the LOOK badge once a look has been
+ * picked, and display scale along the top edge; file name, size and the ⋮
+ * along the bottom. The top holds three facts at most, so the badge stays
+ * centred on the picture (web/styles/media-panes.css). */
 function createImageHud(lut: LutChoice, more: HTMLButtonElement) {
-  const [name, size, dimensions, mode, scale] = hudCells(5);
+  const [name, size, dimensions, scale] = hudCells(4);
   name.className = "media-hud-name";
   const look = lookBadge(lut);
-  const root = hudRoot([dimensions, scale, look.element, mode], [name, size, more]);
-  return { root, name, size, dimensions, mode, scale, look };
+  const root = hudRoot([dimensions, look.element, scale], [name, size, more]);
+  return { root, name, size, dimensions, scale, look };
 }
 
 /** The video's overlay: dimensions, codec, display scale, the LOOK badge
@@ -290,7 +285,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       const name = basenameOf(tab.path);
       hud.root.hidden = true;
       hud.name.textContent = name;
-      for (const cell of [hud.size, hud.dimensions, hud.mode, hud.scale]) cell.textContent = "";
+      for (const cell of [hud.size, hud.dimensions, hud.scale]) cell.textContent = "";
 
       const img = document.createElement("img");
       img.src = deps.rawFileUrl(tab.path);
@@ -336,21 +331,20 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       );
 
       if (!raster) return;
-      const colorMode = values.get("Color mode");
-      const bitDepth = values.get("Bit depth");
+      const fillPixelRows = (format: PixelFormatResponse | null) => {
+        for (const row of pixelFormatRows(format)) {
+          const value = values.get(row.label);
+          if (value) value.textContent = row.value;
+        }
+      };
       deps.pixelFormat(tab.path).then(
         (format) => {
           if (!ctx.isCurrent()) return;
-          if (colorMode) colorMode.textContent = colorModeName(format);
-          if (bitDepth)
-            bitDepth.textContent = bitDepthText(format.bitDepth, format.colorModel === "indexed" ? "pixel" : "channel");
-          hud.mode.textContent = pixelFormatText(format);
+          fillPixelRows(format);
           for (const row of pictureDetailRows(format)) appendMetaRow(details.body, row.label, row.value);
         },
         () => {
-          if (!ctx.isCurrent()) return;
-          if (colorMode) colorMode.textContent = "Unknown";
-          if (bitDepth) bitDepth.textContent = "Unknown";
+          if (ctx.isCurrent()) fillPixelRows(null);
         },
       );
     },

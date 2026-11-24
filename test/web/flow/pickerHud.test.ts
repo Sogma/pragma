@@ -21,13 +21,41 @@ describe("pickerHud", () => {
     img.dispatchEvent(new Event("load"));
     expect(el.style.aspectRatio).toBe("896 / 1344");
     expect(Number(el.style.getPropertyValue("--picture-ratio"))).toBeCloseTo(2 / 3);
-    // The ratio alone is the stand-in a narrow App Mode tile shows instead.
-    expect([...bars.querySelectorAll("span")].map((cell) => cell.textContent)).toEqual([
-      "896 × 1344 (2:3)",
-      "2:3",
-      "plate.png",
-      "2.0 KB",
+    // The dimensions and the scale in one box, then the ratio alone, the
+    // stand-in a narrow App Mode tile shows instead; jsdom lays nothing out,
+    // so no scale.
+    const cells = [...bars.children].map((bar) =>
+      [...bar.children].map((cell) =>
+        cell.classList.contains("flow-picture-facts")
+          ? [...cell.children].map((fact) => fact.textContent)
+          : cell.textContent,
+      ),
+    );
+    expect(cells).toEqual([
+      [["896 × 1344 (2:3)", ""], "2:3"],
+      ["plate.png", "2.0 KB"],
     ]);
     expect(bars.querySelector(".flow-picture-ratio")?.textContent).toBe("2:3");
+  });
+
+  // On a card the picture's box has its shape; in App Mode it fills the
+  // tile, which contains the picture.
+  it("shows the scale the picture is drawn at, measured as it loads and as the pointer arrives", () => {
+    const { el, img } = createPickedPicture("data:image/png;base64,AAAA", { name: "plate.png", size: 2048 });
+    const scale = () => el.querySelector(".flow-picture-facts")?.lastElementChild?.textContent;
+    let box = [448, 672];
+    Object.defineProperties(img, {
+      naturalWidth: { value: 896 },
+      naturalHeight: { value: 1344 },
+      clientWidth: { get: () => box[0] },
+      clientHeight: { get: () => box[1] },
+    });
+    img.dispatchEvent(new Event("load"));
+    expect(scale()).toBe("50%");
+
+    // A tile wider than the picture's shape: it is drawn at the tile's height.
+    box = [600, 336];
+    img.dispatchEvent(new Event("pointerenter"));
+    expect(scale()).toBe("25%");
   });
 });

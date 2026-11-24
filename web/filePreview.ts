@@ -12,9 +12,7 @@ import {
 import {
   type FileResponse,
   fetchFileRaw,
-  getPixelFormat,
   getVideoFormat,
-  type PixelFormatResponse,
   rawFileUrl,
   type SelectedFile,
   type VideoFormatResponse,
@@ -22,11 +20,10 @@ import {
 import { type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
 import { readingResolvers } from "./core/spaceTree.ts";
 import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
-import { pixelFormatText } from "./lib/mediaDetails.ts";
 import { fitHud, hudCells, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
-import { canAnimate, frameZoom } from "./lib/pictureZoom.ts";
+import { canAnimate, frameZoom, shownPercent } from "./lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
 import { type GuidesChoice, toggleGuides } from "./lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "./lib/videoLut.ts";
@@ -67,8 +64,6 @@ export interface PreviewSources {
   fetchFile(path: string): Promise<Response>;
   /** A clip's codec and frame rate, read from its header by the server. */
   videoFormat(path: string): Promise<VideoFormatResponse>;
-  /** A raster still's color mode and bit depth, read from its header by the server. */
-  pixelFormat(path: string): Promise<PixelFormatResponse>;
   /** Where the links and embeds in a previewed note at `docPath` lead. */
   readingResolvers: typeof readingResolvers;
   /** Settings → Editor's, which a previewed page is laid out by. */
@@ -89,7 +84,6 @@ export function servedPreviewSources(): PreviewSources {
     rawFileUrl,
     fetchFile: fetchFileRaw,
     videoFormat: getVideoFormat,
-    pixelFormat: getPixelFormat,
     readingResolvers,
     readableLineLength,
     videoLoop,
@@ -271,18 +265,18 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // The image view's overlay, in the previewed picture's own frame: the
   // dimensions with their ratio along the top, as the image and video views
   // write them, then the LOOK badge where a look can apply, and a clip's
-  // frame rate or a still's color mode; a still's name and ⋮ along the
+  // frame rate or a still's display scale; a still's name and ⋮ along the
   // bottom, a clip's length and ⋮ left to the pill.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
   function mediaPreview(file: PreviewFile, kind: PreviewKind): HTMLElement {
     const isVideo = kind === "video";
     const rasterType = rasterImageMediaTypeForPath(file.path);
-    const [name, dimensions, format] = hudCells(3);
+    const [name, dimensions, topRight] = hudCells(3);
     name.className = "media-hud-name";
     name.textContent = file.name;
     previewLook = isVideo || rasterType ? lookBadge(deps.videoLut) : undefined;
-    const top = previewLook ? [dimensions, previewLook.element, format] : [dimensions, format];
+    const top = previewLook ? [dimensions, previewLook.element, topRight] : [dimensions, topRight];
     const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
@@ -292,14 +286,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     if (isVideo) {
       deps.videoFormat(file.path).then(
         (clip) => {
-          format.textContent = formatFrameRate(clip) ?? "";
-        },
-        () => undefined,
-      );
-    } else if (rasterType) {
-      deps.pixelFormat(file.path).then(
-        (pixels) => {
-          format.textContent = pixelFormatText(pixels);
+          topRight.textContent = formatFrameRate(clip) ?? "";
         },
         () => undefined,
       );
@@ -369,6 +356,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       const shown = media.getBoundingClientRect();
       fitHud(hud, shown.width, shown.height);
       zoom?.fit(shown.width, fullWidth);
+      if (fullWidth > 0 && shown.width > 0) topRight.textContent = `${shownPercent(shown.width, fullWidth)}%`;
     };
     // Measured again as the overlay is about to show, so a layout change no
     // observer saw can't leave it on a picture too small for it.

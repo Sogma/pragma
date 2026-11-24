@@ -1,6 +1,6 @@
 // What a media file's header says beyond its size and length, worded once:
-// the Info rows of the video tab, the image tab and a gallery's selection,
-// and the overlays' color mode. A fact the header doesn't give gets no row.
+// the Info rows of the video tab, the image tab and a gallery's selection.
+// A fact the header doesn't give gets no row.
 import type { ClipDetails, PictureDetails, PixelFormat } from "../../src/protocol/api.ts";
 import { countText } from "./dom.ts";
 
@@ -23,14 +23,20 @@ const COLOR_MODEL_NAMES: Record<PixelFormat["colorModel"], string> = {
 
 /** The name an image editor's Mode menu gives it: `RGB`, `RGBA`,
  * `Grayscale + alpha`. */
-export function colorModeName({ colorModel, alpha }: PixelFormat): string {
+function colorModeName({ colorModel, alpha }: PixelFormat): string {
   if (!alpha) return COLOR_MODEL_NAMES[colorModel];
   return colorModel === "rgb" ? "RGBA" : `${COLOR_MODEL_NAMES[colorModel]} + alpha`;
 }
 
-/** The mode with its depth, as an overlay shows it: `RGBA 8-bit`. */
-export function pixelFormatText(pixels: PixelFormat): string {
-  return `${colorModeName(pixels)} ${pixels.bitDepth}-bit`;
+/** A raster still's Color mode and Bit depth rows. Without a pixel format
+ * both read `unknown`: Unknown where its header gave none, or a stand-in
+ * while it is read. */
+export function pixelFormatRows(pixels: PixelFormat | null, unknown = "Unknown"): DetailRow[] {
+  const per = pixels?.colorModel === "indexed" ? "pixel" : "channel";
+  return [
+    { label: "Color mode", value: pixels ? colorModeName(pixels) : unknown },
+    { label: "Bit depth", value: pixels ? bitDepthText(pixels.bitDepth, per) : unknown },
+  ];
 }
 
 const DYNAMIC_RANGES = { pq: "HDR (PQ)", hlg: "HDR (HLG)" } as const;

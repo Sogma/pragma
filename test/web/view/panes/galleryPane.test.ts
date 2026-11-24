@@ -587,17 +587,11 @@ describe("the gallery pane", () => {
   });
 
   // The bars sit on the square's own edges; the top one waits for the
-  // file's dimensions, which the host lists or this browser learns.
-  it("shows a file's dimensions, ratio and size, a clip's duration and frame rate, a still's color mode", async () => {
-    const pixels = { colorModel: "rgb" as const, alpha: true, bitDepth: 16 };
+  // file's dimensions, which the host lists or this browser learns. A
+  // still's scale waits for the pointer, as the square follows the pane.
+  it("shows a file's dimensions, ratio and size, a clip's duration and frame rate, a still's scale", async () => {
     const { pane } = setup([
-      file("held.png", {
-        thumbnail: true,
-        width: 3840,
-        height: 2160,
-        size: 4_404_019,
-        picture: { sourceType: null, pixels },
-      }),
+      file("held.png", { thumbnail: true, width: 3840, height: 2160, size: 4_404_019 }),
       file("take.mp4", { size: 2048 }),
       file("known.mov", {
         thumbnail: true,
@@ -615,10 +609,17 @@ describe("the gallery pane", () => {
         bar.hidden ? "(hidden)" : [...bar.children].map((cell) => cell.textContent).join(" | "),
       );
 
-    expect(bars("held")).toEqual(["3840 × 2160 (16:9) | RGBA 16-bit | 16:9", " | 4.2 MB"]);
-    expect(bars("known")).toEqual(["1188 × 2112 (9:16) | 29.97 fps | 9:16", "0:26 | 2.0 KB"]);
+    expect(bars("held")).toEqual(["3840 × 2160 (16:9) |  |  | 16:9", " | 4.2 MB"]);
+    // jsdom lays nothing out: the square gets the inside a 194px tile's has.
+    for (const name of ["held", "known"]) {
+      const square = tileNamed(pane, name).querySelector(".gallery-tile-frame") as HTMLElement;
+      Object.defineProperties(square, { clientWidth: { value: 192 }, clientHeight: { value: 192 } });
+      tileNamed(pane, name).dispatchEvent(new Event("pointerenter"));
+    }
+    expect(bars("held")[0]).toBe("3840 × 2160 (16:9) |  | 5% | 16:9");
+    expect(bars("known")).toEqual(["1188 × 2112 (9:16) | 29.97 fps |  | 9:16", "0:26 | 2.0 KB"]);
     await settle();
-    expect(bars("take")).toEqual(["4000 × 3000 (4:3) |  | 4:3", "0:07 | 2.0 KB"]);
+    expect(bars("take")).toEqual(["4000 × 3000 (4:3) |  |  | 4:3", "0:07 | 2.0 KB"]);
     expect(tileNamed(pane, "notes").querySelector(".thumbnail-hud")).toBeNull();
 
     tileNamed(pane, "take").click();
@@ -626,16 +627,25 @@ describe("the gallery pane", () => {
     expect(pane.inspector?.textContent).toContain("0:07");
   });
 
+  // The Info section's rows, by label, in order.
+  const infoRows = (pane: GalleryPane) =>
+    Object.fromEntries(
+      [...(pane.inspector?.querySelectorAll(".meta-row") ?? [])].map((row) => [
+        row.querySelector(".meta-key")?.textContent,
+        row.querySelector(".meta-value")?.textContent,
+      ]),
+    );
+
   // What the host read of the header, listed with the entry, goes in the Info
   // tab as the video and image tabs word it.
   it("lists a clip's and a picture's header details in the Info tab", async () => {
-    const { pane } = setup([
+    const { pane, deps } = setup([
       file("take.mov", { thumbnail: false, width: 1188, height: 2112, duration: 26.8, clip: proresDetails }),
       file("still.png", {
         thumbnail: true,
         width: 1024,
         height: 1024,
-        picture: { sourceType: "trainedAlgorithmicMedia", pixels: null },
+        picture: { sourceType: "trainedAlgorithmicMedia", pixels: { colorModel: "rgb", alpha: true, bitDepth: 16 } },
       }),
     ]);
     await open(pane);
@@ -648,9 +658,73 @@ describe("the gallery pane", () => {
     for (const text of ["29.97 fps", "ProRes 4444 XQ", "12 bits per channel", "SDR", "None", "01:00:00:00"]) {
       expect(take).toContain(text);
     }
+    pane.dismissTransient?.();
     tileNamed(pane, "still").click();
     expect(title()).toBe("Selected Image");
-    expect(pane.inspector?.textContent).toContain("Made by AI");
+    // In the image tab's order and words, from what the listing holds.
+    expect(infoRows(pane)).toEqual({
+      Name: "still.png",
+      Dimensions: "1024 × 1024px (1:1)",
+      "Color mode": "RGBA",
+      "Bit depth": "16 bits per channel",
+      Source: "Made by AI",
+      Size: expect.any(String),
+      Modified: expect.any(String),
+    });
+    expect(Object.keys(infoRows(pane))).toEqual([
+      "Name",
+      "Dimensions",
+      "Color mode",
+      "Bit depth",
+      "Source",
+      "Size",
+      "Modified",
+    ]);
+    expect(deps.pixelFormat).not.toHaveBeenCalled();
+  });
+
+  // A thumbnail this browser made leaves the listing without the header's
+  // facts, so a still's are read when it is first selected.
+  it("reads a still's color mode and bit depth once when its listing has none, and says Unknown where it can't", async () => {
+    const pixelFormat = vi.fn(async (path: string) => {
+      if (path.endsWith("bad.png")) throw new Error("The image's header gives no pixel format");
+      return { colorModel: "indexed" as const, alpha: false, bitDepth: 4, sourceType: "digitalCapture" };
+    });
+    const { pane } = setup(
+      [file("new.png", { thumbnail: true, width: 64, height: 64 }), file("bad.png", { thumbnail: true })],
+      { pixelFormat },
+    );
+    await open(pane);
+    await settle();
+
+    tileNamed(pane, "new").click();
+    expect(infoRows(pane)).toMatchObject({ "Color mode": "…", "Bit depth": "…" });
+    await settle();
+    expect(infoRows(pane)).toMatchObject({
+      "Color mode": "Indexed",
+      "Bit depth": "4 bits per pixel",
+      Source: "Camera",
+    });
+
+    pane.dismissTransient?.();
+    tileNamed(pane, "bad").click();
+    await settle();
+    expect(infoRows(pane)).toMatchObject({ "Color mode": "Unknown", "Bit depth": "Unknown" });
+
+    pane.dismissTransient?.();
+    tileNamed(pane, "new").click();
+    expect(infoRows(pane)).toMatchObject({ "Color mode": "Indexed", "Bit depth": "4 bits per pixel" });
+    expect(pixelFormat).toHaveBeenCalledTimes(2);
+  });
+
+  // As in the image tab: a vector image has no pixels to have a color mode.
+  it("gives a vector image no color rows", async () => {
+    const { pane, deps } = setup([file("logo.svg")]);
+    await open(pane);
+    await settle();
+    tileNamed(pane, "logo").click();
+    expect(Object.keys(infoRows(pane))).not.toContain("Color mode");
+    expect(deps.pixelFormat).not.toHaveBeenCalled();
   });
 
   // The section names what is selected, by the name the tree's icon gives its kind.
@@ -713,12 +787,12 @@ describe("the gallery pane", () => {
 
     Object.defineProperty(img, "naturalWidth", { value: 300 });
     Object.defineProperty(img, "naturalHeight", { value: 141 });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 651.5, height: 307.25 }) as DOMRect;
     img.dispatchEvent(new Event("load"));
     await settle();
     const top = preview.querySelector(".media-hud-bar") as HTMLElement;
-    // A vector image has no pixels to have a color mode.
-    expect([...top.children].map((cell) => cell.textContent)).toEqual(["2412 × 1137 (2.12:1)", ""]);
-    expect(deps.pixelFormat).not.toHaveBeenCalled();
+    // No LOOK, with no pixels to grade, and the scale against that extent.
+    expect([...top.children].map((cell) => cell.textContent)).toEqual(["2412 × 1137 (2.12:1)", "27%"]);
   });
 
   // Drawn sooner, the board would flash in the picture's box before its
@@ -1453,14 +1527,13 @@ describe("the gallery pane", () => {
     tileNamed(pane, "frame").click();
     expect(bars()).toEqual(["100 × 100 (1:1) |  | ", "frame.png | "]);
     expect(preview.querySelector(".media-hud-bar:last-child > :last-child")?.matches(".media-hud-more")).toBe(true);
-    // The color mode the header read gives, at the right.
-    expect(deps.pixelFormat).toHaveBeenCalledWith("lib:footage/frame.png");
-    await vi.waitFor(() => expect(bars()).toEqual(["100 × 100 (1:1) |  | RGBA 8-bit", "frame.png | "]));
+    // The scale it is shown at, at the right, once it is shown.
     const img = preview.querySelector("img") as HTMLImageElement;
     Object.defineProperty(img, "naturalWidth", { value: 3840 });
     Object.defineProperty(img, "naturalHeight", { value: 2160 });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 960, height: 540 }) as DOMRect;
     img.dispatchEvent(new Event("load"));
-    expect(bars()).toEqual(["3840 × 2160 (16:9) |  | RGBA 8-bit", "frame.png | "]);
+    expect(bars()).toEqual(["3840 × 2160 (16:9) |  | 25%", "frame.png | "]);
 
     pane.dismissTransient?.();
     tileNamed(pane, "take").click();

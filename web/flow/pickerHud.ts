@@ -1,13 +1,13 @@
 // A Load Image picker's picture, on the graph card and in App Mode alike,
 // with the gallery's hover bars: the picture's dimensions with their aspect
-// ratio along its top edge, or the ratio alone in a narrow App Mode tile,
-// and the file's name and size along its bottom.
+// ratio and the scale it is shown at along its top edge, or the ratio alone
+// in a narrow App Mode tile, and the file's name and size along its bottom.
 
 import { formatAspectRatio } from "../../src/protocol/aspectRatio.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import { treePath } from "../core/paths.ts";
 import { formatDimensions, formatFileSize } from "../lib/dom.ts";
-import { hudCells, hudRoot, mediaFrame } from "../lib/mediaHud.ts";
+import { containedScale, hudCells, hudRoot, mediaFrame } from "../lib/mediaHud.ts";
 
 /** What the bars say about the file behind a picture. */
 export interface PickedFile {
@@ -26,14 +26,26 @@ export function storedFile(storedPath: string, base64: string): PickedFile {
 // the drop zone (web/styles/flow/widgets.css).
 export function createPickedPicture(src: string, file: PickedFile): { el: HTMLElement; img: HTMLImageElement } {
   const img = document.createElement("img");
-  const [dimensions, ratio, name, size] = hudCells(4);
+  const [facts, dimensions, scale, ratio, name, size] = hudCells(6);
+  // The dimensions and the scale share one box beside the ratio, so the top
+  // bar never holds three facts: the overlay would centre the middle one
+  // (media-panes.css), counting a ratio that CSS hides.
+  facts.className = "flow-picture-facts";
+  facts.append(dimensions, scale);
   ratio.className = "flow-picture-ratio";
   name.className = "media-hud-name";
   name.textContent = file.name;
   size.textContent = formatFileSize(file.size);
-  const bars = hudRoot([dimensions, ratio], [name, size]);
+  const bars = hudRoot([facts, ratio], [name, size]);
   bars.hidden = false;
   const el = mediaFrame(img, bars, "flow-picture");
+  // The picture's own box counts, as the bars' size rules read it, so the
+  // canvas's zoom leaves the scale as it is. Measured again as the bars are
+  // about to show, since a card or a tile is resized with the pointer
+  // elsewhere.
+  const measure = () => {
+    scale.textContent = containedScale(img, img.naturalWidth, img.naturalHeight);
+  };
   img.addEventListener("load", () => {
     const { naturalWidth: width, naturalHeight: height } = img;
     if (!width || !height) return;
@@ -41,7 +53,9 @@ export function createPickedPicture(src: string, file: PickedFile): { el: HTMLEl
     el.style.setProperty("--picture-ratio", String(width / height));
     dimensions.textContent = formatDimensions(width, height, "");
     ratio.textContent = formatAspectRatio(width, height);
+    measure();
   });
+  img.addEventListener("pointerenter", measure);
   img.src = src;
   return { el, img };
 }

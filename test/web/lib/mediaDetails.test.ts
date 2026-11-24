@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bitDepthText, clipDetailRows, pictureDetailRows, sourceTypeText } from "../../../web/lib/mediaDetails.ts";
+import {
+  bitDepthText,
+  clipDetailRows,
+  pictureDetailRows,
+  pixelFormatRows,
+  sourceTypeText,
+} from "../../../web/lib/mediaDetails.ts";
 
 const clip = {
   codec: "H.264",
@@ -66,5 +72,21 @@ describe("bitDepthText", () => {
   it("says bits per channel, or per pixel for a palette's index", () => {
     expect(bitDepthText(16)).toBe("16 bits per channel");
     expect(bitDepthText(1, "pixel")).toBe("1 bit per pixel");
+  });
+});
+
+// The image tab's rows and a gallery selection's, worded once.
+describe("pixelFormatRows", () => {
+  it("names a still's color mode as an image editor's Mode menu does, and its depth", () => {
+    expect(pixelFormatRows({ colorModel: "grayscale", alpha: true, bitDepth: 16 })).toEqual([
+      { label: "Color mode", value: "Grayscale + alpha" },
+      { label: "Bit depth", value: "16 bits per channel" },
+    ]);
+    expect(pixelFormatRows({ colorModel: "indexed", alpha: false, bitDepth: 1 })[1].value).toBe("1 bit per pixel");
+  });
+
+  it("says Unknown for both without a pixel format, or the stand-in it is given while one is read", () => {
+    expect(pixelFormatRows(null).map((row) => row.value)).toEqual(["Unknown", "Unknown"]);
+    expect(pixelFormatRows(null, "…").map((row) => row.value)).toEqual(["…", "…"]);
   });
 });
