@@ -16,6 +16,7 @@ import type {
   SpaceLibrariesResponse,
   SpaceRef,
   SpaceTreeNode,
+  SystemPathResponse,
   TableFileResponse,
   ThumbnailUsageResponse,
 } from "../../src/protocol/api.ts";
@@ -2327,7 +2328,7 @@ describe("API contract — libraries", () => {
     expect(((await stills.json()) as FolderListingResponse).entries[0]).toMatchObject({ thumbnail: false });
   });
 
-  it("reports name, place on disk, size and modified time for any entry, file or folder", async () => {
+  it("reports name, folder on disk, size and modified time for any entry, file or folder", async () => {
     const info = async (target: string) =>
       fetch(`${testServer.baseUrl}/api/file/info?path=${encodeURIComponent(target)}`);
 
@@ -2339,7 +2340,6 @@ describe("API contract — libraries", () => {
       name: "take.mp4",
       size: videoBytes.length,
       systemFolder: path.join(libraryRoot, "takes"),
-      systemPath: path.join(libraryRoot, "takes", "take.mp4"),
     });
     expect(Number.isNaN(Date.parse(body.modified))).toBe(false);
 
@@ -2349,7 +2349,6 @@ describe("API contract — libraries", () => {
     expect(await (await info("clip.mp4")).json()).toMatchObject({
       name: "clip.mp4",
       systemFolder: testServer.spaceRoot,
-      systemPath: path.join(testServer.spaceRoot, "clip.mp4"),
     });
 
     // A root's own folder, which its gallery shows.
@@ -2361,13 +2360,31 @@ describe("API contract — libraries", () => {
         kind: "directory",
         name: path.basename(root),
         systemFolder: path.dirname(root),
-        systemPath: root,
       });
     }
 
     expect((await fetch(`${testServer.baseUrl}/api/file/info`)).status).toBe(400);
     expect((await info("gone.md")).status).toBe(404);
     expect((await info("lib:lib/../../etc/passwd")).ok).toBe(false);
+  });
+
+  // Copy path's "from system root" answers for a path with nothing at it, as
+  // a chip naming a missing file needs; never for one no root holds.
+  it("names where a space or library path sits on disk, whether or not anything is there", async () => {
+    const systemPath = async (target: string) => {
+      const response = await fetch(`${testServer.baseUrl}/api/file/system-path?path=${encodeURIComponent(target)}`);
+      return response.ok ? ((await response.json()) as SystemPathResponse).systemPath : response.status;
+    };
+
+    expect(await systemPath("clip.mp4")).toBe(path.join(testServer.spaceRoot, "clip.mp4"));
+    expect(await systemPath("lib:lib/takes/take.mp4")).toBe(path.join(libraryRoot, "takes", "take.mp4"));
+    expect(await systemPath("lib:lib/takes")).toBe(path.join(libraryRoot, "takes"));
+    expect(await systemPath("gone/missing.md")).toBe(path.join(testServer.spaceRoot, "gone", "missing.md"));
+
+    expect((await fetch(`${testServer.baseUrl}/api/file/system-path`)).status).toBe(400);
+    expect(await systemPath("lib:nope/a.md")).toBe(404);
+    expect(await systemPath(".hidden/a.md")).toBe(404);
+    expect(await systemPath("lib:lib/../../etc/passwd")).not.toBeTypeOf("string");
   });
 
   // The PDF pane hands these bytes to PDF.js in a frame of its own, so the

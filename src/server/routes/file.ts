@@ -21,6 +21,7 @@ import type {
   PixelFormatResponse,
   PutFileRequestBody,
   PutFileResponse,
+  SystemPathResponse,
   TableFileResponse,
   TextFileResponse,
   TextToolkitInfo,
@@ -390,8 +391,16 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       size: info.size,
       modified: info.mtime.toISOString(),
       systemFolder: path.dirname(filePath),
-      systemPath: filePath,
     });
+  });
+
+  // Resolved, never read: a chip can name a file that is missing, and its
+  // path still has a place on disk.
+  app.get("/api/file/system-path", (c) => {
+    const relativePath = c.req.query("path");
+    if (!relativePath) return c.text("Missing path query parameter", 400);
+    const { filePath } = resolveRootedPath(spaceRoot, relativePath, "read");
+    return c.json<SystemPathResponse>({ systemPath: filePath });
   });
 
   app.all("/api/file", async (c) => {

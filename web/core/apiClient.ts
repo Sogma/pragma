@@ -152,6 +152,7 @@ import type {
   SpaceTrustRequestBody,
   SpellcheckLanguages,
   SwitchSpaceRequestBody,
+  SystemPathResponse,
   TableLayoutRequestBody,
   TabPlace,
   TabViewport,
@@ -1094,6 +1095,11 @@ export async function getFileSha256(path: string): Promise<string> {
 
 export async function getFileInfo(path: string): Promise<FileInfoResponse> {
   return request<FileInfoResponse>(`/api/file/info?path=${encodeURIComponent(path)}`, { fallback: "Stat failed" });
+}
+
+export async function getSystemPath(path: string): Promise<string> {
+  const query = `/api/file/system-path?path=${encodeURIComponent(path)}`;
+  return (await request<SystemPathResponse>(query, { fallback: "No place on disk" })).systemPath;
 }
 
 export async function getFileDescription(path: string): Promise<string | undefined> {

@@ -33,7 +33,7 @@ import { registerFlowKeys } from "./flow/flowKeys.ts";
 import { CHIP_MENU, CLEAR_CHIP, chipClearOf } from "./flow/flowMenus.ts";
 import type { FlowView } from "./flow/xyflowAdapter.ts";
 import { GRAPH_NODE_MENU } from "./graph/graphView.ts";
-import { COPY_PATH, copyPathItem } from "./lib/copyPath.ts";
+import { copyPathItem } from "./lib/copyPath.ts";
 import { DisposableStore, listen } from "./lib/disposable.ts";
 import { flash } from "./lib/flash.ts";
 import { createPlaceholder, createTitle, type NamingSurface } from "./lib/inlineEdit.ts";
@@ -706,7 +706,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     { command: "editor.editToSide", group: "open" },
     { command: "gallery.openFolderInNewTab", group: "open" },
     { command: "gallery.openFolderToSide", group: "open" },
-    { command: COPY_PATH, group: "copy" },
+    copyPathItem({ group: "copy" }),
     { command: CLEAR_CHIP, group: "clear" },
   ]);
   deps.menus.register(PREVIEW_OPEN_MENU, opens);

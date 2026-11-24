@@ -1,12 +1,13 @@
-// Copy path, one control wherever an entry's menu shows it: a flyout holding
-// the path from the space's or the library's folder, and the path from the
-// system root, which the server reads off the disk.
+// Copy path, one control wherever a menu names an entry or a path chip: a
+// flyout holding the path from the space's or the library's folder, and the
+// path from the system root, which the server works out, for a missing file
+// too.
 //
-// A path chip keeps the plain item: its whole path as its tooltip shows it,
-// `lib:<id>/…` for a library's, however much of it the chip shows. A chip
-// whose surface takes its own right-click, a Flow node's, adds the command to
-// that menu; every other path label boxed in running text gets this one. A
-// standalone label is a value, not a chip, and gets none.
+// A chip copies its whole path as its tooltip shows it, `lib:<id>/…` for a
+// library's, however much of it the chip shows. A chip whose surface takes
+// its own right-click, a Flow node's, adds Copy path to that menu; every
+// other path label boxed in running text gets this one. A standalone label
+// is a value, not a chip, and gets none.
 
 import { formatRootedPath, isLibraryPath } from "../../src/protocol/rootedPath.ts";
 import type { CommandRegistry } from "../services/commands.ts";
@@ -62,9 +63,9 @@ export interface CopyPathDeps {
   commands: CommandRegistry;
   menus: MenuRegistry;
   menu: Pick<ContextMenuService, "open">;
-  /** Where a space or `lib:` path sits on disk, as the system spells it, or
-   * undefined where no disk is behind the engine. */
-  systemPath(path: string): Promise<string | undefined>;
+  /** Where a space or `lib:` path sits on disk, as the system spells it,
+   * whether or not anything is there. */
+  systemPath(path: string): Promise<string>;
 }
 
 export function installCopyPath(deps: CopyPathDeps): Disposable {
@@ -92,7 +93,7 @@ export function installCopyPath(deps: CopyPathDeps): Disposable {
       },
     }),
   );
-  store.add(deps.menus.register(PATH_CHIP_MENU, [{ command: COPY_PATH }]));
+  store.add(deps.menus.register(PATH_CHIP_MENU, [copyPathItem()]));
   store.add(
     listen(document, "contextmenu", (event) => {
       if (!(event instanceof MouseEvent) || event.defaultPrevented) return;

@@ -64,7 +64,8 @@ describe("a path chip's right-click", () => {
     const event = rightClick(chip.querySelector(".path-label-name") as Element);
     expect(event.defaultPrevented).toBe(true);
     expect(menu()?.getAttribute("aria-label")).toBe("File");
-    expect(rows()).toEqual(["Copy path"]);
+    expect(menu()?.querySelector(".has-submenu")?.firstChild?.textContent).toBe("Copy path");
+    expect(rows()).toEqual(["from space folder", "from system root"]);
 
     menu()?.querySelector<HTMLElement>("[role=menuitem]")?.click();
     await tick();
@@ -107,7 +108,7 @@ describe("a path chip's right-click", () => {
 });
 
 describe("Copy path in an entry's menu", () => {
-  const onDisk = () => vi.fn(async (path: string): Promise<string | undefined> => `/home/you/space/${path}`);
+  const onDisk = () => vi.fn(async (path: string): Promise<string> => `/home/you/space/${path}`);
   function setup(systemPath = onDisk()) {
     const commands = createCommands();
     const menus = createMenus(commands);
@@ -147,23 +148,24 @@ describe("Copy path in an entry's menu", () => {
     installed.dispose();
   });
 
-  it("copies nothing from the system root when no disk answers", async () => {
-    for (const systemPath of [
-      vi.fn(async () => undefined),
-      vi.fn(async () => Promise.reject(new Error("Not found"))),
-    ]) {
-      const { commands, installed } = setup(systemPath);
-      await commands.run(COPY_SYSTEM_PATH, context, { file: "gone.md" });
-      expect(systemPath).toHaveBeenCalledWith("gone.md");
-      installed.dispose();
-    }
+  it("copies nothing from the system root when the server refuses the path", async () => {
+    const systemPath = vi.fn(async (_path: string): Promise<string> => Promise.reject(new Error("No library")));
+    const { commands, installed } = setup(systemPath);
+    await commands.run(COPY_SYSTEM_PATH, context, { file: "lib:gone/a.md" });
+    expect(systemPath).toHaveBeenCalledWith("lib:gone/a.md");
     expect(clipboard.writeText).not.toHaveBeenCalled();
+    installed.dispose();
   });
 
-  it("keeps a path chip's menu the one item", () => {
+  it("gives a path chip the same flyout", () => {
     const { menus, installed } = setup();
-    const resolved = menus.resolve("pathChip", context, { file: "notes/a.md" });
-    expect(resolved.map((item) => [item.label, item.command])).toEqual([["Copy path", COPY_PATH]]);
+    const [flyout, ...rest] = menus.resolve("pathChip", context, { file: "notes/a.md" });
+    expect(rest).toEqual([]);
+    expect([flyout.label, flyout.command]).toEqual(["Copy path", undefined]);
+    expect(flyout.submenu?.map((row) => [row.label, row.command])).toEqual([
+      ["from space folder", COPY_PATH],
+      ["from system root", COPY_SYSTEM_PATH],
+    ]);
     installed.dispose();
   });
 });

@@ -4,7 +4,7 @@
 // dispatcher. A picked item closes the menu first, then runs its command, or
 // its own action, with the context the menu was opened in.
 
-import { getFileInfo } from "../core/apiClient.ts";
+import { getSystemPath } from "../core/apiClient.ts";
 import { installCopyPath } from "../lib/copyPath.ts";
 import { DisposableStore, listen } from "../lib/disposable.ts";
 import { el, keyLabel, setEntryIcon } from "../lib/dom.ts";
@@ -750,8 +750,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   // selects, which nothing nearer has taken, opens the text menu in the
   // browser's place. The chip's listener goes first, or a chip in a chat
   // note would open Copy and Select All.
-  const systemPath = async (path: string) => (await getFileInfo(path)).systemPath;
-  store.add(installCopyPath({ commands: deps.commands, menus: deps.menus, menu, systemPath }));
+  store.add(installCopyPath({ commands: deps.commands, menus: deps.menus, menu, systemPath: getSystemPath }));
   store.add(installTextMenu(menu));
   return menu;
 }

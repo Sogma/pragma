@@ -381,10 +381,20 @@ describe("editor area", () => {
   // locked Flow's chip doesn't.
   it("ends a node chip's menu with Copy path, then Clear where the chip clears", async () => {
     const { workspace, area, commands, menus, contextMenu } = await setup();
-    const installed = installCopyPath({ commands, menus, menu: contextMenu, systemPath: async () => undefined });
+    const installed = installCopyPath({
+      commands,
+      menus,
+      menu: contextMenu,
+      systemPath: async (path) => `/home/you/space/${path}`,
+    });
     const context = { tab: workspace.activeTab(), pane: area.focusedPane() };
     const labels = (arg: unknown) => menus.resolve(CHIP_MENU, context, arg).map((item) => item.label);
     expect(labels({ file: "a.md" }).at(-1)).toBe("Copy path");
+    const copy = menus.resolve(CHIP_MENU, context, { file: "a.md" }).at(-1);
+    expect(copy?.submenu?.map((row) => [row.command, row.arg])).toEqual([
+      [COPY_PATH, { file: "a.md" }],
+      [COPY_SYSTEM_PATH, { file: "a.md" }],
+    ]);
     expect(labels({ folder: "notes" }).at(-1)).toBe("Copy path");
     const clear = vi.fn();
     expect(labels({ file: "a.md", clear }).slice(-2)).toEqual(["Copy path", "Clear"]);

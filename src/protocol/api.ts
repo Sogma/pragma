@@ -815,17 +815,22 @@ export interface BacklinksResponse {
 // `modified` is an ISO timestamp; `size` is in bytes and means nothing for a
 // directory.
 //
-// `name` is the entry's whole name, extension included. `systemFolder` is
-// the folder holding it on disk and `systemPath` the entry itself, as the
-// operating system spells them: absent where no local disk is behind the
-// engine.
+// `name` is the entry's whole name, extension included, and `systemFolder`
+// the folder holding it on disk, as the operating system spells it: absent
+// where no local disk is behind the engine.
 export interface FileInfoResponse {
   kind: "file" | "directory";
   name: string;
   size: number;
   modified: string;
   systemFolder?: string;
-  systemPath?: string;
+}
+
+// GET /api/file/system-path: where a space or `lib:` path sits on disk, as
+// the operating system spells it, whether or not anything is there. Copy
+// path's "from system root", which a chip naming a missing file offers too.
+export interface SystemPathResponse {
+  systemPath: string;
 }
 
 // GET /api/file/pixel-format — a raster image's color model, read from its
