@@ -181,6 +181,99 @@
   cursor: grabbing;
 }
 
+/* A still's bars lie in bands of its mat, above and below the picture,
+   rather than over it. The picture is fitted short of the stage by the
+   bands' reach, so nothing moves as they open. Zoomed, or too small for
+   the bars, it keeps the overlay. */
+.file-preview-frame.has-bands {
+  --band-reach: 24px;
+  --band-height: calc(var(--mat-width) + var(--band-reach));
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed) > img {
+  max-height: calc(100cqh - 2 * var(--band-reach));
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed) > img.is-unsized {
+  width: min(var(--svg-width), 100cqw, (100cqh - 2 * var(--band-reach)) * var(--svg-ratio));
+}
+
+/* The mat is drawn behind the frame, not as its background, so it can reach
+   into the bands while the picture stays put. */
+.file-preview-frame.has-bands:not(.is-zoomed) {
+  position: relative;
+  isolation: isolate;
+  background: none;
+  box-shadow: none;
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--neutral-bg);
+  box-shadow: var(--shadow-menu);
+  transition: inset 150ms ease;
+}
+
+/* Open while the bars show (media-panes.css): the picture or a bar hovered,
+   or the ⋮'s menu open. */
+.file-preview-frame.has-bands:not(.is-zoomed, :has(> .media-hud.is-bare)):has(
+  > img:hover,
+  > .media-hud:hover,
+  .media-hud-more[aria-expanded="true"]
+)::before {
+  inset: calc(-1 * var(--band-reach)) 0;
+}
+
+/* Each bar fills its band, across the mat's sides too, and takes the
+   pointer, so the bands stay open wherever the pointer crosses one. Its
+   facts line up with the picture's edges and lie on the mat with no fill of
+   their own. */
+.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar {
+  height: var(--band-height);
+  align-items: center;
+  margin-inline: calc(-1 * var(--mat-width));
+  padding-block: 0;
+  padding-inline: var(--mat-width);
+  overflow-y: visible;
+  pointer-events: auto;
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar::before {
+  content: none;
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar:first-child {
+  transform: translateY(-100%);
+}
+
+.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) > .media-hud-bar:last-child {
+  transform: translateY(100%);
+}
+
+/* The overlay's 28px ⋮ would all but fill its band, against the band's hard
+   edge: a smaller box keeps 4px clear above and below, and ends where the
+   picture does. */
+.file-preview-frame.has-bands:not(.is-zoomed) > .media-hud:not(.is-bare) .media-hud-more {
+  width: 24px;
+  height: 24px;
+  margin: 0 0 0 -4px;
+}
+
+/* A look that is on keeps its badge over the picture, where the overlay
+   holds it, and the badge rides up into its band as the bands open. Off,
+   it stays in the band and fades with the facts. */
+.file-preview-frame.has-bands:not(.is-zoomed)
+  > .media-hud:not(.is-bare)
+  .media-hud-badge:is([aria-pressed="true"], .is-missing) {
+  transform: translateY(calc((1 - var(--hud-shown)) * var(--band-height)));
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
 /* A document or a Table is shown as wide as its page (note-preview.css), at
    the share of full size the pane sets (--page-scale), never taller than a
    Letter page of that width (8.5 by 11), and smaller only where the stage

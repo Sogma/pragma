@@ -331,7 +331,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       media = img;
     }
     // The overlay follows the media: `:is(img, video):hover + .media-hud`.
-    const frame = mediaFrame(media, hud, "file-preview-frame");
+    // A still's bars lie in bands of its mat, a clip's over it beside its
+    // player (file-preview.css).
+    const frame = mediaFrame(media, hud, isVideo ? "file-preview-frame" : "file-preview-frame has-bands");
     if (layers) frame.append(layers.element);
     if (media instanceof HTMLVideoElement) {
       previewPlayer = createVideoPlayer(media, {

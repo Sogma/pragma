@@ -420,6 +420,19 @@ describe("a previewed still's scale", () => {
   });
 });
 
+// The stylesheet lays a still's bars in bands of its mat, and keeps a
+// clip's over it, beside its player's pill.
+describe("a previewed file's bands", () => {
+  it("marks a still's frame for bands in its mat, and not a clip's", () => {
+    const { preview, overlay } = setup({ files: ["stills/a.png", "clips/b.mp4"] });
+    const hasBands = () => overlay.querySelector(".file-preview-frame")?.classList.contains("has-bands");
+    preview.show(0);
+    expect(hasBands()).toBe(true);
+    preview.show(1);
+    expect(hasBands()).toBe(false);
+  });
+});
+
 // A still shows through the guides and the look every viewer shares, as a
 // clip does, laid over it in its own frame; a vector image has no pixels to
 // grade. G turns the guides on a still or a clip, never on a page.
