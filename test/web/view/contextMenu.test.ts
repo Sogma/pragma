@@ -500,6 +500,56 @@ describe("contextMenu", () => {
       expect(checked()).toEqual(["false", "true", "true"]);
       expect(menu()).not.toBeNull();
     });
+
+    // A run of picks keeps it open; once the pointer has been out of it a
+    // moment after one, nobody is using it.
+    it("closes a moment after the pointer leaves it once a tile is picked, and not before one is", () => {
+      vi.useFakeTimers();
+      try {
+        const { element, tiles } = openWithTiles();
+        const enter = () => element.dispatchEvent(new MouseEvent("mouseenter"));
+        const leave = () => element.dispatchEvent(new MouseEvent("mouseleave"));
+        enter();
+        leave();
+        vi.advanceTimersByTime(1000);
+        expect(menu()).not.toBeNull();
+
+        enter();
+        tiles()[1].click();
+        leave();
+        vi.advanceTimersByTime(200);
+        enter();
+        vi.advanceTimersByTime(1000);
+        expect(menu()).not.toBeNull();
+
+        leave();
+        vi.advanceTimersByTime(299);
+        expect(menu()).not.toBeNull();
+        vi.advanceTimersByTime(1);
+        expect(menu()).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // A slider dragged past its panel's edge leaves the menu with the button
+    // still down.
+    it("waits for a held button, and closes a moment after it is let go outside", () => {
+      vi.useFakeTimers();
+      try {
+        const { element, tiles } = openWithTiles();
+        element.dispatchEvent(new MouseEvent("mouseenter"));
+        tiles()[2].click();
+        element.dispatchEvent(new MouseEvent("mouseleave", { buttons: 1 }));
+        vi.advanceTimersByTime(1000);
+        expect(menu()).not.toBeNull();
+        window.dispatchEvent(new MouseEvent("mouseup"));
+        vi.advanceTimersByTime(300);
+        expect(menu()).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("lifts a flyout that would run past the bottom of the viewport to end at it", () => {

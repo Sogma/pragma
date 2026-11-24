@@ -1,8 +1,10 @@
 // The one context-menu component: renders any menu from its resolved items,
 // positioned at a point (a right-click) or under an anchor (a ⋮ button), and
-// dismissed by a click elsewhere, a resize, or Escape through the keybinding
-// dispatcher. A picked item closes the menu first, then runs its command, or
-// its own action, with the context the menu was opened in.
+// dismissed by a click elsewhere, a resize, Escape through the keybinding
+// dispatcher, or the pointer leaving it after a tile pick.
+//
+// A picked item closes the menu first, then runs its command, or its own
+// action, with the context the menu was opened in.
 
 import { fetchSpaceInfo, getSystemPath } from "../core/apiClient.ts";
 import { installCopyPath } from "../lib/copyPath.ts";
@@ -38,6 +40,10 @@ export interface ContextMenuDeps {
 export const CLOSE_CONTEXT_MENU = "contextMenu.close";
 
 const VIEWPORT_MARGIN = 4;
+
+// How long the pointer may stray from a menu after a tile pick before the
+// menu closes, so an overshoot past its edge comes back to it still open.
+const LEAVE_GRACE_MS = 300;
 
 // A slider under the list: `row` takes the keyboard highlight, `footer` is
 // what the menu pins.
@@ -710,6 +716,53 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         }),
       );
       session.add(listen(element, "mouseleave", () => preview(undefined)));
+      // A tile applies at once and leaves the menu open, for a run of picks.
+      // After one, the menu closes once the pointer has been out of it a
+      // moment, a flyout counting as in it. Not while a button is held, so a
+      // slider dragged past its panel's edge keeps it, nor while a search box
+      // in it has focus.
+      let picked = false;
+      let inside = false;
+      let leaving: number | undefined;
+      const stay = () => {
+        window.clearTimeout(leaving);
+        leaving = undefined;
+      };
+      const leave = () => {
+        if (!picked || leaving !== undefined) return;
+        leaving = window.setTimeout(() => {
+          leaving = undefined;
+          if (!element.querySelector(".context-menu-search:focus")) close();
+        }, LEAVE_GRACE_MS);
+      };
+      session.add(stay);
+      session.add(
+        listen(element, "click", (event) => {
+          if ((event.target as Element).closest(".context-menu-tile")) picked = true;
+        }),
+      );
+      session.add(
+        listen(element, "input", (event) => {
+          if ((event.target as Element).matches(".context-menu-tiles-range-input")) picked = true;
+        }),
+      );
+      session.add(
+        listen(element, "mouseenter", () => {
+          inside = true;
+          stay();
+        }),
+      );
+      session.add(
+        listen(element, "mouseleave", (event) => {
+          inside = false;
+          if ((event as MouseEvent).buttons === 0) leave();
+        }),
+      );
+      session.add(
+        listen(window, "mouseup", () => {
+          if (!inside) leave();
+        }),
+      );
       // A key typed while a flyout's search box shows goes into it, ahead of
       // whatever else listens for keys: a player's shortcuts, a note's editor.
       // A field in the menu types its own.
