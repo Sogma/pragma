@@ -1940,9 +1940,10 @@ export interface JobStartRequestBody {
 // declares. `references` go in pin order, and the host spells the prompt's
 // mentions of them for the model. `prefix` starts the result's file name.
 //
-// `seed` is part of the result's digest whether or not the model takes one,
-// and take N sends it plus N - 1. `take` ends the name, blank for take 1;
-// `newTake` asks for one past the highest take of these inputs instead.
+// `seed` is part of the result's digest whether or not the model takes one;
+// take N sends it plus N - 1, and a blank one sends none. `take` ends the
+// name, blank for take 1; `newTake` asks for one past the highest take of
+// these inputs instead.
 export interface GenerateImageRequestBody extends JobStartRequestBody {
   folder: string;
   prompt: string;

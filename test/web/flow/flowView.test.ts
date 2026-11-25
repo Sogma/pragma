@@ -755,7 +755,7 @@ describe("flowView Int", () => {
   const box = (root: ParentNode) => root.querySelector<HTMLInputElement>(".flow-int-stepper input")?.value;
 
   // Moved on after the run, so the run gave 5. Undo takes back a person's
-  // edits, not what a run moved, as with Regenerate's seed.
+  // edits, not what a run moved, as with a Regenerate's take.
   it("moves the value on once a run has used it, saved and shown on the card, as no Undo step", async () => {
     const { card, elements, saved, view } = keyedView([intNode("int-1", { value: "5", control: "increment" })]);
     await view.run();

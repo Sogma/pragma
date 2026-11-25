@@ -811,10 +811,11 @@ export type StartedImage =
   | { found: GenerateImageResponse }
   | { job: JobRecord; resumed: boolean; folder: string; model: string; take: number };
 
-// The seed take N sends: the node's seed, 1 when blank, plus N - 1, so each
-// take differs on a model that follows a seed.
-function seedForTake(seed: string | undefined, take: number): number {
-  return (seed && /^\d+$/.test(seed) ? Number(seed) : 1) + take - 1;
+// The seed take N sends: the node's seed plus N - 1, so each take differs on
+// a model that follows a seed. A blank seed sends none and the provider picks
+// one, since most providers warn about a seed they don't take.
+function seedForTake(seed: string | undefined, take: number): number | undefined {
+  return seed && /^\d+$/.test(seed) ? Number(seed) + take - 1 : undefined;
 }
 
 /** Generates an image into the folder the document declares and has been

@@ -571,6 +571,48 @@ describe("imageModelFor", () => {
       "aspect_ratio: asked for 16:10, used 3:2 (the nearest gemini-2.5-flash-image makes)",
     ]);
   });
+
+  // The gateway hands a model its maker's own parameters, so Seedream and
+  // gpt-image, which take a size and drop a ratio, are sent a size.
+  const gateway = provider({ id: "vercel", kind: "vercel" });
+  const gatewayImage = async () =>
+    Response.json({ images: [PNG_BASE64], providerMetadata: { gateway: { cost: "0.03" } } });
+  const bodyAt = (call: number): Record<string, unknown> =>
+    JSON.parse(String((fetchMock.mock.calls[call] as [string, RequestInit])[1].body));
+
+  it("sends a gateway Seedream model ByteDance's size for the ratio, never the ratio", async () => {
+    fetchMock.mockImplementation(gatewayImage);
+    const model = imageModelFor(gateway, "bytedance/seedream-5.0-lite", "k");
+    const wide = await callImageModel(model, { prompt: "a city", references: [], aspectRatio: "16:9" });
+    expect(sent().url).toMatch(/\/v4\/ai\/image-model$/);
+    expect(bodyAt(0)).toMatchObject({ prompt: "a city", size: "2848x1600" });
+    expect(bodyAt(0)).not.toHaveProperty("aspectRatio");
+    expect(wide.warnings).toEqual([]);
+
+    const near = await callImageModel(model, { prompt: "a city", references: [], aspectRatio: "5:4" });
+    expect(bodyAt(1)).toMatchObject({ size: "2304x1728" });
+    expect(near.warnings).toEqual([
+      "aspect_ratio: asked for 5:4, used 4:3 (the nearest bytedance/seedream-5.0-lite makes)",
+    ]);
+  });
+
+  it("sends a gateway gpt-image model the nearest of its three sizes", async () => {
+    fetchMock.mockImplementation(gatewayImage);
+    const model = imageModelFor(gateway, "openai/gpt-image-2", "k");
+    const result = await callImageModel(model, { prompt: "a city", references: [], aspectRatio: "16:9" });
+    expect(bodyAt(0)).toMatchObject({ size: "1536x1024" });
+    expect(bodyAt(0)).not.toHaveProperty("aspectRatio");
+    expect(result.warnings).toEqual(["aspect_ratio: asked for 16:9, used 3:2 (the nearest openai/gpt-image-2 makes)"]);
+  });
+
+  it("sends any other gateway model the ratio and seed as asked", async () => {
+    fetchMock.mockImplementation(gatewayImage);
+    const model = imageModelFor(gateway, "bfl/flux-2-pro", "k");
+    const result = await callImageModel(model, { prompt: "a city", references: [], aspectRatio: "16:9", seed: 7 });
+    expect(bodyAt(0)).toMatchObject({ aspectRatio: "16:9", seed: 7 });
+    expect(bodyAt(0)).not.toHaveProperty("size");
+    expect(result.data).toEqual(Uint8Array.from(Buffer.from(PNG_BASE64, "base64")));
+  });
 });
 
 describe("discoverModels / verifyProviderKey", () => {

@@ -198,7 +198,7 @@ function higgsfieldSession(server: ResolvedMcpServer, deps: HiggsfieldDeps) {
   // setting the node sent, for the node to show. `decided` goes to the
   // Console alone, as the adapter's `notes`: the server's pick for a setting
   // it wasn't sent (a default, the mode a frame needs), which asked for
-  // nothing, and a seed a model ignores, which Regenerate's seed outlives.
+  // nothing, and a seed a model ignores.
   function adjustments(submitted: Fields, sent: Fields): { changed: string[]; decided: string[] } {
     const changed: string[] = [];
     const decided: string[] = [];

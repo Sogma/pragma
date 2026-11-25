@@ -260,6 +260,20 @@ const GPT_IMAGE_SIZES = {
   "2:3": { size: "1024x1536" },
 } as const;
 
+// The 2K sizes ByteDance's image API reference lists for each ratio, since
+// Seedream takes a size, never a ratio. Each falls inside every Seedream
+// model's pixel range, which differs by model.
+const SEEDREAM_SIZES = {
+  "1:1": { size: "2048x2048" },
+  "4:3": { size: "2304x1728" },
+  "3:4": { size: "1728x2304" },
+  "16:9": { size: "2848x1600" },
+  "9:16": { size: "1600x2848" },
+  "3:2": { size: "2496x1664" },
+  "2:3": { size: "1664x2496" },
+  "21:9": { size: "3136x1344" },
+} as const;
+
 // The aspect ratios Gemini documents for its image models.
 const GEMINI_IMAGE_RATIOS = Object.fromEntries(
   ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"].map((ratio) => [
@@ -289,9 +303,16 @@ export function imageModelFor(
     const model = createGoogleGenerativeAI({ apiKey, baseURL: baseURLOf(provider) });
     return withListedAspectRatios(model.imageModel(wireModel), GEMINI_IMAGE_RATIOS);
   }
-  if (provider.kind === "vercel") return gatewayFor(provider, apiKey).imageModel(wireModel);
-  // An images endpoint takes no seed and the SDK warns on one. Here a seed
-  // only names a new result, so it goes unsent and unsaid, as on Higgsfield.
+  if (provider.kind === "vercel") {
+    // The gateway hands a model its maker's own parameters, and drops a ratio
+    // for a model that takes a size, so that model is sent its size.
+    const model = gatewayFor(provider, apiKey).imageModel(wireModel);
+    if (/^openai\/gpt-image/.test(wireModel)) return withListedAspectRatios(model, GPT_IMAGE_SIZES);
+    if (/^bytedance\/seedream/.test(wireModel)) return withListedAspectRatios(model, SEEDREAM_SIZES);
+    return model;
+  }
+  // An images endpoint takes no seed and the SDK warns on one, so a seed goes
+  // unsent and unsaid, as on Higgsfield.
   const model = withOptions(openAICompatible(provider, apiKey).imageModel(wireModel), (options) => ({
     ...options,
     seed: undefined,

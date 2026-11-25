@@ -132,7 +132,7 @@ export interface FlowHistory {
   closed(): void;
   // After every change to the live graph.
   changed(graph: FlowGraph): void;
-  // A change no step takes back, such as a run's new seed.
+  // A change no step takes back, such as the take a Regenerate made.
   settled(graph: FlowGraph): void;
   canUndo(): boolean;
   canRedo(): boolean;

@@ -131,7 +131,7 @@ export interface AppModeDeps {
   // A loaded chip's right-click, the card's own menu.
   openChipMenu: PickerDeps["openChipMenu"];
   run(): Promise<void>;
-  // Regenerate: the node alone, with a new seed, on its last inputs.
+  // Regenerate: the node alone, as a new take, on its last inputs.
   regenerate(nodeId: string): void;
   // An Applet node's file, read from the Flow's folder, and its frame's
   // markup with the node client.

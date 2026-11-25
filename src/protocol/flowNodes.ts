@@ -813,7 +813,7 @@ const generateImage: FlowNodeTypeDefinition = {
       key: "seed",
       label: "Seed",
       type: "text",
-      description: "A number the model draws from for take 1, one more for each later take. Blank is 1.",
+      description: "A number the model draws from for take 1, one more for each later take. Blank lets the model pick.",
     },
     {
       key: "take",

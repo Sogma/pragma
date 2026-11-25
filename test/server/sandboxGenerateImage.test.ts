@@ -112,7 +112,8 @@ describe("performSandboxGenerateImage", () => {
     expect(result.model).toBe("test/m");
     expect(result.cost).toEqual({ amount: 0.12, unit: "credits" });
     expect(readdirSync(path.join(space, "art"))).toEqual([path.basename(result.path)]);
-    expect(calls[0]).toMatchObject({ prompt: "A neon city at dusk, rain on the glass", aspectRatio: "16:10", seed: 1 });
+    expect(calls[0]).toMatchObject({ prompt: "A neon city at dusk, rain on the glass", aspectRatio: "16:10" });
+    expect(calls[0].seed).toBeUndefined();
   });
 
   it("hands back the result already there for the same inputs, without a call", async () => {
@@ -192,13 +193,25 @@ describe("performSandboxGenerateImage", () => {
   // never hands back take 2.
   it("makes a new take one past the highest of these inputs in the folder", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
-    const one = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
-    await performSandboxGenerateImage(space, flow, body({ take: "3" }), undefined, resolve);
-    const next = await performSandboxGenerateImage(space, flow, body({ take: "1", newTake: true }), undefined, resolve);
+    const seeded = (fields: Partial<GenerateImageRequestBody>) =>
+      performSandboxGenerateImage(space, flow, body({ seed: "10", ...fields }), undefined, resolve);
+    const one = await seeded({});
+    await seeded({ take: "3" });
+    const next = await seeded({ take: "1", newTake: true });
 
     expect(next).toMatchObject({ reused: false, take: 4 });
     expect(next.path).toBe(one.path.replace(/_0001\.png$/, "_0004.png"));
-    expect(calls.map((call) => call.seed)).toEqual([1, 3, 4]);
+    expect(calls.map((call) => call.seed)).toEqual([10, 12, 13]);
+  });
+
+  // A blank seed sends none: the provider picks its own each time, so each
+  // take is still a new image, and a model that takes no seed says nothing.
+  it("sends no seed for a node without one, take after take", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const one = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
+    const two = await performSandboxGenerateImage(space, flow, body({ take: "2" }), undefined, resolve);
+    expect(two.path).toBe(one.path.replace(/_0001\.png$/, "_0002.png"));
+    expect(calls.map((call) => call.seed)).toEqual([undefined, undefined]);
   });
 
   it("gives new takes asked for at once different numbers", async () => {
@@ -446,7 +459,7 @@ describe("an image a provider makes as a job", () => {
       settings: { aspectRatio: "3:2" },
     });
     expect(starts).toEqual([
-      { prompt: "A neon city at dusk, rain on the glass", references: [], aspectRatio: "16:10", seed: 1 },
+      { prompt: "A neon city at dusk, rain on the glass", references: [], aspectRatio: "16:10", seed: undefined },
     ]);
     expect(calls).toEqual([]);
     await vi.waitFor(() => expect([...records.values()][0]?.stage).toBe("saved"));
