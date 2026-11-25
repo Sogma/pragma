@@ -273,9 +273,14 @@ const CONTEXT_EFFECTS = [
   {
     glyph: "links",
     title: "Links",
-    text: "New links between its files are automatically written as relative links, so they continue working wherever the folder is moved, even outside the current space.",
+    text: "New links between its files are relative, so they keep working wherever the folder moves.",
   },
   { glyph: "copilot", title: "Copilot", text: "The copilot keeps a separate chat for this context." },
+  {
+    glyph: "preferences",
+    title: "Preferences",
+    text: "Preferences such as guides, looks and the Save frame folder are kept separately for this context.",
+  },
 ] as const;
 
 function effectGlyph(glyph: string): HTMLSpanElement {

@@ -43,3 +43,7 @@
 .folder-context-effect-icon[data-effect="copilot"] {
   --effect-glyph: var(--icon-message);
 }
+
+.folder-context-effect-icon[data-effect="preferences"] {
+  --effect-glyph: var(--icon-sliders);
+}
