@@ -18,10 +18,10 @@
   --graph-hue-orange: var(--pragma-orange);
   --graph-hue-red: var(--pragma-red);
   --graph-hue-crimson: var(--pragma-crimson);
-  --graph-kind-class: var(--pragma-yellow);
-  --graph-kind-table: var(--color-violet);
-  --graph-kind-flow: var(--color-accent);
-  --graph-kind-applet: var(--color-applet-icon);
+  --graph-kind-class: var(--kind-class);
+  --graph-kind-table: var(--kind-table);
+  --graph-kind-flow: var(--kind-flow);
+  --graph-kind-applet: var(--kind-applet);
   --graph-kind-plain: var(--text-secondary);
   --graph-kind-faint: var(--text-muted);
   --graph-line: var(--border-color);

@@ -85,6 +85,14 @@
   --view-bookmarks: var(--pragma-orange);
   --view-library: var(--pragma-crimson);
 
+  /* A kind of file's color, keyed by the kind's name: its icon paints in
+     it, and so does whatever else stands for the kind, such as its node in
+     the graph. */
+  --kind-table: var(--pragma-orange);
+  --kind-class: var(--pragma-yellow);
+  --kind-flow: var(--pragma-cyan);
+  --kind-applet: var(--pragma-green);
+
   /* Surfaces, text, and borders — every color elsewhere in this file should
      come from one of these rather than a literal, so the `[data-theme=
      "dark"]` block below is the entire dark theme in one place instead of
@@ -155,12 +163,10 @@
      media gone offline. A fill, and what is drawn on it. */
   --problem-bg: #73272a;
   --problem-fg: #fff;
-  --color-applet-icon: #16a34a;
-  /* The glyph over a solid --color-applet-icon fill, an Applet's Reload:
-     white on this green, the page's own dark on the dark theme's lighter
-     one, which white can't be seen on. */
-  --text-on-applet-icon: #fff;
-  --color-violet: #7c3aed;
+  /* The glyph over a solid --kind-applet fill, an Applet's Reload: white on
+     the light theme's green, the page's own dark on the dark theme's
+     lighter one, which white is too faint on. */
+  --text-on-kind-applet: #fff;
   --annotation-bg: #fff3b0;
   --annotation-fg: #7a6a00;
   --synopsis-bg: rgba(29, 78, 216, 0.06);
@@ -230,10 +236,11 @@
      both themes, deliberately not the accent. */
   --resize-handle-hover: #8a5cf5;
   /* Added/removed text in the copilot's diff cards and the editor's
-     proposals, opaque so a selection beneath can't tint them. The -fg
-     aliases follow their source, so the dark block doesn't repeat them. */
+     proposals, opaque so a selection beneath can't tint them. The removed
+     text's color follows --color-danger, so the dark block doesn't repeat
+     it. */
   --diff-add-bg: #c2e7d0;
-  --diff-add-fg: var(--color-applet-icon);
+  --diff-add-fg: #16a34a;
   --diff-del-bg: #f9c9cf;
   --diff-del-fg: var(--color-danger);
   --run-button-bg: #efeeec;
@@ -298,9 +305,7 @@ html[data-theme="dark"] {
   --color-warning-bg: rgba(226, 163, 54, 0.18);
   --problem-bg: #1b0001;
   --problem-fg: #840017;
-  --color-applet-icon: #4ade80;
-  --text-on-applet-icon: var(--bg-primary);
-  --color-violet: #a78bfa;
+  --text-on-kind-applet: var(--bg-primary);
   --annotation-bg: rgba(224, 193, 90, 0.18);
   --annotation-fg: #e0c15a;
   --synopsis-bg: rgba(102, 168, 246, 0.1);
@@ -327,6 +332,7 @@ html[data-theme="dark"] {
   --syntax-type: #4ec9b0;
   --find-match-fg: var(--bg-primary);
   --diff-add-bg: #265f3b;
+  --diff-add-fg: #4ade80;
   --diff-del-bg: #73272a;
   --run-button-bg: #2a2a2a;
   --run-button-bg-hover: #333;

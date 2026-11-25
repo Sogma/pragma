@@ -38,13 +38,13 @@
    button filled in the Applet icon's green. The hover restates the glyph's
    colour, or .icon-button's hover would darken it into the fill. */
 .applet-reload-button {
-  background: var(--color-applet-icon);
-  color: var(--text-on-applet-icon);
+  background: var(--kind-applet);
+  color: var(--text-on-kind-applet);
 }
 
 .applet-reload-button:hover {
-  background: color-mix(in srgb, var(--color-applet-icon), var(--text-primary) 12%);
-  color: var(--text-on-applet-icon);
+  background: color-mix(in srgb, var(--kind-applet), var(--text-primary) 12%);
+  color: var(--text-on-kind-applet);
 }
 
 .applet-reload-icon {

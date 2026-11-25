@@ -61,28 +61,24 @@
   --entry-glyph: var(--icon-fountain);
 }
 
-/* Fixed green, so an Applet is known by colour alone. */
 [data-entry-icon="applet"] {
   --entry-glyph: var(--icon-applet);
-  background-color: var(--row-ink, var(--color-applet-icon));
+  background-color: var(--row-ink, var(--kind-applet));
 }
 
-/* Violet, as an object pin is: what a Table gives a Flow is objects. */
 [data-entry-icon="table"] {
   --entry-glyph: var(--icon-table);
-  background-color: var(--row-ink, var(--color-violet));
+  background-color: var(--row-ink, var(--kind-table));
 }
 
-/* The accent the Flow editor's own text pin uses, rather than a new hue. */
 [data-entry-icon="flow"] {
   --entry-glyph: var(--icon-flow);
-  background-color: var(--row-ink, var(--color-accent));
+  background-color: var(--row-ink, var(--kind-flow));
 }
 
-/* Pragma's yellow, which no other kind wears. */
 [data-entry-icon="class"] {
   --entry-glyph: var(--icon-class);
-  background-color: var(--row-ink, var(--pragma-yellow));
+  background-color: var(--row-ink, var(--kind-class));
 }
 
 /* Any other AGENTS.md wears the mark's shape in one colour: instructions for

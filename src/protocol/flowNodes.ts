@@ -747,9 +747,7 @@ const generateText: FlowNodeTypeDefinition = {
   description: "A model's reply to a prompt.",
   category: "AI",
   keywords: ["ai", "llm", "model", "claude"],
-  // --color-violet's light-theme value (web/styles/tokens.css): the closest
-  // thing pragma's palette has to the industry's de facto "AI" color, reused
-  // rather than minted fresh.
+  // Violet, the industry's de facto "AI" color.
   defaultColor: "#7c3aed",
   version: "1.0",
   reuse: "optional",
