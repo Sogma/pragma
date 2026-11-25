@@ -18,7 +18,9 @@ interface StartOptions {
 export function registerStartCommand(program: Command): void {
   program
     .command("start [spacePath]")
-    .description("Start the Pragma editor for a space directory (defaults to the configured spacePath)")
+    .description(
+      "Start the Pragma editor for a space directory (defaults to the space you last opened; asks for one when there's none)",
+    )
     .option(
       "--external-url <url>",
       "serve other devices through an HTTPS proxy at this https:// address, behind a passphrase (see docs/deployment.md)",
@@ -62,7 +64,7 @@ export function registerStartCommand(program: Command): void {
         return;
       }
 
-      const target = openHostSpace(config, spacePathArg, remote);
+      const target = await openHostSpace(config, spacePathArg, remote);
       if (!target) return;
       await moveLibraries();
       const served = createServedSpace(target);

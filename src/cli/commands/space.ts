@@ -9,6 +9,7 @@ import {
   saveGlobalConfig,
   spaceLabel,
 } from "../../config/loadConfig.ts";
+import { NO_SPACES_YET } from "../hostSpace.ts";
 
 // What the desktop app's Open folder as space and Locate do with a folder
 // picker, for a host with no desktop app. A typed path is the human choice
@@ -81,7 +82,7 @@ export function registerSpaceCommand(program: Command): void {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       if (rows.length === 0) {
-        console.log("No spaces yet. Make one with pragma init <folder>, or add one with pragma space add <folder>.");
+        console.log(NO_SPACES_YET);
         return;
       }
 

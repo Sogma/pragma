@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import {
-  globalConfigPath,
+  loadGlobalConfig,
   type PragmaGlobalConfig,
   rememberKnownSpace,
   rememberSpace,
@@ -11,6 +11,7 @@ import {
 import { type AgentEndpoint, createAgentEndpoint } from "../server/apiServer.ts";
 import type { ServedSpace } from "../server/servedSpace.ts";
 import { moveLibrariesOntoSpaces } from "../server/spaceLibraries.ts";
+import { askForSpace, isInteractive } from "./askForSpace.ts";
 
 // One default port for `pragma dev` and `pragma start`, so the two share a
 // browser origin and, with it, every localStorage setting.
@@ -20,14 +21,17 @@ import { moveLibrariesOntoSpaces } from "../server/spaceLibraries.ts";
 // origin whatever another app left there reaches the space with no login.
 export const EDITOR_PORT = 14319;
 
+export const NO_SPACES_YET =
+  "No spaces yet. Make one with pragma init <folder>, or add one with pragma space add <folder>.";
+
 /** The space a CLI host serves, resolved, checked and registered; undefined
  * after saying why on stderr. `remote` is `pragma start --external-url`,
  * which serves other machines unattended. */
-export function openHostSpace(
+export async function openHostSpace(
   config: PragmaGlobalConfig,
   spacePathArg: string | undefined,
   remote: boolean,
-): string | undefined {
+): Promise<string | undefined> {
   // A path typed on the command line is never second-guessed, and neither
   // is --external-url's configured one: that target serves other machines
   // unattended, so quietly serving a *different* space would hand every
@@ -36,24 +40,32 @@ export function openHostSpace(
   const requested = spacePathArg ?? (remote ? config.spacePath : undefined);
   const spacePath = requested ?? resolveOpenableSpace(config);
 
-  if (!spacePath) {
-    console.error(
-      "No space to open: none given, and no registered space's folder is still there. " +
-        `Pass a directory, or set "spacePath" in ${globalConfigPath()}.`,
-    );
+  let target: string;
+  let current = config;
+  if (spacePath) {
+    target = path.resolve(spacePath);
+    if (!existsSync(target) || !statSync(target).isDirectory()) {
+      console.error(`${target} is not a directory.`);
+      process.exitCode = 1;
+      return undefined;
+    }
+    if (!requested && config.spacePath && path.resolve(config.spacePath) !== target) {
+      console.warn(`Configured space ${path.resolve(config.spacePath)} is not there. Opening ${target} instead.`);
+    }
+  } else if (!remote && isInteractive()) {
+    const answer = await askForSpace();
+    if (!answer) {
+      process.exitCode = 1;
+      return undefined;
+    }
+    target = answer;
+    // Read again: the answer is saved, and the copy read before the
+    // questions would write over it.
+    current = loadGlobalConfig();
+  } else {
+    console.error(noSpaceMessage(config));
     process.exitCode = 1;
     return undefined;
-  }
-
-  const target = path.resolve(spacePath);
-  if (!existsSync(target) || !statSync(target).isDirectory()) {
-    console.error(`${target} is not a directory.`);
-    process.exitCode = 1;
-    return undefined;
-  }
-
-  if (config.spacePath && path.resolve(config.spacePath) !== target) {
-    console.warn(`Configured space ${path.resolve(config.spacePath)} is not there. Opening ${target} instead.`);
   }
 
   // Before any host starts: grants are keyed by space id, so a served space
@@ -65,10 +77,10 @@ export function openHostSpace(
   // refuses on a miss. See docs/architecture.md's Space identity and state
   // ownership section.
   if (!remote) {
-    saveGlobalConfig(rememberSpace(config, target));
+    saveGlobalConfig(rememberSpace(current, target));
     return target;
   }
-  const registered = rememberKnownSpace(config, target);
+  const registered = rememberKnownSpace(current, target);
   if (!registered) {
     console.error(
       `${target} is not a registered space.\n\n` +
@@ -86,6 +98,15 @@ export function openHostSpace(
   }
   saveGlobalConfig(registered);
   return target;
+}
+
+function noSpaceMessage(config: PragmaGlobalConfig): string {
+  if (Object.keys(config.spaces ?? {}).length === 0) return NO_SPACES_YET;
+  return (
+    "None of your spaces' folders was found. If one moved, point it at its new folder with " +
+    "pragma space locate <id> <folder> (pragma space list shows the ids). Or make one with " +
+    "pragma init <folder>, or add one with pragma space add <folder>."
+  );
 }
 
 /** The agent endpoint every CLI host runs: its own listener on its own

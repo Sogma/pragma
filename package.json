@@ -57,6 +57,7 @@
     "@ai-sdk/mcp": "^2.0.96",
     "@ai-sdk/openai": "^4.0.114",
     "@ai-sdk/openai-compatible": "^3.0.90",
+    "@clack/prompts": "^1.9.0",
     "@hono/node-server": "^2.1.6",
     "@lezer/common": "^1.5.5",
     "@lezer/highlight": "^1.2.5",

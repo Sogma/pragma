@@ -22,7 +22,7 @@ export function registerDevCommand(program: Command): void {
         return;
       }
       setCredentialHost("local");
-      const target = openHostSpace(loadGlobalConfig(), spacePathArg, false);
+      const target = await openHostSpace(loadGlobalConfig(), spacePathArg, false);
       if (!target) return;
       await moveLibraries();
       const served = createServedSpace(target);

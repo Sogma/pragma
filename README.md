@@ -66,11 +66,9 @@ Requires [Node.js 24+](https://nodejs.org).
 ```bash
 npm install -g @sogma/pragma
 
-# Create a space with the getting-started example.
-pragma init path/to/your-space
-
-# Start the editor, then open the address it prints.
-pragma start path/to/your-space
+# Start the editor, then open the address it prints. The first time,
+# it asks you to create a space or open a folder as one.
+pragma start
 ```
 
 `npm install -g @sogma/pragma@latest` updates it. For access from other devices through an HTTPS proxy and behind a passphrase, see [deployment](docs/deployment.md).
@@ -84,11 +82,9 @@ git clone https://github.com/sogma/pragma.git
 cd pragma
 npm install
 
-# Create a space with the getting-started example.
-npm run pragma -- init path/to/your-space
-
-# Start the editor, then open the address it prints.
-npm run pragma -- start path/to/your-space
+# Start the editor, then open the address it prints. The first time,
+# it asks you to create a space or open a folder as one.
+npm run pragma -- start
 ```
 
 `npm run electron` builds and starts the desktop app from the same checkout.
@@ -148,7 +144,7 @@ Run each command as `pragma <command>`, or from a clone as `npm run pragma -- <c
 | `space add <folder>` | Add an existing folder to your spaces without changing it |
 | `space locate <id> <folder>` | Point a space at the folder it moved to, keeping its approvals and API tokens |
 | `space list` | List known spaces with their ids and folders |
-| `start [spacePath]` | Start the editor; `--external-url` enables access through an HTTPS proxy, behind a passphrase |
+| `start [spacePath]` | Start the editor on the space you last opened, or ask you to create or open one; `--external-url` enables access through an HTTPS proxy, behind a passphrase |
 | `passphrase` | Save the passphrase for `start --external-url` |
 | `run <flow>` | Run a `.flow.html` graph without the editor and print its results; `--json` prints the whole run |
 
