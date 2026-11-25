@@ -620,7 +620,7 @@ describe("App mode tiles", () => {
     expect(image.style.getPropertyValue("--node-color")).toBe("#0b6e99");
     expect(generate.style.getPropertyValue("--node-color")).toBe("#7c3aed");
     expect(prompt.style.getPropertyValue("--node-color")).toBe("");
-    expect(plainImage.style.getPropertyValue("--node-color")).toBe("var(--type-image)");
+    expect(plainImage.style.getPropertyValue("--node-color")).toBe("");
   });
 
   it("titles an unnamed Chart by its columns, and keeps a Chart's own label or the type's when a column is unset", () => {

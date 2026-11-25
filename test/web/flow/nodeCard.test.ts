@@ -1931,15 +1931,17 @@ describe("a node's color", () => {
     document.body.replaceChildren();
   });
 
-  it("is its category's with none of its own: the image and video pins' colors, AI's violet, else none", () => {
+  it("is its category's with none of its own: AI's violet, Applets' kind color, none for the rest", () => {
     const { cards } = setup();
-    expect(color(cards.build(node("loadImage")))).toBe("var(--type-image)");
-    expect(color(cards.build(node("loadFolderImage")))).toBe("var(--type-image)");
-    expect(color(cards.build(node("loadVideo")))).toBe("var(--type-video)");
     expect(color(cards.build(node("generateImage", { outputFolderPath: "art" })))).toBe("#7c3aed");
-    const prompt = cards.build(node("prompt", { text: "" }));
-    expect(color(prompt)).toBe("");
-    expect(prompt.classList.contains("tinted")).toBe(false);
+    const applet = cards.build(node("applet"));
+    expect(color(applet)).toBe("var(--kind-applet)");
+    expect(applet.classList.contains("tinted")).toBe(true);
+    for (const plain of [node("loadImage"), node("loadFolderImage"), node("loadVideo"), node("prompt", { text: "" })]) {
+      const el = cards.build(plain);
+      expect(color(el)).toBe("");
+      expect(el.classList.contains("tinted")).toBe(false);
+    }
   });
 
   it("is its own when it has one, whatever its category", () => {
@@ -1951,22 +1953,22 @@ describe("a node's color", () => {
 
   it("goes back to its category's from the picker's Default swatch, saving none of its own", () => {
     const { cards, deps } = setup();
-    const flowNode = node("loadImage", {}, { color: "#0db14c" });
+    const flowNode = node("generateImage", { outputFolderPath: "art" }, { color: "#0db14c" });
     const el = cards.build(flowNode);
     document.body.append(el);
     openColor(deps, el);
     expect(firstSwatch().getAttribute("aria-label")).toBe("Default");
-    expect(firstSwatch().style.getPropertyValue("--swatch")).toBe("var(--type-image)");
+    expect(firstSwatch().style.getPropertyValue("--swatch")).toBe("#7c3aed");
     firstSwatch().click();
     expect(flowNode.color).toBeUndefined();
-    expect(color(el)).toBe("var(--type-image)");
+    expect(color(el)).toBe("#7c3aed");
     expect(el.classList.contains("tinted")).toBe(true);
     expect(deps.persistGraph).toHaveBeenCalled();
   });
 
   it("clears to plain from No color on a node whose category has no color", () => {
     const { cards, deps } = setup();
-    const flowNode = node("prompt", { text: "" }, { color: "#0db14c" });
+    const flowNode = node("loadImage", {}, { color: "#0db14c" });
     const el = cards.build(flowNode);
     document.body.append(el);
     openColor(deps, el);

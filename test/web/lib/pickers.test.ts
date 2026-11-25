@@ -53,10 +53,10 @@ describe("the color picker's first swatch", () => {
 
   it("is Default with a fallback: filled with it, pressed while there's no value, and picking none", () => {
     const onPick = vi.fn();
-    openColorPicker({ anchor: opener(), value: "", fallback: "var(--type-image)", onPick });
+    openColorPicker({ anchor: opener(), value: "", fallback: "#7c3aed", onPick });
     expect(first().getAttribute("aria-label")).toBe("Default");
     expect(first().classList.contains("is-empty")).toBe(false);
-    expect(first().style.getPropertyValue("--swatch")).toBe("var(--type-image)");
+    expect(first().style.getPropertyValue("--swatch")).toBe("#7c3aed");
     expect(first().getAttribute("aria-pressed")).toBe("true");
     first().click();
     expect(onPick).toHaveBeenCalledWith("");
