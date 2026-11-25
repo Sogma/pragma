@@ -1,0 +1,20 @@
+/* The sweep (web/lib/sweep.ts), the light that marks work handed to a model
+   starting. Its colors run clockwise round a box from the top-left corner:
+   the logo's, in the order they take round the mark. */
+:root {
+  --sweep-colors:
+    var(--pragma-crimson), var(--pragma-green), var(--pragma-cyan), var(--pragma-blue), var(--pragma-yellow),
+    var(--pragma-orange), var(--pragma-red);
+}
+
+/* Its two canvases hang off the box's edge, a sharp line over a blurred glow
+   that the script cuts away inside the box. */
+.sweep-glow,
+.sweep-line {
+  position: absolute;
+  pointer-events: none;
+}
+
+.sweep-glow {
+  filter: blur(7px);
+}

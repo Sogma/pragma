@@ -8,6 +8,7 @@ import {
   sandboxGenerateVideo,
 } from "../../../web/core/apiClient.ts";
 import { type CanvasRunDeps, type CanvasRunInfo, createCanvasRun } from "../../../web/flow/canvasRun.ts";
+import { sweep } from "../../../web/lib/sweep.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // Runs side by side on the canvas: each on the Flow as it was saved when it
@@ -22,6 +23,8 @@ vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   fetchJobs: vi.fn(async () => ({ jobs: [] })),
   markJobsShown: vi.fn(async () => undefined),
 }));
+
+vi.mock("../../../web/lib/sweep.ts", () => ({ sweep: vi.fn() }));
 
 // Each model call waits for its reply, given by the test in any order.
 function heldReplies() {
@@ -199,6 +202,28 @@ describe("canvasRun side by side", () => {
     replies[1]("two");
     await second;
     expect(glowing()).toBe(false);
+  });
+
+  it("sweeps a Generate node once as it lights, not for a second run in it or its card drawn afresh", async () => {
+    const { replies, instructions } = heldReplies();
+    const { canvasRun, nodeEls } = setUp(promptToText("a kite"));
+    vi.mocked(sweep).mockClear();
+    const lit = nodeEls.get("generate-2");
+    const first = canvasRun.run();
+    const second = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(2));
+    nodeEls.set("generate-2", document.createElement("div"));
+    canvasRun.restyle("generate-2");
+    expect(vi.mocked(sweep).mock.calls).toEqual([[lit]]);
+
+    replies[0]("one");
+    replies[1]("two");
+    await Promise.all([first, second]);
+    const third = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(3));
+    expect(sweep).toHaveBeenCalledTimes(2);
+    replies[2]("three");
+    await third;
   });
 
   it("moves an Int on as soon as a run has used it, so the next run gets the next value", async () => {

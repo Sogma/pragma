@@ -138,3 +138,4 @@
 @import "./styles/welcome.css" layer(components);
 @import "./styles/about.css" layer(components);
 @import "./styles/utilities.css" layer(utilities);
+@import "./styles/sweep.css" layer(utilities);

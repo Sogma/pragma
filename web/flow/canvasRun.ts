@@ -11,6 +11,7 @@ import { type RunHooks, runFlow } from "../../src/protocol/flowRuntime.ts";
 import type { FlowCapabilityDeclaration, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 import { cancelJob, type FlowFileResponse } from "../core/apiClient.ts";
 import { formatVersionPhrase } from "../lib/dom.ts";
+import { sweep } from "../lib/sweep.ts";
 import type { AppMode } from "./appMode.ts";
 import { createFlowContext } from "./browserEnvironment.ts";
 import type { FlowHistory } from "./flowHistory.ts";
@@ -122,10 +123,11 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
   }
 
   // A node glows while any run of the open Flow is in it.
-  function glow(id: string): void {
+  function glow(id: string): boolean {
     const path = deps.flow()?.file.path;
     const lit = going().some((run) => run.flowPath === path && (run.running.get(id) ?? 0) > 0);
     deps.nodeEls.get(id)?.classList.toggle("running", lit);
+    return lit;
   }
 
   function release(run: RunState, keep: (id: number) => boolean): void {
@@ -267,7 +269,11 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       const hooks: RunHooks = {
         onNodeStart: (id) => {
           state.running.set(id, (state.running.get(id) ?? 0) + 1);
-          glow(id);
+          // An AI node marks the work it hands a model with the sweep as it
+          // lights: here, not with the glow, which a card drawn afresh gets again.
+          const card = deps.nodeEls.get(id);
+          const lighting = card !== undefined && !card.classList.contains("running");
+          if (glow(id) && lighting && FLOW_NODE_REGISTRY[deps.node(id)?.type ?? ""]?.category === "AI") sweep(card);
           report();
         },
         onNodeFinish: (id, progress) => {
