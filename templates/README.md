@@ -4,9 +4,9 @@ Starter content Pragma copies: a whole space when it creates one, and one of its
 
 ## `space/`
 
-The space scaffold. `pragma init`, the Manage Spaces modal, and the desktop app's create-space flow all copy this directory into the new space (`src/protocol/scaffoldSpace.ts`), so **anything you change here is what the next person sees the first time they open Pragma** — including a stray file you did not mean to ship.
+The space scaffold. `pragma init`, the first-run questions of `pragma start` and `pragma dev`, the Manage Spaces modal, and the desktop app's create-space flow all copy this directory into the new space (`src/protocol/scaffoldSpace.ts`), so **anything you change here is what the next person sees the first time they open Pragma** — including a stray file you did not mean to ship.
 
-The desktop app's Example projects switch can leave the worked examples out: the folders in `space/projects/`, the README lines that link into them, and the tags in `_tags.json`, which only their Classes use. Everything else is copied as is. Keep each example's links to it on their own lines of the README, so leaving it out leaves no dead link.
+The desktop app's Example projects switch, and the same question on the command line, can leave the worked examples out: the folders in `space/projects/`, the README lines that link into them, and the tags in `_tags.json`, which only their Classes use. Everything else is copied as is. Keep each example's links to it on their own lines of the README, so leaving it out leaves no dead link.
 
 One file a new space gets is *not* here: `.gitignore`. Every packager mangles that name — electron-builder drops it, npm rewrites it — so `scaffoldSpace.ts` writes it out instead. Edit it there.
 

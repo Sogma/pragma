@@ -2,7 +2,7 @@
 
 Pragma is an open protocol and an open-source, local-first editor for AI-assisted work in a space you own. A space is a folder that keeps your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.
 
-Move between doing the work yourself, shaping the tools that help you, and delegating to agents with a human in the loop. Keep the context close, the results inspectable, and the authority to act in your hands.
+We call Pragma a *creative operating environment* because you can shape the tools alongside the work. When a line of dialogue falls flat, you can rewrite it yourself, build a tool that suggests alternatives, or ask an agent to run that tool on other scenes. You decide what runs and which edits to keep.
 
 ## Why Pragma
 
@@ -66,8 +66,8 @@ Requires [Node.js 24+](https://nodejs.org).
 ```bash
 npm install -g @sogma/pragma
 
-# Start the editor, then open the address it prints. The first time,
-# it asks you to create a space or open a folder as one.
+# Start the editor, then open the address it prints. With no space
+# yet, it asks you to create one or open a folder as one.
 pragma start
 ```
 
@@ -82,8 +82,8 @@ git clone https://github.com/sogma/pragma.git
 cd pragma
 npm install
 
-# Start the editor, then open the address it prints. The first time,
-# it asks you to create a space or open a folder as one.
+# Start the editor, then open the address it prints. With no space
+# yet, it asks you to create one or open a folder as one.
 npm run pragma -- start
 ```
 
@@ -91,11 +91,11 @@ npm run pragma -- start
 
 ### First steps
 
-1. **Open the example.** A new space includes `projects/getting-started/`: a Table, an Applet, two Flows, and a sample scene. In the desktop app, create a space from **Manage Spaces…** in the space switcher.
+1. **Open the example.** A new space with the example projects includes `projects/getting-started/`: a Table, a Class, an Applet, two Flows, and a sample scene. In the desktop app, create a space from **Manage Spaces…** in the space switcher.
 2. **Add a model.** Open Settings → AI Models, add a provider, and supply its key or sign in with Continue with ChatGPT. Then choose a model in the chat panel.
 3. **Try a tool.** Open `sample-scene.md`, select a sentence, and click **Tighten** or **Expand** in the Tools tab. Accept or reject the proposed rewrite over your text.
 
-The [getting-started guide](templates/space/projects/getting-started/README.md), also included in your new space, walks through the rest.
+The [getting-started guide](templates/space/projects/getting-started/README.md), the README in that project, walks through the rest.
 
 > [!IMPORTANT]
 > History keeps what each save replaced on this computer only. Keep a separate backup, or use a git repository and push it to a remote through the Source Control view.
@@ -112,12 +112,11 @@ Use Settings → AI Models to manage providers and Settings → Publishing to ma
 
 ```json
 {
-  "spacePath": "path/to/your-space",
   "modelProviders": [{ "id": "anthropic", "kind": "anthropic", "textModels": ["claude-sonnet-5-5"] }]
 }
 ```
 
-Setting `spacePath` lets you run `start` without a path argument.
+`spacePath` is the space `start` opens when given no path. Pragma sets it to the space you opened last; a remote-access server serves only that one (see [deployment](docs/deployment.md)).
 
 API keys stay outside this file. Settings stores them separately, encrypted with the OS keychain in the desktop app; desktop and command-line credentials are kept apart. Providers without a custom `baseURL` can also read their vendor's `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `AI_GATEWAY_API_KEY` from the environment when you leave the key blank.
 
@@ -140,7 +139,7 @@ Run each command as `pragma <command>`, or from a clone as `npm run pragma -- <c
 | Command | What it does |
 |---|---|
 | `dev [spacePath]` | Start the editor from a clone, with hot reload, for work on Pragma itself |
-| `init [directory]` | Create a space with the getting-started example and add it to your spaces; defaults to the current directory |
+| `init [directory]` | Create a space with the example projects and add it to your spaces; defaults to the current directory |
 | `space add <folder>` | Add an existing folder to your spaces without changing it |
 | `space locate <id> <folder>` | Point a space at the folder it moved to, keeping its approvals and API tokens |
 | `space list` | List known spaces with their ids and folders |

@@ -672,9 +672,10 @@ function withSpaceOpen(config: PragmaGlobalConfig, spacePath: string, id: string
 /** Opens `spacePath`, registering it under a fresh id if it isn't known.
  *
  * Minting an entry assigns identity, so this is only for targets where
- * something owns it — Electron and the loopback dev server, where a human
- * chose the path. Every other target uses the lookup-only variant below. See
- * docs/architecture.md's Space identity and state ownership section. */
+ * something owns it — Electron and the local hosts, `pragma start` and
+ * `pragma dev`, where a human chose the path. Every other target uses the
+ * lookup-only variant below. See docs/architecture.md's Space identity and
+ * state ownership section. */
 export function rememberSpace(config: PragmaGlobalConfig, spacePath: string): PragmaGlobalConfig {
   return withSpaceOpen(config, spacePath, findSpaceId(config, spacePath) ?? mintSpaceId(config));
 }

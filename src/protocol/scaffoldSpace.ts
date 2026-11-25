@@ -41,9 +41,10 @@ export interface ScaffoldOptions {
 }
 
 /** Scaffolds a brand-new space at `target` from `templates/space/`. The one
- * implementation behind `pragma init`, the Manage Spaces modal, and
- * Electron's create-space flow, so none can drift on what a new space looks
- * like. Throws if `target` already has a `README.md`, its name in any case. */
+ * implementation behind `pragma init`, `pragma start`'s first-run setup, the
+ * Manage Spaces modal, and Electron's create-space flow, so none can drift on
+ * what a new space looks like. Throws if `target` already has a `README.md`,
+ * its name in any case. */
 export async function scaffoldSpace(target: string, { examples = true }: ScaffoldOptions = {}): Promise<void> {
   const readme = (existsSync(target) ? readdirSync(target) : []).find((name) => isNamed(name, "README.md"));
   if (readme !== undefined) {

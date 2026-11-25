@@ -36,7 +36,7 @@ Doc comments on exported types and protocol definitions follow the same rule; a 
 
 ## Keep the template space in sync
 
-`templates/space/` (scaffolded by `pragma init`, the Manage Spaces modal, and Electron's create-space flow — see `scaffoldSpace.ts`) ships worked examples of Pragma's document kinds, including `projects/getting-started/`'s Table + Flow pair. When changing logic that Flows, Applets or Tables depend on — node types, the Applet manifest, the `.table.html` format, the `pragma` client surface — check whether the template space's example files still reflect that behavior, and update them in the same change rather than letting them drift out of sync with what they're meant to demonstrate.
+`templates/space/` (scaffolded by `pragma init`, `pragma start`'s first-run setup, the Manage Spaces modal, and Electron's create-space flow — see `scaffoldSpace.ts`) ships worked examples of Pragma's document kinds, including `projects/getting-started/`'s Table + Flow pair. When changing logic that Flows, Applets or Tables depend on — node types, the Applet manifest, the `.table.html` format, the `pragma` client surface — check whether the template space's example files still reflect that behavior, and update them in the same change rather than letting them drift out of sync with what they're meant to demonstrate.
 
 ## Keep scratch files out of the tree
 
