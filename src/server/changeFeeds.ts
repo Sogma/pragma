@@ -1,9 +1,10 @@
 // Whether a folder tree changed, without walking it on request. Each root a
 // client asks about is followed — watched where the filesystem sends events,
-// its folders' modified times polled where it sends none — until nobody has
-// asked for a while. A version names one stretch of following, so a restart
+// its folders polled where it sends none — until nobody has asked for a
+// while. A version names one stretch of following, so a restart
 // reads as a change and a client re-reads whatever it may have missed.
 
+import { createHash } from "node:crypto";
 import { type FSWatcher, watch } from "node:fs";
 import { readdir, stat, statfs } from "node:fs/promises";
 import path from "node:path";
@@ -20,14 +21,14 @@ export interface ChangeFeeds {
 export interface LocalChangeFeedOptions {
   /** How long a root is followed after it was last asked about. */
   idleMs?: number;
-  /** How often a root that sends no events has its folders' times read. */
+  /** How often a root that sends no events has its folders read. */
   pollMs?: number;
   /** Polls even where events would arrive. */
   poll?: boolean;
 }
 
 // A Windows drive under WSL: 9p delivers no change events at all, from
-// either side, while its folders' modified times are current.
+// either side.
 const V9FS_MAGIC = 0x01021997;
 
 // The tree never lists a dot entry, so nothing under one is a change to it:
@@ -44,21 +45,22 @@ async function sendsNoEvents(root: string): Promise<boolean> {
   }
 }
 
-/** Every visible folder under `root` with its modified time, which moves
- * whenever an entry is added, removed or renamed in it. */
-async function folderTimes(root: string): Promise<string> {
+/** Every visible folder under `root`, as its modified time and the visible
+ * names it lists, folded into one digest.
+ *
+ * The names are not redundant with the time: on an exFAT or FAT drive,
+ * adding, removing or renaming an entry leaves its folder's time as it was. */
+async function folderStates(root: string): Promise<string> {
   const lines: string[] = [];
   const walk = async (dir: string): Promise<void> => {
     const [info, entries] = await Promise.all([stat(dir), readdir(dir, { withFileTypes: true })]);
-    lines.push(`${dir}\t${info.mtimeMs}`);
-    await Promise.all(
-      entries
-        .filter((entry) => entry.isDirectory() && !isHiddenName(entry.name))
-        .map((entry) => walk(path.join(dir, entry.name))),
-    );
+    const visible = entries.filter((entry) => !isHiddenName(entry.name));
+    const names = visible.map((entry) => `${entry.isDirectory() ? "d" : "f"}:${entry.name}`).sort();
+    lines.push(`${dir}\t${info.mtimeMs}\t${names.join("\0")}`);
+    await Promise.all(visible.filter((entry) => entry.isDirectory()).map((entry) => walk(path.join(dir, entry.name))));
   };
   await walk(root);
-  return lines.sort().join("\n");
+  return createHash("sha256").update(lines.sort().join("\n")).digest("hex");
 }
 
 interface Feed {
@@ -93,9 +95,9 @@ export function createLocalChangeFeeds(options: LocalChangeFeedOptions = {}): Ch
         if (reading) return;
         reading = true;
         try {
-          const times = await folderTimes(root);
-          if (last !== undefined && times !== last) feed.count += 1;
-          last = times;
+          const state = await folderStates(root);
+          if (last !== undefined && state !== last) feed.count += 1;
+          last = state;
         } catch {
           // see above
         } finally {

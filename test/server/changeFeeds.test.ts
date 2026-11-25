@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalChangeFeeds } from "../../src/server/changeFeeds.ts";
@@ -49,6 +49,29 @@ describe.each([
     await new Promise((resolve) => setTimeout(resolve, 200));
     await writeFile(path.join(root, ".git", "index"), "x", "utf8");
     expect(await changesFrom(() => feeds.version(root), first, 400)).toBe(false);
+  });
+});
+
+// An exFAT or FAT drive leaves a folder's time as it was when an entry is
+// added, removed or renamed. Setting the time back after each change stands
+// in for one, to a whole second so it reads back exactly.
+describe("a polled tree whose folders keep their times", () => {
+  it("moves its version when an entry is added, renamed or removed", async () => {
+    const folder = path.join(root, "notes");
+    const keepTime = () => utimes(folder, 1_000_000, 1_000_000);
+    await keepTime();
+    const feeds = createLocalChangeFeeds({ poll: true, pollMs: 100 });
+    feeds.version(root);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const seen = async (change: () => Promise<void>) => {
+      const before = feeds.version(root);
+      await change();
+      await keepTime();
+      return changesFrom(() => feeds.version(root), before, 1500);
+    };
+    expect(await seen(() => writeFile(path.join(folder, "new.md"), "", "utf8"))).toBe(true);
+    expect(await seen(() => rename(path.join(folder, "new.md"), path.join(folder, "renamed.md")))).toBe(true);
+    expect(await seen(() => rm(path.join(folder, "renamed.md")))).toBe(true);
   });
 });
 
