@@ -49,11 +49,8 @@
 
 /* The node currently executing during a Run; only one carries this at a time.
    Full-strength accent, unlike .selected: a Run in progress is worth being
-   bold about.
-
-   While a sweep is lit on the node (web/lib/sweep.ts) it keeps its own look.
-   :where keeps the rule as light as .selected, which must still win. */
-.flow-node.running:not(:where([data-sweep="lit"])) {
+   bold about. */
+.flow-node.running {
   border-color: var(--color-accent);
 }
 
@@ -62,7 +59,7 @@
    card, which would drag the ports and edge endpoints with it, and animates
    opacity alone, never the shadow, which would repaint every frame. The base
    opacity is the full glow, so the reduced-motion reset settles on it. */
-.flow-node.running:not(:where([data-sweep="lit"]))::after {
+.flow-node.running::after {
   content: "";
   position: absolute;
   inset: -1px;
@@ -75,24 +72,6 @@
 @keyframes flow-node-running-glow {
   50% {
     opacity: 0.4;
-  }
-}
-
-/* The running look fades in as the sweep fades out. The glow rises through a
-   filter, since its pulse holds opacity. */
-.flow-node.running[data-sweep="fading"] {
-  transition: border-color var(--sweep-fade) ease-out;
-}
-
-.flow-node.running[data-sweep="fading"]::after {
-  animation:
-    flow-node-running-glow 1.4s ease-in-out infinite,
-    flow-node-running-rise var(--sweep-fade) ease-out;
-}
-
-@keyframes flow-node-running-rise {
-  from {
-    filter: opacity(0);
   }
 }
 

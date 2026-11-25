@@ -123,11 +123,10 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
   }
 
   // A node glows while any run of the open Flow is in it.
-  function glow(id: string): boolean {
+  function glow(id: string): void {
     const path = deps.flow()?.file.path;
     const lit = going().some((run) => run.flowPath === path && (run.running.get(id) ?? 0) > 0);
     deps.nodeEls.get(id)?.classList.toggle("running", lit);
-    return lit;
   }
 
   function release(run: RunState, keep: (id: number) => boolean): void {
@@ -216,6 +215,8 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       }
 
       const reports = new Map<string, string[]>();
+      // The image and video nodes that found their result on disk, not paid for it.
+      const reused = new Set<string>();
       const name = flow.file.name || flow.file.path;
       const context = createFlowContext({
         flowPath: flow.file.path,
@@ -228,7 +229,10 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
           log: (id, outcome) => deps.modelConsole.logLlmCall(`${name} · ${state.labels.get(id) ?? id}`, outcome),
           warned: (id, warnings) => reports.set(id, [...warnings]),
         },
-        spent: (_id, spend) => deps.spent(flow.file.path, spend),
+        spent: (id, spend) => {
+          if (spend.reused) reused.add(id);
+          deps.spent(flow.file.path, spend);
+        },
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
         signal: state.controller.signal,
@@ -269,26 +273,30 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       const hooks: RunHooks = {
         onNodeStart: (id) => {
           state.running.set(id, (state.running.get(id) ?? 0) + 1);
-          // An AI node marks the work it hands a model with the sweep as it
-          // lights: here, not with the glow, which a card drawn afresh gets again.
-          const card = deps.nodeEls.get(id);
-          const lighting = card !== undefined && !card.classList.contains("running");
-          if (glow(id) && lighting && FLOW_NODE_REGISTRY[deps.node(id)?.type ?? ""]?.category === "AI") sweep(card);
+          glow(id);
           report();
         },
         onNodeFinish: (id, progress) => {
+          // Fresh: it ran, where a result held from the last run finishes
+          // without starting, and gave a result it didn't find on disk.
+          const fresh = state.running.has(id) && progress.outputs.has(id) && !reused.has(id);
           const left = (state.running.get(id) ?? 1) - 1;
           if (left > 0) state.running.set(id, left);
           else state.running.delete(id);
           glow(id);
           report();
           shown.add(id);
-          if (newest(id)) {
+          const lands = newest(id);
+          if (lands) {
             deps.cards.showRunResult({ ...progress, reports }, [id]);
             deps.appMode.showResults(progress, [id]);
           }
           // At once, not at the run's end, so the next Run gets the next value.
           if (deps.flow() === flow && progress.outputs.has(id)) moveOnAfter(id);
+          // An AI node's fresh result lands with the sweep. Last, on the card as
+          // drawn now: a redraw replaces the card, and the sweep stops with it.
+          const card = deps.nodeEls.get(id);
+          if (card && lands && fresh && FLOW_NODE_REGISTRY[deps.node(id)?.type ?? ""]?.category === "AI") sweep(card);
         },
       };
       const ran = await runFlow(target, context, hooks, known, memory.recall);

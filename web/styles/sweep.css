@@ -1,5 +1,5 @@
-/* The sweep (web/lib/sweep.ts), the light that marks work handed to a model
-   starting. Its colors run clockwise round a box from the top-left corner:
+/* The sweep (web/lib/sweep.ts), the light that marks a model's result
+   arriving. Its colors run clockwise round a box from the top-left corner:
    the logo's, in the order they take round the mark. */
 :root {
   --sweep-colors:

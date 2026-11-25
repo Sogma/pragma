@@ -204,26 +204,79 @@ describe("canvasRun side by side", () => {
     expect(glowing()).toBe(false);
   });
 
-  it("sweeps a Generate node once as it lights, not for a second run in it or its card drawn afresh", async () => {
+  it("sweeps a Generate node as its fresh result lands, after its card shows it", async () => {
     const { replies, instructions } = heldReplies();
-    const { canvasRun, nodeEls } = setUp(promptToText("a kite"));
+    const { canvasRun, deps, nodeEls } = setUp(promptToText("a kite"));
     vi.mocked(sweep).mockClear();
-    const lit = nodeEls.get("generate-2");
-    const first = canvasRun.run();
-    const second = canvasRun.run();
-    await vi.waitFor(() => expect(instructions()).toHaveLength(2));
-    nodeEls.set("generate-2", document.createElement("div"));
-    canvasRun.restyle("generate-2");
-    expect(vi.mocked(sweep).mock.calls).toEqual([[lit]]);
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(1));
+    expect(sweep).not.toHaveBeenCalled();
 
-    replies[0]("one");
-    replies[1]("two");
-    await Promise.all([first, second]);
-    const third = canvasRun.run();
-    await vi.waitFor(() => expect(instructions()).toHaveLength(3));
-    expect(sweep).toHaveBeenCalledTimes(2);
-    replies[2]("three");
-    await third;
+    replies[0]("a red kite");
+    await running;
+    expect(vi.mocked(sweep).mock.calls).toEqual([[nodeEls.get("generate-2")]]);
+    const shown = deps.cards.showRunResult.mock.calls.findIndex(([, ids]) => (ids as string[]).includes("generate-2"));
+    expect(deps.cards.showRunResult.mock.invocationCallOrder[shown]).toBeLessThan(
+      vi.mocked(sweep).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("sweeps no error, and no older run's result the card doesn't show", async () => {
+    vi.mocked(sandboxGenerate).mockReset();
+    vi.mocked(sandboxGenerate).mockRejectedValue(new Error("The model is busy"));
+    const failing = setUp(promptToText("a kite"));
+    vi.mocked(sweep).mockClear();
+    await failing.canvasRun.run();
+    expect(sweep).not.toHaveBeenCalled();
+
+    const { replies, instructions } = heldReplies();
+    const { canvasRun } = setUp(promptToText("a kite"));
+    const older = canvasRun.run();
+    const newer = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(2));
+    replies[1]("newer");
+    await newer;
+    replies[0]("older");
+    await older;
+    expect(sweep).toHaveBeenCalledTimes(1);
+  });
+
+  it("sweeps no cancelled run", async () => {
+    const { replies, instructions } = heldReplies();
+    const { canvasRun, lastRuns } = setUp(promptToText("a kite"));
+    vi.mocked(sweep).mockClear();
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(1));
+    lastRuns()[0].cancel();
+    replies[0]("too late");
+    await running;
+    expect(sweep).not.toHaveBeenCalled();
+  });
+
+  it("sweeps no result held from the last run, nor a clip found on disk", async () => {
+    const { replies, instructions } = heldReplies();
+    const held = promptToText("a kite");
+    held.nodes[1].config.reuse = "true";
+    const repeat = setUp(held);
+    vi.mocked(sweep).mockClear();
+    const first = repeat.canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(1));
+    replies[0]("a red kite");
+    await first;
+    await repeat.canvasRun.run();
+    expect(instructions()).toHaveLength(1);
+    expect(sweep).toHaveBeenCalledTimes(1);
+
+    const clip = { path: "clips/kite.mp4", model: "test/video", take: 1, resumed: false, warnings: [] };
+    vi.mocked(sandboxGenerateVideo).mockReset();
+    vi.mocked(sandboxGenerateVideo).mockResolvedValueOnce({ ...clip, reused: true });
+    vi.mocked(sandboxGenerateVideo).mockResolvedValueOnce({ ...clip, reused: false });
+    const video = setUp(promptToVideo());
+    vi.mocked(sweep).mockClear();
+    await video.canvasRun.run();
+    expect(sweep).not.toHaveBeenCalled();
+    await video.canvasRun.run();
+    expect(vi.mocked(sweep).mock.calls).toEqual([[video.nodeEls.get("video-2")]]);
   });
 
   it("moves an Int on as soon as a run has used it, so the next run gets the next value", async () => {

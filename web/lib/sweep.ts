@@ -1,7 +1,7 @@
-// The light that marks work handed to a model starting: it runs once round a
-// box's edge, a sharp line over a blurred glow, in the colors sweep.css lists.
-// The box carries data-sweep="lit" while it shines, then "fading" for
-// --sweep-fade, so a look that follows can wait for it and fade in with it.
+// The light that marks a model's result arriving: it runs once round a box's
+// edge, a sharp line over a blurred glow, in the colors sweep.css lists. It
+// keeps to the box's size as it plays, so a box that grows as the result
+// loads, as a card does when its picture comes in, is traced at its new size.
 //
 // Both canvases hang outside the box's edge: the box must be positioned and
 // must let its overflow show.
@@ -31,59 +31,63 @@ const playing = new WeakMap<HTMLElement, () => void>();
 export function sweep(box: HTMLElement): void {
   playing.get(box)?.();
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
-  const width = box.offsetWidth;
-  const height = box.offsetHeight;
-  if (!width || !height) return;
+  if (!box.offsetWidth || !box.offsetHeight) return;
   const style = getComputedStyle(box);
   const colors = colorSteps(style.getPropertyValue("--sweep-colors"));
-  if (!colors) return;
+  const glow = colors && layer("sweep-glow");
+  const line = glow && layer("sweep-line");
+  if (!colors || !glow || !line) return;
+  // The line at the box's scale on screen, so a zoomed canvas keeps it sharp;
+  // the glow at a pixel per CSS pixel, which its blur hides.
+  const layers = [
+    { context: glow, lineWidth: GLOW_WIDTH, lineCap: "round", onScreen: false },
+    { context: line, lineWidth: LINE_WIDTH, lineCap: "butt", onScreen: true },
+  ] as const;
 
-  const shorter = Math.min(width, height);
-  const corner = style.borderTopLeftRadius;
-  const radius = Math.min((Number.parseFloat(corner) || 0) * (corner.endsWith("%") ? shorter / 100 : 1), shorter / 2);
-  // The line runs down the middle of the box's border.
-  const points = edgePoints(width, height, radius, (Number.parseFloat(style.borderTopWidth) || 0) / 2);
-  const count = points.length / 2 - 1;
-  const segmentColors = Array.from({ length: count }, (_, i) => colors[Math.round((i / count) * (COLOR_STEPS - 1))]);
-
-  const outer = { width: width + 2 * PAD, height: height + 2 * PAD };
+  // The edge as last measured, measured again when the box's size changes.
+  let edge = { width: 0, height: 0, count: 0, points: new Float32Array(0), strokes: [] as string[] };
   // Placed from the box's padding edge, which sits inside its border.
   const offset = (border: string) => `${-PAD - (Number.parseFloat(border) || 0)}px`;
-  const layer = (className: string, scale: number, lineWidth: number, lineCap: CanvasLineCap) => {
-    const canvas = document.createElement("canvas");
-    canvas.className = className;
-    canvas.width = Math.round(outer.width * scale);
-    canvas.height = Math.round(outer.height * scale);
-    canvas.style.cssText = `left: ${offset(style.borderLeftWidth)}; top: ${offset(style.borderTopWidth)}; width: ${outer.width}px; height: ${outer.height}px`;
-    const context = canvas.getContext("2d");
-    if (context) {
-      context.scale(scale, scale);
+  const measure = (): boolean => {
+    const width = box.offsetWidth;
+    const height = box.offsetHeight;
+    if (!width || !height || (width === edge.width && height === edge.height)) return false;
+    const radius = cornerRadius(style.borderTopLeftRadius, Math.min(width, height));
+    // The line runs down the middle of the box's border.
+    const points = edgePoints(width, height, radius, (Number.parseFloat(style.borderTopWidth) || 0) / 2);
+    const count = points.length / 2 - 1;
+    const strokes = Array.from({ length: count }, (_, i) => colors[Math.round((i / count) * (COLOR_STEPS - 1))]);
+    edge = { width, height, count, points, strokes };
+    const scale = (box.getBoundingClientRect().width / width) * (window.devicePixelRatio || 1);
+    const place = `left: ${offset(style.borderLeftWidth)}; top: ${offset(style.borderTopWidth)}`;
+    for (const { context, lineWidth, lineCap, onScreen } of layers) {
+      const ratio = onScreen ? scale : 1;
+      // Sizing a canvas clears it, its stroke and scale too.
+      context.canvas.width = Math.round((width + 2 * PAD) * ratio);
+      context.canvas.height = Math.round((height + 2 * PAD) * ratio);
+      context.canvas.style.cssText = `${place}; width: ${width + 2 * PAD}px; height: ${height + 2 * PAD}px`;
+      context.scale(ratio, ratio);
       context.lineWidth = lineWidth;
       context.lineCap = lineCap;
     }
-    return context;
+    // Shown outside the box only, as though the glow shone from under it.
+    const hole = roundedRect(PAD, PAD, width, height, radius);
+    glow.canvas.style.clipPath = `path(evenodd, "M0 0H${width + 2 * PAD}V${height + 2 * PAD}H0Z${hole}")`;
+    return true;
   };
-  // The line at the box's scale on screen, so a zoomed canvas keeps it sharp;
-  // the glow at a pixel per CSS pixel, which its blur hides.
-  const sharp = (box.getBoundingClientRect().width / width) * (window.devicePixelRatio || 1);
-  const glow = layer("sweep-glow", 1, GLOW_WIDTH, "round");
-  const line = layer("sweep-line", sharp, LINE_WIDTH, "butt");
-  if (!glow || !line) return;
-  // Shown outside the box only, as though the glow shone from under it.
-  const hole = roundedRect(PAD, PAD, width, height, radius);
-  glow.canvas.style.clipPath = `path(evenodd, "M0 0H${outer.width}V${outer.height}H0Z${hole}")`;
-  const layers = [glow, line];
 
-  const paint = (t: number): void => {
-    const alpha = Math.min(1, t / FADE_IN, (1 - t) / (1 - FADE_AT));
-    const head = reach(t) * count;
+  let progress = 0;
+  const paint = (): void => {
+    const { width, height, count, points, strokes } = edge;
+    const alpha = Math.min(1, progress / FADE_IN, (1 - progress) / (1 - FADE_AT));
+    const head = reach(progress) * count;
     const tail = Math.max(0, head - TAIL * count);
-    for (const context of layers) {
-      context.clearRect(0, 0, outer.width, outer.height);
+    for (const { context } of layers) {
+      context.clearRect(0, 0, width + 2 * PAD, height + 2 * PAD);
       for (let i = Math.floor(tail); i <= head && i < count; i++) {
         // Brightest at the head, fading to nothing down the tail.
         context.globalAlpha = alpha * Math.max(0, (i - tail) / (head - tail || 1)) ** 1.3;
-        context.strokeStyle = segmentColors[i];
+        context.strokeStyle = strokes[i];
         context.beginPath();
         context.moveTo(points[2 * i], points[2 * i + 1]);
         context.lineTo(points[2 * i + 2], points[2 * i + 3]);
@@ -92,13 +96,17 @@ export function sweep(box: HTMLElement): void {
     }
   };
 
+  // Painted again at once: the resize cleared the canvases, and this frame
+  // paints before the next tick would draw them.
+  const resized = new ResizeObserver(() => {
+    if (measure()) paint();
+  });
   let frame = 0;
   const stop = (): void => {
     cancelAnimationFrame(frame);
+    resized.disconnect();
     glow.canvas.remove();
     line.canvas.remove();
-    delete box.dataset.sweep;
-    box.style.removeProperty("--sweep-fade");
     playing.delete(box);
   };
   const start = performance.now();
@@ -108,17 +116,29 @@ export function sweep(box: HTMLElement): void {
       stop();
       return;
     }
-    const t = Math.min(1, Math.max(0, (now - start) / DURATION_MS));
-    if (t >= FADE_AT && box.dataset.sweep === "lit") box.dataset.sweep = "fading";
-    paint(t);
-    if (t < 1) frame = requestAnimationFrame(tick);
+    progress = Math.min(1, Math.max(0, (now - start) / DURATION_MS));
+    paint();
+    if (progress < 1) frame = requestAnimationFrame(tick);
     else stop();
   };
+  measure();
   box.prepend(glow.canvas, line.canvas);
-  box.dataset.sweep = "lit";
-  box.style.setProperty("--sweep-fade", `${Math.round(DURATION_MS * (1 - FADE_AT))}ms`);
+  resized.observe(box, { box: "border-box" });
   playing.set(box, stop);
   frame = requestAnimationFrame(tick);
+}
+
+function layer(className: string): CanvasRenderingContext2D | null {
+  const canvas = document.createElement("canvas");
+  canvas.className = className;
+  return canvas.getContext("2d");
+}
+
+// A corner's radius in pixels, at most half the box's shorter side. A
+// percentage is of that side, near enough for an edge.
+function cornerRadius(corner: string, shorter: number): number {
+  const value = Number.parseFloat(corner) || 0;
+  return Math.min(corner.endsWith("%") ? (value * shorter) / 100 : value, shorter / 2);
 }
 
 // The colors along the edge in steps, for the last list read: it changes only
@@ -160,7 +180,7 @@ function colorSteps(list: string): string[] | undefined {
 
 // Points spaced evenly round the rounded rect `inset` into the box, clockwise
 // from the top of its left side and back, shifted by PAD into the canvas.
-function edgePoints(width: number, height: number, radius: number, inset: number): Float32Array {
+function edgePoints(width: number, height: number, radius: number, inset: number): Float32Array<ArrayBuffer> {
   const bend = Math.max(0, radius - inset);
   const near = inset + bend;
   const centers = [
