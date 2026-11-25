@@ -125,7 +125,7 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
       sub.textContent = !current
         ? "Not set up"
         : current.keySource === "stored"
-          ? `${current.bucket} · ${hostOf(current.endpoint)}`
+          ? `${current.bucket} · ${shortHost(current.endpoint)}`
           : "no key";
     } catch (error) {
       current = null;
@@ -149,10 +149,17 @@ export function wireSharingPanel(root: HTMLElement, deps: SharingPanelDeps): () 
   return load;
 }
 
-function hostOf(endpoint: string): string {
+// The row's host drops its first label, which is often an account id, to name
+// the provider. An IP address or a two-part host stays whole, since dropping a
+// label from it would leave `168.1.10` or `com`.
+function shortHost(endpoint: string): string {
+  let host: string;
   try {
-    return new URL(endpoint).host;
+    host = new URL(endpoint).hostname;
   } catch {
     return endpoint;
   }
+  const labels = host.split(".").filter(Boolean);
+  if (labels.length < 3 || /^\d+$/.test(labels[labels.length - 1])) return host;
+  return labels.slice(1).join(".");
 }

@@ -19,17 +19,18 @@ vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
 }));
 
 const store = { kind: "plain-files", encrypted: false, available: true } as const;
-const saved: SharingResponse = {
+const savedAt = (endpoint: string): SharingResponse => ({
   sharing: {
     kind: "s3",
-    endpoint: "https://store.example.test",
+    endpoint,
     bucket: "refs",
     region: "",
     accessKeyId: "AK",
     keySource: "stored",
   },
   store,
-};
+});
+const saved = savedAt("https://store.example.test");
 
 // Settings → Files' Sharing row and page, as web/index.html has them,
 // trimmed to what the panel reads.
@@ -82,7 +83,7 @@ describe("Settings → Files → Sharing", () => {
   it("names the bucket once one is set up, and fills the page with all but the secret", async () => {
     vi.mocked(fetchSharing).mockResolvedValue(saved);
     wire();
-    await vi.waitFor(() => expect(sub()).toBe("refs · store.example.test"));
+    await vi.waitFor(() => expect(sub()).toBe("refs · example.test"));
     row()?.click();
     expect(byId<HTMLInputElement>("sharing-form-bucket").value).toBe("refs");
     expect(byId<HTMLInputElement>("sharing-form-access-key").value).toBe("AK");
@@ -91,6 +92,17 @@ describe("Settings → Files → Sharing", () => {
       "a key is set (enter a new one to replace it)",
     );
     expect(byId("sharing-form-check").hidden).toBe(false);
+  });
+
+  it.each([
+    ["https://0123abcd.eu.store.example.test:8443", "eu.store.example.test"],
+    ["http://192.168.1.10:9000", "192.168.1.10"],
+    ["https://example.test", "example.test"],
+    ["http://localhost:9000", "localhost"],
+  ])("shows the endpoint %s as %s", async (endpoint, host) => {
+    vi.mocked(fetchSharing).mockResolvedValue(savedAt(endpoint));
+    wire();
+    await vi.waitFor(() => expect(sub()).toBe(`refs · ${host}`));
   });
 
   it("saves the fields and the secret, then says the round trip worked", async () => {
@@ -164,7 +176,7 @@ describe("Settings → Files → Sharing", () => {
       return true;
     });
     const deps = wire({ dialog: () => ({ confirm }) as unknown as DialogService });
-    await vi.waitFor(() => expect(sub()).toBe("refs · store.example.test"));
+    await vi.waitFor(() => expect(sub()).toBe("refs · example.test"));
     row()?.click();
     byId("sharing-form-remove").click();
     await vi.waitFor(() => expect(deps.closeSettingsSubpage).toHaveBeenCalled());
