@@ -1,8 +1,8 @@
 <img src="web/public/images/logo.svg" alt="Pragma" width="240">
 
-Pragma is an open protocol and local editor for AI-assisted work in a space you own. A space is a folder that keeps your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.
+Pragma is an open protocol and an open-source, local-first editor for AI-assisted work in a space you own. A space is a folder that keeps your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.
 
-Move between doing the work yourself, shaping the tools that help you, and delegating to agents. Keep the context close, the results inspectable, and the authority to act in your hands.
+Move between doing the work yourself, shaping the tools that help you, and delegating to agents with a human in the loop. Keep the context close, the results inspectable, and the authority to act in your hands.
 
 ## Why Pragma
 
@@ -29,7 +29,7 @@ Bring the unfinished novel, the impossible question, the project that refuses to
 | Text | `.md`, `.fountain` | Markdown notes and Fountain screenplays |
 | Table | `.table.html` | Rows with typed columns, edited as a grid |
 | Class | `.class.html` | Notes, screenplays, and media from chosen folders, selected by a filter and shown as rows |
-| Flow | `.flow.html` | A graph of typed nodes that can load documents or rows, call models, and transform text |
+| Flow | `.flow.html` | A node-based workflow that can load documents or rows, transform text, and call models to generate text, images, or video |
 | Applet | `.applet.html` | A small sandboxed app with its own interface |
 
 Classes connect documents to tools. A Class selects documents by folder, tag, or another value; its linked Flows become buttons in each document's Tools tab. Flows also run from their canvas, the command line, or an agent. The [protocol](docs/protocol.md) specifies every format.
@@ -38,9 +38,9 @@ Classes connect documents to tools. A Class selects documents by folder, tag, or
 
 - **Work across your space.** Write in two side-by-side editor groups, follow wikilinks, browse folders as galleries, and view images, video, and PDFs. Jump with Quick Open (`Mod+P`) or the command palette (`Mod+Shift+P`).
 - **Work with a copilot.** Chat about what is on screen. By default, edits and new documents wait for your approval. Editing mode applies them immediately with Undo; Viewing mode changes nothing.
-- **Choose your model.** Use Anthropic, OpenAI, Google Gemini, your ChatGPT plan through Continue with ChatGPT, or an OpenAI-compatible server such as LM Studio or Ollama.
+- **Choose your model.** Use Anthropic, OpenAI, Google Gemini, your ChatGPT plan through Continue with ChatGPT, or an OpenAI-compatible server, such as LM Studio or Ollama for local models.
 - **Control what runs.** Flows ask before reading files, writing files, or calling models. Applets touch nothing on their own: what reaches one comes through a Flow. Approvals are revocable, and changing a Flow's behavior or the code of an Applet it uses withdraws them. Unattended runs require their own approval; permissions stay with the host that granted them.
-- **Connect an agent.** Let Claude Code, Cursor, or another MCP client read and search the space and run approved Flows. The [agent endpoint](docs/agent-api.md) is loopback-only and token-gated, and stays off until you enable it in Settings → API Access.
+- **Connect an agent.** Let Claude Code, Cursor, or another MCP client read and search the space and run approved Flows. Pragma's [MCP server](docs/agent-api.md) is loopback-only and token-gated, and stays off until you enable it in Settings → API Access.
 - **Keep work in git.** Commit, pull, and push a space that is already a git repository.
 - **Publish your writing.** Turn a folder of Markdown notes into a website through a service implementing the Sogma CMS API. See [publishing](docs/publishing.md).
 
@@ -173,4 +173,4 @@ Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Copyright © 2026 SGM DevNet LLC and contributors. Pragma is licensed under the [GNU General Public License v3.0 or later](LICENSE); [COPYRIGHT](COPYRIGHT) has the full notice and the files under other licences.
+Copyright © 2026 SGM DevNet LLC and contributors. Pragma is licensed under the [GNU General Public License v3.0 or later](LICENSE); [COPYRIGHT](COPYRIGHT) has the full notice and the files under other licenses.

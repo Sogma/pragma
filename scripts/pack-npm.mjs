@@ -68,6 +68,7 @@ const packageJson = {
   name: NAME,
   version: manifest.version,
   description: manifest.description,
+  keywords: manifest.keywords,
   author: manifest.author,
   license: manifest.license,
   repository: manifest.repository,
