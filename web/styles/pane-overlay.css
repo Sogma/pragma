@@ -1,0 +1,90 @@
+/* What a pane shows over itself (lib/paneOverlay.ts), over what it lists
+   rather than in place of it, so closing it returns to the same scroll and
+   selection. Above the pane's floating toolbar: the group's ⋮ holds the
+   pane's menu, so the backdrop dims it too.
+
+   Clipped, so an item laid out wider than the pane for a moment never gives
+   the editor group a scrollbar.
+
+   The same padding top and bottom: the group's toolbar lies under the
+   backdrop, dimmed and out of reach while the overlay is open, so an item
+   as tall as the stage may cover it. */
+.pane-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-pane-overlay);
+  overflow: clip;
+  display: flex;
+  gap: 12px;
+  padding: 24px 12px;
+  background: var(--dialog-backdrop);
+}
+
+/* The arrows flank the stage rather than lying over the item, so each stays
+   put whatever the item's width and a run of clicks never chases it. They
+   wear the editor toolbar's look, not the item's: they are controls, like
+   its ⋮.
+
+   At either end an arrow is invisible but still there, and aria-disabled
+   rather than disabled: the stage keeps its width, so the item doesn't
+   jump, and a run of clicks past the last item lands on the arrow. On the
+   backdrop the run's double-click would open the item. */
+.pane-overlay-nav {
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-menu);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.pane-overlay:hover .pane-overlay-nav:not([aria-disabled="true"]) {
+  opacity: 1;
+}
+
+.pane-overlay-nav:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.pane-overlay-nav[aria-disabled="true"] {
+  cursor: default;
+}
+
+.pane-overlay-nav::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-down) center / contain no-repeat;
+}
+
+.pane-overlay-nav.is-prev::before {
+  transform: rotate(90deg);
+}
+
+.pane-overlay-nav.is-next::before {
+  transform: rotate(-90deg);
+}
+
+/* Clicks pass through the stage's empty room to the backdrop, which closes
+   the overlay; the item takes its own. */
+.pane-overlay-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  pointer-events: none;
+}

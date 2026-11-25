@@ -54,8 +54,9 @@ import {
   showTransparency,
 } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
+import { createPaneOverlay, swallowRest } from "./lib/paneOverlay.ts";
 import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
-import { canAnimate, frameZoom, shownPercent } from "./lib/pictureZoom.ts";
+import { frameZoom, shownPercent } from "./lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "./lib/svgSize.ts";
 import { toggleGuides } from "./lib/videoGuides.ts";
 import { toggleLook } from "./lib/videoLut.ts";
@@ -289,58 +290,31 @@ export interface FilePreview {
   dispose(): void;
 }
 
-// Out of the tab order, and a click never takes focus: the pane's keys step
-// the preview only while the pane itself is focused.
-function previewButton(className: string, label: string): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = className;
-  button.tabIndex = -1;
-  button.setAttribute("aria-label", label);
-  button.addEventListener("mousedown", (event) => event.preventDefault());
-  return button;
-}
-
-// The rest of a click run whose first click closed the preview lands on
-// whatever lies there now: what the pane lists, or a button of the group's
-// toolbar the backdrop covered. None of it may press anything, so the window
-// takes it until a press starts a new run.
-function swallowRest(): void {
-  const swallow = (event: MouseEvent) => {
-    if (event.detail < 2) return;
-    event.stopPropagation();
-    event.preventDefault();
-  };
-  const disarm = (event: MouseEvent) => {
-    if (event.detail > 1) return;
-    for (const type of ["click", "dblclick"] as const) window.removeEventListener(type, swallow, true);
-    window.removeEventListener("mousedown", disarm, true);
-  };
-  for (const type of ["click", "dblclick"] as const) window.addEventListener(type, swallow, true);
-  window.addEventListener("mousedown", disarm, true);
-}
-
-// Opening, the backdrop and its controls fade in as the file grows from just
-// under its size; closing runs the same way back, a little quicker. A step
-// to another file swaps at once, so browsing stays quick.
-const OPENING: KeyframeAnimationOptions = { duration: 150, easing: "cubic-bezier(0.33, 1, 0.68, 1)" };
-const CLOSING: KeyframeAnimationOptions = { duration: 120, easing: "cubic-bezier(0.32, 0, 0.67, 0)", fill: "forwards" };
-const AWAY: Keyframe = { opacity: 0, transform: "scale(0.95)" };
-const ARRIVED: Keyframe = { opacity: 1, transform: "none" };
-
 export function createFilePreview(deps: FilePreviewDeps): FilePreview {
-  const preview = document.createElement("div");
-  preview.className = "file-preview";
-  preview.hidden = true;
-  const previewStage = document.createElement("div");
-  previewStage.className = "file-preview-stage";
-  const previewPrev = previewButton("file-preview-nav is-prev", "Previous");
-  const previewNext = previewButton("file-preview-nav is-next", "Next");
-  preview.append(previewPrev, previewStage, previewNext);
-  deps.host.append(preview);
+  const overlay = createPaneOverlay({
+    host: deps.host,
+    stem: "file-preview",
+    count: () => deps.count(),
+    showable: (index) => previewableAt(index) !== undefined,
+    render: (index) => renderPreview(index),
+    release: () => stopPreviewMedia(),
+    shown(index) {
+      deps.shown?.(index);
+      fitPreview();
+    },
+    // A clip pauses at once, before the fade.
+    closing() {
+      fitPreview = () => {};
+      zoomPreview = () => false;
+      described = undefined;
+      deps.details?.show(undefined);
+      for (const video of previewStage.querySelectorAll("video")) video.pause();
+    },
+    refocus: () => deps.refocus(),
+  });
+  const { element: preview, stage: previewStage, prev: previewPrev, next: previewNext } = overlay;
   const stopLineLength = deps.readableLineLength.subscribe((on) => preview.classList.toggle("wide-editor", !on));
 
-  let previewIndex: number | undefined;
   const view = createViewBinding(deps.views);
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
@@ -429,32 +403,12 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     };
   }
 
-  function showPreview(index: number): void {
+  function renderPreview(index: number): HTMLElement {
     const shown = previewableAt(index);
-    if (!shown) return;
-    const opening = previewIndex === undefined;
-    settleClose();
-    stopPreviewMedia();
+    if (!shown) throw new Error(`no preview at ${index}`);
     view.bind(deps.context());
     const learn = describe(shown.file);
-    const frame = isPageKind(shown.kind)
-      ? pagePreview(shown.file, shown.kind)
-      : mediaPreview(shown.file, shown.kind, learn);
-    previewStage.append(frame);
-    preview.hidden = false;
-    previewIndex = index;
-    markEnds(index);
-    deps.shown?.(index);
-    fitPreview();
-    if (opening && canAnimate(preview)) {
-      preview.animate([{ opacity: 0 }, { opacity: 1 }], OPENING);
-      frame.animate([AWAY, ARRIVED], OPENING);
-    }
-  }
-
-  function markEnds(index: number): void {
-    previewPrev.setAttribute("aria-disabled", String(previewableFrom(index, -1) === undefined));
-    previewNext.setAttribute("aria-disabled", String(previewableFrom(index, 1) === undefined));
+    return isPageKind(shown.kind) ? pagePreview(shown.file, shown.kind) : mediaPreview(shown.file, shown.kind, learn);
   }
 
   // The image view's overlay, in the previewed picture's own frame: the
@@ -617,64 +571,6 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     return true;
   }
 
-  // A close's fade, until it ends or a new preview cuts it short.
-  let closing: Animation[] | undefined;
-
-  // Closing, the preview takes no pointer or focus and hands focus back at
-  // once, so its fade never catches what follows (dialog.css says why a
-  // dialog doesn't fade out). A clip pauses at once; the file is let go,
-  // and the fade's held end dropped, once it ends.
-  function closePreview(refocus = true): void {
-    if (previewIndex === undefined) return;
-    fitPreview = () => {};
-    zoomPreview = () => false;
-    previewIndex = undefined;
-    described = undefined;
-    deps.details?.show(undefined);
-    const frame = previewStage.firstElementChild;
-    if (frame instanceof HTMLElement && canAnimate(preview)) {
-      for (const video of previewStage.querySelectorAll("video")) video.pause();
-      preview.inert = true;
-      const fades = [preview.animate([{ opacity: 0 }], CLOSING), frame.animate([AWAY], CLOSING)];
-      closing = fades;
-      Promise.all(fades.map((fade) => fade.finished)).then(
-        () => {
-          if (closing === fades) settleClose();
-        },
-        () => undefined,
-      );
-    } else {
-      stopPreviewMedia();
-      preview.hidden = true;
-    }
-    if (refocus) deps.refocus();
-  }
-
-  function settleClose(): void {
-    const fades = closing;
-    if (!fades) return;
-    closing = undefined;
-    stopPreviewMedia();
-    preview.hidden = true;
-    preview.inert = false;
-    for (const fade of fades) fade.cancel();
-  }
-
-  function previewableFrom(index: number, direction: 1 | -1): number | undefined {
-    for (let next = index + direction; next >= 0 && next < deps.count(); next += direction) {
-      if (previewableAt(next)) return next;
-    }
-    return undefined;
-  }
-
-  function stepPreview(direction: 1 | -1): void {
-    const next = previewIndex === undefined ? undefined : previewableFrom(previewIndex, direction);
-    if (next !== undefined) showPreview(next);
-  }
-
-  previewPrev.addEventListener("click", () => stepPreview(-1));
-  previewNext.addEventListener("click", () => stepPreview(1));
-
   // A click on the backdrop closes the preview, as one on a still already at
   // full size does; a still shrunk to fit zooms instead. A player keeps its
   // clicks, which play and pause it, and a page its, which select text and
@@ -699,7 +595,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     if (pressedInPreview && zoomPreview(target, event)) return;
     const onPage = target.closest(".file-preview-page") !== null;
     if (event.detail > 1 || onPage || !(target === preview || target instanceof HTMLImageElement)) return;
-    closePreview();
+    overlay.close();
     swallowRest();
   });
 
@@ -709,7 +605,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   deps.host.addEventListener(
     "mousedown",
     (event) => {
-      if (event.detail < 2) pressedInPreview = previewIndex !== undefined;
+      if (event.detail < 2) pressedInPreview = overlay.shownIndex() !== undefined;
     },
     true,
   );
@@ -736,7 +632,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       if (pressedInPreview) return;
       event.stopPropagation();
       const onArrow = event.target === previewPrev || event.target === previewNext;
-      if (!onArrow && previewIndex !== undefined) deps.openInPlace?.(previewIndex);
+      const index = overlay.shownIndex();
+      if (!onArrow && index !== undefined) deps.openInPlace?.(index);
     },
     true,
   );
@@ -746,23 +643,22 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const target = event.target;
     if (!pressedInPreview || !(target instanceof Element) || target === previewPrev || target === previewNext) return;
     if (target.closest(".file-preview-frame, .file-preview-document")) return;
-    if (previewIndex !== undefined) deps.openInPlace?.(previewIndex);
+    const index = overlay.shownIndex();
+    if (index !== undefined) deps.openInPlace?.(index);
   });
 
   return {
-    shownIndex: () => previewIndex,
-    show: showPreview,
-    close: closePreview,
-    moved(index) {
-      previewIndex = index;
-      markEnds(index);
-    },
+    shownIndex: () => overlay.shownIndex(),
+    show: (index) => overlay.show(index),
+    close: (refocus) => overlay.close(refocus),
+    moved: (index) => overlay.moved(index),
     key(key) {
-      if (previewIndex === undefined) return false;
-      if (key === "ArrowRight") stepPreview(1);
-      else if (key === "ArrowLeft") stepPreview(-1);
-      else if (key === " ") closePreview();
-      else if (key === "Enter" && deps.openInPlace) deps.openInPlace(previewIndex);
+      const index = overlay.shownIndex();
+      if (index === undefined) return false;
+      if (key === "ArrowRight") overlay.step(1);
+      else if (key === "ArrowLeft") overlay.step(-1);
+      else if (key === " ") overlay.close();
+      else if (key === "Enter" && deps.openInPlace) deps.openInPlace(index);
       else if ((key === "d" || key === "D") && previewLook) toggleLook(view.look);
       else if ((key === "g" || key === "G") && (previewPlayer || previewLayers)) toggleGuides(view.guides);
       else return scrollPage(key);
@@ -770,11 +666,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     },
     fit: () => fitPreview(),
     dispose() {
-      closePreview(false);
-      settleClose();
+      overlay.dispose();
       stopLineLength();
       stopMediaMenu();
-      preview.remove();
     },
   };
 }

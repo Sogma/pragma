@@ -33,10 +33,11 @@ import { type ChartView, createChartView } from "../chart/chartView.ts";
 import type { AppletImportSource, FileResponse, SandboxReadResult, SpaceTreeNode } from "../core/apiClient.ts";
 import { buildCopyButton, buildRunCount, setRunCount } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
+import type { TileGrid, TileSize } from "../lib/tileGrid.ts";
 import { createSwitch } from "../lib/toggleRow.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { type AppletFrame, createAppletFrame, runInputs } from "./appletFrame.ts";
-import { combinedTileSize, createTileGrid, TILE_SIZES, type TileGrid, type TileSize } from "./appModeGrid.ts";
+import { combinedTileSize, createAppModeGrid, TILE_SIZES } from "./appModeGrid.ts";
 import { createIntStepper, createSelectControl, createSelectPicker, formLabel, regenerateHint } from "./controls.ts";
 import type { FlowElements } from "./flowElements.ts";
 import { flowTreePath } from "./flowPaths.ts";
@@ -783,7 +784,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       return;
     }
 
-    const grid = createTileGrid({
+    const grid = createAppModeGrid({
       onMove: (tile, target, zone) => {
         const draggedId = appModeChildItemId(tile);
         const targetId = appModeChildItemId(target);

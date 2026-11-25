@@ -395,9 +395,9 @@ describe("a previewed file's More options", () => {
     for (const index of [0, 1, 2]) {
       preview.show(index);
       expect([...overlay.children].map((child) => child.className)).toEqual([
-        "file-preview-nav is-prev",
-        "file-preview-stage",
-        "file-preview-nav is-next",
+        "pane-overlay-nav file-preview-nav is-prev",
+        "pane-overlay-stage file-preview-stage",
+        "pane-overlay-nav file-preview-nav is-next",
       ]);
     }
   });

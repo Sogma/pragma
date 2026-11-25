@@ -1,83 +1,5 @@
-/* A file's preview (filePreview.ts), over what the pane lists rather than
-   in place of it, so closing it returns to the same scroll and selection.
-   Above the pane's floating toolbar: the group's ⋮ holds the pane's menu,
-   so the backdrop dims it too.
-
-   Clipped, because fitting a note lays its page out at full width for a
-   moment, past the pane: uncut, that gives the editor group a scrollbar
-   just then, the fit measures the stage without the bar's room, and the
-   page comes out short of its bottom bar.
-
-   The same padding top and bottom: the group's toolbar lies under the
-   backdrop, dimmed and out of reach while the preview is open, so a
-   picture as tall as the stage may cover it. */
-.file-preview {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-pane-overlay);
-  overflow: clip;
-  display: flex;
-  gap: 12px;
-  padding: 24px 12px;
-  background: var(--dialog-backdrop);
-}
-
-/* The arrows flank the stage rather than lying over the picture, so each
-   stays put whatever the picture's width and a run of clicks never chases
-   it. They wear the editor toolbar's look, not the overlay's: they are
-   controls, like its ⋮, not facts about the picture.
-
-   At either end an arrow is invisible but still there, and aria-disabled
-   rather than disabled: the stage keeps its width, so the picture doesn't
-   jump, and a run of clicks past the last picture lands on the arrow. On the
-   backdrop the run's double-click would open the picture. */
-.file-preview-nav {
-  flex: none;
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 64px;
-  padding: 0;
-  border: 1px solid var(--border-color);
-  border-radius: var(--box-radius);
-  background: var(--bg-primary);
-  box-shadow: var(--shadow-menu);
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-
-.file-preview:hover .file-preview-nav:not([aria-disabled="true"]) {
-  opacity: 1;
-}
-
-.file-preview-nav:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.file-preview-nav[aria-disabled="true"] {
-  cursor: default;
-}
-
-.file-preview-nav::before {
-  content: "";
-  width: 24px;
-  height: 24px;
-  background-color: currentColor;
-  mask: var(--icon-chevron-down) center / contain no-repeat;
-}
-
-.file-preview-nav.is-prev::before {
-  transform: rotate(90deg);
-}
-
-.file-preview-nav.is-next::before {
-  transform: rotate(-90deg);
-}
+/* A file's preview (filePreview.ts): the pane's overlay (pane-overlay.css)
+   holding a picture, a clip, or a document on its page. */
 
 /* A size container, so the picture in its frame (mediaHud.ts) fits the
    stage by container units. Those measure the content box, so the padding
@@ -85,13 +7,7 @@
    on every side, an SVG that sets no size included. */
 .file-preview-stage {
   --mat-width: 8px;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: var(--mat-width);
-  pointer-events: none;
   container-type: size;
 }
 
