@@ -101,6 +101,22 @@ describe("contextMenu", () => {
     expect([menu()?.style.left, menu()?.style.top]).toEqual(["4px", "152px"]);
   });
 
+  // A right-click on media opens its ⋮'s menu at the pointer: the point
+  // places it, and the anchor still stands for it.
+  it("opens at a point given with an anchor, the anchor marked open", () => {
+    const { contextMenu } = setup();
+    const anchor = document.createElement("button");
+    document.body.append(anchor);
+    anchor.getBoundingClientRect = () => new DOMRect(600, 120, 28, 28);
+    contextMenu.open({ menu: "tree", anchor, at: { x: 40, y: 60 } });
+    expect([menu()?.style.left, menu()?.style.top, anchor.getAttribute("aria-expanded")]).toEqual([
+      "40px",
+      "60px",
+      "true",
+    ]);
+    expect(contextMenu.isOpen(anchor)).toBe(true);
+  });
+
   it("closes on a pointerdown elsewhere, on Escape, and on resize — but not on its anchor", async () => {
     const { contextMenu } = setup();
     const anchor = document.createElement("button");

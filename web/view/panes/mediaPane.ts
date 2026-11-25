@@ -38,6 +38,7 @@ import {
   hudRoot,
   lookBadge,
   mediaFrame,
+  mediaMenuOn,
   showTransparency,
 } from "../../lib/mediaHud.ts";
 import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
@@ -203,10 +204,19 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   // A look grades pixels: a raster image's, never a vector image's.
   let gradable = false;
   const view = createViewBinding(deps.views);
-  const more = moreOptionsButton("media-hud-more", (anchor) => {
-    if (shownPath !== undefined) moreOptionsMenu(deps.contextMenu, shownPath, { context: view.context })(anchor);
-  });
+  const openMore = (anchor: HTMLElement, at?: { x: number; y: number }) => {
+    if (shownPath !== undefined) {
+      moreOptionsMenu(deps.contextMenu, shownPath, { context: view.context })(anchor, undefined, at);
+    }
+  };
+  const more = moreOptionsButton("media-hud-more", openMore);
   more.element.tabIndex = -1;
+  // A right-click on the picture opens the ⋮'s menu where it lands.
+  const stopMenu = mediaMenuOn(
+    element,
+    () => shown?.parentElement ?? undefined,
+    (at) => openMore(more.element, at),
+  );
   const hud = createImageHud(view.look, view.guides, more.element);
   let layers: PictureLayers | undefined;
   let shown: HTMLImageElement | undefined;
@@ -389,6 +399,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       resize.disconnect();
       layers?.dispose();
       more.dispose();
+      stopMenu();
       hud.look.dispose();
       hud.guides.dispose();
       element.remove();
@@ -404,6 +415,12 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
   const hud = createVideoHud(view.look, view.guides);
   let mounted: HTMLVideoElement | undefined;
   let player: VideoPlayer | undefined;
+  // A right-click on the clip opens the player's ⋮ menu where it lands.
+  const stopMenu = mediaMenuOn(
+    element,
+    () => mounted?.parentElement ?? undefined,
+    (at) => player?.openMenuAt(at),
+  );
 
   // The player's keys go to the pane, so a press anywhere in it, a control's
   // included, puts focus here.
@@ -572,6 +589,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
     dispose: () => {
       stop();
       resize.disconnect();
+      stopMenu();
       hud.look.dispose();
       hud.guides.dispose();
       element.remove();

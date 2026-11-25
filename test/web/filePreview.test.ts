@@ -625,3 +625,46 @@ describe("a previewed file's Info section", () => {
     expect(read.pixelFormat).not.toHaveBeenCalled();
   });
 });
+
+describe("a right-click on previewed media", () => {
+  const rightClick = (target: Element, init: MouseEventInit = {}) => {
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      clientX: 70,
+      clientY: 90,
+      ...init,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  it("opens a still's or a clip's ⋮ menu where it lands, and leaves a page's text its own", () => {
+    const { preview, overlay, contextMenu } = setup({ files: ["stills/a.png", "clips/b.mp4", "notes/c.md"] });
+    preview.show(0);
+    rightClick(overlay.querySelector(".file-preview-frame img") as Element);
+    expect(contextMenu.opened.at(-1)).toMatchObject({
+      menu: MEDIA_MENU,
+      at: { x: 70, y: 90 },
+      anchor: overlay.querySelector(".media-hud-more"),
+    });
+    preview.show(1);
+    rightClick(overlay.querySelector(".file-preview-frame video") as Element);
+    expect(contextMenu.opened.at(-1)).toMatchObject({ anchor: overlay.querySelector(".video-player-more") });
+    const opened = contextMenu.opened.length;
+    preview.show(2);
+    const onPage = rightClick(overlay.querySelector(".file-preview-document") as Element);
+    expect([contextMenu.opened.length, onPage.defaultPrevented]).toEqual([opened, false]);
+  });
+
+  // The host holds focus while a preview shows, so the menu key's lands there.
+  it("opens it at the media's centre for the menu key", () => {
+    const { preview, overlay, contextMenu } = setup();
+    preview.show(0);
+    (overlay.querySelector(".file-preview-frame") as HTMLElement).getBoundingClientRect = () =>
+      new DOMRect(100, 50, 600, 400);
+    rightClick(overlay.parentElement as HTMLElement, { button: -1 });
+    expect(contextMenu.opened.at(-1)?.at).toEqual({ x: 400, y: 250 });
+  });
+});

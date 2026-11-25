@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { formatFileSize } from "../../../web/lib/dom.ts";
 import {
   fitHud,
@@ -8,6 +8,7 @@ import {
   hudCells,
   hudRoot,
   lookBadge,
+  mediaMenuOn,
   thumbnailHud,
 } from "../../../web/lib/mediaHud.ts";
 import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
@@ -243,5 +244,47 @@ describe("the guides switch", () => {
     placeAt(toggle.element, 160, 32);
     fitHud(hud, 480, 300);
     expect(toggle.element.classList.contains("is-cramped")).toBe(false);
+  });
+});
+
+describe("mediaMenuOn", () => {
+  const rig = () => {
+    const surface = document.createElement("div");
+    const frame = document.createElement("div");
+    const media = document.createElement("img");
+    const margin = document.createElement("div");
+    frame.append(media);
+    surface.append(margin, frame);
+    document.body.append(surface);
+    frame.getBoundingClientRect = () => new DOMRect(100, 50, 400, 300);
+    const open = vi.fn();
+    const stop = mediaMenuOn(surface, () => frame, open);
+    const rightClick = (target: Element, init: MouseEventInit) => {
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    return { surface, media, margin, open, stop, rightClick };
+  };
+
+  it("opens at a right-click on the media's frame, and leaves one beside it to the surface's menus", () => {
+    const { media, margin, open, rightClick } = rig();
+    const onMedia = rightClick(media, { button: 2, clientX: 220, clientY: 140 });
+    expect([open.mock.calls, onMedia.defaultPrevented]).toEqual([[[{ x: 220, y: 140 }]], true]);
+    const beside = rightClick(margin, { button: 2, clientX: 5, clientY: 5 });
+    expect([open.mock.calls.length, beside.defaultPrevented]).toEqual([1, false]);
+  });
+
+  // A key's right-click lands on what has focus, with no button pressed.
+  it("opens at the media's centre for the menu key on the focused surface, until stopped", () => {
+    const { surface, open, stop, rightClick } = rig();
+    rightClick(surface, { button: -1 });
+    expect(open).toHaveBeenLastCalledWith({ x: 300, y: 200 });
+    // The pointer's on the surface's own padding is no key's.
+    rightClick(surface, { button: 2, clientX: 1, clientY: 1 });
+    expect(open).toHaveBeenCalledTimes(1);
+    stop();
+    rightClick(surface, { button: -1 });
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });

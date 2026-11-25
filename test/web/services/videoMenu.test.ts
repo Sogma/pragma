@@ -39,6 +39,23 @@ describe("moreOptionsMenu", () => {
     expect(contextMenu.opened).toHaveLength(1);
   });
 
+  // A right-click on the media opens it where it lands, even over one opened before.
+  it("opens the menu at a right-click's point, still standing for its button", () => {
+    const contextMenu = fakeContextMenu();
+    const anchor = document.createElement("button");
+    const open = moreOptionsMenu(contextMenu, "art/a.png", { context: () => "" });
+    open(anchor, undefined, { x: 40, y: 60 });
+    expect(contextMenu.opened[0]).toMatchObject({ menu: MEDIA_MENU, anchor, at: { x: 40, y: 60 } });
+    expect(anchor.getAttribute("aria-expanded")).toBe("true");
+
+    open(anchor, undefined, { x: 80, y: 90 });
+    expect([contextMenu.opened.length, contextMenu.opened[1]?.at, contextMenu.isOpen(anchor)]).toEqual([
+      2,
+      { x: 80, y: 90 },
+      true,
+    ]);
+  });
+
   // Read as it opens: the viewer's tab may be seen in another context by then.
   it("names the context the viewer is seen in as the menu opens", () => {
     const contextMenu = fakeContextMenu();

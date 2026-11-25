@@ -226,6 +226,33 @@ describe("imagePane", () => {
     expect((pane.element.querySelector(".media-hud-badge") as HTMLElement).hidden).toBe(true);
   });
 
+  it("opens the ⋮'s menu at a right-click on the picture, and at its centre for the menu key", async () => {
+    const { pane, contextMenu } = setup();
+    await pane.setInput(tab, current);
+    const img = pane.element.querySelector("img") as HTMLImageElement;
+    const more = pane.element.querySelector(".media-hud-more") as HTMLButtonElement;
+    const press = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      clientX: 120,
+      clientY: 80,
+    });
+    img.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+    expect(contextMenu.opened.at(-1)).toMatchObject({
+      menu: MEDIA_MENU,
+      anchor: more,
+      at: { x: 120, y: 80 },
+      arg: { file: "art/cover.png" },
+    });
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+
+    (img.parentElement as HTMLElement).getBoundingClientRect = () => new DOMRect(40, 20, 400, 300);
+    pane.element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: -1 }));
+    expect(contextMenu.opened.at(-1)?.at).toEqual({ x: 240, y: 170 });
+  });
+
   it("holds a guides switch before LOOK, shown once a guide is picked, a click turning them with focus left on the pane", async () => {
     const { pane, guides } = setup();
     await pane.setInput(tab, current);
@@ -804,6 +831,21 @@ describe("videoPane", () => {
     pane.dispose();
     lut.set({ lut: "orthochromatic", on: true });
     expect(badge.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("opens the player's ⋮ menu at a right-click on the clip", async () => {
+    const { pane, contextMenu, release } = videoSetup();
+    const opening = pane.setInput(videoTab, current);
+    release();
+    await opening;
+    const video = pane.element.querySelector("video") as HTMLVideoElement;
+    const init = { bubbles: true, cancelable: true, button: 2, clientX: 300, clientY: 200 };
+    video.dispatchEvent(new MouseEvent("contextmenu", init));
+    expect(contextMenu.opened.at(-1)).toMatchObject({
+      menu: MEDIA_MENU,
+      anchor: pane.element.querySelector(".video-player-more"),
+      at: { x: 300, y: 200 },
+    });
   });
 
   it("holds the guides switch before LOOK, between the scale and the frame rate, a click turning the guides", async () => {

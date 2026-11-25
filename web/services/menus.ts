@@ -180,7 +180,9 @@ export interface MenuOpenOptions {
   // Either a point (a right-click's client coordinates), or "top" —
   // centred near the top of the window, for a menu no click placed…
   at?: { x: number; y: number } | "top";
-  // …or an element to open under, its left or right edge aligned…
+  // …or an element to open under, its left or right edge aligned. Given a
+  // point too, the menu opens at the point, and the anchor still stands for
+  // it: marked open, a press on it closing the menu…
   anchor?: HTMLElement;
   align?: "start" | "end";
   // …or left of, its first row level with the anchor: a column's menu,

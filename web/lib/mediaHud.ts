@@ -160,6 +160,32 @@ function fitGuidesSwitch(element: HTMLElement): void {
   element.classList.toggle("is-cramped", cramped);
 }
 
+/** Opens the shown media's menu through `open`: at a right-click on its
+ * `frame` (the media, its bands and mat), or at the media's centre for the
+ * menu key on `surface`, which holds focus for the media's keys. Any other
+ * right-click is left to the surface's own menus. Returns the removal. */
+export function mediaMenuOn(
+  surface: HTMLElement,
+  frame: () => HTMLElement | undefined,
+  open: (at: { x: number; y: number }) => void,
+): () => void {
+  const onMenu = (event: MouseEvent) => {
+    const shown = frame();
+    if (!shown || event.defaultPrevented) return;
+    // A key's right-click lands on what has focus, with no button pressed.
+    const fromKey = event.target === surface && event.button !== 2;
+    if (!fromKey && !(event.target instanceof Node && shown.contains(event.target))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const box = shown.getBoundingClientRect();
+    open(
+      fromKey ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : { x: event.clientX, y: event.clientY },
+    );
+  };
+  surface.addEventListener("contextmenu", onMenu);
+  return () => surface.removeEventListener("contextmenu", onMenu);
+}
+
 /** The box `media` and its `hud` share (web/styles/media-panes.css): it
  * hugs the media, and the bars cover it. */
 export function mediaFrame(media: HTMLElement, hud: HTMLElement, className: string): HTMLDivElement {

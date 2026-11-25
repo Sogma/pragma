@@ -50,6 +50,7 @@ import {
   type LookBadge,
   lookBadge,
   mediaFrame,
+  mediaMenuOn,
   showTransparency,
 } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
@@ -340,17 +341,28 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   let previewGuides: GuidesSwitch | undefined;
   let previewMore: MoreOptionsButton | undefined;
   let previewLayers: PictureLayers | undefined;
+  // Opens the shown still's or clip's ⋮ menu at a point.
+  let previewMenuAt: ((at: { x: number; y: number }) => void) | undefined;
 
   // The ⋮ that ends a still's or a page's bottom bar; a clip's is its
   // player's own.
   function fileMoreOptions(path: string, menu: string): HTMLButtonElement {
-    previewMore = moreOptionsButton(
-      "media-hud-more",
-      moreOptionsMenu(deps.contextMenu, path, { menu, context: view.context }),
-    );
-    previewMore.element.tabIndex = -1;
-    return previewMore.element;
+    const open = moreOptionsMenu(deps.contextMenu, path, { menu, context: view.context });
+    const more = moreOptionsButton("media-hud-more", open);
+    more.element.tabIndex = -1;
+    previewMore = more;
+    previewMenuAt = (at) => open(more.element, undefined, at);
+    return more.element;
   }
+
+  // A right-click on a shown still or clip opens its ⋮ menu where it lands,
+  // and the menu key on the host, which holds focus while it shows, at its
+  // centre. A page's text keeps the text menu.
+  const stopMediaMenu = mediaMenuOn(
+    deps.host,
+    () => previewStage.querySelector<HTMLElement>(":scope > .file-preview-frame") ?? undefined,
+    (at) => previewMenuAt?.(at),
+  );
 
   // The file at `index`, when it is one a preview shows.
   function previewableAt(index: number): { file: PreviewFile; kind: PreviewKind } | undefined {
@@ -370,6 +382,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     previewGuides = undefined;
     previewMore?.dispose();
     previewMore = undefined;
+    previewMenuAt = undefined;
     previewLayers?.dispose();
     previewLayers = undefined;
     for (const video of previewStage.querySelectorAll("video")) {
@@ -533,6 +546,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         moreOptions: moreOptionsMenu(deps.contextMenu, file.path, { context: view.context }),
       });
       frame.append(previewPlayer.element);
+      const player = previewPlayer;
+      previewMenuAt = (at) => player.openMenuAt(at);
     }
     const zoom =
       media instanceof HTMLImageElement
@@ -752,6 +767,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       closePreview(false);
       settleClose();
       stopLineLength();
+      stopMediaMenu();
       preview.remove();
     },
   };

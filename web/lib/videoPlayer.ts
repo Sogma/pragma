@@ -54,9 +54,10 @@ export interface VideoPlayerOptions {
    * the picture opens the clip somewhere bigger. Its double-click then goes
    * nowhere, the click having acted already; the buttons still play. */
   pictureClick?: () => void;
-  /** Opens the More options menu under its button, or closes it there.
-   * `frame` takes the frame on screen; absent until one is decoded. */
-  moreOptions(anchor: HTMLElement, frame?: () => FrameGrab): void;
+  /** Opens the More options menu under its button, or closes it there, or
+   * at `at`, a right-click on the media. `frame` takes the frame on screen;
+   * absent until one is decoded. */
+  moreOptions(anchor: HTMLElement, frame?: () => FrameGrab, at?: { x: number; y: number }): void;
 }
 
 /** The frame a player showed, drawn at the clip's own size, and where in the
@@ -74,6 +75,9 @@ export interface VideoPlayer {
   setFrameRate(fps: number | null): void;
   /** A key pressed on the surface that holds the player: true when it took it. */
   key(key: string): boolean;
+  /** Opens its More options menu at `at`, with the frame on screen, as a
+   * right-click on the clip does. */
+  openMenuAt(at: { x: number; y: number }): void;
   dispose(): void;
 }
 
@@ -542,6 +546,9 @@ export function createVideoPlayer(video: HTMLVideoElement, options: VideoPlayerO
       else if ((key === "d" || key === "D") && options.lut) toggleLook(options.lut);
       else return volumeKey(key);
       return true;
+    },
+    openMenuAt(at) {
+      options.moreOptions(more, frameGrab(), at);
     },
     dispose() {
       if (inFullScreen()) document.exitFullscreen().catch(() => undefined);

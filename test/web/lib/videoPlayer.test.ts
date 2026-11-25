@@ -491,6 +491,13 @@ describe("createVideoPlayer", () => {
     expect(document.activeElement).toBe(button("more"));
   });
 
+  it("opens More options at a point, with the frame on screen, as a right-click on the clip does", () => {
+    const moreOptions = vi.fn();
+    const { player, button } = setup("review", { moreOptions });
+    player.openMenuAt({ x: 30, y: 40 });
+    expect(moreOptions).toHaveBeenCalledWith(button("more"), undefined, { x: 30, y: 40 });
+  });
+
   // Save frame takes it as the item is picked, not as the menu opens, and
   // leaves the clip paused on the frame it saves.
   it("offers More options the frame on screen once one is decoded, taken at the clip's own size", () => {

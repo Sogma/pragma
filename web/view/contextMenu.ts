@@ -580,7 +580,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
     if (options.at === "top") {
       left = (window.innerWidth - element.offsetWidth) / 2;
       top = Math.round(window.innerHeight * 0.12);
-    } else if (options.anchor) {
+    } else if (options.anchor && !options.at) {
       const rect = options.anchor.getBoundingClientRect();
       // A picker's list scrolls, so where neither side holds it whole it
       // takes the roomier one, shortened to fit, rather than covering the
