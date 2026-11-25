@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { formatWrittenPaths, WRITTEN_HEADER } from "../../../src/protocol/api.ts";
 import { withSetupNeed } from "../../../src/protocol/setupNeed.ts";
 import { createFlowContext } from "../../../web/flow/browserEnvironment.ts";
 
@@ -197,15 +198,28 @@ describe("the browser's flow environment", () => {
   });
 
   // A run's files are in the space before its listing hears of them, so
-  // nothing drawn in between may call a generated picture gone.
-  it("notes each write, so the space's listing isn't believed until read again", async () => {
+  // nothing drawn in between may call a generated picture gone; and the views
+  // listing their folders are told at once, as each response names them.
+  it("tells the views what each response names as written, and holds off the listing until read", async () => {
     vi.resetModules();
     const spaceTree = await import("../../../web/core/spaceTree.ts");
+    const written = await import("../../../web/core/written.ts");
     const environment = await import("../../../web/flow/browserEnvironment.ts");
+    const told: string[][] = [];
+    written.onWritten((paths) => told.push([...paths]));
     const empty = { files: [], folders: [], scopes: [] };
+    const image = { image: { mediaType: "image/png", data: "" }, model: "m", take: 1, reused: false, warnings: [] };
+    const naming = (path: string) => ({ headers: { [WRITTEN_HEADER]: formatWrittenPaths([path]) } });
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string) => Response.json(String(url).startsWith("/api/space/paths") ? empty : [])),
+      vi.fn(async (url: string) => {
+        if (String(url).startsWith("/api/space/paths")) return Response.json(empty);
+        if (String(url).includes("/api/sandbox/write")) return new Response(null, { status: 204, ...naming("stills") });
+        if (String(url).includes("generate-image")) {
+          return Response.json({ ...image, path: "Tests/a.png" }, naming("lib:refs/Tests"));
+        }
+        return Response.json([]);
+      }),
     );
     await spaceTree.refresh();
     expect(spaceTree.listedAsGone("stills/new.png")).toBe(true);
@@ -219,40 +233,8 @@ describe("the browser's flow environment", () => {
     });
     await sandbox.write("flow", "f.flow.html", "stills/notes.md", "text");
     expect(spaceTree.listedAsGone("stills/new.png")).toBe(false);
-  });
-
-  // The views listing a written file's folder are told at once, each file
-  // rooted: a written document from the Flow's own folder, a result as its
-  // node's folder names it, in a library too.
-  it("tells the views each file a run wrote, rooted", async () => {
-    vi.resetModules();
-    const spaceTree = await import("../../../web/core/spaceTree.ts");
-    const environment = await import("../../../web/flow/browserEnvironment.ts");
-    const told: string[][] = [];
-    spaceTree.onWritten((paths) => told.push([...paths]));
-    const image = { image: { mediaType: "image/png", data: "" }, model: "m", take: 1, reused: false, warnings: [] };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as { folder?: string };
-        if (String(url).includes("generate-image")) return Response.json({ ...image, path: `${body.folder}/a.png` });
-        return Response.json({});
-      }),
-    );
-    const { sandbox } = environment.createFlowContext({
-      flowPath: "shots/f.flow.html",
-      pickedImages: new Map(),
-      ensureCapability: async () => true,
-      beginLlmActivity: () => {},
-      endLlmActivity: () => {},
-      generations: unrecorded,
-    });
-    await sandbox.write("flow", "shots/f.flow.html", "notes.md", "text");
-    const body = { prompt: "p", references: [] };
-    await sandbox.generateImage("flow", "shots/f.flow.html", { ...body, folder: "../stills" });
-    await sandbox.generateImage("flow", "shots/f.flow.html", { ...body, folder: "lib:refs/Tests" });
-    await vi.waitFor(() => expect(told.flat()).toHaveLength(3));
-    expect(told.flat()).toEqual(["shots/notes.md", "stills/a.png", "lib:refs/Tests/a.png"]);
+    await sandbox.generateImage("flow", "f.flow.html", { prompt: "p", references: [], folder: "lib:refs/Tests" });
+    await vi.waitFor(() => expect(told.flat()).toEqual(["stills", "lib:refs/Tests"]));
   });
 });
 

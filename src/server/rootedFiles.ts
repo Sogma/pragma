@@ -17,6 +17,7 @@ import {
 } from "../protocol/rootedPath.ts";
 import { hiddenBelow, linkBelow, namedEntryPath } from "./entryOnDisk.ts";
 import { readLibraries } from "./libraries.ts";
+import { recordWrite } from "./writtenPaths.ts";
 
 /** The error a read of something that isn't there raises, for a path that
  * names nothing a caller may see, so it reads exactly as a missing file. */
@@ -229,9 +230,12 @@ function resolveIn(spaceRoot: string, input: string, access: Access, spelling: S
       if (access === "read") throw absent(filePath);
       throw new PathAccessError(403, `Hidden entries can't be written to: "${input}"`);
     }
-    if (filePath === resolved) return { filePath, rooted, rootDir };
-    const found = path.relative(rootDir, filePath).split(path.sep).join("/");
-    return { filePath, rooted: { root: rooted.root, path: found }, rootDir };
+    const found: RootedPath =
+      filePath === resolved
+        ? rooted
+        : { root: rooted.root, path: path.relative(rootDir, filePath).split(path.sep).join("/") };
+    if (access === "write") recordWrite(formatRootedPath(found), filePath);
+    return { filePath, rooted: found, rootDir };
   };
 
   if (!isLibraryRoot(rooted.root)) return resolve(spaceRoot, "Path escapes the space");

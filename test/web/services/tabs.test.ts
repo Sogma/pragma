@@ -1892,25 +1892,3 @@ describe("Back and Forward", () => {
     expect(tabs.canGo("back")).toBe(false);
   });
 });
-
-// Whoever wrote a file read again may have written others the listing
-// lacks: a Flow's picture beside the row it added.
-describe("reloadPath", () => {
-  it("keeps the space's listing from calling a file gone until it is read again", async () => {
-    const { tabs } = await setup();
-    const spaceTree = await import("../../../web/core/spaceTree.ts");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) =>
-        Response.json(String(url).startsWith("/api/space/paths") ? { files: [], folders: [], scopes: [] } : []),
-      ),
-    );
-    await spaceTree.refresh();
-    expect(spaceTree.listedAsGone("shots/one.png")).toBe(true);
-    await tabs.reloadPath("shots/shots.table.html");
-    expect(spaceTree.listedAsGone("shots/one.png")).toBe(false);
-    await spaceTree.refresh();
-    expect(spaceTree.listedAsGone("shots/one.png")).toBe(true);
-    vi.unstubAllGlobals();
-  });
-});

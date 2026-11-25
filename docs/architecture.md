@@ -149,6 +149,8 @@ Paid jobs are recorded at submission and resume at startup without resubmission.
 
 Every create, upload, move, delete and save resolves a rooted path through one server doorway. Unknown roots or access other than `read-write` are refused. Space bookkeeping (folder order, sorts, publishing and link rewrites) rejects libraries regardless of permission.
 
+**Every write reaches the views.** The doorway records what each request adds, removes or writes into, the response names it, and the page's views listing it re-read at once; a write no request of the page made, by an agent or another program, is left to the change feed.
+
 No `/api/*` route accepts a filesystem path, since remote access serves these routes to other devices. Creation uses the configured base directory; switching requires registration. Arbitrary folder selection/relocation requires Electron's native picker or a library folder already located by that host. Path-free metadata changes use ordinary routes.
 
 Trash stays in the entry's root. Other dot-prefixed writes are confined to server-selected space `.pragma/` paths. Delete requests carry the confirmed choice; changing a setting cannot convert trash into permanent deletion.

@@ -24,7 +24,6 @@ import type {
 } from "../core/apiClient.ts";
 import { ensureLibraryPermissions } from "../core/libraries.ts";
 import { isForeignRootTab, isReadOnlyTab, rawTabKind } from "../core/paths.ts";
-import { noteWritten } from "../core/spaceTree.ts";
 import { type Direction, historyAfter, pruned, repathed, type Step, step } from "../core/tabHistory.ts";
 import type { EditorGroup } from "../core/workspace.ts";
 import * as workspace from "../core/workspace.ts";
@@ -1080,10 +1079,6 @@ export function createTabs(deps: TabsDeps): Tabs {
     },
 
     async reloadPath(path) {
-      // Whoever wrote the file may have written others beside it that the
-      // space's listing doesn't hold yet: a Flow's picture, beside the row
-      // it added. The listing must not call those gone in the meantime.
-      noteWritten([path]);
       // Every tab on a document model follows the model's own reload.
       await deps.documents.get(path)?.reload();
       for (const group of workspace.groups()) {

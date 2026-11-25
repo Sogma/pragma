@@ -30,14 +30,11 @@ vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   },
 }));
 
-const tree = vi.hoisted(() => ({ space: [] as SpaceTreeNode[], written: [] as string[][] }));
+const tree = vi.hoisted(() => ({ space: [] as SpaceTreeNode[] }));
 
 vi.mock("../../../web/core/spaceTree.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../web/core/spaceTree.ts")>()),
   getTree: () => tree.space,
-  noteWritten: (paths: string[]) => {
-    tree.written.push(paths);
-  },
 }));
 
 const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
@@ -48,7 +45,6 @@ afterEach(() => {
   api.uploads = [];
   api.remembered = [];
   api.asked = [];
-  tree.written = [];
   document.body.replaceChildren();
 });
 
@@ -157,6 +153,5 @@ describe("Save frame…", () => {
     expect(blobs).toEqual(["image/png"]);
     expect(api.uploads).toEqual([{ dir: "a/stills", name: "hero 2.png", type: "image/png" }]);
     expect(api.remembered).toEqual([["b", "a/stills"]]);
-    expect(tree.written).toEqual([["a/stills/hero 2.png"]]);
   });
 });

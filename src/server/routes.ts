@@ -37,6 +37,7 @@ import { mountTrashRoutes } from "./routes/trash.ts";
 import { mountUpdateRoutes } from "./routes/updates.ts";
 import type { ServedSpace } from "./servedSpace.ts";
 import { createDiskThumbnailStore } from "./thumbnailStore.ts";
+import { nameWrites } from "./writtenPaths.ts";
 
 export type { RouteContext, RouteOptions, SpaceSwitcher } from "./routes/shared.ts";
 
@@ -75,6 +76,7 @@ export function createSpaceApiRoutes(
   // An empty body, so a miss says nothing beyond "no such route".
   app.notFound((c) => c.body(null, 404));
   app.onError(answerError);
+  app.use(nameWrites);
   const context: RouteContext = {
     spaceRoot,
     spaceSwitcher,

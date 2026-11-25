@@ -17,8 +17,6 @@ import {
   type SandboxPort,
   type TextGeneration,
 } from "../../src/protocol/flowExecutors.ts";
-import { resolveDeclaredPath } from "../../src/protocol/relativeReference.ts";
-import { dirnameOf, formatRootedPath } from "../../src/protocol/rootedPath.ts";
 import { setupNeedOf } from "../../src/protocol/setupNeed.ts";
 import {
   fetchFileRaw,
@@ -31,42 +29,10 @@ import {
   sandboxRead,
   sandboxWrite,
 } from "../core/apiClient.ts";
-import { noteWritten, scopesOf } from "../core/spaceTree.ts";
+import { scopesOf } from "../core/spaceTree.ts";
 import { bytesToBase64 } from "../lib/base64.ts";
 import type { LlmCallOutcome } from "../services/modelConsole.ts";
 import { jobsFeed } from "./jobsFeed.ts";
-
-// What a write leaves is in the space's listing only after its next read,
-// and a Table or Class drawn before then must not call a generated picture
-// gone. `written` names the file it left, rooted.
-const noted =
-  <A extends unknown[], R>(
-    write: (...args: A) => Promise<R>,
-    written: (args: NoInfer<A>, result: NoInfer<R>) => string | undefined,
-  ) =>
-  async (...args: A): Promise<R> => {
-    const result = await write(...args);
-    const path = written(args, result);
-    noteWritten(path === undefined ? [] : [path]);
-    return result;
-  };
-
-// A file as a document names it, from the document's own folder, rooted;
-// undefined for a name that doesn't resolve.
-function rootedFrom(documentPath: string, declared: string): string | undefined {
-  try {
-    return formatRootedPath(resolveDeclaredPath(dirnameOf(documentPath), declared));
-  } catch {
-    return undefined;
-  }
-}
-
-// What each write names: a written document as the node names it, a row's
-// Table already rooted, a result as its node's folder names it.
-const wroteDocument = (args: [SandboxKind, string, string, ...unknown[]]) => rootedFrom(args[1], args[2]);
-const addedRow = (_args: unknown, result: { path: string }) => result.path;
-const madeResult = (args: [SandboxKind, string, ...unknown[]], result: { path: string }) =>
-  rootedFrom(args[1], result.path);
 
 // The route answers once the job is recorded, and the run waits on the job
 // through the window's jobs feed, never holding a request for a result's
@@ -178,13 +144,13 @@ async function answered<T>(send: (startId?: string) => Promise<T>, jobStarting: 
 
 const browserSandbox: SandboxPort = {
   read: sandboxRead,
-  write: noted(sandboxWrite, wroteDocument),
-  addRow: noted(sandboxAddRow, addedRow),
+  write: sandboxWrite,
+  addRow: sandboxAddRow,
   addToNote: sandboxAddToNote,
   generate: sandboxGenerate,
   generateOptions: sandboxGenerateOptions,
-  generateImage: noted(generateImage, madeResult),
-  generateVideo: noted(generateVideo, madeResult),
+  generateImage,
+  generateVideo,
 };
 
 /** Where a run records each text generation, by the node that made it: the
@@ -236,14 +202,8 @@ export function createFlowContext(
     sandbox: jobStarting
       ? {
           ...browserSandbox,
-          generateImage: noted(
-            (kind, path, body, signal) => generateImage(kind, path, body, signal, jobStarting),
-            madeResult,
-          ),
-          generateVideo: noted(
-            (kind, path, body, signal) => generateVideo(kind, path, body, signal, jobStarting),
-            madeResult,
-          ),
+          generateImage: (kind, path, body, signal) => generateImage(kind, path, body, signal, jobStarting),
+          generateVideo: (kind, path, body, signal) => generateVideo(kind, path, body, signal, jobStarting),
         }
       : browserSandbox,
     decodeImageDimensions,

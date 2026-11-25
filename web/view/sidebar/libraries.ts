@@ -34,7 +34,7 @@ import {
 } from "../../core/apiClient.ts";
 import { setLibraryPermissions } from "../../core/libraries.ts";
 import { desktopFiles, readDraggedPath, removalLabel } from "../../core/paths.ts";
-import { onWritten } from "../../core/spaceTree.ts";
+import { onWritten, writesNotified } from "../../core/written.ts";
 import { buildAccordionRow, setRowExpanded } from "../../lib/accordion.ts";
 import { copyPathItem } from "../../lib/copyPath.ts";
 import { renderTreeLoading } from "../../lib/dom.ts";
@@ -94,9 +94,10 @@ export interface LibrariesViewDeps {
   // listings were read at, until the returned function is called
   // (web/services/spaceChanges.ts).
   followLibrary: (id: string, readAt: () => string | undefined, onChanged: () => void) => () => void;
-  // Calls the listener with the rooted paths this window wrote
-  // (web/core/spaceTree.ts).
-  onWritten: (listener: (paths: readonly string[]) => void) => () => void;
+  // The window's own writes (web/core/written.ts): the listener hears the
+  // rooted paths each brought, and how many writes there have been since.
+  onWritten: (listener: (paths: readonly string[], through: number) => void) => () => void;
+  writesNotified: () => number;
   createTree: (listPath: string) => TreeView;
   showExtensions: () => boolean;
   createMenuButton: (label: string, target: ListItemTarget) => HTMLButtonElement;
@@ -254,6 +255,9 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   // The library version the listings were read at; "" when listings read
   // together came back at different versions, which the next answer settles.
   let readAt: string | undefined;
+  // How many of the window's writes there had been when the open library's
+  // latest listing started: those are in it.
+  let listedThrough = 0;
   // What the next listing of the libraries opens in place of the remembered
   // one: a library, and a file or folder in it to bring into view.
   let revealing: { id: string; entry?: string } | undefined;
@@ -324,6 +328,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     deps.onChanged();
     if (expandedId === undefined) return;
     const id = expandedId;
+    listedThrough = deps.writesNotified();
     deps.forgetLibraryTree(id);
     const dirs = [...listings.keys()];
     const listed = await Promise.allSettled(dirs.map((dir) => deps.fetchLibraryFolder(id, dir)));
@@ -344,15 +349,17 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
 
   const reloadOnce = oneAtATime(reload);
 
-  // A file this window wrote in a library shows at once: the open library
-  // lists again, and for another its cached tree goes and whatever lists it
-  // from disk lists it again, as for a change from outside.
-  deps.onWritten((paths) => {
+  // A write this window made in a library shows at once: the open library
+  // lists again, unless a listing started since will hold it, as one does
+  // after the panel's own writes; for another library its cached tree goes
+  // and whatever lists it from disk lists it again, as for an outside change.
+  deps.onWritten((paths, through) => {
     const written = new Set(paths.flatMap(libraryOf));
     if (written.size === 0) return;
     for (const id of written) if (id !== expandedId) deps.forgetLibraryTree(id);
-    if (expandedId !== undefined && written.has(expandedId)) reloadOnce();
-    else deps.onChanged();
+    const open = expandedId !== undefined && written.has(expandedId);
+    if (open && listedThrough < through) reloadOnce();
+    else if (!open || written.size > 1) deps.onChanged();
   });
 
   // A library's tree lists by name, so a sort picked for one of its folders
@@ -600,6 +607,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
 
     let top: { entries: SpaceTreeNode[]; changes?: string };
     try {
+      listedThrough = deps.writesNotified();
       top = await deps.fetchLibraryFolder(id, "");
     } catch (thrown) {
       if (expandedId !== id) return;
@@ -1139,6 +1147,7 @@ export interface LibrariesPanelDeps
       | "fetchLibraryFolder"
       | "followLibrary"
       | "onWritten"
+      | "writesNotified"
     >,
     Omit<
       LibraryManagerDeps,
@@ -1185,6 +1194,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     fetchLibraryFolder,
     followLibrary: spaceChanges.followLibrary,
     onWritten,
+    writesNotified,
     importFiles: (files, dir) =>
       importDroppedFiles(files, dir, { dialog: deps.dialog(), createEntry: postCreateEntry, upload: postUploadFile }),
     // The same surface the space tree reports a failed write on. A tree

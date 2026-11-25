@@ -47,6 +47,7 @@ function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
     onChanged: vi.fn(),
     followLibrary: vi.fn(() => vi.fn()),
     onWritten: vi.fn(() => vi.fn()),
+    writesNotified: () => 0,
     createTree: vi.fn((listPath: string) => {
       const element = document.createElement("ul");
       element.className = "rendered";
@@ -592,35 +593,43 @@ describe("createLibrariesView", () => {
     expect(followLibrary).toHaveBeenLastCalledWith("two", expect.any(Function), expect.any(Function));
   });
 
-  // A file this window wrote, a Flow's result say, shows without waiting for
-  // the feed: the open library lists again, and another one's cached tree
-  // goes and whatever lists it from disk is told.
+  // A write this window made, a Flow's result say, shows without waiting for
+  // the feed: the open library lists again, unless a listing since will hold
+  // it; another library's cached tree goes and whatever lists it is told.
   it("re-lists the open library when this window writes into it, and tells for another", async () => {
-    let written: (paths: readonly string[]) => void = () => {};
-    const onWritten = vi.fn((listener: (paths: readonly string[]) => void) => {
+    let written: (paths: readonly string[], through: number) => void = () => {};
+    let count = 0;
+    const onWritten = vi.fn((listener: (paths: readonly string[], through: number) => void) => {
       written = listener;
       return vi.fn();
     });
-    const d = deps({ onWritten });
+    const d = deps({ onWritten, writesNotified: () => count });
     const { view } = await shown(d);
     headers(view.panel)[0].click();
     await vi.waitFor(() => expect(d.fetchLibraryFolder).toHaveBeenCalledWith("one", ""));
 
     vi.mocked(d.fetchLibraryFolder).mockClear();
     vi.mocked(d.onChanged).mockClear();
-    written(["notes/a.md"]);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    count = 1;
+    written(["notes"], 1);
     expect(d.fetchLibraryFolder).not.toHaveBeenCalled();
     expect(d.onChanged).not.toHaveBeenCalled();
 
-    written(["lib:one/Tests/new.png"]);
+    count = 2;
+    written(["lib:one/Tests"], 2);
     await vi.waitFor(() => expect(d.fetchLibraryFolder).toHaveBeenCalledWith("one", ""));
     expect(d.forgetLibraryTree).toHaveBeenCalledWith("one");
 
+    // The listing just made started after write 2, so it holds it.
     vi.mocked(d.fetchLibraryFolder).mockClear();
+    written(["lib:one/Tests"], 2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(d.fetchLibraryFolder).not.toHaveBeenCalled();
+
     vi.mocked(d.forgetLibraryTree).mockClear();
     vi.mocked(d.onChanged).mockClear();
-    written(["lib:two/still.png"]);
+    count = 3;
+    written(["lib:two/still.png"], 3);
     expect(d.forgetLibraryTree).toHaveBeenCalledWith("two");
     expect(d.onChanged).toHaveBeenCalledTimes(1);
     expect(d.fetchLibraryFolder).not.toHaveBeenCalled();

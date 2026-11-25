@@ -172,6 +172,27 @@ export interface SpaceChangesResponse {
 
 export const CHANGES_HEADER = "X-Pragma-Changes";
 
+// The entries a request wrote into a space or library, rooted, which the page
+// tells its views to read again: a JSON list, URI-encoded so any name
+// survives a header. The space's top folder is "", which a list keeps.
+export const WRITTEN_HEADER = "X-Pragma-Written";
+
+export function formatWrittenPaths(paths: readonly string[]): string {
+  return encodeURIComponent(JSON.stringify(paths));
+}
+
+/** The rooted paths a response names as written; none for a missing or
+ * unreadable header. */
+export function readWrittenPaths(header: string | null): string[] {
+  if (!header) return [];
+  try {
+    const paths: unknown = JSON.parse(decodeURIComponent(header));
+    return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // GET /api/space/paths and /api/space/libraries/:id/paths: every file and
 // folder the root holds, shown in its tree or not, with dot-entries and links
 // left out, and the folders a scope opens over. What a written path is read

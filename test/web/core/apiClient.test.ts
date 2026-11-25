@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatWrittenPaths, WRITTEN_HEADER } from "../../../src/protocol/api.ts";
 import { setupNeedOf } from "../../../src/protocol/setupNeed.ts";
 import {
   ApiError,
@@ -12,14 +13,16 @@ import {
   postSaveProvider,
   postSiteSettings,
   postSwitchSpace,
+  postUploadFile,
   sandboxGenerate,
 } from "../../../web/core/apiClient.ts";
+import { onWritten } from "../../../web/core/written.ts";
 
-// This module is meant to stay a pure leaf (fetch + types only), so these
-// tests mock global.fetch rather than spinning up a server, exercising
-// exactly the logic that lives here: URL/body construction, response.ok
-// handling, and the error-shape parsing the server contract tests don't
-// cover from this side.
+// This module is meant to stay a leaf (fetch, types and the notice of what a
+// request wrote), so these tests mock global.fetch rather than spinning up a
+// server, exercising exactly the logic that lives here: URL and body
+// construction, response.ok handling, and the error-shape parsing the server
+// contract tests don't cover from this side.
 function jsonResponse(body: unknown, init?: { status?: number; ok?: boolean }): Response {
   const status = init?.status ?? 200;
   return new Response(JSON.stringify(body), {
@@ -117,6 +120,64 @@ describe("postCreateEntry", () => {
   it("throws the response body text on failure, falling back to the status", async () => {
     fetchMock.mockResolvedValue(new Response("name already taken", { status: 409 }));
     await expect(postCreateEntry("notes", "x.md", "file")).rejects.toThrow("name already taken");
+  });
+});
+
+// Every request passes the one helper, so what any response names as written
+// reaches the views from there; an upload, sent another way, tells it too.
+describe("written entries", () => {
+  const told: string[][] = [];
+  const stop = onWritten((paths) => told.push([...paths]));
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const naming = (paths: string[]) => ({ [WRITTEN_HEADER]: formatWrittenPaths(paths) });
+
+  beforeEach(() => {
+    told.length = 0;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterAll(stop);
+
+  it("tells the views what a response names as written, and nothing for one that failed", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ path: "notes/x.md", type: "file" }, { headers: naming(["notes"]) }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await postCreateEntry("notes", "x.md", "file");
+    await tick();
+    expect(told).toEqual([["notes"]]);
+
+    fetchMock.mockResolvedValueOnce(new Response("taken", { status: 409, headers: naming(["notes"]) }));
+    await expect(postCreateEntry("notes", "x.md", "file")).rejects.toThrow("taken");
+    await tick();
+    expect(told).toHaveLength(1);
+  });
+
+  it("tells the views what an upload's response names as written", async () => {
+    class FakeRequest {
+      status = 200;
+      responseText = JSON.stringify({ path: "lib:refs/a.png", name: "a.png" });
+      upload = { addEventListener: () => {} };
+      private onLoad = () => {};
+      open() {}
+      setRequestHeader() {}
+      getResponseHeader(name: string) {
+        return name.toLowerCase() === WRITTEN_HEADER.toLowerCase() ? formatWrittenPaths(["lib:refs"]) : null;
+      }
+      addEventListener(type: string, listener: () => void) {
+        if (type === "load") this.onLoad = listener;
+      }
+      send() {
+        this.onLoad();
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeRequest);
+    await postUploadFile("lib:refs", "a.png", new Blob(["x"], { type: "image/png" }));
+    await tick();
+    expect(told).toEqual([["lib:refs"]]);
   });
 });
 

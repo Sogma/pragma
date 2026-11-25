@@ -26,7 +26,7 @@ import {
   rawFileUrl,
 } from "../core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE, readDraggedPath, wireEntryDrag } from "../core/paths.ts";
-import { listedAsGone, noteWritten, writePathFrom } from "../core/spaceTree.ts";
+import { listedAsGone, writePathFrom } from "../core/spaceTree.ts";
 import { formatFileSize } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { type ThumbnailFacts, type ThumbnailHud, thumbnailHud } from "../lib/mediaHud.ts";
@@ -173,15 +173,11 @@ export function mediaImportFor(dialog: DialogService): MediaFieldSpec["importFil
         cancelled: false,
       };
     }
-    const result = await importDroppedFiles(files, dir, {
+    return importDroppedFiles(files, dir, {
       dialog,
       createEntry: postCreateEntry,
       upload: postUploadFile,
     });
-    // The listing learns of a copy only on its next read, and a redraw
-    // before then must not call the file just linked gone.
-    if (result.imported.length > 0) noteWritten(result.imported);
-    return result;
   };
 }
 

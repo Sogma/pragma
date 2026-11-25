@@ -15,7 +15,7 @@ import {
   libraryName,
 } from "../core/libraries.ts";
 import { stripExtension } from "../core/paths.ts";
-import { findEntry, getTree, loadLibraryTree, noteWritten } from "../core/spaceTree.ts";
+import { findEntry, getTree, loadLibraryTree } from "../core/spaceTree.ts";
 import { FALLBACK_FPS, type FrameGrab, timecode } from "../lib/videoPlayer.ts";
 import type { DialogService } from "./dialog.ts";
 import { createFolderField } from "./folderChooser.ts";
@@ -124,8 +124,7 @@ async function saveFrame(deps: SaveFrameDeps, clip: string, frame: FrameGrab, co
       const name = frameFileName(values.name);
       const refusal = frameNameRefusal(name, await namesIn(values.folder));
       if (refusal) return refusal;
-      const saved = await postUploadFile(values.folder, name, await pngOf(frame.canvas));
-      noteWritten([saved.path]);
+      await postUploadFile(values.folder, name, await pngOf(frame.canvas));
       await postFrameFolder(context, values.folder).catch(() => undefined);
       return undefined;
     },

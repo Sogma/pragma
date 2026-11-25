@@ -413,28 +413,6 @@ describe("resolving a written path", () => {
 
 // What a media cell draws offline without asking: only what a current
 // listing of the space lacks, matched as entry names compare.
-describe("noteWritten", () => {
-  // Paths written in one go reach a view together, so it reads once; a write
-  // that names no path keeps only the listing's guarantee.
-  it("tells listeners the paths written together, once, and nothing for a write naming none", async () => {
-    const spaceTree = await freshSpaceTree();
-    const told: string[][] = [];
-    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
-    const stop = spaceTree.onWritten((paths) => told.push([...paths]));
-    spaceTree.noteWritten(["a.png"]);
-    spaceTree.noteWritten(["lib:refs/b.png", "a.png"]);
-    await tick();
-    expect(told).toEqual([["a.png", "lib:refs/b.png"]]);
-    spaceTree.noteWritten([]);
-    await tick();
-    expect(told).toHaveLength(1);
-    stop();
-    spaceTree.noteWritten(["c.png"]);
-    await tick();
-    expect(told).toHaveLength(1);
-  });
-});
-
 describe("listedAsGone", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -458,12 +436,35 @@ describe("listedAsGone", () => {
 
   it("says nothing while a noted write may be missing from the listing", async () => {
     const spaceTree = await freshSpaceTree();
+    const written = await import("../../../web/core/written.ts");
     vi.stubGlobal("fetch", serve(SAMPLE_TREE));
     await spaceTree.refresh();
-    spaceTree.noteWritten(["projects/gone.png"]);
+    written.notifyWritten(["projects/gone.png"]);
     expect(spaceTree.listedAsGone("projects/gone.png")).toBe(false);
     await spaceTree.refresh();
     expect(spaceTree.listedAsGone("projects/gone.png")).toBe(true);
+  });
+});
+
+// Whether a view need read the space again for the window's writes: not once
+// a read has started since them, landed or not.
+describe("listingCovers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("covers the writes told before a read started, and none told after", async () => {
+    const spaceTree = await freshSpaceTree();
+    const written = await import("../../../web/core/written.ts");
+    vi.stubGlobal("fetch", serve(SAMPLE_TREE));
+    written.notifyWritten(["projects/a.png"]);
+    const through = written.writesNotified();
+    expect(spaceTree.listingCovers(through)).toBe(false);
+    const reading = spaceTree.refresh();
+    expect(spaceTree.listingCovers(through)).toBe(true);
+    await reading;
+    written.notifyWritten(["projects/b.png"]);
+    expect(spaceTree.listingCovers(written.writesNotified())).toBe(false);
   });
 });
 

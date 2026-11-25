@@ -58,14 +58,28 @@ describe("createJobsFeed", () => {
       [job("going"), job("old", { stage: "saved", file: "clips/old.mp4" })],
       [job("going", { stage: "saved", file: "clips/new.mp4" }), job("old", { stage: "saved", file: "clips/old.mp4" })],
     ];
-    const noteWritten = vi.fn();
-    const unfollow = createJobsFeed({ fetchJobs, markJobsShown, noteWritten } as never).follow("v.flow.html", () => []);
+    const notifyWritten = vi.fn();
+    const unfollow = createJobsFeed({ fetchJobs, markJobsShown, notifyWritten } as never).follow(
+      "v.flow.html",
+      () => [],
+    );
     await vi.advanceTimersByTimeAsync(0);
-    expect(noteWritten).not.toHaveBeenCalled();
+    expect(notifyWritten).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5000);
-    expect(noteWritten).toHaveBeenCalledTimes(1);
-    expect(noteWritten).toHaveBeenCalledWith(["clips/new.mp4"]);
+    expect(notifyWritten).toHaveBeenCalledTimes(1);
+    expect(notifyWritten).toHaveBeenCalledWith(["clips/new.mp4"]);
     unfollow();
+  });
+
+  // A job a run here waits on may be done by the first poll; its file is told
+  // before the run hears the job ended.
+  it("tells the views the file of a job a run waits on, saved by the first poll", async () => {
+    answers = [[job("waited", { stage: "saved", file: "clips/fast.mp4" })]];
+    const notifyWritten = vi.fn();
+    const waiting = createJobsFeed({ fetchJobs, markJobsShown, notifyWritten } as never).wait("v.flow.html", "waited");
+    await vi.advanceTimersByTimeAsync(5000);
+    await waiting;
+    expect(notifyWritten).toHaveBeenCalledWith(["clips/fast.mp4"]);
   });
 
   it("says shown only the ended jobs a follower showed, where it names them", async () => {

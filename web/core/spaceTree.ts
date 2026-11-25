@@ -51,6 +51,7 @@ import {
   treeTotalsLabel,
 } from "./paths.ts";
 import { inTemplateFolders, isPresetPath, setPresets } from "./presets.ts";
+import { writesNotified } from "./written.ts";
 
 // Owns the last tree fetched from the server — every consumer (the tree
 // view, drag/reorder, link resolution) reads from here rather than each
@@ -64,14 +65,11 @@ let currentTree: SpaceTreeNode[] = [];
 let currentPaths: RootPathsResponse | undefined;
 // The change version the tree was read at, undefined until a read names one.
 let readAt: string | undefined;
-// Writes noted since the window opened, and how many of them the listing
-// held when its read went out: undefined until a read lands.
-let unlistedWrites = 0;
+// How many of the window's writes (core/written.ts) the listing held when its
+// read went out, undefined until a read lands, and the most any read started
+// with, landed or still going.
 let listedThrough: number | undefined;
-// Paths written since the views were last told, and who to tell.
-let written = new Set<string>();
-let telling: ReturnType<typeof setTimeout> | undefined;
-const writtenListeners = new Set<(paths: readonly string[]) => void>();
+let startedThrough = 0;
 
 export function getTree(): SpaceTreeNode[] {
   return currentTree;
@@ -183,7 +181,8 @@ export function onLibraryTreeLoaded(listener: () => void): () => void {
 // A read started before a write never counts that write as listed, even
 // landing after a newer read.
 export async function refresh(): Promise<SpaceTreeNode[]> {
-  const through = unlistedWrites;
+  const through = writesNotified();
+  startedThrough = Math.max(startedThrough, through);
   // The presets come with the tree, so what they hold and what offers the
   // space's content always agree. One that won't load keeps the last read.
   const [read, paths, listed] = await Promise.all([
@@ -199,35 +198,17 @@ export async function refresh(): Promise<SpaceTreeNode[]> {
   return currentTree;
 }
 
-/** Notes files this window wrote, by rooted path: a Flow's result, a frame
- * saved, a file dropped in. Until a read started after this lands, the
- * listing never says one is gone, and every view listing their folders hears
- * of them at once, so it reads them without waiting for the change feed. */
-export function noteWritten(paths: readonly string[]): void {
-  unlistedWrites++;
-  for (const path of paths) written.add(path);
-  // Paths written in one go are told together, so a view reads once.
-  if (telling !== undefined) return;
-  telling = setTimeout(() => {
-    const told = [...written];
-    written = new Set();
-    telling = undefined;
-    if (told.length > 0) for (const listener of writtenListeners) listener(told);
-  }, 0);
-}
-
-/** Calls `listener` with the rooted paths this window wrote, those written
- * together at once. Returns the way to stop. */
-export function onWritten(listener: (paths: readonly string[]) => void): () => void {
-  writtenListeners.add(listener);
-  return () => writtenListeners.delete(listener);
+/** Whether a read of the space has started since the window's writes
+ * reached `through`, landed or still going: one that will list them. */
+export function listingCovers(through: number): boolean {
+  return startedThrough >= through;
 }
 
 /** Whether the space's listing says nothing is at `rootedPath`. Never for a
  * library's path, whose listing may be old or not loaded yet, or while the
  * listing may lack a write noted since its read went out. */
 export function listedAsGone(rootedPath: string): boolean {
-  if (listedThrough !== unlistedWrites || !currentPaths) return false;
+  if (listedThrough !== writesNotified() || !currentPaths) return false;
   const { root, path } = parseRootedPath(rootedPath);
   if (isLibraryRoot(root)) return false;
   return matchEntries(path, "any", indexesOf(currentPaths).paths.names).length === 0;

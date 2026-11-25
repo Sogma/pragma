@@ -170,7 +170,7 @@ import type {
   UploadEntryResponse,
   VideoModelsResponse,
 } from "../../src/protocol/api.ts";
-import { besideParam, CHANGES_HEADER } from "../../src/protocol/api.ts";
+import { besideParam, CHANGES_HEADER, readWrittenPaths, WRITTEN_HEADER } from "../../src/protocol/api.ts";
 import type { ClassRow } from "../../src/protocol/class.ts";
 import { formatClock, readClock } from "../../src/protocol/datePlaceholders.ts";
 import type { AffixMode } from "../../src/protocol/flowNodes.ts";
@@ -178,6 +178,7 @@ import { formatSelectedRange } from "../../src/protocol/selectedRange.ts";
 import { withSetupNeed } from "../../src/protocol/setupNeed.ts";
 import type { TemplateEntry } from "../../src/protocol/templates.ts";
 import type { DocumentType } from "../../src/protocol/types.ts";
+import { notifyWritten } from "./written.ts";
 
 // The wire contract's shapes, re-exported so a caller imports a request or
 // response type from the same module as the call that uses it.
@@ -254,6 +255,9 @@ async function apiFetch(path: string, options: ApiRequestOptions): Promise<Respo
         },
   );
   if (!response.ok) throw await readError(response, options);
+  // Every request the page makes passes here, so what any of them wrote
+  // reaches the views from this one place.
+  notifyWritten(readWrittenPaths(response.headers.get(WRITTEN_HEADER)));
   return response;
 }
 
@@ -715,6 +719,7 @@ export function postUploadFile(
     });
     xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        notifyWritten(readWrittenPaths(xhr.getResponseHeader(WRITTEN_HEADER)));
         resolve(JSON.parse(xhr.responseText) as UploadEntryResponse);
         return;
       }

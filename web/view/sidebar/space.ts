@@ -89,6 +89,7 @@ import {
 } from "../../core/paths.ts";
 import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
+import { onWritten } from "../../core/written.ts";
 import { copyPathItem } from "../../lib/copyPath.ts";
 import { countText, must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
@@ -436,11 +437,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   elements.panel.append(stack.element);
   // A change made outside this window (another program, another device, an
   // agent) re-reads the tree the way the refresh button does, and so does a
-  // file this window wrote in the space, at once. One read at a time.
+  // write this window made in the space, at once: unless a read started since
+  // will list it, as one does after the tree's own actions. One at a time.
   const refreshOnce = oneAtATime(refresh);
   spaceChanges.followSpace(refreshOnce);
-  spaceTree.onWritten((paths) => {
-    if (paths.some((path) => !isLibraryPath(path))) refreshOnce();
+  onWritten((paths, through) => {
+    if (paths.some((path) => !isLibraryPath(path)) && !spaceTree.listingCovers(through)) refreshOnce();
   });
   onPresetsChanged(() => renderPresets());
 

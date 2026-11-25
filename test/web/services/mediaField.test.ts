@@ -429,27 +429,15 @@ describe("a media field checked against the space's listing", () => {
 
   it("believes the listing again only once a read started after a noted write lands", async () => {
     const { spaceTree, draw } = await listed();
-    spaceTree.noteWritten(["new.png"]);
+    const { notifyWritten } = await import("../../../web/core/written.ts");
+    notifyWritten(["new.png"]);
     expect(draw("new.png").querySelector("img")).not.toBeNull();
     const reading = spaceTree.refresh();
-    spaceTree.noteWritten(["new.png"]);
+    notifyWritten(["new.png"]);
     await reading;
     expect(draw("new.png").querySelector("img")).not.toBeNull();
     await spaceTree.refresh();
     expect(draw("new.png").classList.contains("is-missing")).toBe(true);
-  });
-
-  it("notes a copy dropped in, so a redraw before the next read draws it", async () => {
-    vi.doMock("../../../web/services/mediaImport.ts", async (original) => ({
-      ...(await original<typeof import("../../../web/services/mediaImport.ts")>()),
-      importDroppedFiles: vi.fn(async () => landed(["new.png"])),
-    }));
-    const { media, spaceTree } = await listed();
-    await media.mediaImportFor({} as never)([new File(["x"], "new.png", { type: "image/png" })], "");
-    expect(spaceTree.listedAsGone("new.png")).toBe(false);
-    await spaceTree.refresh();
-    expect(spaceTree.listedAsGone("new.png")).toBe(true);
-    vi.doUnmock("../../../web/services/mediaImport.ts");
   });
 });
 
