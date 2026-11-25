@@ -164,7 +164,7 @@ html[data-theme="dark"]
 html[data-theme="dark"]
   :is(.editor-image-frame, .editor-video-stage).has-bands:not(:fullscreen, .is-actual-size .media-frame)
   > .media-hud:not(.is-bare)
-  .media-hud-guides:hover {
+  .media-hud-guides:is(:hover, [aria-expanded="true"]) {
   background: var(--bg-hover);
 }
 

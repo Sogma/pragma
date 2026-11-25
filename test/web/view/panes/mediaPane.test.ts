@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClipHeaderResponse, PixelFormatResponse } from "../../../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../../../web/core/paths.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
-import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
+import { MEDIA_MENU, menuContext } from "../../../../web/services/videoMenu.ts";
 import { createImagePane, createVideoPane, imagePane, videoPane } from "../../../../web/view/panes/mediaPane.ts";
 import { fireDrag } from "../../support/drag.ts";
 import { memorySetting, memoryViews } from "../../support/editorLayout.ts";
@@ -86,6 +86,13 @@ function hudText(pane: EditorPane): string[] {
   return [...pane.element.querySelectorAll(".media-hud-bar")].map((bar) =>
     [...bar.children].map((cell) => cell.textContent).join(" | "),
   );
+}
+
+// A right-click on `target`, and whether a menu took it from the browser.
+function rightClick(target: Element, clientX = 200, clientY = 30): boolean {
+  const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX, clientY });
+  target.dispatchEvent(event);
+  return event.defaultPrevented;
 }
 
 const current = { isCurrent: () => true };
@@ -226,7 +233,7 @@ describe("imagePane", () => {
     expect((pane.element.querySelector(".media-hud-badge") as HTMLElement).hidden).toBe(true);
   });
 
-  it("opens the ⋮'s menu at a right-click on the picture, and at its centre for the menu key", async () => {
+  it("opens the ⋮'s menu at a right-click on the picture, not its mat or bars, and at its centre for the menu key", async () => {
     const { pane, contextMenu } = setup();
     await pane.setInput(tab, current);
     const img = pane.element.querySelector("img") as HTMLImageElement;
@@ -248,9 +255,36 @@ describe("imagePane", () => {
     });
     expect(more.getAttribute("aria-expanded")).toBe("true");
 
-    (img.parentElement as HTMLElement).getBoundingClientRect = () => new DOMRect(40, 20, 400, 300);
+    const opened = contextMenu.opened.length;
+    const bar = pane.element.querySelector(".media-hud-bar") as HTMLElement;
+    expect([rightClick(img.parentElement as HTMLElement), rightClick(bar)]).toEqual([false, false]);
+    expect(contextMenu.opened.length).toBe(opened);
+
+    img.getBoundingClientRect = () => new DOMRect(40, 20, 400, 300);
     pane.element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: -1 }));
     expect(contextMenu.opened.at(-1)?.at).toEqual({ x: 240, y: 170 });
+  });
+
+  // Each badge's menu in the ⋮'s place: the guides to pick, the looks to try.
+  it("opens the Guides tiles or the Looks list at a right-click on their badge, not the ⋮'s menu", async () => {
+    const { pane, contextMenu, guides, lut } = setup();
+    guides.set({ ...guides.get(), title: true });
+    lut.set({ lut: "panchromatic", on: true });
+    await pane.setInput(tab, current);
+    const toggle = pane.element.querySelector(".media-hud-guides") as HTMLButtonElement;
+    const badge = pane.element.querySelector(".media-hud-badge") as HTMLButtonElement;
+    expect(rightClick(toggle)).toBe(true);
+    const tiles = contextMenu.opened.at(-1);
+    expect([tiles?.flyoutOf?.label, tiles?.anchor, tiles?.at, tiles?.arg]).toEqual([
+      "Guides",
+      toggle,
+      { x: 200, y: 30 },
+      { context: "" },
+    ]);
+    expect(rightClick(badge, 240)).toBe(true);
+    const looks = contextMenu.opened.at(-1);
+    expect([looks?.flyoutOf?.label, looks?.anchor, looks?.at]).toEqual(["Looks", badge, { x: 240, y: 30 }]);
+    expect(contextMenu.opened.map((opened) => opened.menu)).toEqual([undefined, undefined]);
   });
 
   it("holds a guides switch before LOOK, shown once a guide is picked, a click turning them with focus left on the pane", async () => {
@@ -833,7 +867,7 @@ describe("videoPane", () => {
     expect(badge.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("opens the player's ⋮ menu at a right-click on the clip", async () => {
+  it("opens the player's ⋮ menu at a right-click on the clip, not on its mat or its controls", async () => {
     const { pane, contextMenu, release } = videoSetup();
     const opening = pane.setInput(videoTab, current);
     release();
@@ -846,6 +880,31 @@ describe("videoPane", () => {
       anchor: pane.element.querySelector(".video-player-more"),
       at: { x: 300, y: 200 },
     });
+
+    const opened = contextMenu.opened.length;
+    const controls = pane.element.querySelector(".video-player-bar") as HTMLElement;
+    expect([rightClick(video.parentElement as HTMLElement), rightClick(controls)]).toEqual([false, false]);
+    expect(contextMenu.opened.length).toBe(opened);
+  });
+
+  it("opens the Guides tiles or the Looks list at a right-click on their badge, not the player's ⋮ menu", async () => {
+    const { pane, contextMenu, held, lut, release } = videoSetup();
+    const guides = held.of("lib:takes").guides;
+    guides.set({ ...guides.get(), frames: ["2.39"] });
+    lut.set({ lut: "panchromatic", on: true });
+    const opening = pane.setInput(videoTab, current);
+    release();
+    await opening;
+    const toggle = pane.element.querySelector(".media-hud-guides") as HTMLButtonElement;
+    const badge = pane.element.querySelector(".media-hud-badge") as HTMLButtonElement;
+    rightClick(toggle);
+    rightClick(badge);
+    expect(
+      contextMenu.opened.map((opened) => [opened.flyoutOf?.label, opened.anchor, menuContext(opened.arg)]),
+    ).toEqual([
+      ["Guides", toggle, "lib:takes"],
+      ["Looks", badge, "lib:takes"],
+    ]);
   });
 
   it("holds the guides switch before LOOK, between the scale and the frame rate, a click turning the guides", async () => {

@@ -68,7 +68,7 @@ import type { FormatRegistry } from "./services/formats.ts";
 import { focusMediaField, mediaFieldPath, mediaStrip } from "./services/mediaField.ts";
 import type { ContextMenuService } from "./services/menus.ts";
 import { readableLineLength, type Setting, videoLoop, videoVolume } from "./services/settings.ts";
-import { MEDIA_MENU, moreOptionsMenu } from "./services/videoMenu.ts";
+import { badgeMenus, MEDIA_MENU, moreOptionsMenu } from "./services/videoMenu.ts";
 
 export type PreviewKind = "image" | "svg" | "video" | PageKind;
 
@@ -316,6 +316,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   const stopLineLength = deps.readableLineLength.subscribe((on) => preview.classList.toggle("wide-editor", !on));
 
   const view = createViewBinding(deps.views);
+  const previewBadgeMenus = badgeMenus(deps.contextMenu, view.context, deps.views);
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
   let previewGuides: GuidesSwitch | undefined;
@@ -336,11 +337,11 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   }
 
   // A right-click on a shown still or clip opens its ⋮ menu where it lands,
-  // and the menu key on the host, which holds focus while it shows, at its
-  // centre. A page's text keeps the text menu.
+  // and the menu key on the host, which holds focus while it shows, in the
+  // middle of it. A page's text keeps the text menu.
   const stopMediaMenu = mediaMenuOn(
     deps.host,
-    () => previewStage.querySelector<HTMLElement>(":scope > .file-preview-frame") ?? undefined,
+    () => previewStage.querySelector<HTMLElement>(":scope > .file-preview-frame > :is(img, video)") ?? undefined,
     (at) => previewMenuAt?.(at),
   );
 
@@ -425,8 +426,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     const [name, dimensions, topRight] = hudCells(3);
     name.className = "media-hud-name";
     name.textContent = file.name;
-    previewLook = isVideo || rasterType ? lookBadge(view.look) : undefined;
-    previewGuides = guidesSwitch(view.guides);
+    previewLook = isVideo || rasterType ? lookBadge(view.look, previewBadgeMenus.looks) : undefined;
+    previewGuides = guidesSwitch(view.guides, previewBadgeMenus.guides);
     const top = [dimensions, hudBadges(previewGuides.element, previewLook?.element), topRight];
     const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {

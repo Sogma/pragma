@@ -317,11 +317,11 @@
   color: var(--media-hud-fg);
 }
 
-/* The bars stay up while the pointer is on one of their controls, the LOOK
-   badge or the ⋮, which takes the hover off the picture under it, and while
-   the ⋮'s menu is open. */
+/* The bars stay up while the pointer is on one of their controls, a badge
+   or the ⋮, which takes the hover off the picture under it, and while the
+   menu of one is open. */
 .media-hud:hover,
-.media-hud:has(.media-hud-more[aria-expanded="true"]) {
+.media-hud:has([aria-expanded="true"]) {
   --hud-shown: 1;
 }
 

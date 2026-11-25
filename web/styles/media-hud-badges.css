@@ -48,13 +48,13 @@
   mask: var(--icon-safe-title) center / contain no-repeat;
 }
 
-/* Muted while the guides are hidden. A hover keeps either colour, so a
-   hidden switch never passes for a shown one. */
+/* Muted while the guides are hidden. A hover, or its menu open, keeps
+   either colour, so a hidden switch never passes for a shown one. */
 .media-hud-guides[aria-pressed="false"] {
   color: color-mix(in srgb, var(--media-hud-fg) 50%, transparent);
 }
 
-.media-hud-guides:hover {
+.media-hud-guides:is(:hover, [aria-expanded="true"]) {
   background: color-mix(in srgb, var(--media-hud-fg) 16%, transparent);
 }
 

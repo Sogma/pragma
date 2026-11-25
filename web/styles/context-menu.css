@@ -145,7 +145,7 @@
   color: var(--color-warning);
 }
 
-.context-submenu.has-search .context-menu-results .context-menu-detail {
+:is(.context-menu, .context-submenu).has-search .context-menu-results .context-menu-detail {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

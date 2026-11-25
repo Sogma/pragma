@@ -15,6 +15,32 @@ import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import { NO_LOOK } from "../../../web/lib/videoLut.ts";
 import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 
+const noMenu = () => {};
+
+// A badge's menu as the real opener keeps it: open at a point, standing for
+// it, and closed by a call with none.
+const badgeMenu = () =>
+  vi.fn((anchor: HTMLElement, at?: { x: number; y: number }) => {
+    anchor.setAttribute("aria-expanded", String(at !== undefined));
+  });
+
+// A badge on a frame whose right-click opens the media's menu.
+function onFrame(badge: HTMLElement) {
+  const frame = document.createElement("div");
+  frame.append(badge);
+  const mediaMenu = vi.fn();
+  mediaMenuOn(frame, () => frame, mediaMenu);
+  const rightClick = new MouseEvent("contextmenu", {
+    bubbles: true,
+    cancelable: true,
+    button: 2,
+    clientX: 40,
+    clientY: 12,
+  });
+  badge.dispatchEvent(rightClick);
+  return { mediaMenu, rightClick };
+}
+
 const bars = (box: HTMLElement) =>
   [...box.querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
     bar.hidden ? "(hidden)" : [...bar.children].map((cell) => cell.textContent).join(" | "),
@@ -133,7 +159,7 @@ describe("fitHud", () => {
 describe("a clip's LOOK badge", () => {
   it("stays empty until a look is picked, then reads LOOK, pressed while on, naming the look", () => {
     const look = memoryLook(NO_LOOK);
-    const { element } = lookBadge(look);
+    const { element } = lookBadge(look, noMenu);
     expect([element.type, element.className, element.tabIndex]).toEqual(["button", "media-hud-badge", -1]);
     expect(element.textContent).toBe("");
 
@@ -160,7 +186,7 @@ describe("a clip's LOOK badge", () => {
 
   it("turns the look off and back on at each click, a press leaving focus where it was, until disposed", () => {
     const look = memoryLook({ lut: "panchromatic", on: true });
-    const badge = lookBadge(look);
+    const badge = lookBadge(look, noMenu);
     const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     badge.element.dispatchEvent(press);
     expect(press.defaultPrevented).toBe(true);
@@ -174,12 +200,33 @@ describe("a clip's LOOK badge", () => {
     look.set({ lut: "panchromatic", on: false });
     expect(badge.element.getAttribute("aria-pressed")).toBe("true");
   });
+
+  it("opens the looks at a right-click, where the frame's would open the media's menu, and a click closes them as it turns", () => {
+    const look = memoryLook({ lut: "panchromatic", on: true });
+    const menu = badgeMenu();
+    const { element } = lookBadge(look, menu);
+    const { mediaMenu, rightClick } = onFrame(element);
+    expect([menu.mock.calls, rightClick.defaultPrevented, mediaMenu.mock.calls]).toEqual([
+      [[element, { x: 40, y: 12 }]],
+      true,
+      [],
+    ]);
+
+    element.click();
+    expect([menu.mock.lastCall, element.getAttribute("aria-expanded"), look.get().on]).toEqual([
+      [element],
+      "false",
+      false,
+    ]);
+    element.click();
+    expect([menu.mock.calls.length, look.get().on]).toEqual([2, true]);
+  });
 });
 
 describe("the guides switch", () => {
   it("stays hidden until a guide is picked, then says whether the guides show, out of the tab order", () => {
     const guides = memorySetting(NO_GUIDES);
-    const { element } = guidesSwitch(guides);
+    const { element } = guidesSwitch(guides, noMenu);
     const name = [element.type, element.className, element.tabIndex, element.getAttribute("aria-label")];
     expect(name).toEqual(["button", "icon-button media-hud-guides", -1, "Guides"]);
     expect(element.hidden).toBe(true);
@@ -201,7 +248,7 @@ describe("the guides switch", () => {
 
   it("hides and shows the guides at each click, a press leaving focus where it was, until disposed", () => {
     const guides = memorySetting({ ...NO_GUIDES, title: true });
-    const toggle = guidesSwitch(guides);
+    const toggle = guidesSwitch(guides, noMenu);
     const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     toggle.element.dispatchEvent(press);
     expect(press.defaultPrevented).toBe(true);
@@ -216,6 +263,27 @@ describe("the guides switch", () => {
     expect(toggle.element.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("opens the guides to pick at a right-click, where the frame's would open the media's menu, and a click closes them as it turns", () => {
+    const guides = memorySetting({ ...NO_GUIDES, title: true });
+    const menu = badgeMenu();
+    const { element } = guidesSwitch(guides, menu);
+    const { mediaMenu, rightClick } = onFrame(element);
+    expect([menu.mock.calls, rightClick.defaultPrevented, mediaMenu.mock.calls]).toEqual([
+      [[element, { x: 40, y: 12 }]],
+      true,
+      [],
+    ]);
+
+    element.click();
+    expect([menu.mock.lastCall, element.getAttribute("aria-expanded"), guides.get().shown]).toEqual([
+      [element],
+      "false",
+      false,
+    ]);
+    element.click();
+    expect([menu.mock.calls.length, guides.get().shown]).toEqual([2, true]);
+  });
+
   // jsdom lays nothing out: the boxes a laid-out bar gives.
   const placeAt = (element: Element, left: number, width: number) => {
     const box = { left, right: left + width, width, top: 0, bottom: 19, height: 19 } as DOMRect;
@@ -224,8 +292,8 @@ describe("the guides switch", () => {
   };
 
   it("shares a cell with LOOK, before it, and stays out of sight where it would touch a fact beside the cell", () => {
-    const toggle = guidesSwitch(memorySetting({ ...NO_GUIDES, center: true }));
-    const look = lookBadge(memoryLook({ lut: "panchromatic", on: true }));
+    const toggle = guidesSwitch(memorySetting({ ...NO_GUIDES, center: true }), noMenu);
+    const look = lookBadge(memoryLook({ lut: "panchromatic", on: true }), noMenu);
     const [dimensions, scale] = hudCells(2);
     const cell = hudBadges(toggle.element, look.element);
     expect([...cell.children]).toEqual([toggle.element, look.element]);
@@ -252,27 +320,31 @@ describe("mediaMenuOn", () => {
     const surface = document.createElement("div");
     const frame = document.createElement("div");
     const media = document.createElement("img");
+    const bar = document.createElement("div");
     const margin = document.createElement("div");
-    frame.append(media);
+    frame.append(media, bar);
     surface.append(margin, frame);
     document.body.append(surface);
-    frame.getBoundingClientRect = () => new DOMRect(100, 50, 400, 300);
+    surface.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    media.getBoundingClientRect = () => new DOMRect(100, 50, 400, 300);
     const open = vi.fn();
-    const stop = mediaMenuOn(surface, () => frame, open);
+    const stop = mediaMenuOn(surface, () => media, open);
     const rightClick = (target: Element, init: MouseEventInit) => {
       const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, ...init });
       target.dispatchEvent(event);
       return event;
     };
-    return { surface, media, margin, open, stop, rightClick };
+    return { surface, media, frame, bar, margin, open, stop, rightClick };
   };
 
-  it("opens at a right-click on the media's frame, and leaves one beside it to the surface's menus", () => {
-    const { media, margin, open, rightClick } = rig();
+  it("opens at a right-click on the media itself, and leaves one on its frame, a bar or beside it to the surface's menus", () => {
+    const { media, frame, bar, margin, open, rightClick } = rig();
     const onMedia = rightClick(media, { button: 2, clientX: 220, clientY: 140 });
     expect([open.mock.calls, onMedia.defaultPrevented]).toEqual([[[{ x: 220, y: 140 }]], true]);
-    const beside = rightClick(margin, { button: 2, clientX: 5, clientY: 5 });
-    expect([open.mock.calls.length, beside.defaultPrevented]).toEqual([1, false]);
+    const elsewhere = [frame, bar, margin].map(
+      (target) => rightClick(target, { button: 2, clientX: 5, clientY: 5 }).defaultPrevented,
+    );
+    expect([open.mock.calls.length, elsewhere]).toEqual([1, [false, false, false]]);
   });
 
   // A key's right-click lands on what has focus, with no button pressed.
@@ -286,5 +358,12 @@ describe("mediaMenuOn", () => {
     stop();
     rightClick(surface, { button: -1 });
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens in the middle of the part in view for the menu key, where a zoomed picture runs past the surface", () => {
+    const { surface, media, open, rightClick } = rig();
+    media.getBoundingClientRect = () => new DOMRect(-400, 200, 2000, 1500);
+    rightClick(surface, { button: -1 });
+    expect(open).toHaveBeenLastCalledWith({ x: 400, y: 400 });
   });
 });

@@ -52,7 +52,7 @@ import { contextView } from "../../services/contextViews.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
 import { videoLoop, videoVolume } from "../../services/settings.ts";
-import { moreOptionsMenu } from "../../services/videoMenu.ts";
+import { type BadgeMenus, badgeMenus, moreOptionsMenu } from "../../services/videoMenu.ts";
 
 export interface MediaPaneDeps {
   // The raw-file route: a `src` for the bytes, and a HEAD against the same
@@ -154,11 +154,11 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
  * edge; the file's details and the ⋮ along the bottom, its name being the
  * status bar's. The top holds three cells at most, so the badge stays
  * centred on the picture (web/styles/media-panes.css). */
-function createImageHud(lut: LutChoice, guides: GuidesChoice, more: HTMLButtonElement) {
+function createImageHud(lut: LutChoice, guides: GuidesChoice, menus: BadgeMenus, more: HTMLButtonElement) {
   const [details, dimensions, scale] = hudCells(3);
   details.className = "media-hud-details";
-  const look = lookBadge(lut);
-  const toggle = guidesSwitch(guides);
+  const look = lookBadge(lut, menus.looks);
+  const toggle = guidesSwitch(guides, menus.guides);
   const root = hudRoot([dimensions, hudBadges(toggle.element, look.element), scale], [details, more]);
   return { root, details, dimensions, scale, look, guides: toggle };
 }
@@ -166,10 +166,10 @@ function createImageHud(lut: LutChoice, guides: GuidesChoice, more: HTMLButtonEl
 /** The video's overlay: dimensions, codec, display scale, the guides switch
  * and the LOOK badge once a guide or a look has been picked, and frame rate,
  * along the top edge only. The player's own controls show the duration. */
-function createVideoHud(lut: LutChoice, guides: GuidesChoice) {
+function createVideoHud(lut: LutChoice, guides: GuidesChoice, menus: BadgeMenus) {
   const [dimensions, codec, scale, frameRate] = hudCells(4);
-  const look = lookBadge(lut);
-  const toggle = guidesSwitch(guides);
+  const look = lookBadge(lut, menus.looks);
+  const toggle = guidesSwitch(guides, menus.guides);
   const root = hudRoot([dimensions, codec, scale, hudBadges(toggle.element, look.element), frameRate]);
   return { root, dimensions, codec, frameRate, look, guides: toggle, scale };
 }
@@ -214,10 +214,11 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
   // A right-click on the picture opens the ⋮'s menu where it lands.
   const stopMenu = mediaMenuOn(
     element,
-    () => shown?.parentElement ?? undefined,
+    () => shown,
     (at) => openMore(more.element, at),
   );
-  const hud = createImageHud(view.look, view.guides, more.element);
+  const badges = badgeMenus(deps.contextMenu, view.context, deps.views);
+  const hud = createImageHud(view.look, view.guides, badges, more.element);
   let layers: PictureLayers | undefined;
   let shown: HTMLImageElement | undefined;
   // The width the picture counts as at 100%: its own, or an SVG's stand-in.
@@ -412,13 +413,13 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
   element.className = "editor-video";
   const details = detailsSection("Video");
   const view = createViewBinding(deps.views);
-  const hud = createVideoHud(view.look, view.guides);
+  const hud = createVideoHud(view.look, view.guides, badgeMenus(deps.contextMenu, view.context, deps.views));
   let mounted: HTMLVideoElement | undefined;
   let player: VideoPlayer | undefined;
   // A right-click on the clip opens the player's ⋮ menu where it lands.
   const stopMenu = mediaMenuOn(
     element,
-    () => mounted?.parentElement ?? undefined,
+    () => mounted,
     (at) => player?.openMenuAt(at),
   );
 

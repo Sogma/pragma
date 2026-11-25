@@ -56,7 +56,7 @@ interface RenderedSlider {
 export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   const store = new DisposableStore();
   let open:
-    | { element: HTMLElement; anchor?: HTMLElement; opener: Element | null; session: DisposableStore }
+    | { element: HTMLElement; anchor?: HTMLElement; returnTo: Element | null; session: DisposableStore }
     | undefined;
   // Names the highlighted row of a focused list to a screen reader.
   let rowIds = 0;
@@ -76,18 +76,18 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
   function close(): void {
     if (!open) return;
     preview(undefined);
-    const { element, anchor, opener, session } = open;
+    const { element, anchor, returnTo, session } = open;
     open = undefined;
     session.dispose();
     // Focus inside the menu (its search box, a clicked row) goes back to the
-    // anchor, or for a menu opened at a point to what had it before: left to
-    // fall to the page, it would strand a keyboard user in a dialog, and take
-    // a Flow canvas's Undo away after a pick from its menu.
+    // anchor it opened under, or for a menu opened at a point to what had it
+    // before, an anchor standing for it or not: left to fall to the page, it
+    // would strand a keyboard user in a dialog, and take a Flow canvas's Undo
+    // or a media tab's keys away after a pick from its menu.
     const refocus = element.contains(document.activeElement);
     element.remove();
     anchor?.setAttribute("aria-expanded", "false");
-    const returnTo = anchor ?? (opener instanceof HTMLElement ? opener : undefined);
-    if (refocus) returnTo?.focus({ preventScroll: true });
+    if (refocus && returnTo instanceof HTMLElement) returnTo.focus({ preventScroll: true });
   }
 
   store.add(
@@ -175,9 +175,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         row = el("div", "context-menu-item has-submenu");
         fill(row, item);
         const flyout = el("div", "context-submenu");
-        if (item.tiles) renderTiles(item.tiles, flyout);
-        else if (item.search) renderSearchFlyout(item, flyout, context, picker);
-        else if (item.submenu) renderItems(item.submenu, flyout, context, picker);
+        renderFlyout(item, flyout, context, picker);
         row.append(flyout);
       } else if (item.command === undefined && item.run === undefined) {
         row = el("div", "context-menu-item context-menu-label");
@@ -211,6 +209,13 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       if (separated) row.classList.add("menu-item-separated");
       into.append(row);
     });
+  }
+
+  // What a row's flyout holds, or a whole menu opened as one item's flyout.
+  function renderFlyout(item: ResolvedMenuItem, into: HTMLElement, context: CommandContext, picker = false): void {
+    if (item.tiles) renderTiles(item.tiles, into);
+    else if (item.search) renderSearchFlyout(item, into, context, picker);
+    else if (item.submenu) renderItems(item.submenu, into, context, picker);
   }
 
   // A flyout led by a search box: a query swaps its rows for the matches, a
@@ -574,6 +579,13 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
     return input;
   }
 
+  // A search flyout's matches may run wider than its rows: it keeps the width
+  // it opens at, and widens only into the room on its side.
+  function keepSearchWidth(flyout: HTMLElement, width: number, room: number): void {
+    flyout.style.minWidth = `${width}px`;
+    flyout.style.maxWidth = `${Math.max(width, room)}px`;
+  }
+
   function place(element: HTMLElement, options: MenuOpenOptions): void {
     let left: number;
     let top: number;
@@ -619,6 +631,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
     top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - element.offsetHeight - VIEWPORT_MARGIN));
     element.style.left = `${left}px`;
     element.style.top = `${top}px`;
+    if (element.classList.contains("has-search")) {
+      keepSearchWidth(element, element.offsetWidth, window.innerWidth - left - VIEWPORT_MARGIN);
+    }
     // A flyout opens to the right, which a menu at the viewport's right edge
     // (the editor's own ⋮ button) has no room for, and one that would run
     // past the bottom edge is lifted to end at it. Decided here, once, so
@@ -632,12 +647,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       flyout.style.removeProperty("display");
       const opensLeft = right + width + VIEWPORT_MARGIN > window.innerWidth;
       flyout.parentElement?.classList.toggle("opens-left", opensLeft);
-      // A search's matches may run wider than its rows: it keeps the width
-      // it opens at, and widens only into the room on its side.
       if (flyout.classList.contains("has-search")) {
         const room = opensLeft ? left - VIEWPORT_MARGIN : window.innerWidth - right - VIEWPORT_MARGIN;
-        flyout.style.minWidth = `${width}px`;
-        flyout.style.maxWidth = `${Math.max(width, room)}px`;
+        keepSearchWidth(flyout, width, room);
       }
       const overflow = Math.min(box.bottom - (window.innerHeight - VIEWPORT_MARGIN), box.top - VIEWPORT_MARGIN);
       if (overflow > 0) flyout.style.top = `${lifted - overflow}px`;
@@ -652,7 +664,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       const element = el("div", "context-menu");
       if (options.className) element.classList.add(...options.className.split(/\s+/).filter(Boolean));
       element.setAttribute("role", "menu");
-      if (options.ariaLabel) element.setAttribute("aria-label", options.ariaLabel);
+      const [flyoutItem] = options.flyoutOf ? deps.menus.resolveItems([options.flyoutOf], context, options.arg) : [];
+      const ariaLabel = options.ariaLabel ?? flyoutItem?.label;
+      if (ariaLabel) element.setAttribute("aria-label", ariaLabel);
       const items = [
         ...(options.items ? deps.menus.resolveItems(options.items, context, options.arg) : []),
         ...(options.menu ? deps.menus.resolve(options.menu, context, options.arg) : []),
@@ -661,9 +675,14 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
       // Rows sit directly in the menu; a searchable menu wraps them so the
       // search box can swap the whole list for its results.
       const body = options.search ? el("div", "context-menu-items") : element;
-      renderList(items, body, context, options.empty ?? "Nothing to do here", options.picker);
+      if (flyoutItem) renderFlyout(flyoutItem, element, context, options.picker);
+      else renderList(items, body, context, options.empty ?? "Nothing to do here", options.picker);
       const slider = options.slider ? renderSlider(options.slider) : undefined;
-      const search = renderSearch(options, context, body, element, slider);
+      // A menu that is one search flyout types into the flyout's box at once.
+      const search =
+        renderSearch(options, context, body, element, slider) ??
+        element.querySelector<HTMLInputElement>(":scope > .context-menu-search") ??
+        undefined;
       const list = !search && options.picker ? element : undefined;
       if (list) {
         list.tabIndex = -1;
@@ -775,8 +794,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
             if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
             if (event.key.length !== 1 || event.key === " ") return;
             if (event.target instanceof Node && element.contains(event.target)) return;
-            const shown = [...element.querySelectorAll<HTMLElement>(".context-submenu.has-search")].find(
-              (flyout) => getComputedStyle(flyout).display !== "none",
+            const flyouts = [element, ...element.querySelectorAll<HTMLElement>(".context-submenu")];
+            const shown = flyouts.find(
+              (flyout) => flyout.classList.contains("has-search") && getComputedStyle(flyout).display !== "none",
             );
             const input = shown?.querySelector<HTMLInputElement>(":scope > .context-menu-search");
             if (!input) return;
@@ -790,7 +810,8 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenu {
         ),
       );
       options.anchor?.setAttribute("aria-expanded", "true");
-      open = { element, anchor: options.anchor, opener, session };
+      const returnTo = options.at === undefined ? (options.anchor ?? opener) : opener;
+      open = { element, anchor: options.anchor, returnTo, session };
     },
     close,
     isOpen: (anchor) => open !== undefined && (anchor === undefined || open.anchor === anchor),

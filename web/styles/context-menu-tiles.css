@@ -1,8 +1,9 @@
-/* A flyout of tiles under headings (web/view/contextMenu.ts): choices made
-   at once, which leave the menu open under the pointer. A lit tile is the
-   brightest text with a bold label; a row's blue fill and a checked row's
-   tint stay off tiles (context-menu.css), which would light a whole grid. */
-.context-submenu.is-tiles {
+/* A flyout of tiles under headings (web/view/contextMenu.ts), or a whole
+   menu of them: choices made at once, which leave the menu open under the
+   pointer. A lit tile is the brightest text with a bold label; a row's blue
+   fill and a checked row's tint stay off tiles (context-menu.css), which
+   would light a whole grid. */
+:is(.context-menu, .context-submenu).is-tiles {
   padding: 3px 0;
 }
 

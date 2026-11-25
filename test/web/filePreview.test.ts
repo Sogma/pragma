@@ -306,6 +306,23 @@ describe("a previewed clip's or still's LOOK badge", () => {
     look.set({ lut: "orthochromatic", on: true });
     expect(second.getAttribute("aria-pressed")).toBe("false");
   });
+
+  // Each badge's own menu in the ⋮'s place, for the context the pane's tab is seen in.
+  it("opens the Looks list at a right-click on it, and the Guides tiles at one on the guides switch", () => {
+    const { preview, overlay, look, guides, contextMenu } = setup({ files: ["clips/a.mp4"], at: "projects/film" });
+    look.set({ lut: "panchromatic", on: true });
+    guides.set({ ...guides.get(), title: true });
+    preview.show(0);
+    const badge = overlay.querySelector(".media-hud-badge") as HTMLButtonElement;
+    const toggle = overlay.querySelector(".media-hud-guides") as HTMLButtonElement;
+    for (const target of [badge, toggle]) {
+      target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 9 }));
+    }
+    expect(contextMenu.opened.map((opened) => [opened.flyoutOf?.label, opened.anchor, opened.arg])).toEqual([
+      ["Looks", badge, { context: "projects/film" }],
+      ["Guides", toggle, { context: "projects/film" }],
+    ]);
+  });
 });
 
 // Each kind's ways to open its file sit in a ⋮ at the foot of what it
@@ -640,7 +657,7 @@ describe("a right-click on previewed media", () => {
     return event;
   };
 
-  it("opens a still's or a clip's ⋮ menu where it lands, and leaves a page's text its own", () => {
+  it("opens a still's or a clip's ⋮ menu where it lands, and leaves its mat, bars and controls and a page's text alone", () => {
     const { preview, overlay, contextMenu } = setup({ files: ["stills/a.png", "clips/b.mp4", "notes/c.md"] });
     preview.show(0);
     rightClick(overlay.querySelector(".file-preview-frame img") as Element);
@@ -649,10 +666,16 @@ describe("a right-click on previewed media", () => {
       at: { x: 70, y: 90 },
       anchor: overlay.querySelector(".media-hud-more"),
     });
+    let opened = contextMenu.opened.length;
+    const onMat = rightClick(overlay.querySelector(".file-preview-frame") as Element);
+    const onBar = rightClick(overlay.querySelector(".file-preview-frame .media-hud-bar") as Element);
+    expect([contextMenu.opened.length, onMat.defaultPrevented, onBar.defaultPrevented]).toEqual([opened, false, false]);
     preview.show(1);
     rightClick(overlay.querySelector(".file-preview-frame video") as Element);
     expect(contextMenu.opened.at(-1)).toMatchObject({ anchor: overlay.querySelector(".video-player-more") });
-    const opened = contextMenu.opened.length;
+    opened = contextMenu.opened.length;
+    const onControls = rightClick(overlay.querySelector(".file-preview-frame .video-player-bar") as Element);
+    expect([contextMenu.opened.length, onControls.defaultPrevented]).toEqual([opened, false]);
     preview.show(2);
     const onPage = rightClick(overlay.querySelector(".file-preview-document") as Element);
     expect([contextMenu.opened.length, onPage.defaultPrevented]).toEqual([opened, false]);
@@ -662,7 +685,7 @@ describe("a right-click on previewed media", () => {
   it("opens it at the media's centre for the menu key", () => {
     const { preview, overlay, contextMenu } = setup();
     preview.show(0);
-    (overlay.querySelector(".file-preview-frame") as HTMLElement).getBoundingClientRect = () =>
+    (overlay.querySelector(".file-preview-frame img") as HTMLElement).getBoundingClientRect = () =>
       new DOMRect(100, 50, 600, 400);
     rightClick(overlay.parentElement as HTMLElement, { button: -1 });
     expect(contextMenu.opened.at(-1)?.at).toEqual({ x: 400, y: 250 });

@@ -14,6 +14,7 @@
 // once a frame is on screen, for Save frame to take.
 import { vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import type { ContextView, LookChoice } from "../lib/contextView.ts";
+import type { BadgeMenu } from "../lib/mediaHud.ts";
 import {
   FILM_FRAMES,
   type FrameChoice,
@@ -247,4 +248,26 @@ export function moreOptionsMenu(
       });
     }
   };
+}
+
+export interface BadgeMenus {
+  guides: BadgeMenu;
+  looks: BadgeMenu;
+}
+
+/** What a right-click on the HUD's guides switch or LOOK badge opens: the
+ * Guides tiles or the Looks list alone, as their rows' flyouts hold them,
+ * for the context `context()` names as it opens. */
+export function badgeMenus(
+  contextMenu: ContextMenuService,
+  context: () => string,
+  views: (context: string) => ContextView = contextView,
+): BadgeMenus {
+  const opener =
+    (item: MenuItem): BadgeMenu =>
+    (anchor, at) => {
+      if (at) contextMenu.open({ flyoutOf: item, arg: { context: context() }, anchor, at });
+      else if (contextMenu.isOpen(anchor)) contextMenu.close();
+    };
+  return { guides: opener(guidesMenuItem(views)), looks: opener(lutsMenuItem(views)) };
 }

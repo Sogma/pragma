@@ -517,6 +517,31 @@ describe("contextMenu", () => {
       expect(menu()).not.toBeNull();
     });
 
+    // A right-click on what the item stands for, a viewer's guides switch,
+    // opens its tiles alone.
+    it("opens as the whole menu, named by its item, a tile still leaving it open", () => {
+      const { contextMenu } = setup();
+      let marked = false;
+      const center = {
+        label: "Center",
+        glyph: "var(--icon-plus)",
+        checked: () => marked,
+        pick: () => {
+          marked = !marked;
+        },
+      };
+      contextMenu.open({
+        at: { x: 0, y: 0 },
+        flyoutOf: { label: "Guides", tiles: [{ label: "Marks", tiles: [center] }] },
+      });
+      const element = menu() as HTMLElement;
+      expect([element.getAttribute("aria-label"), element.classList.contains("is-tiles")]).toEqual(["Guides", true]);
+      expect([...element.children].map((child) => child.className)).toEqual(["context-menu-tiles"]);
+      const tile = element.querySelector(".context-menu-tile") as HTMLButtonElement;
+      tile.click();
+      expect([marked, tile.getAttribute("aria-checked"), menu()]).toEqual([true, "true", element]);
+    });
+
     // A run of picks keeps it open; once the pointer has been out of it a
     // moment after one, nobody is using it.
     it("closes a moment after the pointer leaves it once a tile is picked, and not before one is", () => {
@@ -680,6 +705,23 @@ describe("contextMenu", () => {
     row?.click();
     expect(ran).toEqual([["rename", undefined]]);
     expect(document.activeElement).toBe(canvas);
+  });
+
+  // A ⋮ stands for the menu a right-click on its picture opens; the keys
+  // still go back to the surface, the picture's tab.
+  it("a menu opened at a point gives focus back to what had it, though an anchor stands for it", () => {
+    const { contextMenu, ran } = setup();
+    const surface = document.createElement("div");
+    surface.tabIndex = -1;
+    const anchor = document.createElement("button");
+    document.body.append(surface, anchor);
+    surface.focus();
+    contextMenu.open({ menu: "tree", anchor, at: { x: 0, y: 0 } });
+    const row = [...(menu()?.querySelectorAll("button") ?? [])].find((button) => button.textContent === "rename");
+    row?.focus();
+    row?.click();
+    expect(ran).toEqual([["rename", undefined]]);
+    expect([document.activeElement, anchor.getAttribute("aria-expanded")]).toEqual([surface, "false"]);
   });
 
   // A click selecting a static row's value for copying focuses it, where a
@@ -1109,5 +1151,33 @@ describe("a flyout's search box", () => {
       ?.querySelector<HTMLElement>("button")
       ?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     expect(shown).toEqual(["Warm", null]);
+  });
+
+  // A right-click on a LOOK badge opens its looks alone.
+  it("opens as the whole menu, its box taking focus and keys, the rows the arrows reach previewed", () => {
+    const { contextMenu } = setup();
+    const shown: string[] = [];
+    const row = (label: string) => ({ label, run() {}, preview: { show: () => void shown.push(label), end() {} } });
+    const filter = (query: string) => ["Warm", "Cool"].filter((name) => name.toLowerCase().includes(query)).map(row);
+    contextMenu.open({
+      at: { x: 100, y: 0 },
+      flyoutOf: {
+        label: "Looks",
+        submenu: [row("Warm"), row("Cool")],
+        search: { placeholder: "Search looks", filter },
+      },
+    });
+    const element = menu() as HTMLElement;
+    const input = element.querySelector(":scope > .context-menu-search") as HTMLInputElement;
+    expect([element.getAttribute("aria-label"), element.classList.contains("has-search")]).toEqual(["Looks", true]);
+    expect([document.activeElement, shown]).toEqual([input, []]);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(shown).toEqual(["Warm"]);
+    // It keeps the width it opened at, and widens only up to the window's edge.
+    expect([element.style.minWidth, element.style.maxWidth]).toEqual(["0px", `${window.innerWidth - 104}px`]);
+
+    input.blur();
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true, cancelable: true }));
+    expect([input.value, document.activeElement]).toEqual(["c", input]);
   });
 });

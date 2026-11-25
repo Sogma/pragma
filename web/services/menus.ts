@@ -176,6 +176,9 @@ export interface MenuOpenOptions {
   menu?: string;
   items?: MenuItem[];
   itemsAfter?: MenuItem[];
+  // One item's flyout drawn as the whole menu, named by the item: what a
+  // right-click on the control the item stands for opens.
+  flyoutOf?: MenuItem;
   arg?: unknown;
   // Either a point (a right-click's client coordinates), or "top" —
   // centred near the top of the window, for a menu no click placed…

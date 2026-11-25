@@ -4,6 +4,7 @@ import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { MenuRange, MenuTileSection } from "../../../web/services/menus.ts";
 import {
+  badgeMenus,
   guidesMenuItem,
   lutsMenuItem,
   MEDIA_MENU,
@@ -290,5 +291,55 @@ describe("guidesMenuItem", () => {
     thirds.pick();
     expect(guides.get()).toEqual({ ...NO_GUIDES, center: true, social: true, cross: true, level: true, thirds: true });
     expect(thirds.checked()).toBe(true);
+  });
+});
+
+describe("badgeMenus", () => {
+  // A right-click on a viewer's guides switch or LOOK badge opens that row's
+  // flyout from the ⋮'s menu, alone.
+  it("opens the Guides tiles or the Looks list alone where the badge is right-clicked, for the context it is seen in then", () => {
+    const contextMenu = fakeContextMenu();
+    const held = memoryViews();
+    let seen = "projects/film";
+    const menus = badgeMenus(contextMenu, () => seen, held.views);
+    const [guides, look] = [document.createElement("button"), document.createElement("button")];
+
+    seen = "projects/social";
+    menus.guides(guides, { x: 40, y: 12 });
+    const tilesOpen = contextMenu.opened.at(-1);
+    expect(tilesOpen).toMatchObject({ anchor: guides, at: { x: 40, y: 12 }, arg: { context: "projects/social" } });
+    const tiles = tilesOpen?.flyoutOf?.tiles;
+    const sections = typeof tiles === "function" ? tiles(context, tilesOpen?.arg) : (tiles ?? []);
+    expect([tilesOpen?.flyoutOf?.label, sections.map((section) => section.label)]).toEqual([
+      "Guides",
+      ["Social media", "Broadcast and film", "Safe area", "Frame markers"],
+    ]);
+    sections[0].tiles[2].pick();
+    expect(held.of("projects/social").guides.get().frames).toEqual(["9:16"]);
+
+    menus.looks(look, { x: 80, y: 12 });
+    const listOpen = contextMenu.opened.at(-1);
+    const submenu = listOpen?.flyoutOf?.submenu;
+    const rows = typeof submenu === "function" ? submenu(context, listOpen?.arg) : (submenu ?? []);
+    expect([listOpen?.flyoutOf?.label, rows.map((row) => row.label), guides.getAttribute("aria-expanded")]).toEqual([
+      "Looks",
+      ["Pragma", "Panchromatic", "Orthochromatic"],
+      "false",
+    ]);
+    expect(typeof listOpen?.flyoutOf?.search).toBe("function");
+    rows[1].run?.(context, undefined);
+    expect(held.of("projects/social").look.get()).toEqual({ lut: "panchromatic", on: true });
+  });
+
+  // A press on the badge, which the menu leaves open as it stands for it.
+  it("closes a badge's own menu when called with no point, and opens none", () => {
+    const contextMenu = fakeContextMenu();
+    const menus = badgeMenus(contextMenu, () => "", memoryViews().views);
+    const [guides, look] = [document.createElement("button"), document.createElement("button")];
+    menus.looks(look, { x: 0, y: 0 });
+    menus.guides(guides);
+    expect(contextMenu.isOpen(look)).toBe(true);
+    menus.looks(look);
+    expect([contextMenu.isOpen(), contextMenu.opened.length]).toEqual([false, 1]);
   });
 });

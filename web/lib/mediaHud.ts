@@ -42,6 +42,26 @@ export function hudRoot(...bars: HTMLElement[][]): HTMLElement {
 export const hudCells = (count: number): HTMLSpanElement[] =>
   Array.from({ length: count }, () => document.createElement("span"));
 
+/** Opens a badge's own menu at `at`, a right-click on the badge, which
+ * stands for the menu while it shows; given no point, closes it. */
+export type BadgeMenu = (anchor: HTMLElement, at?: { x: number; y: number }) => void;
+
+// A click turns what the badge names, and a right-click opens its own menu
+// ahead of the media's. The menu stays open through a press on the badge
+// standing for it, where a press anywhere else closes it, so the click
+// closes it before turning.
+function pressBadge(element: HTMLButtonElement, turn: () => void, menu: BadgeMenu): void {
+  element.addEventListener("mousedown", (event) => event.preventDefault());
+  element.addEventListener("click", () => {
+    if (element.getAttribute("aria-expanded") === "true") menu(element);
+    turn();
+  });
+  element.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    menu(element, { x: event.clientX, y: event.clientY });
+  });
+}
+
 export interface LookBadge {
   readonly element: HTMLButtonElement;
   /** Stops following the look every player shares. */
@@ -50,16 +70,15 @@ export interface LookBadge {
 
 /** A clip's LOOK badge (web/styles/media-panes.css): empty until a look has
  * been picked, then pressed while it is on, and a click turns it off and back
- * on. It names a look being tried, and says when the kept look's file is
- * missing. Out of the tab order, and a press leaves focus on the surface
- * whose keys turn it with D. */
-export function lookBadge(choice: LutChoice): LookBadge {
+ * on; a right-click opens `menu`, the looks. It names a look being tried, and
+ * says when the kept look's file is missing. Out of the tab order, and a
+ * press leaves focus on the surface whose keys turn it with D. */
+export function lookBadge(choice: LutChoice, menu: BadgeMenu): LookBadge {
   const element = document.createElement("button");
   element.type = "button";
   element.className = "media-hud-badge";
   element.tabIndex = -1;
-  element.addEventListener("mousedown", (event) => event.preventDefault());
-  element.addEventListener("click", () => toggleLook(choice));
+  pressBadge(element, () => toggleLook(choice), menu);
   const dispose = choice.subscribe(({ lut, on }) => {
     const trying = choice.trying?.() ?? false;
     const missing = choice.missing?.() ?? false;
@@ -95,16 +114,16 @@ export interface GuidesSwitch {
 
 /** The guides' switch (web/styles/media-hud-badges.css): hidden until a
  * guide is picked, then drawn as the ⋮ is, muted while the guides are
- * hidden. A click hides or shows them, keeping the picks. Out of the tab
- * order, and a press leaves focus on the surface whose keys turn it with G. */
-export function guidesSwitch(choice: GuidesChoice): GuidesSwitch {
+ * hidden. A click hides or shows them, keeping the picks; a right-click
+ * opens `menu`, the guides to pick. Out of the tab order, and a press leaves
+ * focus on the surface whose keys turn it with G. */
+export function guidesSwitch(choice: GuidesChoice, menu: BadgeMenu): GuidesSwitch {
   const element = document.createElement("button");
   element.type = "button";
   element.className = "icon-button media-hud-guides";
   element.tabIndex = -1;
   element.setAttribute("aria-label", "Guides");
-  element.addEventListener("mousedown", (event) => event.preventDefault());
-  element.addEventListener("click", () => toggleGuides(choice));
+  pressBadge(element, () => toggleGuides(choice), menu);
   const dispose = choice.subscribe((guides) => {
     element.hidden = !anyGuide(guides);
     element.setAttribute("aria-pressed", String(guides.shown));
@@ -160,30 +179,41 @@ function fitGuidesSwitch(element: HTMLElement): void {
   element.classList.toggle("is-cramped", cramped);
 }
 
-/** Opens the shown media's menu through `open`: at a right-click on its
- * `frame` (the media, its bands and mat), or at the media's centre for the
- * menu key on `surface`, which holds focus for the media's keys. Any other
- * right-click is left to the surface's own menus. Returns the removal. */
+/** Opens the shown media's menu through `open`: at a right-click on the
+ * `media` itself, or at the middle of its part in view for the menu key on
+ * `surface`, which holds focus for its keys. One on what takes the pointer
+ * around or over it (its mat, a bar in a band, a player's controls) is left
+ * to the surface's own menus. Returns the removal. */
 export function mediaMenuOn(
   surface: HTMLElement,
-  frame: () => HTMLElement | undefined,
+  media: () => HTMLElement | undefined,
   open: (at: { x: number; y: number }) => void,
 ): () => void {
   const onMenu = (event: MouseEvent) => {
-    const shown = frame();
+    const shown = media();
     if (!shown || event.defaultPrevented) return;
     // A key's right-click lands on what has focus, with no button pressed.
     const fromKey = event.target === surface && event.button !== 2;
-    if (!fromKey && !(event.target instanceof Node && shown.contains(event.target))) return;
+    if (!fromKey && event.target !== shown) return;
     event.preventDefault();
     event.stopPropagation();
-    const box = shown.getBoundingClientRect();
-    open(
-      fromKey ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : { x: event.clientX, y: event.clientY },
-    );
+    open(fromKey ? middleInView(shown, surface) : { x: event.clientX, y: event.clientY });
   };
   surface.addEventListener("contextmenu", onMenu);
   return () => surface.removeEventListener("contextmenu", onMenu);
+}
+
+// Zoomed, a picture runs past the pane, so its own middle can lie out of
+// sight: the middle of the part `surface` shows, else of the whole.
+function middleInView(media: HTMLElement, surface: HTMLElement): { x: number; y: number } {
+  const box = media.getBoundingClientRect();
+  const room = surface.getBoundingClientRect();
+  const left = Math.max(box.left, room.left);
+  const right = Math.min(box.right, room.right);
+  const top = Math.max(box.top, room.top);
+  const bottom = Math.min(box.bottom, room.bottom);
+  if (right <= left || bottom <= top) return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  return { x: (left + right) / 2, y: (top + bottom) / 2 };
 }
 
 /** The box `media` and its `hud` share (web/styles/media-panes.css): it
