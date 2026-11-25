@@ -1997,7 +1997,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     disabledTag.textContent = "Disabled";
     titleEl.append(collapseEl, nameEl, disabledTag);
     titleEls.set(flowNode.id, { title: titleEl, node: flowNode });
-    applyNodeColor(el, titleEl, flowNode.color ?? definition.defaultColor);
+    applyNodeColor(el, flowNode.color ?? definition.defaultColor);
 
     // The title's tooltip says what the node gives: its type's description,
     // or its Applet's once the file is read. A renamed title no longer names
@@ -2056,7 +2056,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         value: flowNode.color ?? "",
         onPick: (hex) => {
           flowNode.color = hex || undefined;
-          applyNodeColor(el, titleEl, flowNode.color ?? definition.defaultColor);
+          applyNodeColor(el, flowNode.color ?? definition.defaultColor);
           deps.persistGraph();
         },
       });

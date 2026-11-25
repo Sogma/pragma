@@ -28,9 +28,10 @@
   cursor: grabbing;
 }
 
-/* A colored node: the color fades down the body from under the title, as a
-   share of the card's height. It must stay above .running and .selected:
-   all three set border-color at equal specificity, and theirs must win. */
+/* A colored node: a 3px edge in its color along the top, as App mode's
+   tiles carry, and the color fading down the body as a share of the card's
+   height. It must stay above .running and .selected: all three set
+   border-color at equal specificity, and theirs must win. */
 .flow-node.tinted {
   background: linear-gradient(
     180deg,
@@ -38,6 +39,9 @@
     color-mix(in srgb, var(--node-color) 2%, var(--bg-secondary)) 100%
   );
   border-color: color-mix(in srgb, var(--node-color) 49%, var(--border-color));
+  box-shadow:
+    var(--shadow-card),
+    inset 0 3px 0 var(--node-color);
 }
 
 /* The node currently executing during a Run; only one carries this at a time.
@@ -80,21 +84,14 @@
   z-index: 1;
 }
 
+/* No fill and no line under it: the title sits on the card in the card's
+   text color, its icon too, so the color stays with the edge and body. */
 .flow-node-title {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--border-muted);
   font-weight: 600;
-  background: var(--bg-hover);
-  border-radius: 7px 7px 0 0;
-}
-
-/* The divider would cut the colored title off from the tinted body. */
-.flow-node.tinted .flow-node-title {
-  background: var(--node-color);
-  border-bottom-color: transparent;
 }
 
 .flow-node-name {

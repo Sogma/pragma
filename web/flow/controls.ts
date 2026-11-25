@@ -7,7 +7,6 @@ import {
   stepInt,
 } from "../../src/protocol/flowNodes.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
-import { readableTextColor } from "../lib/color.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 
@@ -17,15 +16,11 @@ import type { ContextMenuService } from "../services/menus.ts";
 // one `.nodrag` <select> with its change listener wired once.
 
 // Applies (or clears) a node's color. The card carries it as --node-color
-// plus .tinted, from which nodes.css paints the title and tints the body.
-// The title's text color is computed here because readableTextColor has no
-// CSS equivalent; it goes on the title, not the name, so the name and the
-// title icon (.flow-node-dot's currentColor mask) inherit the same value.
-export function applyNodeColor(cardEl: HTMLElement, titleEl: HTMLElement, color: string | undefined): void {
+// plus .tinted, from which nodes.css draws the top edge and tints the body.
+export function applyNodeColor(cardEl: HTMLElement, color: string | undefined): void {
   if (color) cardEl.style.setProperty("--node-color", color);
   else cardEl.style.removeProperty("--node-color");
   cardEl.classList.toggle("tinted", Boolean(color));
-  titleEl.style.color = color ? readableTextColor(color) : "";
 }
 
 export function createSelectControl(
