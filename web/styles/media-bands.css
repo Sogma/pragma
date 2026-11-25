@@ -103,8 +103,7 @@ html[data-theme="dark"] :is(.editor-image-frame, .editor-video-stage).has-mat {
 }
 
 /* Open while the bars show: the media or a band under the pointer, or a menu
-   opened from the frame. A clip's player holds its own controls, so it has
-   no band below. */
+   opened from the frame. */
 .media-frame.has-bands.has-mat:not(
   .is-zoomed,
   :fullscreen,
@@ -112,14 +111,6 @@ html[data-theme="dark"] :is(.editor-image-frame, .editor-video-stage).has-mat {
   :has(> .media-hud:is(.is-bare, [hidden]))
 ):is(:hover, :has([aria-expanded="true"]))::before {
   top: calc(-1 * var(--band-reach));
-}
-
-.media-frame.has-bands.has-mat:not(
-  .is-zoomed,
-  :fullscreen,
-  .is-actual-size .media-frame,
-  :has(> .media-hud:is(.is-bare, [hidden]))
-):is(:hover, :has([aria-expanded="true"])):has(> .media-hud > .media-hud-bar + .media-hud-bar)::before {
   bottom: calc(-1 * var(--band-reach));
 }
 

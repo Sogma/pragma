@@ -142,9 +142,9 @@
 }
 
 /* The media overlay (mediaHud.ts): bars over the picture while it is
-   hovered, along an image's top and bottom edges, along a video's top edge
-   only. It shares its frame's one grid cell with the media, so its box is
-   the media's; contain: size keeps its text from widening that cell.
+   hovered, along its top and bottom edges. It shares its frame's one grid
+   cell with the media, so its box is the media's; contain: size keeps its
+   text from widening that cell.
 
    pointer-events: none keeps the hover, right-click, drag and the player's
    controls on the media underneath — without it, the bars would end the

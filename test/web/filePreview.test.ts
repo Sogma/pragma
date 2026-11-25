@@ -63,8 +63,16 @@ const STILLS = ["stills/a.png", "stills/b.png"];
 
 // `inPlace` false is a pane that opens nothing in place; `at` is the context
 // the pane's tab is seen in; `details` hands the preview an Info section to
-// keep, as a pane with no selection of its own does.
-function setup({ files = STILLS, inPlace = true, at = "", details = false, sources = testPreviewSources } = {}) {
+// keep, as a pane with no selection of its own does; `size` lists every file
+// at that many bytes, as a gallery's listing does.
+function setup({
+  files = STILLS,
+  inPlace = true,
+  at = "",
+  details = false,
+  size = undefined as number | undefined,
+  sources = testPreviewSources,
+} = {}) {
   const host = document.createElement("div");
   document.body.append(host);
   const refocus = vi.fn();
@@ -80,7 +88,8 @@ function setup({ files = STILLS, inPlace = true, at = "", details = false, sourc
     context: () => at,
     refocus,
     count: () => files.length,
-    fileAt: (index) => (files[index] ? { path: files[index], name: files[index].split("/").pop() ?? "" } : undefined),
+    fileAt: (index) =>
+      files[index] ? { path: files[index], name: files[index].split("/").pop() ?? "", size } : undefined,
     loadFile: vi.fn(async (): Promise<FileResponse> => ({ kind: "missing" }) as unknown as FileResponse),
     formats: createFormats(),
     contextMenu,
@@ -254,13 +263,13 @@ describe("a double-click on what opened the preview", () => {
 
 // The badge the video tab's overlay holds, over the look every viewer shares.
 describe("a previewed clip's or still's LOOK badge", () => {
-  it("sits between the dimensions and the frame rate, its click or D turning the look off and on", () => {
+  it("sits between a clip's dimensions and its scale, its click or D turning the look off and on", () => {
     const { preview, overlay, look } = setup({ files: ["clips/a.mp4", "stills/b.svg"] });
     look.set({ lut: "panchromatic", on: true });
     preview.show(0);
-    const [bar, ...others] = overlay.querySelectorAll(".media-hud-bar");
+    const [bar, bottom] = overlay.querySelectorAll(".media-hud-bar");
     const badge = bar.querySelector("button.media-hud-badge") as HTMLButtonElement;
-    expect(others).toHaveLength(0);
+    expect(bottom.querySelector(".media-hud-badge")).toBeNull();
     const cell = badge.parentElement as HTMLElement;
     expect([bar.children.length, [...bar.children].indexOf(cell), badge.textContent]).toEqual([3, 1, "LOOK"]);
 
@@ -459,6 +468,62 @@ describe("a previewed still's scale", () => {
   });
 });
 
+// As a still's: how big a clip is shown against its own pixels, at the top
+// bar's right. Along the bottom, what its header says of its picture, and
+// its size; its ⋮ is its player's.
+describe("a previewed clip's bars", () => {
+  const bars = (overlay: HTMLElement) =>
+    [...overlay.querySelectorAll(".media-hud-bar")].map((bar) => [...bar.children].map((cell) => cell.textContent));
+  // jsdom decodes no clip: its metadata arrives at `size`, shown at `shown`.
+  function decode(overlay: HTMLElement, shown: [number, number], size: [number, number] = [1920, 1080]) {
+    const video = overlay.querySelector(".file-preview-frame video") as HTMLVideoElement;
+    Object.defineProperty(video, "videoWidth", { value: size[0], configurable: true });
+    Object.defineProperty(video, "videoHeight", { value: size[1], configurable: true });
+    video.getBoundingClientRect = () => ({ left: 0, top: 0, width: shown[0], height: shown[1] }) as DOMRect;
+    video.dispatchEvent(new Event("loadedmetadata"));
+    return video;
+  }
+
+  it("shows its scale at the top right, and its header's facts and its size along the bottom", async () => {
+    const { preview, overlay, read } = setup({ files: ["clips/a.mp4"] });
+    preview.show(0);
+    await settle();
+    decode(overlay, [960, 540]);
+    expect(bars(overlay)).toEqual([
+      ["1920 × 1080 (16:9)", "", "50%"],
+      ["24 fps · H.264 · 8-bit", "2.0 KB"],
+    ]);
+    expect(overlay.querySelector(".media-hud-bar:last-child > :first-child")?.className).toBe("media-hud-details");
+    // A list that gives no size has it read.
+    expect(read.fileInfo).toHaveBeenCalledWith("clips/a.mp4");
+    expect((overlay.querySelector(".media-hud") as HTMLElement).hidden).toBe(false);
+  });
+
+  it("takes the size its list gives, reading none", async () => {
+    const { preview, overlay, read } = setup({ files: ["clips/a.mp4"], size: 5_242_880 });
+    preview.show(0);
+    await settle();
+    expect(bars(overlay)[1]).toEqual(["24 fps · H.264 · 8-bit", "5.0 MB"]);
+    expect(read.fileInfo).not.toHaveBeenCalled();
+  });
+
+  it("follows the clip as a resized pane fits the preview again, and as its stream changes size", async () => {
+    const { preview, overlay } = setup({ files: ["clips/a.mp4"] });
+    preview.show(0);
+    const video = decode(overlay, [480, 270]);
+    const topRight = () => overlay.querySelector(".media-hud-bar")?.lastElementChild?.textContent;
+    expect(topRight()).toBe("25%");
+
+    video.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1440, height: 810 }) as DOMRect;
+    preview.fit();
+    expect(topRight()).toBe("75%");
+
+    Object.defineProperty(video, "videoWidth", { value: 3840 });
+    video.dispatchEvent(new Event("resize"));
+    expect(topRight()).toBe("38%");
+  });
+});
+
 // The stylesheets lay a still's or a clip's bars in bands of its mat.
 describe("a previewed file's bands", () => {
   it("marks a still's frame and a clip's for bands in the mat", () => {
@@ -634,7 +699,7 @@ describe("a previewed file's Info section", () => {
   });
 
   it("reads nothing for it where the pane shows its own selection", async () => {
-    const { preview, read } = setup({ files: ["stills/a.png", "clips/b.mp4"] });
+    const { preview, read } = setup({ files: ["stills/a.png", "clips/b.mp4"], size: 2048 });
     preview.show(0);
     preview.key("ArrowRight");
     await settle();

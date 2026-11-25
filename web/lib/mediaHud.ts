@@ -283,7 +283,7 @@ export interface ThumbnailFacts {
 
 export interface ThumbnailHud {
   fill(facts: ThumbnailFacts): void;
-  /** Shows the scale a still is drawn at in its box. The box follows its
+  /** Shows the scale the picture is drawn at in its box. The box follows its
    * pane's size, so the hover that shows the bars calls this. */
   measure(): void;
   /** Whether the box is wide enough to show the bars at all. */
@@ -291,20 +291,22 @@ export interface ThumbnailHud {
 }
 
 /** Hover bars on a thumbnail's own box (web/styles/thumbnail-hud.css): the
- * dimensions with their ratio, then a clip's frame rate or a still's display
- * scale, and the ratio alone for a narrow box, along the top; a clip's
- * duration and the size along the bottom. The box's width decides what they
- * hold. They repeat the Info tab, so assistive technology skips them. */
+ * dimensions with their ratio, then the display scale, and the ratio alone
+ * for a narrow box, along the top; a clip's length and frame rate, then the
+ * size, along the bottom. The box's width decides what they hold. They
+ * repeat the Info tab, so assistive technology skips them. */
 export function thumbnailHud(box: HTMLElement): ThumbnailHud {
   box.classList.add("thumbnail-box");
   const root = document.createElement("span");
   root.className = "thumbnail-hud";
   root.setAttribute("aria-hidden", "true");
-  const [dimensions, format, scale, ratio, duration, size] = hudCells(6);
+  const [dimensions, scale, ratio, clip, duration, rate, size] = hudCells(7);
   dimensions.className = "thumbnail-hud-dimensions";
-  format.className = "thumbnail-hud-format";
   scale.className = "thumbnail-hud-scale";
   ratio.className = "thumbnail-hud-ratio";
+  clip.className = "thumbnail-hud-clip";
+  rate.className = "thumbnail-hud-rate";
+  clip.append(duration, rate);
   const bar = (edge: "top" | "bottom", ...cells: HTMLElement[]) => {
     const row = document.createElement("span");
     row.className = `thumbnail-hud-bar is-${edge}`;
@@ -312,13 +314,13 @@ export function thumbnailHud(box: HTMLElement): ThumbnailHud {
     root.append(row);
     return row;
   };
-  const top = bar("top", dimensions, format, scale, ratio);
-  const bottom = bar("bottom", duration, size);
+  const top = bar("top", dimensions, scale, ratio);
+  const bottom = bar("bottom", clip, size);
   box.append(root);
   let width = 0;
   let height = 0;
-  // Once a still has been measured, facts that arrive later, while its bars
-  // may be up, are measured at once rather than at the next hover.
+  // Once the picture has been measured, facts that arrive later, while its
+  // bars may be up, are measured at once rather than at the next hover.
   let scaled = false;
   // Every thumbnail box with room for the bars contains its picture whole.
   const measure = () => {
@@ -331,13 +333,13 @@ export function thumbnailHud(box: HTMLElement): ThumbnailHud {
       height = facts.height ?? 0;
       const measured = width > 0 && height > 0;
       dimensions.textContent = measured ? formatDimensions(width, height, "") : "";
-      format.textContent = facts.clip ? (formatFrameRate(facts.clip) ?? "") : "";
       if (scaled) measure();
       ratio.textContent = measured ? formatAspectRatio(width, height) : "";
       duration.textContent = facts.duration === undefined ? "" : formatDuration(facts.duration);
+      rate.textContent = facts.clip ? (formatFrameRate(facts.clip) ?? "") : "";
       size.textContent = facts.size === undefined ? "" : formatFileSize(facts.size);
       top.hidden = !measured;
-      bottom.hidden = facts.duration === undefined && facts.size === undefined;
+      bottom.hidden = !duration.textContent && !rate.textContent && !size.textContent;
     },
     measure,
     shown: () => getComputedStyle(root).display !== "none",

@@ -387,3 +387,9 @@
   max-width: none;
   max-height: none;
 }
+
+/* The controls hold the screen's foot, where the bottom bar would lie
+   under them: only the top bar shows. */
+.media-frame:fullscreen > .media-hud > .media-hud-bar + .media-hud-bar {
+  display: none;
+}

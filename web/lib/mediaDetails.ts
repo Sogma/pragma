@@ -2,7 +2,7 @@
 // the Info rows of the video tab, the image tab and a gallery's selection.
 // A fact the header doesn't give gets no row.
 import type { ClipDetails, PictureDetails, PixelFormat } from "../../src/protocol/api.ts";
-import { countText } from "./dom.ts";
+import { countText, formatFrameRate } from "./dom.ts";
 
 export interface DetailRow {
   label: string;
@@ -88,6 +88,21 @@ export function clipDetailRows(clip: ClipDetails): DetailRow[] {
   rows.push({ label: "Audio", value: clip.audio ? audioText(clip.audio) : "None" });
   if (clip.startTimecode !== null) rows.push({ label: "Start timecode", value: clip.startTimecode });
   return rows;
+}
+
+/** A clip's picture in one, as a bar shows it: `24 fps · H.264 · 10-bit`,
+ * then its HDR transfer and alpha where it has them. SDR, the usual case,
+ * goes unsaid, and a fact the header doesn't give is left out. */
+export function clipFormatText(clip: ClipDetails): string {
+  return [
+    formatFrameRate(clip),
+    clip.codec,
+    clip.bitDepth === null ? undefined : `${clip.bitDepth}-bit`,
+    clip.hdr ? DYNAMIC_RANGES[clip.hdr] : undefined,
+    clip.alpha ? "Alpha" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export function pictureDetailRows(picture: Pick<PictureDetails, "sourceType">): DetailRow[] {

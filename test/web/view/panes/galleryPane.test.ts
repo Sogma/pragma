@@ -602,9 +602,9 @@ describe("the gallery pane", () => {
   });
 
   // The bars sit on the square's own edges; the top one waits for the
-  // file's dimensions, which the host lists or this browser learns. A
-  // still's scale waits for the pointer, as the square follows the pane.
-  it("shows a file's dimensions, ratio and size, a clip's duration and frame rate, a still's scale", async () => {
+  // file's dimensions, which the host lists or this browser learns. The
+  // scale waits for the pointer, as the square follows the pane.
+  it("shows a file's dimensions, ratio, scale and size, and a clip's duration and frame rate", async () => {
     const { pane } = setup([
       file("held.png", { thumbnail: true, width: 3840, height: 2160, size: 4_404_019 }),
       file("take.mp4", { size: 2048 }),
@@ -619,22 +619,27 @@ describe("the gallery pane", () => {
       file("notes.md"),
     ]);
     await open(pane);
+    // Each bar's facts in order, a clip's length and frame rate from their box.
     const bars = (name: string) =>
       [...tileNamed(pane, name).querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
-        bar.hidden ? "(hidden)" : [...bar.children].map((cell) => cell.textContent).join(" | "),
+        bar.hidden
+          ? "(hidden)"
+          : [...bar.querySelectorAll(":scope > :not(.thumbnail-hud-clip), :scope > .thumbnail-hud-clip > *")]
+              .map((cell) => cell.textContent)
+              .join(" | "),
       );
 
-    expect(bars("held")).toEqual(["3840 × 2160 (16:9) |  |  | 16:9", " | 4.2 MB"]);
+    expect(bars("held")).toEqual(["3840 × 2160 (16:9) |  | 16:9", " |  | 4.2 MB"]);
     // jsdom lays nothing out: the square gets the inside a 194px tile's has.
     for (const name of ["held", "known"]) {
       const square = tileNamed(pane, name).querySelector(".gallery-tile-frame") as HTMLElement;
       Object.defineProperties(square, { clientWidth: { value: 192 }, clientHeight: { value: 192 } });
       tileNamed(pane, name).dispatchEvent(new Event("pointerenter"));
     }
-    expect(bars("held")[0]).toBe("3840 × 2160 (16:9) |  | 5% | 16:9");
-    expect(bars("known")).toEqual(["1188 × 2112 (9:16) | 29.97 fps |  | 9:16", "0:26 | 2.0 KB"]);
+    expect(bars("held")[0]).toBe("3840 × 2160 (16:9) | 5% | 16:9");
+    expect(bars("known")).toEqual(["1188 × 2112 (9:16) | 9% | 9:16", "0:26 | 29.97 fps | 2.0 KB"]);
     await settle();
-    expect(bars("take")).toEqual(["4000 × 3000 (4:3) |  |  | 4:3", "0:07 | 2.0 KB"]);
+    expect(bars("take")).toEqual(["4000 × 3000 (4:3) |  | 4:3", "0:07 |  | 2.0 KB"]);
     expect(tileNamed(pane, "notes").querySelector(".thumbnail-hud")).toBeNull();
 
     tileNamed(pane, "take").click();
@@ -1550,8 +1555,8 @@ describe("the gallery pane", () => {
     expect(preview.hidden).toBe(false);
   });
 
-  // The image view's overlay: a still on two bars, a clip on one. The
-  // decoded picture has the last word on its size.
+  // The image view's overlay, on two bars. The decoded picture has the last
+  // word on its size.
   it("lays the image view's overlay over the previewed picture", async () => {
     const { pane, deps } = setup([
       file("frame.png", { size: 4_404_019, thumbnail: true, width: 100, height: 100 }),
@@ -1578,10 +1583,12 @@ describe("the gallery pane", () => {
     pane.dismissTransient?.();
     tileNamed(pane, "take").click();
     // Dimensions and ratio as the video view writes them, the LOOK badge,
-    // empty before any look is picked, then the frame rate the header read
-    // gives; no name, and no length, which the pill shows.
+    // empty before any look is picked, and the scale once it is shown; along
+    // the bottom, what the header read gives and the size the listing gives.
+    // No name, and no length, which the pill shows.
     expect(deps.videoFormat).toHaveBeenCalledWith("lib:footage/take.mp4");
-    await vi.waitFor(() => expect(bars()).toEqual(["1920 × 1080 (16:9) |  | 23.976 fps"]));
+    await vi.waitFor(() => expect(bars()).toEqual(["1920 × 1080 (16:9) |  | ", "23.976 fps · H.264 · 8-bit | 2.0 KB"]));
+    expect(deps.fileInfo).not.toHaveBeenCalled();
   });
 });
 

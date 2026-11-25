@@ -1025,9 +1025,10 @@ describe("a loader's dot values", () => {
     );
   });
 
-  // The facts sit on the clip's hover bar, as a gallery tile lays them, with
-  // no LOOK badge, and the card has no line of them under the clip.
-  it("lays a Load Video's clip facts along the clip's top, with no line under it", async () => {
+  // The dimensions and scale sit on the clip's hover bar, as a gallery tile
+  // lays them, with no LOOK badge. The clip's foot is its player's, so
+  // nothing lies there, and the card has no line of facts under the clip.
+  it("lays a Load Video's clip dimensions and scale along the clip's top, and nothing along its foot", async () => {
     const clip = {
       kind: "video",
       mediaType: "video/mp4",
@@ -1044,7 +1045,13 @@ describe("a loader's dot values", () => {
     const top = picker.el.querySelector<HTMLElement>(".thumbnail-hud-bar.is-top") as HTMLElement;
     expect(top.hidden).toBe(false);
     expect(top.querySelector(".thumbnail-hud-dimensions")?.textContent).toBe("1080 × 1920 (9:16)");
-    expect(top.querySelector(".thumbnail-hud-format")?.textContent).toBe("30 fps (variable)");
+    // jsdom lays nothing out: the clip's frame gets a card's inside.
+    const frame = picker.el.querySelector(".flow-node-video-result") as HTMLElement;
+    Object.defineProperties(frame, { clientWidth: { value: 270 }, clientHeight: { value: 480 } });
+    frame.dispatchEvent(new Event("pointerenter"));
+    expect(top.querySelector(".thumbnail-hud-scale")?.textContent).toBe("25%");
+    expect((picker.el.querySelector(".thumbnail-hud-bar.is-bottom") as HTMLElement).hidden).toBe(true);
+    expect(picker.el.querySelector(".thumbnail-hud-rate")?.textContent).toBe("");
     expect(picker.el.querySelector(".media-hud-badge")).toBeNull();
     expect(picker.el.querySelector(".flow-node-detail")).toBeNull();
   });

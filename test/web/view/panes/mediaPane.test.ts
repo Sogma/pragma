@@ -815,7 +815,7 @@ describe("videoPane", () => {
     expect(rows(pane).Duration).toBe("0:08");
   });
 
-  it("lays dimensions, codec, scale and frame rate along the top of the picture", async () => {
+  it("lays dimensions and scale along the top of the picture, the header's facts and the size along the bottom", async () => {
     const { pane, release } = videoSetup();
     const opening = pane.setInput(videoTab, current);
     release();
@@ -830,13 +830,13 @@ describe("videoPane", () => {
     video.getBoundingClientRect = () => ({ left: 12.5, top: 0, width: 960, height: 540 }) as DOMRect;
     describeLoaded(video, 1920, 1080, 8);
     expect(hud.hidden).toBe(false);
-    // One bar: the player's own controls take the bottom edge on hover, and
-    // show the duration.
-    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) | H.264 | 50% |  | 25 fps"]);
+    // The player's own controls show the duration.
+    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) |  | 50%", "25 fps · H.264 · 8-bit | 3.6 KB"]);
+    expect(hud.querySelector(".media-hud-bar:last-child > :first-child")?.className).toBe("media-hud-details");
     expect(hud.getAttribute("style")).toBeNull();
   });
 
-  it("badges LOOK before the frame rate once a look is picked, pressed while on, following the choice every player shares", async () => {
+  it("badges LOOK between the dimensions and the scale once a look is picked, pressed while on, following the choice every player shares", async () => {
     const { pane, lut, release } = videoSetup();
     const opening = pane.setInput(videoTab, current);
     release();
@@ -850,7 +850,7 @@ describe("videoPane", () => {
     expect(badge.textContent).toBe("");
 
     lut.set({ lut: "panchromatic", on: true });
-    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) | H.264 | 50% | LOOK | 25 fps"]);
+    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) | LOOK | 50%", "25 fps · H.264 · 8-bit | 3.6 KB"]);
     expect(badge.getAttribute("aria-pressed")).toBe("true");
     expect(badge.getAttribute("aria-label")).toBe("Panchromatic look");
     expect(badge.dataset.tooltip).toBe("[Panchromatic] on, click to turn off (D)");
@@ -907,7 +907,7 @@ describe("videoPane", () => {
     ]);
   });
 
-  it("holds the guides switch before LOOK, between the scale and the frame rate, a click turning the guides", async () => {
+  it("holds the guides switch before LOOK, between the dimensions and the scale, a click turning the guides", async () => {
     const { pane, held, release } = videoSetup();
     const guides = held.of("lib:takes").guides;
     guides.set({ ...guides.get(), frames: ["2.39"] });
@@ -917,7 +917,7 @@ describe("videoPane", () => {
     const [top] = pane.element.querySelectorAll(".media-hud-bar");
     const cell = top.querySelector(".media-hud-badges") as HTMLElement;
     const toggle = cell.querySelector("button.media-hud-guides") as HTMLButtonElement;
-    expect([[...top.children].indexOf(cell), cell.firstElementChild, toggle.hidden]).toEqual([3, toggle, false]);
+    expect([[...top.children].indexOf(cell), cell.firstElementChild, toggle.hidden]).toEqual([1, toggle, false]);
     toggle.click();
     expect(guides.get().shown).toBe(false);
   });
@@ -1001,7 +1001,7 @@ describe("videoPane", () => {
     video.getBoundingClientRect = () => ({ left: 0, top: 0, width: 960, height: 540 }) as DOMRect;
     describeLoaded(video, 1920, 1080, 8);
     expect(rows(pane)).toMatchObject({ "Frame rate": "Unknown", Codec: "VP8" });
-    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) | VP8 | 50% |  | "]);
+    expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) |  | 50%", "VP8 · 8-bit | 3.6 KB"]);
   });
 
   it("shows codec and frame rate as Unknown when the header can't be read", async () => {
@@ -1133,6 +1133,7 @@ describe("videoPane", () => {
     describeLoaded(pane.element.querySelector("video") as HTMLVideoElement, 1920, 1080, 8);
     expect(rows(pane).Dimensions).toBe("…");
     expect(rows(pane).Duration).toBe("…");
+    expect(hudText(pane)[1]).toBe(" | ");
   });
 
   // A tab restored after its file was deleted raises the same error event
@@ -1165,6 +1166,7 @@ describe("videoPane", () => {
     });
     await pane.setInput(videoTab, current);
     expect((pane.element.querySelector(".editor-video-error") as HTMLElement).hidden).toBe(true);
+    expect(pane.element.querySelector(".media-hud-bar:last-child > :last-child")?.textContent).toBe("");
   });
 
   // The menu every media file's ⋮ opens, which knows its own tab.

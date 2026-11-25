@@ -15,9 +15,10 @@ export interface ResultClip {
   el: HTMLDivElement;
   /** The clip at a tree path, or none. */
   show(path: string | undefined): void;
-  /** Lays the clip's size and frame rate along its top on hover, as a
-   * gallery tile does, or takes them away. */
-  showFacts(facts: Pick<ClipFacts, "width" | "height" | "frameRate" | "variableFrameRate"> | undefined): void;
+  /** Lays the clip's dimensions and the scale it is shown at along its top
+   * on hover, as a gallery tile does, or takes them away. Its foot is its
+   * player's, so nothing lies along the bottom. */
+  showFacts(facts: Pick<ClipFacts, "width" | "height"> | undefined): void;
   dispose(): void;
 }
 
@@ -40,6 +41,8 @@ export function createResultClip(
   hud.hidden = true;
   const frame = mediaFrame(video, hud, className);
   let bars: ThumbnailHud | undefined;
+  // Measured as the pointer enters, whose hover shows the bars.
+  frame.addEventListener("pointerenter", () => bars?.measure());
   // A press on the controls plays the clip; on the canvas it would drag the node.
   frame.classList.add("nodrag");
   frame.hidden = true;
@@ -84,13 +87,8 @@ export function createResultClip(
         bars?.fill({});
         return;
       }
-      const { width, height, frameRate, variableFrameRate } = facts;
       bars ??= thumbnailHud(frame);
-      bars.fill({
-        width: width ?? undefined,
-        height: height ?? undefined,
-        clip: { codec: null, frameRate, variableFrameRate },
-      });
+      bars.fill({ width: facts.width ?? undefined, height: facts.height ?? undefined });
     },
     dispose: stop,
   };

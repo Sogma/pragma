@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bitDepthText,
   clipDetailRows,
+  clipFormatText,
   pictureDetailRows,
   pixelFormatRows,
   pixelFormatText,
@@ -54,6 +55,34 @@ describe("clipDetailRows", () => {
       label: "Audio",
       value: "PCM, 1 channel",
     });
+  });
+});
+
+// A previewed clip's bottom bar: its picture in one.
+describe("clipFormatText", () => {
+  it("puts the frame rate first, then the codec and the depth, leaving SDR unsaid", () => {
+    expect(clipFormatText(clip)).toBe("24 fps · H.264 · 8-bit");
+  });
+
+  it("adds an HDR transfer and alpha where the clip has them", () => {
+    const graded = {
+      ...clip,
+      codec: "ProRes 4444",
+      frameRate: 30_000 / 1001,
+      bitDepth: 12,
+      hdr: "pq" as const,
+      alpha: true,
+    };
+    expect(clipFormatText(graded)).toBe("29.97 fps · ProRes 4444 · 12-bit · HDR (PQ) · Alpha");
+  });
+
+  it("leaves out what the header doesn't give, and says when the rate varies", () => {
+    expect(clipFormatText({ ...clip, codec: null, bitDepth: null })).toBe("24 fps");
+    expect(clipFormatText({ ...clip, frameRate: null })).toBe("H.264 · 8-bit");
+    expect(clipFormatText({ ...clip, frameRate: 29.97, variableFrameRate: true })).toBe(
+      "30 fps (variable) · H.264 · 8-bit",
+    );
+    expect(clipFormatText({ ...clip, codec: null, frameRate: null, bitDepth: null })).toBe("");
   });
 });
 

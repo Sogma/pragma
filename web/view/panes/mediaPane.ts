@@ -3,9 +3,9 @@
 // fetched as JSON. Neither is editable, and neither has a reading view to
 // toggle: the reading view *is* what they render.
 //
-// The hover overlay of glanceable facts is two bars on an image but one
-// along a video's top edge, since the player's controls take the bottom on
-// hover; the player sits in a stage element its overlay is positioned against.
+// The hover overlay of glanceable facts is two bars, in bands above and
+// below the media, clear of the controls a player lays over a clip's foot;
+// the player sits in a stage element its overlay is positioned against.
 import { basenameOf } from "../../../src/protocol/rootedPath.ts";
 import { rasterImageMediaTypeForPath } from "../../../src/protocol/types.ts";
 import {
@@ -29,7 +29,13 @@ import {
   formatFrameRate,
   must,
 } from "../../lib/dom.ts";
-import { clipDetailRows, pictureDetailRows, pixelFormatRows, pixelFormatText } from "../../lib/mediaDetails.ts";
+import {
+  clipDetailRows,
+  clipFormatText,
+  pictureDetailRows,
+  pixelFormatRows,
+  pixelFormatText,
+} from "../../lib/mediaDetails.ts";
 import {
   fitHud,
   guidesSwitch,
@@ -56,7 +62,7 @@ import { type BadgeMenus, badgeMenus, moreOptionsMenu } from "../../services/vid
 
 export interface MediaPaneDeps {
   // The raw-file route: a `src` for the bytes, and a HEAD against the same
-  // URL — its Content-Length is the image overlay's size, and it tells a
+  // URL — its Content-Length is the size an overlay shows, and it tells a
   // file that is gone from one the player cannot decode.
   rawFileUrl: (path: string) => string;
   headFile: (path: string) => Promise<Response>;
@@ -163,15 +169,16 @@ function createImageHud(lut: LutChoice, guides: GuidesChoice, menus: BadgeMenus,
   return { root, details, dimensions, scale, look, guides: toggle };
 }
 
-/** The video's overlay: dimensions, codec, display scale, the guides switch
- * and the LOOK badge once a guide or a look has been picked, and frame rate,
- * along the top edge only. The player's own controls show the duration. */
+/** The video's overlay: the image's top bar, so its badge stays centred on
+ * the picture too; what the header says of the picture and the file's size
+ * along the bottom. The player's own controls show the duration. */
 function createVideoHud(lut: LutChoice, guides: GuidesChoice, menus: BadgeMenus) {
-  const [dimensions, codec, scale, frameRate] = hudCells(4);
+  const [dimensions, scale, details, size] = hudCells(4);
+  details.className = "media-hud-details";
   const look = lookBadge(lut, menus.looks);
   const toggle = guidesSwitch(guides, menus.guides);
-  const root = hudRoot([dimensions, codec, scale, hudBadges(toggle.element, look.element), frameRate]);
-  return { root, dimensions, codec, frameRate, look, guides: toggle, scale };
+  const root = hudRoot([dimensions, hudBadges(toggle.element, look.element), scale], [details, size]);
+  return { root, dimensions, scale, details, size, look, guides: toggle };
 }
 
 // The display scale beside the facts, as a whole percent, and whether the
@@ -466,7 +473,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
       const values = fillDetails(details.body, ["Dimensions", "Duration", "Frame rate", "Codec"]);
       details.section.hidden = false;
       hud.root.hidden = true;
-      for (const cell of [hud.dimensions, hud.codec, hud.frameRate, hud.scale]) cell.textContent = "";
+      for (const cell of [hud.dimensions, hud.scale, hud.details, hud.size]) cell.textContent = "";
 
       const video = document.createElement("video");
       // Metadata only. Opening a tab costs a header, not the clip; the
@@ -559,8 +566,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
           player?.setFrameRate(format.frameRate);
           if (codecRow) codecRow.textContent = format.codec ?? "Unknown";
           if (frameRate) frameRate.textContent = formatFrameRate(format) ?? "Unknown";
-          hud.codec.textContent = format.codec ?? "";
-          hud.frameRate.textContent = formatFrameRate(format) ?? "";
+          hud.details.textContent = clipFormatText(format);
           if (unplayable) failure.textContent = unplayableText();
           for (const row of clipDetailRows(format)) appendMetaRow(details.body, row.label, row.value);
         },
@@ -573,6 +579,8 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
 
       const head = await headOf(deps, tab.path);
       if (!ctx.isCurrent()) return;
+      const length = head?.ok ? head.headers.get("content-length") : null;
+      if (length !== null) hud.size.textContent = formatFileSize(Number(length));
       if (head && !head.ok) {
         unplayable = false;
         failure.textContent = "This file isn't there any more. It may have been moved or deleted.";

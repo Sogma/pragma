@@ -41,9 +41,14 @@ function onFrame(badge: HTMLElement) {
   return { mediaMenu, rightClick };
 }
 
+// Each bar's facts in order, a clip's length and frame rate from their box.
 const bars = (box: HTMLElement) =>
   [...box.querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
-    bar.hidden ? "(hidden)" : [...bar.children].map((cell) => cell.textContent).join(" | "),
+    bar.hidden
+      ? "(hidden)"
+      : [...bar.querySelectorAll(":scope > :not(.thumbnail-hud-clip), :scope > .thumbnail-hud-clip > *")]
+          .map((cell) => cell.textContent)
+          .join(" | "),
   );
 
 describe("a thumbnail's hover bars", () => {
@@ -56,8 +61,9 @@ describe("a thumbnail's hover bars", () => {
     expect(box.lastElementChild?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  // The top bar's cells: the dimensions, a clip's frame rate, a still's
-  // scale, then the ratio alone that a narrow box shows in their place.
+  // The top bar's cells: the dimensions, the scale, then the ratio alone
+  // that a narrow box shows in their place. The bottom's: a clip's length
+  // and frame rate, then the size.
   it("hide each bar while it has nothing to say, and fill as facts come", () => {
     const box = document.createElement("div");
     const hud = thumbnailHud(box);
@@ -65,24 +71,34 @@ describe("a thumbnail's hover bars", () => {
     expect(bars(box)).toEqual(["(hidden)", "(hidden)"]);
 
     hud.fill({ width: 1920, height: 1080 });
-    expect(bars(box)).toEqual(["1920 × 1080 (16:9) |  |  | 16:9", "(hidden)"]);
+    expect(bars(box)).toEqual(["1920 × 1080 (16:9) |  | 16:9", "(hidden)"]);
 
     hud.fill({ width: 1920, height: 1080, duration: 7, size: 2048 });
-    expect(bars(box)).toEqual(["1920 × 1080 (16:9) |  |  | 16:9", `0:07 | ${formatFileSize(2048)}`]);
+    expect(bars(box)).toEqual(["1920 × 1080 (16:9) |  | 16:9", `0:07 |  | ${formatFileSize(2048)}`]);
   });
 
-  it("put a clip's frame rate after its dimensions, where its header gives one, and never its codec", () => {
+  it("put a clip's frame rate after its length, where its header gives one, and never its codec", () => {
     const box = document.createElement("div");
     const hud = thumbnailHud(box);
     hud.fill({
       width: 1188,
       height: 2112,
+      duration: 26.8,
+      size: 2048,
       clip: { codec: "ProRes 4444 XQ", frameRate: 30_000 / 1001, variableFrameRate: false },
     });
-    expect(bars(box)[0]).toBe("1188 × 2112 (9:16) | 29.97 fps |  | 9:16");
+    expect(bars(box)).toEqual(["1188 × 2112 (9:16) |  | 9:16", `0:26 | 29.97 fps | ${formatFileSize(2048)}`]);
+    expect(
+      box.querySelector(".thumbnail-hud-bar.is-bottom > .thumbnail-hud-clip > .thumbnail-hud-rate"),
+    ).not.toBeNull();
 
-    hud.fill({ width: 1280, height: 720, clip: { codec: "VP9", frameRate: null, variableFrameRate: false } });
-    expect(bars(box)[0]).toBe("1280 × 720 (16:9) |  |  | 16:9");
+    hud.fill({
+      width: 1280,
+      height: 720,
+      duration: 3,
+      clip: { codec: "VP9", frameRate: null, variableFrameRate: false },
+    });
+    expect(bars(box)).toEqual(["1280 × 720 (16:9) |  | 16:9", "0:03 |  | "]);
   });
 
   // jsdom lays nothing out: the box gets the inside a laid-out one has.
@@ -94,13 +110,13 @@ describe("a thumbnail's hover bars", () => {
 
   // Contained whole, a picture is drawn at the box's width or its height,
   // whichever it reaches first, and a small one grows to fill it.
-  it("put a still's scale after its dimensions, measured in its box when asked", () => {
+  it("put the scale after the dimensions, measured in its box when asked", () => {
     const wide = sized(300, 200);
     const hud = thumbnailHud(wide);
     hud.fill({ width: 3840, height: 2160 });
-    expect(bars(wide)[0]).toBe("3840 × 2160 (16:9) |  |  | 16:9");
+    expect(bars(wide)[0]).toBe("3840 × 2160 (16:9) |  | 16:9");
     hud.measure();
-    expect(bars(wide)[0]).toBe("3840 × 2160 (16:9) |  | 8% | 16:9");
+    expect(bars(wide)[0]).toBe("3840 × 2160 (16:9) | 8% | 16:9");
 
     const measured = (width: number, height: number) => {
       const box = sized(300, 200);
@@ -109,25 +125,37 @@ describe("a thumbnail's hover bars", () => {
       other.measure();
       return bars(box)[0];
     };
-    expect(measured(1080, 1920)).toBe("1080 × 1920 (9:16) |  | 10% | 9:16");
-    expect(measured(64, 64)).toBe("64 × 64 (1:1) |  | 313% | 1:1");
+    expect(measured(1080, 1920)).toBe("1080 × 1920 (9:16) | 10% | 9:16");
+    expect(measured(64, 64)).toBe("64 × 64 (1:1) | 313% | 1:1");
+
+    // A clip's the same, its frame rate below.
+    const clipBox = sized(300, 200);
+    const clip = thumbnailHud(clipBox);
+    clip.fill({
+      width: 1920,
+      height: 1080,
+      duration: 3,
+      clip: { codec: "H.264", frameRate: 24, variableFrameRate: false },
+    });
+    clip.measure();
+    expect(bars(clipBox)).toEqual(["1920 × 1080 (16:9) | 16% | 16:9", "0:03 | 24 fps | "]);
   });
 
-  // A still loading under the pointer gets its facts while its bars are up.
-  it("measure a still's facts that land after it was measured, at once", () => {
+  // A picture loading under the pointer gets its facts while its bars are up.
+  it("measure facts that land after the picture was measured, at once", () => {
     const box = sized(300, 200);
     const hud = thumbnailHud(box);
     hud.fill({});
     hud.measure();
     hud.fill({ width: 3840, height: 2160 });
-    expect(bars(box)[0]).toBe("3840 × 2160 (16:9) |  | 8% | 16:9");
+    expect(bars(box)[0]).toBe("3840 × 2160 (16:9) | 8% | 16:9");
   });
 
   it("call a picture that decoded to nothing unmeasured", () => {
     const box = document.createElement("div");
     const hud = thumbnailHud(box);
     hud.fill({ width: 0, height: 0, size: 10 });
-    expect(bars(box)).toEqual(["(hidden)", ` | ${formatFileSize(10)}`]);
+    expect(bars(box)).toEqual(["(hidden)", ` |  | ${formatFileSize(10)}`]);
   });
 });
 

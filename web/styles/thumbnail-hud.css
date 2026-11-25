@@ -38,10 +38,10 @@
   white-space: nowrap;
 }
 
-/* The dimensions at the left, a clip's frame rate or a still's scale at the
-   right. A fact with no room beside the dimensions drops out whole,
-   never cut off: it wraps to a second line, which the bar's one-line height
-   hides. That height is its content box's, so the padding stays around it. */
+/* The dimensions at the left, the scale at the right. A fact with no room
+   beside the dimensions drops out whole, never cut off: it wraps to a
+   second line, which the bar's one-line height hides. That height is its
+   content box's, so the padding stays around it. */
 .thumbnail-hud-bar.is-top {
   top: 0;
   flex-wrap: wrap;
@@ -55,6 +55,24 @@
 
 .thumbnail-hud-bar.is-bottom {
   bottom: 0;
+}
+
+/* A clip's length, then its frame rate, which drops out whole where it has
+   no room, as a top bar's fact does. The box gives way before the size. */
+.thumbnail-hud-clip {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  height: 1lh;
+  overflow: hidden;
+}
+
+.thumbnail-hud-clip > :empty {
+  display: none;
+}
+
+.thumbnail-hud-clip > :not(:empty) ~ :not(:empty)::before {
+  content: "\00a0·\00a0";
 }
 
 /* The size keeps the right edge even alone, when a still has no duration. */

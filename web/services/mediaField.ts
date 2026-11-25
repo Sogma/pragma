@@ -330,8 +330,6 @@ interface Bars {
   hud: ThumbnailHud;
   facts: ThumbnailFacts;
   sized: boolean;
-  /** A still, whose bars show the scale it is drawn at. */
-  still: boolean;
 }
 
 export function createMediaField(spec: MediaFieldSpec): HTMLElement {
@@ -403,7 +401,7 @@ export function createMediaField(spec: MediaFieldSpec): HTMLElement {
       img.addEventListener("error", onMissing);
       wireEntryDrag(img, () => ({ path: target, type: "file" }));
       thumb.append(img);
-      const shown = barsOn(target, true);
+      const shown = barsOn(target);
       const standIn = vectorImageMediaTypeForPath(target) ? readSvgStandInSize(fetchFileRaw, target) : undefined;
       describeLoaded(img, standIn, (width, height) => learn(shown, { width, height }));
     } else if (videoMediaTypeForPath(target)) {
@@ -415,7 +413,7 @@ export function createMediaField(spec: MediaFieldSpec): HTMLElement {
       video.src = rawFileUrl(target);
       video.addEventListener("error", onMissing);
       thumb.append(video);
-      const shown = barsOn(target, false);
+      const shown = barsOn(target);
       video.addEventListener("loadedmetadata", () => {
         const duration = Number.isFinite(video.duration) ? video.duration : undefined;
         learn(shown, { width: video.videoWidth, height: video.videoHeight, duration });
@@ -437,20 +435,20 @@ export function createMediaField(spec: MediaFieldSpec): HTMLElement {
   }
 
   // Over the picture just drawn, filled as the file tells its facts.
-  function barsOn(target: string, still: boolean): Bars {
-    bars = { target, hud: thumbnailHud(thumb), facts: {}, sized: false, still };
+  function barsOn(target: string): Bars {
+    bars = { target, hud: thumbnailHud(thumb), facts: {}, sized: false };
     bars.hud.fill(bars.facts);
     return bars;
   }
 
   // The size is the one fact the picture doesn't carry, so it is asked for
   // on the first hover that shows the bars: a cell too narrow for them
-  // never asks. A still's scale is measured at every such hover, since a
-  // card's picture follows the card's width.
+  // never asks. The scale is measured at every such hover, since a card's
+  // picture follows the card's width.
   thumb.addEventListener("pointerenter", () => {
     const shown = bars;
     if (!shown?.hud.shown()) return;
-    if (shown.still) shown.hud.measure();
+    shown.hud.measure();
     if (shown.sized) return;
     shown.sized = true;
     getFileInfo(shown.target).then(

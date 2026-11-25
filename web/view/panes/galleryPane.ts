@@ -222,8 +222,8 @@ export interface GalleryPaneDeps {
    * this browser made is: its color mode, bit depth and source, read from
    * its header by the server when the Info tab first shows it. */
   pixelFormat(path: string): Promise<PixelFormatResponse>;
-  /** A file's size and date, which the Info tab reads only for an entry
-   * listed without them. */
+  /** A file's size and date, which the Info tab and a previewed clip's bar
+   * read only for an entry listed without them. */
   fileInfo(path: string): Promise<FileInfoResponse>;
   /** What a selected folder holds, all the way down, in its tree row's
    * words: undefined where the tree counts nothing. */
@@ -341,6 +341,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     },
     rawFileUrl: deps.rawFileUrl,
     fetchFile: deps.fetchFile,
+    fileInfo: deps.fileInfo,
     videoFormat: deps.videoFormat,
     loadFile: deps.loadFile,
     readingResolvers: deps.readingResolvers,
@@ -529,14 +530,14 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
       badge.className = "gallery-tile-badge";
       frame.append(badge);
     }
-    // Last in the square, over the picture and the badge.
+    // Last in the square, over the picture and the badge. Its scale is
+    // measured as the pointer enters the tile, whose hover shows the bars:
+    // the square follows the pane's width.
     if (kind === "image" || kind === "svg" || kind === "video") {
       hud = thumbnailHud(frame);
       hud.fill(entry);
+      tile.addEventListener("pointerenter", () => hud?.measure());
     }
-    // A still's scale is measured as the pointer enters the tile, whose hover
-    // shows the bars: the square follows the pane's width.
-    if (kind === "image" || kind === "svg") tile.addEventListener("pointerenter", () => hud?.measure());
 
     return {
       element: tile,

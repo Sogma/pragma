@@ -39,7 +39,7 @@ import {
   formatFrameRate,
   must,
 } from "./lib/dom.ts";
-import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "./lib/mediaDetails.ts";
+import { clipDetailRows, clipFormatText, pictureDetailRows, pixelFormatRows } from "./lib/mediaDetails.ts";
 import {
   fitHud,
   type GuidesSwitch,
@@ -86,6 +86,8 @@ const isPageKind = (kind: PreviewKind): kind is PageKind => kind === "note" || k
 export interface PreviewFile {
   path: string;
   name: string;
+  /** Bytes. */
+  size?: number;
   width?: number;
   height?: number;
 }
@@ -95,8 +97,11 @@ export interface PreviewSources {
   rawFileUrl(path: string): string;
   /** A GET against the raw-file route, for an SVG's own text. */
   fetchFile(path: string): Promise<Response>;
-  /** A clip's header as the server reads it: the codec and frame rate its
-   * bar shows, and the rest its Info section lists. */
+  /** A file's size and date: the size a clip's bar shows, read for one its
+   * list gives none. */
+  fileInfo(path: string): Promise<FileInfoResponse>;
+  /** A clip's header as the server reads it: what its bottom bar says of its
+   * picture, and the rest its Info section lists. */
   videoFormat(path: string): Promise<ClipHeaderResponse>;
   /** Where the links and embeds in a previewed note at `docPath` lead. */
   readingResolvers: typeof readingResolvers;
@@ -412,43 +417,65 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     return isPageKind(shown.kind) ? pagePreview(shown.file, shown.kind) : mediaPreview(shown.file, shown.kind, learn);
   }
 
+  function stillBar(file: PreviewFile): HTMLElement[] {
+    const [name] = hudCells(1);
+    name.className = "media-hud-name";
+    name.textContent = file.name;
+    return [name, fileMoreOptions(file.path, MEDIA_MENU)];
+  }
+
+  // A clip's bottom bar: what its header says of its picture at the left,
+  // and its size at the right, from its list or else read. Its ⋮ is its
+  // pill's. The header teaches the Info section too.
+  function clipBar(file: PreviewFile, learn: Learn): HTMLElement[] {
+    const [details, size] = hudCells(2);
+    details.className = "media-hud-details";
+    deps.videoFormat(file.path).then(
+      (clip) => {
+        details.textContent = clipFormatText(clip);
+        learn((entry) => {
+          entry.clip = clip;
+          if (!entry.width && clip.width && clip.height)
+            Object.assign(entry, { width: clip.width, height: clip.height });
+          if (entry.duration === undefined && clip.duration !== null) entry.duration = clip.duration;
+        });
+      },
+      () => undefined,
+    );
+    const showSize = (bytes: number) => {
+      size.textContent = formatFileSize(bytes);
+    };
+    if (file.size !== undefined) showSize(file.size);
+    else {
+      deps.fileInfo(file.path).then(
+        (info) => showSize(info.size),
+        () => undefined,
+      );
+    }
+    return [details, size];
+  }
+
   // The image view's overlay, in the previewed picture's own frame: the
   // dimensions with their ratio along the top, as the image and video views
   // write them, then the guides switch and the LOOK badge where a look can
-  // apply, and a clip's frame rate or a still's display scale; a still's
-  // name and ⋮ along the bottom, a clip's length and ⋮ left to the pill.
+  // apply, and the display scale. Along the bottom, a still's name and ⋮,
+  // or a clip's details and size.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
   // A clip's header stands in, in the Info section, for one never decoded.
   function mediaPreview(file: PreviewFile, kind: PreviewKind, learn: Learn): HTMLElement {
     const isVideo = kind === "video";
     const rasterType = rasterImageMediaTypeForPath(file.path);
-    const [name, dimensions, topRight] = hudCells(3);
-    name.className = "media-hud-name";
-    name.textContent = file.name;
+    const [dimensions, scale] = hudCells(2);
     previewLook = isVideo || rasterType ? lookBadge(view.look, previewBadgeMenus.looks) : undefined;
     previewGuides = guidesSwitch(view.guides, previewBadgeMenus.guides);
-    const top = [dimensions, hudBadges(previewGuides.element, previewLook?.element), topRight];
-    const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
+    const top = [dimensions, hudBadges(previewGuides.element, previewLook?.element), scale];
+    const hud = hudRoot(top, isVideo ? clipBar(file, learn) : stillBar(file));
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
       dimensions.textContent = formatDimensions(width, height, "");
     };
     fill(file.width, file.height);
-    if (isVideo) {
-      deps.videoFormat(file.path).then(
-        (clip) => {
-          topRight.textContent = formatFrameRate(clip) ?? "";
-          learn((entry) => {
-            entry.clip = clip;
-            if (!entry.width && clip.width && clip.height)
-              Object.assign(entry, { width: clip.width, height: clip.height });
-            if (entry.duration === undefined && clip.duration !== null) entry.duration = clip.duration;
-          });
-        },
-        () => undefined,
-      );
-    }
 
     let media: HTMLImageElement | HTMLVideoElement;
     let layers: PictureLayers | undefined;
@@ -460,6 +487,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       video.preload = "metadata";
       video.addEventListener("loadedmetadata", () => {
         decoded = true;
+        fullWidth = video.videoWidth;
         fill(video.videoWidth, video.videoHeight);
         learn((entry) => {
           Object.assign(entry, { width: video.videoWidth, height: video.videoHeight });
@@ -467,7 +495,11 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         });
         fitPreview();
       });
-      video.addEventListener("resize", () => fitPreview());
+      // A stream can change its frame size mid-clip.
+      video.addEventListener("resize", () => {
+        fullWidth = video.videoWidth;
+        fitPreview();
+      });
       media = video;
     } else {
       const img = document.createElement("img");
@@ -520,7 +552,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     fitPreview = () => {
       if (!decoded || !media.isConnected) return;
       const shown = media.getBoundingClientRect();
-      if (fullWidth > 0 && shown.width > 0) topRight.textContent = `${shownPercent(shown.width, fullWidth)}%`;
+      if (fullWidth > 0 && shown.width > 0) scale.textContent = `${shownPercent(shown.width, fullWidth)}%`;
       fitHud(hud, shown.width, shown.height);
       zoom?.fit(shown.width, fullWidth);
     };
