@@ -17,8 +17,7 @@ export interface FlowAction {
   /** The node's comment, absent when it has none. */
   comment?: string;
   nodeType: string;
-  /** The node's color as the canvas shows it: its own, else its type's
-   * default. */
+  /** The node's own color; a category's color is the canvas's to draw. */
   color?: string;
 }
 
@@ -60,13 +59,12 @@ export function flowActions(graph: FlowGraph): FlowAction[] {
       const label = nodeLabel(node);
       const count = (seen.get(label) ?? 0) + 1;
       seen.set(label, count);
-      const color = node.color ?? FLOW_NODE_REGISTRY[node.type]?.defaultColor;
       return {
         nodeId: node.id,
         label: count === 1 ? label : `${label} (${count})`,
         ...(node.comment ? { comment: node.comment } : {}),
         nodeType: glyphOf(actionGraph(graph, node.id)),
-        ...(color ? { color } : {}),
+        ...(node.color ? { color: node.color } : {}),
       };
     });
 }

@@ -191,11 +191,6 @@ export interface FlowNodeTypeDefinition {
   // always match — for words someone would search that the label lacks
   // (e.g. "ai"/"llm" for generateText). Display-only, like `category`.
   keywords?: string[];
-  // Fallback color for a node of this type, in FlowNodeInstance.color's hex
-  // format; an instance's own color always wins. Absent means an uncolored
-  // node. The Color menu's "No color" can't remove it — only picking another
-  // color overrides it.
-  defaultColor?: string;
   // The output that passes on the node's own `config[id]` unchanged, the
   // value a person types or picks. Exposing it makes a form field and a run
   // input, not a result: shown as a result it could only echo the form.
@@ -748,8 +743,6 @@ const generateText: FlowNodeTypeDefinition = {
   description: "A model's reply to a prompt.",
   category: "AI",
   keywords: ["ai", "llm", "model", "claude"],
-  // Violet, the industry's de facto "AI" color.
-  defaultColor: "#7c3aed",
   version: "1.0",
   reuse: "optional",
   inputs: [
@@ -796,7 +789,6 @@ const generateImage: FlowNodeTypeDefinition = {
   description: "An image from an image model, saved into a folder.",
   category: "AI",
   keywords: ["ai", "image", "picture", "illustration", "higgsfield", "art"],
-  defaultColor: "#7c3aed",
   version: "1.0",
   reuse: "always",
   inputs: [
@@ -853,7 +845,6 @@ const generateVideo: FlowNodeTypeDefinition = {
   description: "A clip from a video model, saved into a folder.",
   category: "AI",
   keywords: ["ai", "video", "clip", "movie", "animation", "higgsfield"],
-  defaultColor: "#7c3aed",
   version: "1.0",
   reuse: "always",
   inputs: [
@@ -1375,7 +1366,6 @@ const generateOptions: FlowNodeTypeDefinition = {
   description: "A list of alternatives from a model.",
   category: "AI",
   keywords: ["ai", "llm", "model", "claude", "alternatives", "list", "choices", "variations"],
-  defaultColor: "#7c3aed",
   version: "1.0",
   reuse: "optional",
   inputs: generateText.inputs,

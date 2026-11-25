@@ -15,9 +15,13 @@ export interface ColorPickerOptions {
    * matching a preset shows that swatch selected; any other non-empty value
    * pre-fills (and auto-expands) the custom field. */
   value: string;
+  /** The color the target shows with none of its own, as any CSS color. The
+   * first swatch then shows it and is named "Default" instead of "No
+   * color"; either way it picks "". */
+  fallback?: string;
   /** Fired once, when the user picks — a canonical lowercase `#rrggbb`
-   * string, or "" for "No color". The popover closes itself immediately
-   * after. */
+   * string, or "" for the first swatch. The popover closes itself
+   * immediately after. */
   onPick: (value: string) => void;
 }
 
@@ -57,7 +61,7 @@ function isPreset(hex: string): boolean {
 }
 
 /** Opens the popover anchored to `anchor`, closing any other popover. */
-export function openColorPicker({ anchor, value, onPick }: ColorPickerOptions): void {
+export function openColorPicker({ anchor, value, fallback, onPick }: ColorPickerOptions): void {
   const current = normalizeHexColor(value);
 
   const popover = document.createElement("div");
@@ -75,21 +79,22 @@ export function openColorPicker({ anchor, value, onPick }: ColorPickerOptions): 
   grid.className = "color-picker-grid";
   const swatches: HTMLButtonElement[] = [];
 
-  const addSwatch = (opts: { hex: string; label: string; empty?: boolean }): void => {
+  const addSwatch = (opts: { value: string; label: string; fill?: string }): void => {
+    const fill = opts.fill ?? opts.value;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "color-picker-swatch";
-    if (opts.empty) button.classList.add("is-empty");
-    button.style.setProperty("--swatch", opts.hex || "transparent");
+    if (!fill) button.classList.add("is-empty");
+    button.style.setProperty("--swatch", fill || "transparent");
     button.setAttribute("aria-label", opts.label);
-    if (opts.empty ? current === "" : current === opts.hex) button.setAttribute("aria-pressed", "true");
-    button.addEventListener("click", () => commit(opts.empty ? "" : opts.hex));
+    if (current === opts.value) button.setAttribute("aria-pressed", "true");
+    button.addEventListener("click", () => commit(opts.value));
     swatches.push(button);
     grid.appendChild(button);
   };
 
-  addSwatch({ hex: "", label: "No color", empty: true });
-  for (const preset of PRESET_COLORS) addSwatch({ hex: preset.hex, label: preset.name });
+  addSwatch(fallback ? { value: "", label: "Default", fill: fallback } : { value: "", label: "No color" });
+  for (const preset of PRESET_COLORS) addSwatch({ value: preset.hex, label: preset.name });
 
   grid.addEventListener("keydown", (event) => {
     const index = swatches.indexOf(document.activeElement as HTMLButtonElement);

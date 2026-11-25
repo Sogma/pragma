@@ -1,12 +1,13 @@
 import { nodeLabel } from "../../src/protocol/flowInputs.ts";
 import {
   FLOW_NODE_REGISTRY,
+  type FlowNodeCategory,
   type FlowNodeConfigField,
   type FlowNodeInputWidget,
   intValue,
   stepInt,
 } from "../../src/protocol/flowNodes.ts";
-import type { FlowGraph } from "../../src/protocol/types.ts";
+import type { FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 
@@ -21,6 +22,27 @@ export function applyNodeColor(cardEl: HTMLElement, color: string | undefined): 
   if (color) cardEl.style.setProperty("--node-color", color);
   else cardEl.style.removeProperty("--node-color");
   cardEl.classList.toggle("tinted", Boolean(color));
+}
+
+// A category's color, drawn for a node with none of its own and never saved.
+// The color picker's first swatch resets to it, so such a node can't go
+// plain. Image and Video name their pins' theme tokens rather than a hex, so
+// a card matches its wires in both themes.
+const CATEGORY_COLORS: Partial<Record<FlowNodeCategory, string>> = {
+  Image: "var(--type-image)",
+  Video: "var(--type-video)",
+  AI: "#7c3aed", // violet, the de facto "AI" color
+};
+
+/** The color a node of `type` shows with none of its own, if any. */
+export function defaultNodeColor(type: string): string | undefined {
+  const category = FLOW_NODE_REGISTRY[type]?.category;
+  return category && CATEGORY_COLORS[category];
+}
+
+/** The color a node shows: its own, else its category's. */
+export function nodeColor(node: Pick<FlowNodeInstance, "type" | "color">): string | undefined {
+  return node.color ?? defaultNodeColor(node.type);
 }
 
 export function createSelectControl(

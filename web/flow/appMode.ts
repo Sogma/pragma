@@ -38,7 +38,14 @@ import { createSwitch } from "../lib/toggleRow.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 import { type AppletFrame, createAppletFrame, runInputs } from "./appletFrame.ts";
 import { combinedTileSize, createAppModeGrid, TILE_SIZES } from "./appModeGrid.ts";
-import { createIntStepper, createSelectControl, createSelectPicker, formLabel, regenerateHint } from "./controls.ts";
+import {
+  createIntStepper,
+  createSelectControl,
+  createSelectPicker,
+  formLabel,
+  nodeColor,
+  regenerateHint,
+} from "./controls.ts";
 import type { FlowElements } from "./flowElements.ts";
 import { flowTreePath } from "./flowPaths.ts";
 import { effortFieldOf, type ModelFields, modelKindOf } from "./modelOptions.ts";
@@ -845,10 +852,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     section.className = "flow-app-node";
     section.dataset.nodeId = node.id; // same convention as .flow-node's own data-node-id
     section.dataset.nodeType = node.type; // picks the graph card's glyph
-    // The graph card's color, or its type's default, read fresh on
-    // every build so a colour set in the graph shows the next time App mode
-    // opens.
-    const color = node.color ?? FLOW_NODE_REGISTRY[node.type]?.defaultColor;
+    // The graph card's color, or its category's, read fresh on every build
+    // so a colour set in the graph shows the next time App mode opens.
+    const color = nodeColor(node);
     if (color) section.style.setProperty("--node-color", color);
     const heading = document.createElement("h3");
     heading.className = "flow-app-node-title";

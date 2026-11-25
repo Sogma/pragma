@@ -75,7 +75,9 @@ import {
   createIntStepper,
   createSelectControl,
   createSelectPicker,
+  defaultNodeColor,
   formLabel,
+  nodeColor,
   skippedText,
 } from "./controls.ts";
 import type { FlowMenus } from "./flowMenus.ts";
@@ -1997,7 +1999,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     disabledTag.textContent = "Disabled";
     titleEl.append(collapseEl, nameEl, disabledTag);
     titleEls.set(flowNode.id, { title: titleEl, node: flowNode });
-    applyNodeColor(el, flowNode.color ?? definition.defaultColor);
+    applyNodeColor(el, nodeColor(flowNode));
 
     // The title's tooltip says what the node gives: its type's description,
     // or its Applet's once the file is read. A renamed title no longer names
@@ -2054,9 +2056,10 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       openColorPicker({
         anchor: titleEl,
         value: flowNode.color ?? "",
+        fallback: defaultNodeColor(flowNode.type),
         onPick: (hex) => {
           flowNode.color = hex || undefined;
-          applyNodeColor(el, flowNode.color ?? definition.defaultColor);
+          applyNodeColor(el, nodeColor(flowNode));
           deps.persistGraph();
         },
       });

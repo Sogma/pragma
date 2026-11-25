@@ -603,20 +603,24 @@ describe("App mode tiles", () => {
     });
   });
 
-  it("heads a tile with its type's glyph and its title, edged in the node's colour or its type's", () => {
+  it("heads a tile with its type's glyph and its title, edged in the node's colour or its category's", () => {
     const { appMode, elements } = setup([
       { ...node("loadImage", {}, ["imagePath"]), color: "#0b6e99" },
       node("generateText", {}, ["text"]),
       node("prompt", { text: "" }, ["text"]),
+      { ...node("loadImage", {}, ["imagePath"]), id: "loadImage-2" },
     ]);
     appMode.setActive(true);
-    const [image, generate, prompt] = [...elements.appModePane.querySelectorAll<HTMLElement>(".flow-app-node")];
+    const [image, generate, prompt, plainImage] = [
+      ...elements.appModePane.querySelectorAll<HTMLElement>(".flow-app-node"),
+    ];
     expect(image.dataset.nodeType).toBe("loadImage");
     expect(image.querySelector(".flow-app-node-title > .flow-node-dot")).not.toBeNull();
     expect(image.querySelector(".flow-app-node-name")?.textContent).toBe("Load Image");
     expect(image.style.getPropertyValue("--node-color")).toBe("#0b6e99");
     expect(generate.style.getPropertyValue("--node-color")).toBe("#7c3aed");
     expect(prompt.style.getPropertyValue("--node-color")).toBe("");
+    expect(plainImage.style.getPropertyValue("--node-color")).toBe("var(--type-image)");
   });
 
   it("titles an unnamed Chart by its columns, and keeps a Chart's own label or the type's when a column is unset", () => {

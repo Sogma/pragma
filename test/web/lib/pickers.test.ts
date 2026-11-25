@@ -39,3 +39,26 @@ describe("the pickers", () => {
     expect(document.activeElement).toBe(anchor);
   });
 });
+
+describe("the color picker's first swatch", () => {
+  const first = () => document.querySelector<HTMLButtonElement>(".color-picker-swatch") as HTMLButtonElement;
+
+  it("is No color without a fallback, unpressed while a preset is the value", () => {
+    openColorPicker({ anchor: opener(), value: LOGO_COLORS.red, onPick: () => {} });
+    expect(first().getAttribute("aria-label")).toBe("No color");
+    expect(first().classList.contains("is-empty")).toBe(true);
+    expect(first().hasAttribute("aria-pressed")).toBe(false);
+    expect(document.querySelector('.color-picker-swatch[aria-pressed="true"]')?.getAttribute("aria-label")).toBe("Red");
+  });
+
+  it("is Default with a fallback: filled with it, pressed while there's no value, and picking none", () => {
+    const onPick = vi.fn();
+    openColorPicker({ anchor: opener(), value: "", fallback: "var(--type-image)", onPick });
+    expect(first().getAttribute("aria-label")).toBe("Default");
+    expect(first().classList.contains("is-empty")).toBe(false);
+    expect(first().style.getPropertyValue("--swatch")).toBe("var(--type-image)");
+    expect(first().getAttribute("aria-pressed")).toBe("true");
+    first().click();
+    expect(onPick).toHaveBeenCalledWith("");
+  });
+});

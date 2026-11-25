@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FLOW_NODE_REGISTRY } from "../../../src/protocol/flowNodes.ts";
 import type { FlowEdgeInstance, FlowGraph, FlowNodeInstance, FlowPort } from "../../../src/protocol/types.ts";
 import { ApiError } from "../../../web/core/apiClient.ts";
@@ -1908,5 +1908,72 @@ describe("the placeholders a card offers", () => {
     begin(choice.querySelector("textarea") as HTMLTextAreaElement, "{{");
     expect(offered()).toContain("{{$date:%Y}}");
     choice.remove();
+  });
+});
+
+describe("a node's color", () => {
+  const color = (el: HTMLElement) => el.style.getPropertyValue("--node-color");
+  const firstSwatch = () => document.querySelector<HTMLButtonElement>(".color-picker-swatch") as HTMLButtonElement;
+  const openColor = (deps: NodeCardDeps, el: HTMLElement) => {
+    contextMenuOn(el.querySelector(".flow-node-title") as Element);
+    ((deps.menus.openNodeMenu as ReturnType<typeof vi.fn>).mock.calls[0][4] as () => void)();
+  };
+  // jsdom plays no media, and a Load Video card holds a player.
+  let media: { mockRestore(): void }[] = [];
+  beforeEach(() => {
+    media = [
+      vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {}),
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {}),
+    ];
+  });
+  afterEach(() => {
+    for (const spy of media) spy.mockRestore();
+    document.body.replaceChildren();
+  });
+
+  it("is its category's with none of its own: the image and video pins' colors, AI's violet, else none", () => {
+    const { cards } = setup();
+    expect(color(cards.build(node("loadImage")))).toBe("var(--type-image)");
+    expect(color(cards.build(node("loadFolderImage")))).toBe("var(--type-image)");
+    expect(color(cards.build(node("loadVideo")))).toBe("var(--type-video)");
+    expect(color(cards.build(node("generateImage", { outputFolderPath: "art" })))).toBe("#7c3aed");
+    const prompt = cards.build(node("prompt", { text: "" }));
+    expect(color(prompt)).toBe("");
+    expect(prompt.classList.contains("tinted")).toBe(false);
+  });
+
+  it("is its own when it has one, whatever its category", () => {
+    const { cards } = setup();
+    const el = cards.build(node("loadVideo", {}, { color: "#0db14c" }));
+    expect(color(el)).toBe("#0db14c");
+    expect(el.classList.contains("tinted")).toBe(true);
+  });
+
+  it("goes back to its category's from the picker's Default swatch, saving none of its own", () => {
+    const { cards, deps } = setup();
+    const flowNode = node("loadImage", {}, { color: "#0db14c" });
+    const el = cards.build(flowNode);
+    document.body.append(el);
+    openColor(deps, el);
+    expect(firstSwatch().getAttribute("aria-label")).toBe("Default");
+    expect(firstSwatch().style.getPropertyValue("--swatch")).toBe("var(--type-image)");
+    firstSwatch().click();
+    expect(flowNode.color).toBeUndefined();
+    expect(color(el)).toBe("var(--type-image)");
+    expect(el.classList.contains("tinted")).toBe(true);
+    expect(deps.persistGraph).toHaveBeenCalled();
+  });
+
+  it("clears to plain from No color on a node whose category has no color", () => {
+    const { cards, deps } = setup();
+    const flowNode = node("prompt", { text: "" }, { color: "#0db14c" });
+    const el = cards.build(flowNode);
+    document.body.append(el);
+    openColor(deps, el);
+    expect(firstSwatch().getAttribute("aria-label")).toBe("No color");
+    firstSwatch().click();
+    expect(flowNode.color).toBeUndefined();
+    expect(color(el)).toBe("");
+    expect(el.classList.contains("tinted")).toBe(false);
   });
 });
