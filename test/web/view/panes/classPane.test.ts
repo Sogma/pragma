@@ -1252,21 +1252,51 @@ describe("classPane: a row's card", () => {
     expect(edited).toEqual({ take: 5 });
   });
 
-  it("writes the Class's card block once a tile moves, and arranges nothing while reading", async () => {
-    const { pane, saved } = await setup();
+  it("arranges in Design mode alone, writing the Class's card block, and never while reading", async () => {
+    const { pane, deps, saved } = await setup();
+    const moveRight = (on: EditorPane, name: string) =>
+      tile(on, name)
+        .querySelector(".row-card-label")
+        ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));
     open(pane, 1);
-    tile(pane, "Status")
-      .querySelector(".row-card-label")
-      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));
+    expect(pane.element.querySelector(".row-card-page")?.classList.contains("is-arrangeable")).toBe(false);
+    moveRight(pane, "Status");
+    expect(deps.scheduleSave).not.toHaveBeenCalled();
+
+    pane.design?.toggle();
+    expect(pane.design?.isActive()).toBe(true);
+    moveRight(pane, "Status");
     expect(saved()?.card).toEqual([{ field: "take" }, { field: "status" }, { field: "tags" }]);
 
     const reading = await setup(classFile(), rows, { reading: true });
+    reading.pane.design?.toggle();
     open(reading.pane, 0);
     expect(reading.pane.element.querySelector(".row-card-page")?.classList.contains("is-arrangeable")).toBe(false);
-    tile(reading.pane, "Status")
-      .querySelector(".row-card-label")
-      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));
+    moveRight(reading.pane, "Status");
     expect(reading.deps.scheduleSave).not.toHaveBeenCalled();
+  });
+
+  it("locks the card's values in Design mode, leaving the list's to edit, and ends Design with the Class", async () => {
+    const { pane } = await setup();
+    pane.design?.toggle();
+    open(pane, 0);
+    expect(pane.element.querySelector(".row-card-value :is(input, select, textarea)")).toBeNull();
+    expect(tile(pane, "Take").querySelector(".row-card-value")?.textContent).toBe("2");
+    expect(pane.element.querySelector("tbody select")).not.toBeNull();
+
+    pane.design?.toggle();
+    expect(tile(pane, "Take").querySelector("input")?.value).toBe("2");
+
+    pane.design?.toggle();
+    await pane.setInput(
+      { kind: "class", path: "other.class.html" },
+      { isCurrent: () => true },
+      {
+        ...classFile(),
+        path: "other.class.html",
+      },
+    );
+    expect(pane.design?.isActive()).toBe(false);
   });
 
   it("follows its row to the place a sort moves it, its controls kept", async () => {

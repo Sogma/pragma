@@ -12,6 +12,7 @@ import { activeTitleFor } from "../core/documentContent.ts";
 import { isReadOnlyTab } from "../core/paths.ts";
 import type { FlowView } from "../flow/xyflowAdapter.ts";
 import { buildRunCount, el, iconButton, setRunCount } from "../lib/dom.ts";
+import { ROW_CARD_MENU } from "../rowCard.ts";
 import type { CommandContext, CommandRegistry } from "../services/commands.ts";
 import type { DialogService } from "../services/dialog.ts";
 import { type EditorPane, type EditorPaneRegistry, NO_CHROME, type PaneAction } from "../services/editorPanes.ts";
@@ -407,7 +408,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   }
   commands.register({
     id: "data.design",
-    label: "Design",
+    label: "Design mode",
     when: (context) => chromeAllows("data-design")(context) && !isReadOnlyTab(context.tab),
     run: toggleDesign,
   });
@@ -484,12 +485,16 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // `when` fails, and a read-only tab shows Design disabled, saying why the
   // shape is fixed.
   const designItem: MenuItem = {
-    label: "Design",
+    label: "Design mode",
     when: chromeAllows("data-design"),
     checked: () => deps.focused().currentMode() === "design",
     disabled: (context) => isReadOnlyTab(context.tab),
     run: toggleDesign,
   };
+
+  // A row's card lies over the pane, its backdrop over this menu's ⋮, so the
+  // card's own ⋮ holds the same item.
+  menus.register(ROW_CARD_MENU, [designItem]);
 
   menus.register("editor.toolbar", (context) => [
     { command: "editor.toggleFormat", checked: () => deps.formatColumn.get() },

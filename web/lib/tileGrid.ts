@@ -142,9 +142,14 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
     add(tile, size) {
       sizes.set(tile, size);
       applySpan(tile, size);
-      const handle = tile.querySelector<HTMLElement>(keyHandle) ?? tile;
-      handle.tabIndex = 0;
-      handle.setAttribute("aria-keyshortcuts", KEY_SHORTCUTS);
+      // A tile added while the grid can't be arranged gets no stop in the
+      // tab order and claims no keys, so Tab goes from field to field. A
+      // caller whose answer changes adds its tiles again.
+      if (!options.canArrange || options.canArrange()) {
+        const handle = tile.querySelector<HTMLElement>(keyHandle) ?? tile;
+        handle.tabIndex = 0;
+        handle.setAttribute("aria-keyshortcuts", KEY_SHORTCUTS);
+      }
       const grip = document.createElement("span");
       grip.className = `corner-grip ${prefix}-tile-grip`;
       tile.appendChild(grip);

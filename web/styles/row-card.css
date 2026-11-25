@@ -157,12 +157,46 @@
 .row-card-facts {
   position: sticky;
   bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 18px;
   padding: 6px 12px;
   background: linear-gradient(var(--media-hud-bg), var(--media-hud-bg)), var(--neutral-bg);
   color: var(--media-hud-fg);
   font-size: var(--small-font-size);
   font-variant-numeric: tabular-nums;
+}
+
+.row-card-facts-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The ⋮ at the bar's end, in the bar's colours as a picture's bar draws
+   its own; the negative margin keeps the bar as thin as its text. */
+.row-card-more {
+  flex: none;
+  margin: -5px -6px;
+  border-radius: var(--box-radius);
+  color: var(--media-hud-fg);
+}
+
+.row-card-more::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: var(--icon-more-vertical) center / contain no-repeat;
+}
+
+.row-card-more:hover,
+.row-card-more[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--media-hud-fg) 16%, transparent);
+  color: var(--media-hud-fg);
 }
 
 /* Arranging, as App Mode's tiles arrange (app-mode-arrange.css): dashed

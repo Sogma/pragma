@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { LibraryRow, Tab } from "../../../web/core/apiClient.ts";
 import { setLibraryPermissions } from "../../../web/core/libraries.ts";
 import type { FlowView } from "../../../web/flow/xyflowAdapter.ts";
+import { ROW_CARD_MENU } from "../../../web/rowCard.ts";
 import { createCommands } from "../../../web/services/commands.ts";
 import type { DialogService, PromptOptions } from "../../../web/services/dialog.ts";
 import { createEditorPanes, type EditorPane } from "../../../web/services/editorPanes.ts";
@@ -141,6 +142,7 @@ function setup(
     item,
     pick,
     palette,
+    menus,
     commands,
     keybindings,
     context,
@@ -159,7 +161,7 @@ describe("editorChrome modes", () => {
   it("a table's menu offers Design as a checkbox beside Layout, unchecked to start", () => {
     const { toolbar, readingToggle } = setup(table);
     expect(toolbar().map((entry) => [entry.label, entry.checked, entry.disabled])).toEqual([
-      ["Design", false, false],
+      ["Design mode", false, false],
       ["Layout", undefined, undefined],
     ]);
     expect(readingToggle.hidden).toBe(false);
@@ -170,23 +172,23 @@ describe("editorChrome modes", () => {
   it("picking Design leaves reading view, unchecking it returns to Edit, and Layout hides while designing", () => {
     const { chrome, pane, readingToggle, toolbar, item, pick } = setup(table);
     readingToggle.click();
-    pick("Design");
+    pick("Design mode");
     expect(pane.designing).toBe(true);
     expect(chrome.isReadingView()).toBe(false);
     expect(readingToggle.getAttribute("aria-pressed")).toBe("false");
-    expect(toolbar().map((entry) => [entry.label, entry.checked])).toEqual([["Design", true]]);
+    expect(toolbar().map((entry) => [entry.label, entry.checked])).toEqual([["Design mode", true]]);
     expect(pane.refresh).toHaveBeenCalled();
 
-    pick("Design");
+    pick("Design mode");
     expect(chrome.currentMode()).toBe("edit");
     expect(pane.designing).toBe(false);
-    expect(item("Design")?.checked).toBe(false);
+    expect(item("Design mode")?.checked).toBe(false);
     expect(item("Layout")).toBeDefined();
   });
 
   it("the toolbar button walks Read and Edit, and leaving Design by it drops Design", () => {
     const { chrome, pane, readingToggle, pick } = setup(table);
-    pick("Design");
+    pick("Design mode");
     readingToggle.click();
     expect(chrome.isReadingView()).toBe(true);
     expect(pane.designing).toBe(false);
@@ -211,8 +213,23 @@ describe("editorChrome modes", () => {
         .map((entry) => entry.label);
       expect(labels).not.toContain("Read");
       expect(labels).not.toContain("Edit");
-      expect(labels.includes("Design")).toBe(tab === table);
+      expect(labels.includes("Design mode")).toBe(tab === table);
     }
+  });
+
+  // A row's card covers the menu's ⋮, so its own ⋮ holds the same item.
+  it("puts Design mode on a row card's ⋮ too, where it switches the same mode", () => {
+    const { chrome, pane, context, menus } = setup(table);
+    const card = () => menus.resolve(ROW_CARD_MENU, context());
+    expect(card().map((entry) => [entry.label, entry.checked, entry.disabled])).toEqual([
+      ["Design mode", false, false],
+    ]);
+    card()[0].run?.(context(), undefined);
+    expect(pane.designing).toBe(true);
+    expect(chrome.currentMode()).toBe("design");
+    expect(card()[0].checked).toBe(true);
+    const other = setup(note);
+    expect(other.menus.resolve(ROW_CARD_MENU, other.context())).toEqual([]);
   });
 
   // Shown disabled rather than hidden, so the menu says why the shape is
@@ -223,12 +240,12 @@ describe("editorChrome modes", () => {
     const readOnly = setup(tab);
     expect(readOnly.chrome.isReadingView()).toBe(true);
     expect(readOnly.readingToggle.hidden).toBe(true);
-    expect(readOnly.item("Design")).toMatchObject({ checked: false, disabled: true });
+    expect(readOnly.item("Design mode")).toMatchObject({ checked: false, disabled: true });
     expect(readOnly.palette()).not.toContain("Toggle design mode");
 
     setLibraryPermissions([library("pool", "read-write")]);
     const writable = setup(tab);
-    expect(writable.item("Design")).toMatchObject({ checked: false, disabled: false });
+    expect(writable.item("Design mode")).toMatchObject({ checked: false, disabled: false });
     expect(writable.palette()).toContain("Toggle design mode");
   });
 });

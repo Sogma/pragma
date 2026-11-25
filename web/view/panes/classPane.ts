@@ -221,7 +221,7 @@ export function classPane({ menus, tabs, ...deps }: ClassPaneWiring): EditorPane
   registerClassMenu(menus);
   return {
     kind: "class",
-    chrome: { toolbar: true, readingView: true, statusbar: true, actions: [] },
+    chrome: { toolbar: true, readingView: true, statusbar: true, actions: ["data-design"] },
     create: (group) =>
       createClassPane({
         ...deps,
@@ -330,6 +330,9 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   // The rows the view shows, in the order shown, which a row's card steps
   // through.
   let displayed: ClassRow[] = [];
+  // Design mode governs the card alone: its tiles arrange and its values
+  // lock, while the list and its tools work as in Edit.
+  let designing = false;
 
   // A row's full card over the pane, its values its note's.
   const rowCard = createRowCard({
@@ -339,15 +342,15 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     card: () => open?.file.card,
     cell(field, index, { multiline }) {
       const row = displayed[index];
-      return row ? buildCell(field, row, multiline) : document.createElement("span");
+      return row ? buildCell(field, row, multiline, designing) : document.createElement("span");
     },
     title: (index) => displayed[index]?.title ?? "",
     source: () => open?.file.name || basenameOf(open?.file.path ?? "").replace(/\.class\.html$/, ""),
     pathOf: (index) => displayed[index]?.path,
     openBeside: deps.openBeside,
-    arrangeable: () => editable(),
+    arrangeable: () => designing && editable(),
     arrange(tiles) {
-      if (!open || !editable()) return;
+      if (!open || !designing || !editable()) return;
       open.file.card = tiles;
       save();
     },
@@ -355,6 +358,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       render();
       focusRowAt(element, index);
     },
+    contextMenu: deps.contextMenu,
   });
   wireRowSelection(element);
 
@@ -603,10 +607,12 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     return button;
   }
 
-  function buildCell(defined: TableColumn, row: ClassRow, multiline = false): HTMLElement {
+  // `locked` holds a value that could otherwise be set: a card's, in Design
+  // mode.
+  function buildCell(defined: TableColumn, row: ClassRow, multiline = false, locked = false): HTMLElement {
     const field = fieldAsRead(defined);
     const value = cellValue(field, rowValue(row, field.id));
-    const canSet = editable() && settable(row, field);
+    const canSet = editable() && !locked && settable(row, field);
     // A list has no editor until there is a list type. Tags are a list even
     // written as one bare value, as Properties reads them.
     if (value.items) return pills(field, value.items);
@@ -1495,6 +1501,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         linkPreview.close();
         media.close(false);
         rowCard.close(false);
+        designing = false;
       }
       open = { file, rows, view: another ? 0 : (open?.view ?? 0) };
       showProperties(file);
@@ -1507,6 +1514,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       linkPreview.close();
       media.close(false);
       rowCard.close(false);
+      designing = false;
       find.show(undefined);
       open = undefined;
       element.replaceChildren();
@@ -1528,6 +1536,13 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     },
     selectedFile: () => previewedFile(media.shownPath()),
     findable: () => (open ? "find" : undefined),
+    design: {
+      isActive: () => designing,
+      toggle() {
+        designing = !designing;
+        rowCard.refresh();
+      },
+    },
     openFind: () => find.open(),
     foldedTools: () => (toolbar.isFolded() ? { canAddNote: noteFolder() !== undefined } : undefined),
     openTool(tool) {

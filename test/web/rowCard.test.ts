@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CardTile, TableColumn } from "../../src/protocol/types.ts";
-import { createRowCard, type RowCardDeps } from "../../web/rowCard.ts";
+import { createRowCard, ROW_CARD_MENU, type RowCardDeps } from "../../web/rowCard.ts";
 
 // The tile grid measures itself as it is observed; here every grid is six
 // columns wide, so a tile shows the span it was given.
@@ -43,6 +43,7 @@ function card(overrides: Partial<RowCardDeps> = {}, tiles?: CardTile[]) {
   let arranged = tiles;
   let arrangeable = true;
   let rows = ROWS;
+  const menu = { open: vi.fn(), close: vi.fn(), isOpen: vi.fn((_anchor?: HTMLElement) => false) };
   const deps = {
     host,
     count: () => rows.length,
@@ -61,6 +62,7 @@ function card(overrides: Partial<RowCardDeps> = {}, tiles?: CardTile[]) {
       arranged = next;
     }),
     closed: vi.fn(),
+    contextMenu: menu,
     ...overrides,
   };
   const rowCard = createRowCard(deps);
@@ -70,7 +72,7 @@ function card(overrides: Partial<RowCardDeps> = {}, tiles?: CardTile[]) {
   const drop = (count: number) => {
     rows = ROWS.slice(0, count);
   };
-  return { host, preview, deps, rowCard, lock, drop };
+  return { host, preview, deps, menu, rowCard, lock, drop };
 }
 
 const page = () => document.querySelector(".row-card-page") as HTMLElement;
@@ -109,7 +111,7 @@ describe("createRowCard", () => {
       "Size",
       "Lens",
     ]);
-    expect(document.querySelector(".row-card-facts")?.textContent).toBe("Row 2 of 3 · Scene 12");
+    expect(document.querySelector(".row-card-facts-text")?.textContent).toBe("Row 2 of 3 · Scene 12");
     expect(document.activeElement).toBe(host);
   });
 
@@ -226,13 +228,34 @@ describe("createRowCard", () => {
     expect(tileOf("Shot")?.querySelector("textarea")?.value).toBe("12B");
   });
 
-  it("arranges nothing while it can't be arranged", () => {
+  it("arranges nothing while it can't be arranged, its labels no stop for Tab", () => {
     const { deps, rowCard, lock } = card();
     lock(true);
     rowCard.open(0);
     expect(page().classList.contains("is-arrangeable")).toBe(false);
-    key(tileOf("Frame")?.querySelector(".row-card-label") as Element, "ArrowRight", { altKey: true });
+    const label = tileOf("Frame")?.querySelector(".row-card-label") as HTMLElement;
+    expect([label.hasAttribute("tabindex"), label.hasAttribute("aria-keyshortcuts")]).toEqual([false, false]);
+    key(label, "ArrowRight", { altKey: true });
     expect(deps.arrange).not.toHaveBeenCalled();
+
+    lock(false);
+    rowCard.refresh();
+    const arrangeable = tileOf("Frame")?.querySelector(".row-card-label") as HTMLElement;
+    expect(arrangeable.tabIndex).toBe(0);
+  });
+
+  it("opens its own menu from the ⋮ along its foot, and closes it from there", () => {
+    const { menu, rowCard } = card();
+    rowCard.open(0);
+    const more = document.querySelector(".row-card-facts .row-card-more") as HTMLButtonElement;
+    expect(more.getAttribute("aria-label")).toBe("More options");
+    more.click();
+    expect(menu.open).toHaveBeenCalledWith(
+      expect.objectContaining({ menu: ROW_CARD_MENU, anchor: more, align: "end" }),
+    );
+    menu.isOpen.mockReturnValue(true);
+    more.click();
+    expect(menu.close).toHaveBeenCalled();
   });
 
   it("follows its row to a new place without drawing it again, and hands that place back", () => {
@@ -242,7 +265,7 @@ describe("createRowCard", () => {
     rowCard.moved(2);
     expect(rowCard.shown()).toBe(2);
     expect(document.querySelector(".row-card-value input")).toBe(control);
-    expect(document.querySelector(".row-card-facts")?.textContent).toBe("Row 3 of 3 · Scene 12");
+    expect(document.querySelector(".row-card-facts-text")?.textContent).toBe("Row 3 of 3 · Scene 12");
     key(host, " ");
     expect(deps.closed).toHaveBeenLastCalledWith(2);
   });

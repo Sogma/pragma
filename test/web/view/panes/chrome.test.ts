@@ -27,7 +27,7 @@ describe("pane chrome declarations", () => {
     ["document", documentPane(deps), { ...full, actions: ["add-property"] }],
     ["applet-source", appletSourcePane(deps), { ...full, readingView: false }],
     ["table", tablePane(deps), { ...full, actions: ["data-design"] }],
-    ["class", classPane({ menus: { register: vi.fn() } } as never), full],
+    ["class", classPane({ menus: { register: vi.fn() } } as never), { ...full, actions: ["data-design"] }],
     [
       "flow",
       flowPane(deps),

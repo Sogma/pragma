@@ -8,8 +8,14 @@ import { cardTiles } from "../src/protocol/card.ts";
 import type { CardTile, FieldValueType, TableColumn } from "../src/protocol/types.ts";
 import { OPEN_IN_NEW_TAB } from "./core/paths.ts";
 import { fieldTypeIcon } from "./lib/fieldTypeIcon.ts";
+import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPaneOverlay, swallowRest } from "./lib/paneOverlay.ts";
 import { createTileGrid, FULL_ROW, type TileGrid, type TileSize } from "./lib/tileGrid.ts";
+import type { ContextMenuService } from "./services/menus.ts";
+
+/** The menu of the ⋮ along a card's foot. The card's backdrop covers the
+ * pane's own ⋮, so what a card needs from that menu is registered here too. */
+export const ROW_CARD_MENU = "rowCard.more";
 
 export interface RowCardDeps {
   /** The pane's box, which the card lies over. */
@@ -29,13 +35,14 @@ export interface RowCardDeps {
   /** A row that is a file: its path, which the card opens in a new tab. */
   pathOf?(index: number): string | undefined;
   openBeside?(path: string): void;
-  /** Whether the card may be arranged now: never while reading, or in a
-   * file that can't be saved. */
+  /** Whether the card may be arranged now: in Design mode alone, and never
+   * in a file that can't be saved. */
   arrangeable(): boolean;
   /** The card arranged anew, for the pane to save. */
   arrange(tiles: CardTile[]): void;
   /** The card closed on the row at `index`, for the pane to show again. */
   closed(index: number): void;
+  contextMenu: Pick<ContextMenuService, "open" | "close" | "isOpen">;
 }
 
 export interface RowCard {
@@ -88,6 +95,7 @@ function unquiet(control: HTMLElement): HTMLElement {
 
 export function createRowCard(deps: RowCardDeps): RowCard {
   let grid: TileGrid | undefined;
+  let more: MoreOptionsButton | undefined;
   // The tiles shown, by element, in the order arranged.
   let placed = new Map<HTMLElement, CardTile>();
   let last: number | undefined;
@@ -101,6 +109,8 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     release() {
       grid?.dispose();
       grid = undefined;
+      more?.dispose();
+      more = undefined;
       placed = new Map();
     },
     shown(index) {
@@ -209,7 +219,14 @@ export function createRowCard(deps: RowCardDeps): RowCard {
 
     const facts = document.createElement("div");
     facts.className = "row-card-facts";
-    facts.textContent = factsText(index);
+    const place = document.createElement("span");
+    place.className = "row-card-facts-text";
+    place.textContent = factsText(index);
+    more = moreOptionsButton("row-card-more", (anchor) => {
+      if (deps.contextMenu.isOpen(anchor)) deps.contextMenu.close();
+      else deps.contextMenu.open({ menu: ROW_CARD_MENU, anchor, align: "end", ariaLabel: "More options" });
+    });
+    facts.append(place, more.element);
 
     page.append(head, grid.el, facts);
     return page;
@@ -251,8 +268,8 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     moved(index) {
       overlay.moved(index);
       last = index;
-      const facts = overlay.stage.querySelector(".row-card-facts");
-      if (facts) facts.textContent = factsText(index);
+      const place = overlay.stage.querySelector(".row-card-facts-text");
+      if (place) place.textContent = factsText(index);
     },
     close: (refocus = true) => overlay.close(refocus),
     // A control is bound to the row it was drawn for and the lock it was

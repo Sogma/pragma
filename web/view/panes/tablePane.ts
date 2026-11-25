@@ -363,10 +363,11 @@ export function createTableView(deps: TableViewDeps): TableView {
     return createCell(column, row.values[column.id] ?? "", set, readOnly, cellControls, options);
   }
 
-  // Values lock as the grid's do; the card's arrangement is the file's, so
-  // it locks only where nothing can be saved.
+  // Values lock as the grid's do. The card's layout is the Table's shape,
+  // so it is arranged in Design mode alone, as the columns are.
   const valuesLocked = (): boolean => deps.isReadingView() || activeTable?.file.locked !== undefined || designing;
-  const savable = (): boolean => !deps.isReadingView() && activeTable !== undefined && !activeTable.file.locked;
+  const arrangeable = (): boolean =>
+    designing && !deps.isReadingView() && activeTable !== undefined && !activeTable.file.locked;
 
   // A row's full card over the pane, its values the grid's own.
   const rowCard = deps.overlayHost
@@ -385,9 +386,9 @@ export function createTableView(deps: TableViewDeps): TableView {
           return text || `Row ${index + 1}`;
         },
         source: () => activeTable?.file.name || basenameOf(activeTable?.file.path ?? "").replace(/\.table\.html$/, ""),
-        arrangeable: savable,
+        arrangeable,
         arrange(tiles) {
-          if (!activeTable || !savable()) return;
+          if (!activeTable || !arrangeable()) return;
           activeTable.card = tiles;
           persistActiveTable();
         },
@@ -396,6 +397,7 @@ export function createTableView(deps: TableViewDeps): TableView {
           deps.onRendered();
           focusRowAt(deps.editorTable, index);
         },
+        contextMenu: deps.contextMenu,
       })
     : undefined;
   wireRowSelection(deps.editorTable);

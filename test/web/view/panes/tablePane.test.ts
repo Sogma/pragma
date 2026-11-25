@@ -521,23 +521,30 @@ describe("a row's card", () => {
     expect(saved.card).toBeUndefined();
   });
 
-  it("writes the card block once a tile moves, and arranges nothing while reading", async () => {
+  it("arranges in Design mode alone, its values locked there, and never while reading", async () => {
     const { pane, scheduleSave, setReadingView } = setup(takes());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
     open(pane, 0);
-    label(pane, "Take").dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }),
-    );
+    const page = () => pane.element.querySelector(".row-card-page") as HTMLElement;
+    const moveRight = (name: string) =>
+      label(pane, name).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }),
+      );
+    expect(page().classList.contains("is-arrangeable")).toBe(false);
+    moveRight("Take");
+    expect(scheduleSave).not.toHaveBeenCalled();
+
+    pane.design?.toggle();
+    expect(page().classList.contains("is-arrangeable")).toBe(true);
+    expect(pane.element.querySelector(".row-card-value input, .row-card-value select")).toBeNull();
+    moveRight("Take");
     expect(savedLast(scheduleSave).card).toEqual([{ field: "status" }, { field: "take" }]);
 
     scheduleSave.mockClear();
     setReadingView(true);
     expect(pane.hasTransient?.()).toBe(true);
-    expect(pane.element.querySelector(".row-card-value input, .row-card-value select")).toBeNull();
-    expect(pane.element.querySelector(".row-card-page")?.classList.contains("is-arrangeable")).toBe(false);
-    label(pane, "Status").dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }),
-    );
+    expect(page().classList.contains("is-arrangeable")).toBe(false);
+    moveRight("Status");
     expect(scheduleSave).not.toHaveBeenCalled();
   });
 
