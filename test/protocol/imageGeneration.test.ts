@@ -71,4 +71,31 @@ describe("callImageModel", () => {
       "aspect_ratio: asked for 16:10, used 3:2",
     ]);
   });
+
+  // The SDK deletes the gateway's own metadata entry's empty `images`, so an
+  // image from the gateway provider comes with an entry that has none.
+  it("returns the image when the gateway's own metadata entry has no images", async () => {
+    const gateway = { images: [], cost: "0.03" };
+    const model = new MockImageModelV4({
+      doGenerate: async () => ({
+        ...answer(),
+        providerMetadata: {
+          gateway,
+          test: { images: [{ notes: ["quality: used 2k"], cost: { amount: 0.12, unit: "credits" } }] },
+        },
+      }),
+    });
+    const result = await callImageModel(model, { prompt: "a red cup", references: [] });
+    expect(result.data).toEqual(PNG);
+    expect(result.notes).toEqual(["quality: used 2k"]);
+    expect(result.cost).toEqual({ amount: 0.12, unit: "credits" });
+
+    const alone = new MockImageModelV4({
+      doGenerate: async () => ({ ...answer(), providerMetadata: { gateway } }),
+    });
+    const only = await callImageModel(alone, { prompt: "a red cup", references: [] });
+    expect(only.data).toEqual(PNG);
+    expect(only.notes).toEqual([]);
+    expect(only.cost).toBeUndefined();
+  });
 });

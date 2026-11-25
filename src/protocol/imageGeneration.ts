@@ -54,10 +54,18 @@ export async function callImageModel(model: ProviderImageModel, request: ImageRe
     mediaType: result.image.mediaType,
     data: result.image.uint8Array,
     warnings: result.warnings.map(describeWarning),
-    notes: Object.values(result.providerMetadata ?? {}).flatMap((record) => record.images.flatMap(notesOf)),
+    notes: Object.values(result.providerMetadata ?? {}).flatMap((record) => imagesOf(record).flatMap(notesOf)),
     providerMetadata: result.providerMetadata,
     cost: costOf(result.providerMetadata),
   };
+}
+
+// A metadata entry's records, one per image. The gateway's own entry has
+// none, since the SDK deletes an empty `images` there; a read that assumed
+// the list would throw after the image was made and paid for, unsaved.
+function imagesOf(record: unknown): unknown[] {
+  const images = (record as { images?: unknown } | null)?.images;
+  return Array.isArray(images) ? images : [];
 }
 
 /** An adapter's `notes` on its metadata entry, as image and video put them. */
@@ -68,7 +76,7 @@ export function notesOf(entry: unknown): string[] {
 
 function costOf(metadata: ImageCallResult["providerMetadata"]): GenerationCost | undefined {
   for (const record of Object.values(metadata ?? {})) {
-    for (const image of record.images) {
+    for (const image of imagesOf(record)) {
       const cost = (image as { cost?: Partial<GenerationCost> } | null)?.cost;
       if (typeof cost?.amount === "number" && typeof cost.unit === "string") {
         return { amount: cost.amount, unit: cost.unit };
