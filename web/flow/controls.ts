@@ -17,7 +17,7 @@ import type { ContextMenuService } from "../services/menus.ts";
 // one `.nodrag` <select> with its change listener wired once.
 
 // Applies (or clears) a node's color. The card carries it as --node-color
-// plus .tinted, from which nodes.css draws the top edge and tints the body.
+// plus .tinted; nodes.css draws a card without .tinted in --border-color.
 export function applyNodeColor(cardEl: HTMLElement, color: string | undefined): void {
   if (color) cardEl.style.setProperty("--node-color", color);
   else cardEl.style.removeProperty("--node-color");

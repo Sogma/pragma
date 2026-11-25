@@ -11,28 +11,31 @@
      card's width, never its widest content's. */
   display: grid;
   grid-template: auto auto 1fr / minmax(0, 1fr);
-  /* Not --bg-primary: .flow-pane has no background of its own, so a card in
-     the base token blends into the canvas. --bg-secondary gives a subtler
-     lift than --bg-inset. */
-  background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--panel-radius);
   font-family: var(--font-default);
   cursor: grab;
   user-select: none;
-  box-shadow: var(--shadow-card);
 }
 
 .flow-node:active {
   cursor: grabbing;
 }
 
-/* A colored node: a 3px edge in its color along the top, as App mode's
-   tiles carry, and the color fading down the body as a share of the card's
-   height. It must stay above .running and .selected: all three set
-   border-color at equal specificity, and theirs must win. */
-.flow-node.tinted {
+/* A node's color: a 3px edge in it along the top, as App mode's tiles carry,
+   and the color fading down the body as a share of the card's height. A node
+   with none of its own draws in --border-color, so every card has the edge.
+   One class only: .running and .selected must outrank it, so their border wins.
+
+   The fade is over --bg-secondary, not --bg-primary: .flow-pane has no
+   background of its own, so a card in the base token blends into the canvas.
+   --bg-secondary gives a subtler lift than --bg-inset. */
+.flow-node:not(.tinted) {
+  --node-color: var(--border-color);
+}
+
+.flow-node {
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--node-color) 12%, var(--bg-secondary)),
