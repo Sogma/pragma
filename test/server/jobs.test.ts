@@ -17,6 +17,7 @@ const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({
   id,
   kind: "video",
   digest: "a".repeat(64),
+  take: 1,
   spaceId: "spc_1",
   document: "v.flow.html",
   folder: "clips",

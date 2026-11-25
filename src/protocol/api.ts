@@ -1938,9 +1938,11 @@ export interface JobStartRequestBody {
 
 // An image generation into `folder`, which must be the folder the document
 // declares. `references` go in pin order, and the host spells the prompt's
-// mentions of them for the model; `seed` is part of the result's name
-// whether or not the model takes one. `prefix` starts the result's file name
-// in place of "image".
+// mentions of them for the model. `prefix` starts the result's file name.
+//
+// `seed` is part of the result's digest whether or not the model takes one,
+// and take N sends it plus N - 1. `take` ends the name, blank for take 1;
+// `newTake` asks for one past the highest take of these inputs instead.
 export interface GenerateImageRequestBody extends JobStartRequestBody {
   folder: string;
   prompt: string;
@@ -1948,6 +1950,8 @@ export interface GenerateImageRequestBody extends JobStartRequestBody {
   model?: string;
   aspectRatio?: string;
   seed?: string;
+  take?: string;
+  newTake?: boolean;
   prefix?: string;
   // The prefix as typed on the node, placeholders and all, when no wire
   // brought it: what a result already made is matched against.
@@ -1962,15 +1966,16 @@ export interface GenerationCost {
   unit: string;
 }
 
-// The result, new or found already in the folder under the same inputs.
-// `model` is the resolved ref; `cost` is absent on a reused result, which
-// spent nothing, and when the provider names no price. `warnings` are about
-// settings the request sent, for the node; `notes` are what the provider
-// decided about the rest, for a record of the call.
+// The result, new or found already in the folder under the same inputs and
+// take. `model` is the resolved ref; `cost` is absent on a reused result,
+// which spent nothing, and when the provider names no price. `warnings` are
+// about settings the request sent, for the node; `notes` are what the
+// provider decided about the rest, for a record of the call.
 export interface GenerateImageResponse {
   image: PickedImagePayload;
   path: string;
   model: string;
+  take: number;
   reused: boolean;
   warnings: string[];
   notes?: string[];
@@ -1980,8 +1985,8 @@ export interface GenerateImageResponse {
 // A video generation into `folder`, the folder the document declares. The
 // frames are the clip's first and last; `references` go as an image
 // generation's do, and `videoReferences` beside them, never beside a frame. `resolution` is a size such as
-// `720p`, `duration` whole seconds; `take` names the result and never reaches
-// the model, and `prefix` starts its file name in place of "video".
+// `720p`, `duration` whole seconds; `take` and `newTake` name the result as an
+// image's do and never reach the model, and `prefix` starts its file name.
 //
 // `modelSettings` are the chosen model's own settings, by the names its
 // catalog gives them (ModelSetting).
@@ -1997,6 +2002,7 @@ export interface GenerateVideoRequestBody extends JobStartRequestBody {
   resolution?: string;
   duration?: string;
   take?: string;
+  newTake?: boolean;
   prefix?: string;
   prefixTyped?: string;
   modelSettings?: Record<string, ModelSettingValue>;
@@ -2004,13 +2010,14 @@ export interface GenerateVideoRequestBody extends JobStartRequestBody {
 
 export type SandboxGenerateVideoRequestBody = SandboxRequestBody & GenerateVideoRequestBody;
 
-// The clip, by its path only: it is too big to send back. `resumed` is a job
-// an earlier request started and stopped waiting on. `quote` is the price
-// asked before the job, which the charge can differ from. `warnings` and
-// `notes` split as an image's do.
+// The clip, by its path only: it is too big to send back. `take` is as an
+// image's. `resumed` is a job an earlier request started and stopped waiting
+// on. `quote` is the price asked before the job, which the charge can differ
+// from. `warnings` and `notes` split as an image's do.
 export interface GenerateVideoResponse {
   path: string;
   model: string;
+  take: number;
   reused: boolean;
   resumed: boolean;
   warnings: string[];
@@ -2019,10 +2026,11 @@ export interface GenerateVideoResponse {
 }
 
 /** What a generation route answers when no result is there yet: the job
- * making it, which the run then waits on through /api/jobs. `resumed` is a
- * job an earlier request started. */
+ * making it, which the run then waits on through /api/jobs, and the take it
+ * makes. `resumed` is a job an earlier request started. */
 export interface GenerationStarted {
   job: string;
+  take: number;
   resumed: boolean;
 }
 

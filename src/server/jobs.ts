@@ -21,9 +21,11 @@ export type JobKind = "video" | "image";
 export interface JobRecord {
   id: string;
   kind: JobKind;
-  // The full digest of the job's inputs: a run asking for the same ones
-  // joins this job instead of paying for another.
+  // The full digest of the job's inputs, and the take of them it makes: a
+  // run asking for the same inputs and take joins this job instead of paying
+  // for another.
   digest: string;
+  take: number;
   spaceId: string;
   // The document whose run started it, by its grant key, and the id that
   // run sent with the start.
@@ -33,9 +35,9 @@ export interface JobRecord {
   // time, and the folder as the node names it, for messages.
   folder: string;
   folderName: string;
-  // How the result's name begins: the prefix with its dates filled and any
-  // `{{$number}}` still to come, and the prefix as typed, placeholders and
-  // all, "" when blank (generatedResults.ts's ResultStart).
+  // How the result's name begins: the prefix with its dates filled, and the
+  // prefix as typed, placeholders and all, "" when blank
+  // (generatedResults.ts's ResultStart).
   stem: string;
   prefix: string;
   model: string;
@@ -93,6 +95,7 @@ function isJobRecord(value: unknown): value is JobRecord {
     typeof job?.id === "string" &&
     (job.kind === "video" || job.kind === "image") &&
     typeof job.digest === "string" &&
+    typeof job.take === "number" &&
     typeof job.spaceId === "string" &&
     typeof job.document === "string" &&
     typeof job.folder === "string" &&

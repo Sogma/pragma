@@ -80,7 +80,7 @@ import { type DeclaredVideoInputs, jobSettings, startVideoJob } from "../protoco
 import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol/videoResolution.ts";
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
-import { findResult, resultStart, saveResult } from "./generatedResults.ts";
+import { findResult, highestTake, resultStart, saveResult, takeOf } from "./generatedResults.ts";
 import { type GrantSubject, grantPath, isCapabilityGranted } from "./grants.ts";
 import { withHeaderReader } from "./headerReader.ts";
 import { writeDocument } from "./history.ts";
@@ -809,17 +809,23 @@ async function readVideoReferences(
  * started that job. */
 export type StartedImage =
   | { found: GenerateImageResponse }
-  | { job: JobRecord; resumed: boolean; folder: string; model: string };
+  | { job: JobRecord; resumed: boolean; folder: string; model: string; take: number };
+
+// The seed take N sends: the node's seed, 1 when blank, plus N - 1, so each
+// take differs on a model that follows a seed.
+function seedForTake(seed: string | undefined, take: number): number {
+  return (seed && /^\d+$/.test(seed) ? Number(seed) : 1) + take - 1;
+}
 
 /** Generates an image into the folder the document declares and has been
- * granted, or hands back the one already there for the same inputs. The
- * inputs are the resolved model ref, the prompt, the reference images'
+ * granted, or hands back the one already there for the same inputs and take.
+ * The inputs are the resolved model ref, the prompt, the reference images'
  * bytes, the aspect ratio and the seed; a result is found by their digest
- * in its name, so nothing about a run is written into the Flow.
+ * and its take in its name, so nothing about a run is written into the Flow.
  *
  * The `prefix` is not one of the inputs: a new prefix on the same inputs
- * copies the image to it rather than paying again. A file named by an older
- * scheme is found all the same, since only the digest is matched.
+ * copies the image to it rather than paying again. `newTake` asks for one
+ * past the highest take of these inputs in the folder.
  *
  * A model whose provider makes each image as a job has the job recorded and
  * followed, as a clip's is; any other makes it within the request. */
@@ -862,96 +868,99 @@ export async function startSandboxGenerateImage(
     .digest("hex");
   const digest = key.slice(0, 12);
   const start = resultStart(body.prefix, body.prefixTyped, IMAGE_NAME_EXTENSION);
-  // The image already made for these inputs, copied to this prefix's name
-  // when its own doesn't carry the prefix.
-  async function reuse(): Promise<StartedImage | undefined> {
-    const existing = await findResult(folderPath, digest, start);
-    if (!existing) return undefined;
-    const { found, carried } = existing;
-    const data = await readFile(path.join(folderPath, found));
-    const kept = carried ? found : path.basename(await saveResult(folderPath, start, digest, copyOf(data, found)));
-    const mediaType = rasterImageMediaTypeForPath(kept) ?? "application/octet-stream";
-    return {
-      found: {
-        image: { mediaType, data: data.toString("base64") },
-        path: `${folder}/${kept}`,
-        model,
-        reused: true,
-        warnings: [],
-      },
-    };
-  }
-
-  const seed = body.seed && /^\d+$/.test(body.seed) ? Number(body.seed) : undefined;
   const aspectRatio = body.aspectRatio as `${number}:${number}` | undefined;
   const jobs = resolved.jobs;
-  if (!jobs) {
-    // One request for these inputs at a time, or two at once would both pay:
-    // the next waits, then finds the image. Keyed by the digest, not the
-    // name, since a new prefix on the same inputs copies rather than pays.
-    return withFileLock(path.join(folderPath, digest), async () => {
-      const reused = await reuse();
-      if (reused) return reused;
-      let result: Awaited<ReturnType<typeof callImageModel>>;
-      try {
-        result = await callImageModel(resolved.model, { prompt, references, aspectRatio, seed, signal });
-      } catch (error) {
-        throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
-      }
-      const extension = extensionForMediaType(result.mediaType, RASTER_IMAGE_EXTENSIONS) ?? "png";
-      const written = await saveResult(folderPath, start, digest, async (base) => {
-        await writeFileAtomic(`${base}.${extension}`, result.data);
-        return `${base}.${extension}`;
-      });
-      const name = path.basename(written);
+
+  // One request for these inputs at a time: two at once would both pay for
+  // one take, or both pick the same next take. The next waits, then finds
+  // the image. Keyed by the digest, not the name, since a new prefix on the
+  // same inputs copies rather than pays.
+  return withFileLock(path.join(folderPath, digest), async (): Promise<StartedImage> => {
+    const take = body.newTake
+      ? 1 + Math.max(await highestTake(folderPath, digest), jobs ? await runner.highestTake(key) : 0)
+      : takeOf(body.take);
+    const existing = await findResult(folderPath, digest, take, start);
+    if (existing) {
+      // Copied to this prefix's name when its own doesn't carry the prefix.
+      const { found, carried } = existing;
+      const data = await readFile(path.join(folderPath, found));
+      const kept = carried
+        ? found
+        : path.basename(await saveResult(folderPath, start, digest, take, copyOf(data, found)));
+      const mediaType = rasterImageMediaTypeForPath(kept) ?? "application/octet-stream";
       return {
         found: {
-          image: { mediaType: result.mediaType, data: Buffer.from(result.data).toString("base64") },
-          path: `${folder}/${name}`,
+          image: { mediaType, data: data.toString("base64") },
+          path: `${folder}/${kept}`,
           model,
-          reused: false,
-          warnings: [...warnings, ...result.warnings],
-          ...(result.notes.length ? { notes: result.notes } : {}),
-          ...(result.cost ? { cost: result.cost } : {}),
+          take,
+          reused: true,
+          warnings: [],
         },
       };
-    });
-  }
+    }
 
-  const reused = await reuse();
-  if (reused) return reused;
-  const { job, resumed } = await beginOrJoin(
-    runner,
-    spaceRoot,
-    {
-      kind: "image",
-      digest: key,
-      document: doc.path,
-      ...(body.startId !== undefined ? { startId: body.startId } : {}),
-      folder: rooted,
-      folderName: folder,
-      stem: start.filled,
-      prefix: start.typed,
-      model,
-      summary: summaryOf(body.prompt),
-      settings: jobSettings({ aspectRatio: body.aspectRatio }),
-    },
-    async () => {
-      const started = await jobs.start({ prompt, references, aspectRatio, seed });
-      return { ...started, warnings: [...warnings, ...started.warnings] };
-    },
-  );
-  return { job, resumed, folder, model };
+    const seed = seedForTake(body.seed, take);
+    if (jobs) {
+      const { job, resumed } = await beginOrJoin(
+        runner,
+        spaceRoot,
+        {
+          kind: "image",
+          digest: key,
+          take,
+          document: doc.path,
+          ...(body.startId !== undefined ? { startId: body.startId } : {}),
+          folder: rooted,
+          folderName: folder,
+          stem: start.filled,
+          prefix: start.typed,
+          model,
+          summary: summaryOf(body.prompt),
+          settings: jobSettings({ aspectRatio: body.aspectRatio }),
+        },
+        async () => {
+          const started = await jobs.start({ prompt, references, aspectRatio, seed });
+          return { ...started, warnings: [...warnings, ...started.warnings] };
+        },
+      );
+      return { job, resumed, folder, model, take };
+    }
+
+    let result: Awaited<ReturnType<typeof callImageModel>>;
+    try {
+      result = await callImageModel(resolved.model, { prompt, references, aspectRatio, seed, signal });
+    } catch (error) {
+      throw new SandboxRequestError(502, error instanceof Error ? error.message : String(error));
+    }
+    const extension = extensionForMediaType(result.mediaType, RASTER_IMAGE_EXTENSIONS) ?? "png";
+    const written = await saveResult(folderPath, start, digest, take, async (base) => {
+      await writeFileAtomic(`${base}.${extension}`, result.data);
+      return `${base}.${extension}`;
+    });
+    return {
+      found: {
+        image: { mediaType: result.mediaType, data: Buffer.from(result.data).toString("base64") },
+        path: `${folder}/${path.basename(written)}`,
+        model,
+        take,
+        reused: false,
+        warnings: [...warnings, ...result.warnings],
+        ...(result.notes.length ? { notes: result.notes } : {}),
+        ...(result.cost ? { cost: result.cost } : {}),
+      },
+    };
+  });
 }
 
 /** What a run hands on once its image job saved `file`, as a clip's run
  * does: only the request that started the job reports what it cost. */
 async function imageResponse(
   spaceRoot: string,
-  started: { job: JobRecord; resumed: boolean; folder: string; model: string },
+  started: { job: JobRecord; resumed: boolean; folder: string; model: string; take: number },
   file: string,
 ): Promise<GenerateImageResponse> {
-  const { job, resumed, folder, model } = started;
+  const { job, resumed, folder, model, take } = started;
   const { filePath } = resolveHeldPath(spaceRoot, `${job.folder}/${file}`, "read");
   const data = await readFile(filePath);
   const provider = job.provider;
@@ -962,6 +971,7 @@ async function imageResponse(
     },
     path: `${folder}/${file}`,
     model,
+    take,
     reused: false,
     warnings: provider?.warnings ?? [],
     ...(!resumed && provider?.notes.length ? { notes: provider.notes } : {}),
@@ -990,10 +1000,10 @@ function summaryOf(prompt: string): string {
   return line.length > 120 ? `${line.slice(0, 119)}…` : line;
 }
 
-// The job `record`'s digest names: joined while one runs, else begun with
-// `start`, and followed by this host from here whether the caller waits or
-// not. Never stopped by a request's abort: a start stopped midway could
-// submit a job and never record it, paid for and lost.
+// The job `record`'s digest and take name: joined while one runs, else
+// begun with `start`, and followed by this host from here whether the caller
+// waits or not. Never stopped by a request's abort: a start stopped midway
+// could submit a job and never record it, paid for and lost.
 async function beginOrJoin(
   runner: JobRunner,
   spaceRoot: string,
@@ -1002,7 +1012,7 @@ async function beginOrJoin(
 ): Promise<{ job: JobRecord; resumed: boolean }> {
   const spaceId = findSpaceId(loadGlobalConfig(), spaceRoot);
   if (spaceId === undefined) throw new Error(`${spaceRoot} is not a registered space`);
-  let job = await runner.live(record.digest);
+  let job = await runner.live(record.digest, record.take);
   let resumed = job !== undefined;
   if (!job) {
     try {
@@ -1046,13 +1056,13 @@ async function collectJob(
  * to make it, with whether an earlier request started that job. */
 export type StartedVideo =
   | { found: GenerateVideoResponse }
-  | { job: JobRecord; resumed: boolean; folder: string; model: string };
+  | { job: JobRecord; resumed: boolean; folder: string; model: string; take: number };
 
 /** Finds the clip already in the folder the document declares and has been
- * granted for the same inputs, or starts the job that makes it: the resolved
- * model ref, the prompt, the frames' or references' bytes, the aspect ratio,
- * the resolution, the duration and the take. As for an image, a new `prefix`
- * copies the clip.
+ * granted for the same inputs and take, or starts the job that makes it: the
+ * resolved model ref, the prompt, the frames' or references' bytes, the
+ * aspect ratio, the resolution and the duration. As for an image, a new
+ * `prefix` copies the clip, and `newTake` asks for the next take.
  *
  * A job outlives the request that started it. It is recorded as it starts,
  * and the host saves its clip whether or not the request still waits, so a
@@ -1083,8 +1093,6 @@ export async function startSandboxGenerateVideo(
   }
   const duration = body.duration && /^\d+$/.test(body.duration) ? Number(body.duration) : undefined;
   const shortSide = body.resolution ? resolutionShortSide(body.resolution) : undefined;
-  // Take 1 is the first result, written blank, so going back to it finds it.
-  const take = body.take && /^\d+$/.test(body.take) && Number(body.take) > 1 ? String(Number(body.take)) : "";
   const asked = modelSettingValues(body.modelSettings);
   // In name order, so the digest doesn't follow the order a node saved them in.
   const modelSettings = Object.fromEntries(Object.entries(asked).sort(([a], [b]) => (a < b ? -1 : 1)));
@@ -1112,6 +1120,10 @@ export async function startSandboxGenerateVideo(
   const references = [...images.references, ...videos.map(({ mediaType, data }) => ({ mediaType, data }))];
   const warnings = [...frameWarnings, ...images.warnings, ...clips.warnings];
   const hashOf = (data: Uint8Array | undefined) => (data ? createHash("sha256").update(data).digest("hex") : "");
+  // The take stays out: it ends the name after the digest, so every take of
+  // these inputs shares one digest and the next take is found beside them.
+  // A field is left out while unused, so a clip made without it keeps its
+  // digest.
   const key = createHash("sha256")
     .update(
       JSON.stringify({
@@ -1119,78 +1131,90 @@ export async function startSandboxGenerateVideo(
         prompt,
         startFrame: hashOf(frames.start),
         endFrame: hashOf(frames.end),
-        // Each left out when none go, so a clip made without any keeps its name.
         ...(images.references.length
           ? { references: images.references.map((reference) => hashOf(reference.data)) }
           : {}),
         ...(videos.length ? { videoReferences: videos.map((video) => video.digest) } : {}),
         aspectRatio: body.aspectRatio ?? "",
-        // Left out at Default, never "", so a Default clip keeps its name.
         ...(shortSide ? { resolution: resolutionName(shortSide) } : {}),
         duration: duration ?? "",
-        take,
-        // Left out when none are set, so a clip made without any keeps its name.
         ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
       }),
     )
     .digest("hex");
   const digest = key.slice(0, 12);
   const start = resultStart(body.prefix, body.prefixTyped, VIDEO_NAME_EXTENSION);
-  const existing = await findResult(folderPath, digest, start);
-  if (existing) {
-    const { found, carried } = existing;
-    const kept = carried
-      ? found
-      : path.basename(
-          await saveResult(folderPath, start, digest, copyOf(createReadStream(path.join(folderPath, found)), found)),
-        );
-    return { found: { path: `${folder}/${kept}`, model, reused: true, resumed: false, warnings: [] } };
-  }
 
-  const { job, resumed } = await beginOrJoin(
-    runner,
-    spaceRoot,
-    {
-      kind: "video",
-      digest: key,
-      document: doc.path,
-      ...(body.startId !== undefined ? { startId: body.startId } : {}),
-      folder: rooted,
-      folderName: folder,
-      stem: start.filled,
-      prefix: start.typed,
-      model,
-      summary: summaryOf(body.prompt),
-      settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),
-    },
-    async () => {
-      const started = await startVideoJob(resolved.model, {
-        prompt,
-        startFrame: frames.start,
-        endFrame: frames.end,
-        references,
-        aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
-        resolution: shortSide ? resolutionSize(shortSide) : undefined,
-        duration,
-        modelSettings,
-      });
-      return { ...started, warnings: [...warnings, ...started.warnings] };
-    },
-  );
-  return { job, resumed, folder, model };
+  // One request for these inputs at a time, as for an image, so two new takes
+  // never pick the same number.
+  return withFileLock(path.join(folderPath, digest), async (): Promise<StartedVideo> => {
+    const take = body.newTake
+      ? 1 + Math.max(await highestTake(folderPath, digest), await runner.highestTake(key))
+      : takeOf(body.take);
+    const existing = await findResult(folderPath, digest, take, start);
+    if (existing) {
+      const { found, carried } = existing;
+      const kept = carried
+        ? found
+        : path.basename(
+            await saveResult(
+              folderPath,
+              start,
+              digest,
+              take,
+              copyOf(createReadStream(path.join(folderPath, found)), found),
+            ),
+          );
+      return { found: { path: `${folder}/${kept}`, model, take, reused: true, resumed: false, warnings: [] } };
+    }
+
+    const { job, resumed } = await beginOrJoin(
+      runner,
+      spaceRoot,
+      {
+        kind: "video",
+        digest: key,
+        take,
+        document: doc.path,
+        ...(body.startId !== undefined ? { startId: body.startId } : {}),
+        folder: rooted,
+        folderName: folder,
+        stem: start.filled,
+        prefix: start.typed,
+        model,
+        summary: summaryOf(body.prompt),
+        settings: jobSettings({ aspectRatio: body.aspectRatio, resolution: body.resolution, duration }),
+      },
+      async () => {
+        const started = await startVideoJob(resolved.model, {
+          prompt,
+          startFrame: frames.start,
+          endFrame: frames.end,
+          references,
+          aspectRatio: body.aspectRatio as `${number}:${number}` | undefined,
+          resolution: shortSide ? resolutionSize(shortSide) : undefined,
+          duration,
+          modelSettings,
+        });
+        return { ...started, warnings: [...warnings, ...started.warnings] };
+      },
+    );
+    return { job, resumed, folder, model, take };
+  });
 }
 
 /** What a run hands on once its job saved `file`. One job, one price: only
  * the request that started it reports the quote. */
 function videoResponse(
-  started: { job: JobRecord; resumed: boolean; folder: string; model: string },
+  started: { job: JobRecord; resumed: boolean; folder: string; model: string; take: number },
   file: string,
 ): GenerateVideoResponse {
-  const { job, resumed, folder, model } = started;
+  const { job, resumed, folder, model, take } = started;
   const provider = job.provider;
   return {
     path: `${folder}/${file}`,
     model,
+    take,
     reused: false,
     resumed,
     warnings: provider?.warnings ?? [],

@@ -69,7 +69,7 @@ function heldStarts() {
   vi.mocked(sandboxGenerateVideo).mockImplementation(
     () =>
       new Promise((resolve) => {
-        answers.push((job) => resolve({ job, resumed: false }));
+        answers.push((job) => resolve({ job, take: 1, resumed: false }));
       }),
   );
   vi.mocked(cancelJob).mockClear();

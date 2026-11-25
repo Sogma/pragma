@@ -17,10 +17,11 @@ vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   fetchModelOptions: vi.fn(async () => []),
   fetchImageModelOptions: vi.fn(async () => []),
   sandboxGenerate: vi.fn(async () => ({ reply: "a reply", model: "test/text" })),
-  sandboxGenerateImage: vi.fn(async () => ({
+  sandboxGenerateImage: vi.fn(async (_kind: string, _path: string, body: { newTake?: boolean }) => ({
     image: { mediaType: "image/png", data: "" },
     path: "out/result.png",
     model: "test/image",
+    take: body.newTake ? 3 : 1,
     reused: false,
     warnings: [],
   })),
@@ -351,6 +352,22 @@ describe("flowView Regenerate", () => {
     view.render(imageFlow("edited since"));
     expect(await regenerate()).toBe("as run");
   });
+
+  // The host picks the new take, one past the highest in the folder, and the
+  // node then holds it, so the next Run finds that take.
+  it("asks the host for a new take and writes the one it made into the node", async () => {
+    const { view, regenerate } = runnableView();
+    const file = imageFlow("a fox");
+    view.render(file);
+    await view.run();
+    expect(vi.mocked(sandboxGenerateImage).mock.calls.at(-1)?.[2]).not.toHaveProperty("newTake");
+    await regenerate();
+    expect(vi.mocked(sandboxGenerateImage).mock.calls.at(-1)?.[2]).toMatchObject({ newTake: true });
+    expect(file.graph.nodes[1].config.take).toBe("3");
+
+    await view.run();
+    expect(vi.mocked(sandboxGenerateImage).mock.calls.at(-1)?.[2]).toMatchObject({ take: "3" });
+  });
 });
 
 describe("flowView Reuse result on repeat", () => {
@@ -376,7 +393,7 @@ describe("flowView Reuse result on repeat", () => {
   });
 
   // Regenerate asks for a new reply though the inputs repeat, and the next
-  // Run holds that one. Only a type that finds its own results takes a seed.
+  // Run holds that one. Only a type that finds its own results has a take.
   it("Regenerate on a held node asks the model again, and the next Run holds the new reply", async () => {
     const calls = () => vi.mocked(sandboxGenerate).mock.calls.length;
     const { view, regenerate } = runnableView();
@@ -386,7 +403,7 @@ describe("flowView Reuse result on repeat", () => {
     const before = calls();
     await regenerate();
     expect(calls()).toBe(before + 1);
-    expect(file.graph.nodes[1].config.seed).toBeUndefined();
+    expect(file.graph.nodes[1].config.take).toBeUndefined();
 
     await view.run();
     expect(calls()).toBe(before + 1);
@@ -822,8 +839,8 @@ describe("flowView Disable", () => {
 });
 
 describe("flowView Regenerate on a disabled node", () => {
-  // It would run nothing, so it moves nothing on and asks for nothing.
-  it("leaves the seed as it was and makes no image call", async () => {
+  // It would run nothing, so it makes no take and asks for nothing.
+  it("leaves the take as it was and makes no image call", async () => {
     const calls = () => vi.mocked(sandboxGenerateImage).mock.calls.length;
     const { view, elements } = runnableView();
     const file = imageFlow("a fox");
@@ -831,13 +848,13 @@ describe("flowView Regenerate on a disabled node", () => {
     await view.run();
     const before = calls();
     file.graph.nodes[1].mode = "disabled";
-    file.graph.nodes[1].config.seed = "7";
+    file.graph.nodes[1].config.take = "7";
     view.render(file);
     const button = [...elements.pane.querySelectorAll("button")].find((b) => b.textContent === "Regenerate");
     expect(button).toBeDefined();
     button?.click();
     await tick();
-    expect(file.graph.nodes[1].config.seed).toBe("7");
+    expect(file.graph.nodes[1].config.take).toBe("7");
     expect(calls()).toBe(before);
   });
 });

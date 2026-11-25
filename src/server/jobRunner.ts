@@ -83,8 +83,11 @@ const cancelledText = (job: JobRecord) => `This job was cancelled, so its ${KIND
 export interface JobRunner {
   /** The model a run's ref resolves to, on this runner's providers. */
   model(ref: string | undefined): ResolvedVideoModel;
-  /** The job not yet ended for these inputs, if any. */
-  live(digest: string): Promise<JobRecord | undefined>;
+  /** The job not yet ended for these inputs and take, if any. */
+  live(digest: string, take: number): Promise<JobRecord | undefined>;
+  /** The highest take of these inputs that a job not yet ended makes; 0
+   * when none does. */
+  highestTake(digest: string): Promise<number>;
   /** Records a job as starting, starts it with `call`, and records it
    * running. A start already going for the same inputs is joined. A start
    * that throws leaves nothing recorded. */
@@ -131,6 +134,9 @@ function resolving<T>(resolve: () => T): T {
     throw new Unresolved(errorText(error));
   }
 }
+
+// A start under way in this process, by its inputs and take.
+const startKey = (digest: string, take: number) => `${digest}:${take}`;
 
 export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   const starting = new Map<string, Promise<JobRecord>>();
@@ -186,9 +192,9 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     const start = { filled: job.stem, typed: job.prefix };
     return withFileLock(path.join(folderPath, digest), async () => {
       // Another process, or a run with a new prefix, may have saved it.
-      const existing = await findResult(folderPath, digest, start);
+      const existing = await findResult(folderPath, digest, job.take, start);
       if (existing?.carried) return { file: existing.found };
-      const written = await saveResult(folderPath, start, digest, async (base) => {
+      const written = await saveResult(folderPath, start, digest, job.take, async (base) => {
         if (existing) {
           const copy = `${base}${path.extname(existing.found)}`;
           await writeFileAtomic(copy, createReadStream(path.join(folderPath, existing.found)));
@@ -323,14 +329,14 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     });
   }
 
-  async function live(digest: string): Promise<JobRecord | undefined> {
-    const ours = starting.get(digest);
+  async function live(digest: string, take: number): Promise<JobRecord | undefined> {
+    const ours = starting.get(startKey(digest, take));
     if (ours) return ours.catch(() => undefined);
     // A start under way in another process: wait for it to be recorded
     // running rather than pay for a second job.
     for (let waited = 0; ; waited += 1000) {
       const found = (await deps.store().list()).find(
-        (job) => job.digest === digest && (job.stage === "running" || job.stage === "starting"),
+        (job) => job.digest === digest && job.take === take && (job.stage === "running" || job.stage === "starting"),
       );
       if (!found || found.stage === "running") return found;
       if (deps.now() - found.startedAt > START_GRACE_MS || waited >= 2 * MINUTE) return undefined;
@@ -338,8 +344,21 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
     }
   }
 
+  async function highestTake(digest: string): Promise<number> {
+    let highest = 0;
+    for (const key of starting.keys()) {
+      if (key.startsWith(`${digest}:`)) highest = Math.max(highest, Number(key.slice(digest.length + 1)));
+    }
+    for (const job of await deps.store().list()) {
+      const live = job.stage === "running" || job.stage === "starting";
+      if (live && job.digest === digest) highest = Math.max(highest, job.take);
+    }
+    return highest;
+  }
+
   function begin(fields: NewJob, call: () => Promise<VideoJob>): Promise<{ job: JobRecord; joined: boolean }> {
-    const going = starting.get(fields.digest);
+    const key = startKey(fields.digest, fields.take);
+    const going = starting.get(key);
     if (going) return going.then((job) => ({ job, joined: true }));
     const started = (async (): Promise<JobRecord> => {
       const job: JobRecord = { ...fields, id: randomUUID(), stage: "starting", startedAt: deps.now() };
@@ -366,9 +385,9 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
       await deps.store().add(running);
       return running;
     })();
-    starting.set(fields.digest, started);
+    starting.set(key, started);
     const settled = () => {
-      if (starting.get(fields.digest) === started) starting.delete(fields.digest);
+      if (starting.get(key) === started) starting.delete(key);
     };
     started.then(settled, settled);
     return started.then((job) => ({ job, joined: false }));
@@ -423,6 +442,7 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
   return {
     model: deps.resolve,
     live,
+    highestTake,
     begin,
     follow: (job) => void followed(job),
     collect,

@@ -29,7 +29,8 @@ import { isolateConfig, tempSpace } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Image node: the grant, the folder, and reuse
-// by input digest. A mock model stands in for the configured providers.
+// by input digest and take. A mock model stands in for the configured
+// providers.
 
 const FLOW = `<!DOCTYPE html><html data-format="flow" data-format-version="1.0" data-id="flow_g"><head><script type="application/json" data-role="graph">${JSON.stringify(
   {
@@ -100,18 +101,18 @@ describe("performSandboxGenerateImage", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("generates into the folder, named by the prompt and a digest of the inputs", async () => {
+  it("generates into the folder, named by a digest of the inputs and take 1", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const result = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
 
-    expect(result.reused).toBe(false);
-    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}\.png$/);
+    expect(result).toMatchObject({ reused: false, take: 1 });
+    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}_0001\.png$/);
     expect(result.image).toEqual({ mediaType: "image/png", data: Buffer.from(PNG).toString("base64") });
     expect(result.warnings).toEqual(["aspect_ratio: asked for 16:10, used 3:2"]);
     expect(result.model).toBe("test/m");
     expect(result.cost).toEqual({ amount: 0.12, unit: "credits" });
     expect(readdirSync(path.join(space, "art"))).toEqual([path.basename(result.path)]);
-    expect(calls[0]).toMatchObject({ prompt: "A neon city at dusk, rain on the glass", aspectRatio: "16:10" });
+    expect(calls[0]).toMatchObject({ prompt: "A neon city at dusk, rain on the glass", aspectRatio: "16:10", seed: 1 });
   });
 
   it("hands back the result already there for the same inputs, without a call", async () => {
@@ -154,7 +155,7 @@ describe("performSandboxGenerateImage", () => {
     expect(calls).toHaveLength(1);
     expect([first.reused, second.reused, poster.reused]).toEqual([false, true, true]);
     expect(second.path).toBe(first.path);
-    expect(poster.path).toMatch(/^art\/poster_[0-9a-f]{12}\.png$/);
+    expect(poster.path).toMatch(/^art\/poster_[0-9a-f]{12}_0001\.png$/);
     expect(second.image).toEqual(first.image);
   });
 
@@ -171,10 +172,49 @@ describe("performSandboxGenerateImage", () => {
     expect(calls[1].seed).toBe(42);
   });
 
-  it('leads a result\'s name with its prefix in place of "image", keeping the digest', async () => {
+  // Take N sends the node's seed plus N - 1, so a model that follows a seed
+  // makes each take differently, and each take is its own file.
+  it("makes take 2 a file of its own with the next seed, and finds each take again", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const one = await performSandboxGenerateImage(space, flow, body({ seed: "40" }), undefined, resolve);
+    const two = await performSandboxGenerateImage(space, flow, body({ seed: "40", take: "2" }), undefined, resolve);
+
+    expect([one.take, two.take]).toEqual([1, 2]);
+    expect(two.path).toBe(one.path.replace(/_0001\.png$/, "_0002.png"));
+    expect(calls.map((call) => call.seed)).toEqual([40, 41]);
+    const again = await performSandboxGenerateImage(space, flow, body({ seed: "40" }), undefined, resolve);
+    expect(again).toMatchObject({ reused: true, take: 1, path: one.path });
+    expect(calls).toHaveLength(2);
+  });
+
+  // Regenerate asks for a new take: one past the highest of these inputs in
+  // the folder, whatever take the node holds, so going back to take 1 first
+  // never hands back take 2.
+  it("makes a new take one past the highest of these inputs in the folder", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const one = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
+    await performSandboxGenerateImage(space, flow, body({ take: "3" }), undefined, resolve);
+    const next = await performSandboxGenerateImage(space, flow, body({ take: "1", newTake: true }), undefined, resolve);
+
+    expect(next).toMatchObject({ reused: false, take: 4 });
+    expect(next.path).toBe(one.path.replace(/_0001\.png$/, "_0004.png"));
+    expect(calls.map((call) => call.seed)).toEqual([1, 3, 4]);
+  });
+
+  it("gives new takes asked for at once different numbers", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const takes = await Promise.all(
+      [1, 2, 3].map(() => performSandboxGenerateImage(space, flow, body({ newTake: true }), undefined, resolve)),
+    );
+    expect(takes.map((result) => result.take).sort()).toEqual([1, 2, 3]);
+    expect(readdirSync(path.join(space, "art"))).toHaveLength(3);
+    expect(calls).toHaveLength(3);
+  });
+
+  it("leads a result's name with its prefix, keeping the digest and take", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const result = await performSandboxGenerateImage(space, flow, body({ prefix: "shot-12" }), undefined, resolve);
-    expect(result.path).toMatch(/^art\/shot-12_[0-9a-f]{12}\.png$/);
+    expect(result.path).toMatch(/^art\/shot-12_[0-9a-f]{12}_0001\.png$/);
     expect(readdirSync(path.join(space, "art"))).toEqual([path.basename(result.path)]);
   });
 
@@ -187,7 +227,7 @@ describe("performSandboxGenerateImage", () => {
       undefined,
       resolve,
     );
-    expect(titled.path).toMatch(/^art\/Scene 12 - Rooftop_[0-9a-f]{12}\.png$/);
+    expect(titled.path).toMatch(/^art\/Scene 12 - Rooftop_[0-9a-f]{12}_0001\.png$/);
     const climbing = await performSandboxGenerateImage(
       space,
       flow,
@@ -195,7 +235,7 @@ describe("performSandboxGenerateImage", () => {
       undefined,
       resolve,
     );
-    expect(climbing.path).toMatch(/^art\/etc-passwd_[0-9a-f]{12}\.png$/);
+    expect(climbing.path).toMatch(/^art\/etc-passwd_[0-9a-f]{12}_0001\.png$/);
     expect(readdirSync(path.join(space, "art"))).toHaveLength(2);
   });
 
@@ -221,28 +261,26 @@ describe("performSandboxGenerateImage", () => {
     expect(readdirSync(path.join(space, "art"))).toHaveLength(1);
   });
 
-  // The run fills the date and the host the number as it saves; a run on
-  // another day finds what an earlier one made rather than copying it.
-  it("numbers results by their prefix and finds one made on another day without copying it", async () => {
+  // The run fills the date; a run on another day finds what an earlier one
+  // made rather than copying it.
+  it("finds a result made on another day without copying it", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
-    const prefixTyped = "shot_{{$number}}_{{$date:%y%m%d}}";
+    const prefixTyped = "shot_{{$date:%y%m%d}}";
     const shot = (fields: Partial<GenerateImageRequestBody>) =>
       performSandboxGenerateImage(space, flow, body({ prefixTyped, ...fields }), undefined, resolve);
-    const first = await shot({ prefix: "shot_{{$number}}_261121" });
-    expect(first.path).toMatch(/^art\/shot_0001_261121_[0-9a-f]{12}\.png$/);
-    expect(await shot({ prefix: "shot_{{$number}}_261122" })).toMatchObject({ reused: true, path: first.path });
-    const other = await shot({ prompt: "Another city", prefix: "shot_{{$number}}_261122" });
-    expect(other.path).toMatch(/^art\/shot_0002_261122_[0-9a-f]{12}\.png$/);
-    expect(readdirSync(path.join(space, "art"))).toHaveLength(2);
+    const first = await shot({ prefix: "shot_261121" });
+    expect(first.path).toMatch(/^art\/shot_261121_[0-9a-f]{12}_0001\.png$/);
+    expect(await shot({ prefix: "shot_261122" })).toMatchObject({ reused: true, path: first.path });
+    expect(readdirSync(path.join(space, "art"))).toHaveLength(1);
   });
 
-  // A result is matched by the digest ending its name, in any case, so a Run
-  // on the same inputs pays nothing whatever its name begins with.
+  // A result is matched by the digest and take ending its name, in any case,
+  // so a Run on the same inputs pays nothing whatever its name begins with.
   it("finds a result whatever its name begins with, its digest in any case", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const first = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
-    const digest = /_([0-9a-f]{12})\.png$/.exec(first.path)?.[1] ?? "";
-    const renamed = `art/a-neon-city-at-dusk-rain_${digest.toUpperCase()}.png`;
+    const digest = /_([0-9a-f]{12})_0001\.png$/.exec(first.path)?.[1] ?? "";
+    const renamed = `art/a-neon-city-at-dusk-rain_${digest.toUpperCase()}_0001.png`;
     renameSync(path.join(space, first.path), path.join(space, renamed));
     const again = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
     expect(again).toMatchObject({ reused: true, path: renamed });
@@ -251,7 +289,7 @@ describe("performSandboxGenerateImage", () => {
 
   // Only `_` comes before a digest: a result whose digest follows a hyphen
   // is not found, and its inputs are generated again.
-  it("no longer finds a result whose digest follows a hyphen", async () => {
+  it("doesn't find a result whose digest follows a hyphen", async () => {
     await grantCapability(space, flow.subject, "generateImage:space:art");
     const first = await performSandboxGenerateImage(space, flow, body(), undefined, resolve);
     renameSync(path.join(space, first.path), path.join(space, first.path.replace("art/_", "art/image-")));
@@ -408,11 +446,11 @@ describe("an image a provider makes as a job", () => {
       settings: { aspectRatio: "3:2" },
     });
     expect(starts).toEqual([
-      { prompt: "A neon city at dusk, rain on the glass", references: [], aspectRatio: "16:10", seed: undefined },
+      { prompt: "A neon city at dusk, rain on the glass", references: [], aspectRatio: "16:10", seed: 1 },
     ]);
     expect(calls).toEqual([]);
     await vi.waitFor(() => expect([...records.values()][0]?.stage).toBe("saved"));
-    expect(readdirSync(path.join(space, "art"))).toEqual([expect.stringMatching(/^_[0-9a-f]{12}\.png$/)]);
+    expect(readdirSync(path.join(space, "art"))).toEqual([expect.stringMatching(/^_[0-9a-f]{12}_0001\.png$/)]);
 
     // The same inputs again find the saved image, paying nothing.
     const again = await performSandboxGenerateImage(space, flow, body(), undefined, resolveJobs, runner);
@@ -446,8 +484,29 @@ describe("an image a provider makes as a job", () => {
       warnings: ["aspect_ratio: asked for 16:10, used 3:2"],
       notes: ["quality: used 2k (default for model)"],
       cost: { amount: 2, unit: "credits" },
+      take: 1,
     });
-    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}\.png$/);
+    expect(result.path).toMatch(/^art\/_[0-9a-f]{12}_0001\.png$/);
+  });
+
+  // A job still being made holds its take, so the next new take passes it.
+  it("counts a take still being made as a job when picking a new take", async () => {
+    await grantCapability(space, flow.subject, "generateImage:space:art");
+    const { resolveJobs, runner } = jobProvider(() => false);
+    const first = await startSandboxGenerateImage(space, flow, body({ newTake: true }), undefined, resolveJobs, runner);
+    const second = await startSandboxGenerateImage(
+      space,
+      flow,
+      body({ newTake: true }),
+      undefined,
+      resolveJobs,
+      runner,
+    );
+    if ("found" in first || "found" in second) throw new Error("expected jobs");
+    expect([first.take, second.take]).toEqual([1, 2]);
+    expect([first.job.take, second.job.take]).toEqual([1, 2]);
+    expect(second.job.id).not.toBe(first.job.id);
+    await Promise.all([runner.cancel(first.job.id), runner.cancel(second.job.id)]);
   });
 
   it("saves the image of a headless run that stopped waiting, with no request left", async () => {

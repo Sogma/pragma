@@ -239,6 +239,8 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
         model: typeof request.model === "string" ? request.model : undefined,
         aspectRatio: typeof request.aspectRatio === "string" ? request.aspectRatio : undefined,
         seed: typeof request.seed === "string" ? request.seed : undefined,
+        take: typeof request.take === "string" ? request.take : undefined,
+        newTake: request.newTake === true || undefined,
         prefix: typeof request.prefix === "string" ? request.prefix : undefined,
         prefixTyped: typeof request.prefixTyped === "string" ? request.prefixTyped : undefined,
         startId: readStartId(request.startId),
@@ -247,7 +249,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
     );
     if ("found" in started) return c.json<GenerateImageRouteResponse>(started.found);
     await jobRunner().watched([started.job.id]);
-    return c.json<GenerateImageRouteResponse>({ job: started.job.id, resumed: started.resumed });
+    return c.json<GenerateImageRouteResponse>({ job: started.job.id, take: started.take, resumed: started.resumed });
   });
 
   // Answers once the job is recorded, so no request holds a connection for a
@@ -276,13 +278,14 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
       resolution: optional(request.resolution),
       duration: optional(request.duration),
       take: optional(request.take),
+      newTake: request.newTake === true || undefined,
       prefix: optional(request.prefix),
       prefixTyped: optional(request.prefixTyped),
       startId: readStartId(request.startId),
     });
     if ("found" in started) return c.json<GenerateVideoRouteResponse>(started.found);
     await jobRunner().watched([started.job.id]);
-    return c.json<GenerateVideoRouteResponse>({ job: started.job.id, resumed: started.resumed });
+    return c.json<GenerateVideoRouteResponse>({ job: started.job.id, take: started.take, resumed: started.resumed });
   });
 
   sandboxRoute(

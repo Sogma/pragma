@@ -31,7 +31,7 @@ import { isolateConfig, tempSpace } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
 // The server half of a Generate Video node: the grant, the folder, reuse by
-// input digest, and a job recorded as it starts, whose clip the host saves
+// input digest and take, and a job recorded as it starts, whose clip the host saves
 // whether or not a request still waits. A mock model stands in for the
 // configured ones, and a map for the job store.
 
@@ -153,19 +153,20 @@ describe("performSandboxGenerateVideo", () => {
     expect(starts).toHaveLength(0);
   });
 
-  it('generates into the folder, named "video" and a digest, and records the job as delivered', async () => {
+  it("generates into the folder, named by a digest and take 1, and records the job as delivered", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const result = await run();
 
     expect(result).toMatchObject({
       model: "test/m",
+      take: 1,
       reused: false,
       resumed: false,
       warnings: ["duration: asked for 7, used 8"],
       notes: ["mode: used omni_reference"],
       quote: { amount: 2.4, unit: "credits" },
     });
-    expect(result.path).toMatch(/^clips\/_[0-9a-f]{12}\.mp4$/);
+    expect(result.path).toMatch(/^clips\/_[0-9a-f]{12}_0001\.mp4$/);
     expect([...readFileSync(path.join(space, result.path))]).toEqual([...MP4]);
     expect(starts[0]).toMatchObject({ prompt: "Steam rises from the red cup", aspectRatio: "16:9", duration: 7 });
     expect(starts[0].seed).toBeUndefined();
@@ -228,7 +229,7 @@ describe("performSandboxGenerateVideo", () => {
     finished = true;
     await vi.waitFor(() => expect(only().stage).toBe("saved"));
     expect(await startSandboxGenerateVideo(space, flow, body(), runner)).toEqual({
-      found: { path: `clips/${only().file}`, model: "test/m", reused: true, resumed: false, warnings: [] },
+      found: { path: `clips/${only().file}`, model: "test/m", take: 1, reused: true, resumed: false, warnings: [] },
     });
   });
 
@@ -292,7 +293,7 @@ describe("performSandboxGenerateVideo", () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const first = await run();
     const again = await run();
-    expect(again).toEqual({ path: first.path, model: "test/m", reused: true, resumed: false, warnings: [] });
+    expect(again).toEqual({ path: first.path, model: "test/m", take: 1, reused: true, resumed: false, warnings: [] });
     expect(starts).toHaveLength(1);
   });
 
@@ -300,11 +301,29 @@ describe("performSandboxGenerateVideo", () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const first = await run();
     const second = await run({ take: "2" });
-    expect(second.path).not.toBe(first.path);
+    expect(second).toMatchObject({ take: 2, path: first.path.replace(/_0001\.mp4$/, "_0002.mp4") });
     expect(await run({ take: "1" })).toMatchObject({ reused: true, path: first.path });
     expect(starts).toHaveLength(2);
     // The take names the result; the model never sees it.
     expect(starts[1]).toEqual(expect.objectContaining({ prompt: starts[0].prompt, seed: undefined }));
+  });
+
+  // Regenerate asks for a new take: one past the highest of these inputs in
+  // the folder or still being made, whatever take the node holds.
+  it("makes a new take one past the highest in the folder, counting one still being made", async () => {
+    await grantCapability(space, flow.subject, "generateVideo:space:clips");
+    const first = await run();
+    await run({ take: "3" });
+    status = async () => ({ status: "pending", response });
+    const next = await startSandboxGenerateVideo(space, flow, body({ take: "1", newTake: true }), runner);
+    const after = await startSandboxGenerateVideo(space, flow, body({ newTake: true }), runner);
+    if ("found" in next || "found" in after) throw new Error("expected jobs");
+    expect([next.take, after.take]).toEqual([4, 5]);
+    expect([next.job.take, after.job.take]).toEqual([4, 5]);
+
+    status = done;
+    await vi.waitFor(() => expect(readdirSync(path.join(space, "clips"))).toHaveLength(4));
+    expect(readdirSync(path.join(space, "clips"))).toContain(path.basename(first.path).replace("_0001", "_0005"));
   });
 
   it("sends a resolution as the SDK's frame size, and makes one file per size however it is written", async () => {
@@ -319,8 +338,9 @@ describe("performSandboxGenerateVideo", () => {
   });
 
   // A blank resolution joining the digest as "" would rename every Default
-  // clip, and the next run would pay for each again.
-  it("leaves a blank resolution out of the digest, so a Default clip keeps its name", async () => {
+  // clip, and the next run would pay for each again. The take ends the name
+  // instead.
+  it("leaves a blank resolution and the take out of the digest", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const digest = createHash("sha256")
       .update(
@@ -331,19 +351,19 @@ describe("performSandboxGenerateVideo", () => {
           endFrame: "",
           aspectRatio: "16:9",
           duration: 7,
-          take: "",
         }),
       )
       .digest("hex")
       .slice(0, 12);
-    expect((await run()).path).toBe(`clips/_${digest}.mp4`);
+    expect((await run()).path).toBe(`clips/_${digest}_0001.mp4`);
+    expect((await run({ take: "2" })).path).toBe(`clips/_${digest}_0002.mp4`);
   });
 
   it("copies the clip to a new prefix on the same inputs, without a job", async () => {
     await grantCapability(space, flow.subject, "generateVideo:space:clips");
     const hero = await run({ prefix: "hero.mp4" });
     const poster = await run({ prefix: "poster" });
-    expect(hero.path).toMatch(/^clips\/hero_[0-9a-f]{12}\.mp4$/);
+    expect(hero.path).toMatch(/^clips\/hero_[0-9a-f]{12}_0001\.mp4$/);
     expect(poster).toMatchObject({ reused: true, path: hero.path.replace("clips/hero_", "clips/poster_") });
     expect([...readFileSync(path.join(space, poster.path))]).toEqual([...MP4]);
     expect(starts).toHaveLength(1);

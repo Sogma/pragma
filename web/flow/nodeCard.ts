@@ -96,8 +96,6 @@ import {
 import {
   attachPlaceholderSuggestions,
   dateChoices,
-  isResultPrefix,
-  prefixChoices,
   promptChoices,
   promptPins,
   promptSuggestions,
@@ -938,8 +936,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         node.config[port.id] = input.value;
         deps.persistGraph();
       });
-      const choices = isResultPrefix(node, port.id) ? prefixChoices : dateChoices;
-      attachPlaceholderSuggestions(input, () => choices(new Date()));
+      attachPlaceholderSuggestions(input, () => dateChoices(new Date()));
       control = input;
     }
     control.classList.add("nodrag");

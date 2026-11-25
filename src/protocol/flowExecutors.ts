@@ -193,6 +193,11 @@ export interface NodeExecutionContext {
   /** The run's one clock reading, taken as it starts, which every date
    * placeholder it fills reads: a run across midnight names one day. */
   clock: ClockReading;
+  /** The node a Regenerate runs for: a type that finds its own results asks
+   * the host for a new take, and hands the take it got to `madeTake`, for an
+   * editor to write into the node. */
+  regenerating?: string;
+  madeTake?: (nodeId: string, take: number) => void;
 }
 
 /** A text generation as it settled: the host's answer, or what it failed
@@ -381,6 +386,8 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
   }
   const references = wiredReferences(inputs);
   checkMentions(prompt, "image", references);
+  const newTake = context.regenerating === node.id;
+  const take = newTake ? undefined : configuredTake(node);
 
   const granted = await context.ensureCapability({ type: "generateImage", path: folder });
   if (!granted) throw new Error(`Permission denied to generate images into "${folder}"`);
@@ -393,12 +400,14 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
     model,
     aspectRatio: aspectRatio || undefined,
     seed: configString(node, "seed").trim() || undefined,
+    ...(newTake ? { newTake } : { take }),
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
     prefixTyped: typedPrefix(node, inputs),
   };
   context.beginLlmActivity(model ?? "");
   try {
     const result = await context.sandbox.generateImage("flow", context.flowPath, request, context.signal);
+    if (newTake) context.madeTake?.(node.id, result.take);
     const notes = [...result.warnings, ...(result.notes ?? [])];
     context.spent?.(node.id, {
       media: "image",
@@ -427,6 +436,15 @@ const generateImage: NodeExecutor = async (node, inputs, context) => {
 // Whole seconds; a model snaps a length it doesn't make to the nearest it does.
 const WHOLE_NUMBER = /^\d+$/;
 
+// The take a node asks for, none for take 1.
+function configuredTake(node: FlowNodeInstance): string | undefined {
+  const take = configString(node, "take").trim();
+  if (take && !(WHOLE_NUMBER.test(take) && Number(take) > 0)) {
+    throw new Error(`Take "${take}" isn't a whole number, such as 2`);
+  }
+  return take || undefined;
+}
+
 const generateVideo: NodeExecutor = async (node, inputs, context) => {
   const folder = configString(node, "outputFolderPath");
   if (!folder) throw new Error("Drag the folder for results onto this node");
@@ -444,10 +462,8 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
   if (duration && !(WHOLE_NUMBER.test(duration) && Number(duration) > 0)) {
     throw new Error(`Duration "${duration}" isn't a whole number of seconds, such as 5`);
   }
-  const take = configString(node, "take").trim();
-  if (take && !(WHOLE_NUMBER.test(take) && Number(take) > 0)) {
-    throw new Error(`Take "${take}" isn't a whole number, such as 2`);
-  }
+  const newTake = context.regenerating === node.id;
+  const take = newTake ? undefined : configuredTake(node);
   const frame = (portId: string) => {
     const port = inputs[portId];
     return port?.type === "image" ? { mediaType: port.mediaType, data: port.data } : undefined;
@@ -488,7 +504,7 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
     aspectRatio: aspectRatio || undefined,
     resolution: resolution || undefined,
     duration: duration || undefined,
-    take: take || undefined,
+    ...(newTake ? { newTake } : { take }),
     prefix: resolveTextInput(inputs, node, "prefix", context).trim() || undefined,
     prefixTyped: typedPrefix(node, inputs),
   };
@@ -496,6 +512,7 @@ const generateVideo: NodeExecutor = async (node, inputs, context) => {
   context.beginLlmActivity(model ?? "");
   try {
     const result = await context.sandbox.generateVideo("flow", context.flowPath, request, context.signal);
+    if (newTake) context.madeTake?.(node.id, result.take);
     const notes = [...result.warnings, ...(result.notes ?? [])];
     context.spent?.(node.id, {
       media: "video",

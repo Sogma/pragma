@@ -6,7 +6,7 @@
 //
 // A cancelled run shows nothing more, and cancels the paid jobs it started.
 import { upstreamGraph } from "../../src/protocol/flowActions.ts";
-import { FLOW_NODE_REGISTRY, moveOnAfterRun, moveOnForRegenerate, nodesLeftOut } from "../../src/protocol/flowNodes.ts";
+import { FLOW_NODE_REGISTRY, moveOnAfterRun, nodesLeftOut, writeTake } from "../../src/protocol/flowNodes.ts";
 import { type RunHooks, runFlow } from "../../src/protocol/flowRuntime.ts";
 import type { FlowCapabilityDeclaration, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 import { cancelJob, type FlowFileResponse } from "../core/apiClient.ts";
@@ -60,8 +60,8 @@ export interface CanvasRunDeps
 export type CanvasRunHost = Pick<CanvasRunDeps, "openToSide">;
 
 export interface CanvasRun {
-  // With `regenerate`, that node runs alone and never from memory, moved on
-  // if its type finds its own results: what feeds it comes from the last
+  // With `regenerate`, that node runs alone and never from memory, as a new
+  // take if its type finds its own results: what feeds it comes from the last
   // run where it can, so a Generate Text upstream doesn't pay again. A node
   // no run has reached yet runs too, as the node's branch.
   run(regenerate?: string): Promise<void>;
@@ -143,15 +143,18 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     report();
   }
 
-  // Settled, as Regenerate's seed is: Undo takes back a person's edits, not
-  // what a run moved.
-  function moveOnAfter(id: string): void {
-    const node = deps.node(id);
-    if (!node || !moveOnAfterRun(node)) return;
+  // What a run wrote into a node, settled: Undo takes back a person's edits,
+  // not what a run moved.
+  function settle(id: string): void {
     deps.history.settled(deps.graph());
     deps.saves.persist();
     deps.remountNodes([id]);
     deps.appMode.showConfig([id]);
+  }
+
+  function moveOnAfter(id: string): void {
+    const node = deps.node(id);
+    if (node && moveOnAfterRun(node)) settle(id);
   }
 
   async function run(regenerate?: string): Promise<void> {
@@ -166,8 +169,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       window.alert(`This Flow uses ${formatVersionPhrase(flow.file.version)}, so it can't be run here.`);
       return;
     }
-    // Before Regenerate moves anything on: a node a run leaves out runs
-    // nothing, so its seed stays as the person last saw it.
+    // A node a run leaves out runs nothing, so Regenerate makes no take.
     if (regenerate && nodesLeftOut(deps.graph()).has(regenerate)) return;
 
     const number = (counted.get(flow.file.path) ?? 0) + 1;
@@ -190,11 +192,6 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     report();
     try {
       const regenerated = regenerate ? deps.node(regenerate) : undefined;
-      if (regenerated && moveOnForRegenerate(regenerated)) {
-        deps.history.settled(deps.graph());
-        deps.remountNodes([regenerated.id]);
-        deps.appMode.showConfig([regenerated.id]);
-      }
       const rerun = regenerated ? [regenerated.id] : undefined;
       deps.cards.clearRunState(rerun);
       deps.appMode.clearResults(rerun);
@@ -233,6 +230,11 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
         signal: state.controller.signal,
+        regenerating: regenerated?.id,
+        madeTake: (id, take) => {
+          const node = deps.flow() === flow ? deps.node(id) : undefined;
+          if (node && writeTake(node, take)) settle(id);
+        },
         jobStarting: (startId) => {
           state.starting++;
           state.starts.push(startId);

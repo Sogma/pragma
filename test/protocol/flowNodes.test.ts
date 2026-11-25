@@ -8,11 +8,11 @@ import {
   intValue,
   modelSettingValues,
   moveOnAfterRun,
-  moveOnForRegenerate,
   nodesLeftOut,
   stepInt,
   TEMPLATE_VARIABLES_MAX,
   wiredPathAccess,
+  writeTake,
 } from "../../src/protocol/flowNodes.ts";
 import type { FlowGraph, FlowNodeInstance, FlowPortType } from "../../src/protocol/types.ts";
 import { flowCapabilityKey, flowPortTypesCompatible } from "../../src/protocol/types.ts";
@@ -116,9 +116,9 @@ describe("FLOW_NODE_REGISTRY structural integrity", () => {
     ]);
   });
 
-  // A type that finds its own results is asked for another by changing one
-  // of its inputs, which it keeps in its config.
-  it("gives every type that finds its own results an input Regenerate moves on, and no other", () => {
+  // A type that finds its own results is asked for another as a new take,
+  // which it keeps in its config.
+  it("gives every type that finds its own results a take Regenerate writes, and no other", () => {
     for (const definition of Object.values(FLOW_NODE_REGISTRY)) {
       expect(definition.regenerate !== undefined, definition.type).toBe(definition.reuse === "always");
       if (definition.regenerate) expect(definition.configKeys).toContain(definition.regenerate.key);
@@ -152,7 +152,7 @@ describe("blankAsDefault", () => {
   });
 });
 
-describe("moveOnForRegenerate", () => {
+describe("writeTake", () => {
   const node = (type: string, config: Record<string, unknown> = {}): FlowNodeInstance => ({
     id: `${type}-1`,
     type,
@@ -160,23 +160,26 @@ describe("moveOnForRegenerate", () => {
     config,
   });
 
-  it("moves a video's take to the next whole number, counting a blank one as take 1", () => {
+  it("writes the take a Regenerate made into a video or an image, leaving the seed", () => {
     const video = node("generateVideo");
-    expect(moveOnForRegenerate(video)).toBe(true);
-    expect(video.config.take).toBe("2");
-    moveOnForRegenerate(video);
-    expect(video.config.take).toBe("3");
-    const typed = node("generateVideo", { take: "not a take" });
-    moveOnForRegenerate(typed);
-    expect(typed.config.take).toBe("2");
+    expect(writeTake(video, 4)).toBe(true);
+    expect(video.config.take).toBe("4");
+    const image = node("generateImage", { seed: "7", take: "2" });
+    expect(writeTake(image, 3)).toBe(true);
+    expect(image.config).toEqual({ seed: "7", take: "3" });
   });
 
-  it("gives an image a new seed, and changes nothing on a node that holds its result instead", () => {
-    const image = node("generateImage", { seed: "7" });
-    expect(moveOnForRegenerate(image)).toBe(true);
-    expect(image.config.seed).toMatch(/^\d+$/);
+  it("writes take 1 blank, and says when the node holds the take already", () => {
+    const video = node("generateVideo", { take: "3" });
+    expect(writeTake(video, 1)).toBe(true);
+    expect(video.config).toEqual({});
+    expect(writeTake(video, 1)).toBe(false);
+    expect(writeTake(node("generateVideo", { take: "5" }), 5)).toBe(false);
+  });
+
+  it("changes nothing on a node that holds its result instead", () => {
     const held = node("generateText", { reuse: "true" });
-    expect(moveOnForRegenerate(held)).toBe(false);
+    expect(writeTake(held, 2)).toBe(false);
     expect(held.config).toEqual({ reuse: "true" });
   });
 });

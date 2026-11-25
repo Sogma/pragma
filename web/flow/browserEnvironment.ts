@@ -64,6 +64,7 @@ async function generateVideo(
   return {
     path: job.result,
     model: job.model,
+    take: started.take,
     reused: false,
     resumed: started.resumed,
     warnings: job.warnings ?? [],
@@ -93,6 +94,7 @@ async function generateImage(
     },
     path: job.result,
     model: job.model,
+    take: started.take,
     reused: false,
     warnings: job.warnings ?? [],
     ...(!started.resumed && job.notes?.length ? { notes: job.notes } : {}),

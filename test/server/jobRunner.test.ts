@@ -49,6 +49,7 @@ const job = (id: string, fields: Partial<JobRecord> = {}): JobRecord => ({
   id,
   kind: "video",
   digest: "b".repeat(64),
+  take: 1,
   spaceId: "spc_1",
   document: "v.flow.html",
   folder: "clips",
@@ -106,14 +107,49 @@ describe("createJobRunner", () => {
     add(job("alone"));
     await runner.resume();
     await vi.waitFor(() => expect(records.get("alone")?.stage).toBe("saved"));
-    expect(records.get("alone")).toMatchObject({ delivered: false, owed: false, file: `_${"b".repeat(12)}.mp4` });
-    expect(readdirSync(path.join(space, "clips"))).toEqual([`_${"b".repeat(12)}.mp4`]);
+    expect(records.get("alone")).toMatchObject({ delivered: false, owed: false, file: `_${"b".repeat(12)}_0001.mp4` });
+    expect(readdirSync(path.join(space, "clips"))).toEqual([`_${"b".repeat(12)}_0001.mp4`]);
 
     add(job("waited", { digest: "c".repeat(64) }));
     expect(await runner.collect(job("waited", { digest: "c".repeat(64) }))).toEqual({
-      file: `_${"c".repeat(12)}.mp4`,
+      file: `_${"c".repeat(12)}_0001.mp4`,
     });
     expect(records.get("waited")?.delivered).toBe(true);
+  });
+
+  it("names a result by its take", async () => {
+    add(job("third", { take: 3 }));
+    expect(await runner.collect(job("third", { take: 3 }))).toEqual({ file: `_${"b".repeat(12)}_0003.mp4` });
+  });
+
+  it("tells live jobs apart by their take, and names the highest take one makes", async () => {
+    add(job("take 2", { take: 2 }));
+    add(job("take 5", { take: 5 }));
+    add(job("other inputs", { digest: "c".repeat(64), take: 9 }));
+    add(job("ended", { take: 7, stage: "saved", file: "x.mp4" }));
+    expect((await runner.live("b".repeat(64), 2))?.id).toBe("take 2");
+    expect(await runner.live("b".repeat(64), 3)).toBeUndefined();
+    expect(await runner.highestTake("b".repeat(64))).toBe(5);
+    expect(await runner.highestTake("d".repeat(64))).toBe(0);
+  });
+
+  it("starts another take of the same inputs as a job of its own, and joins the same take", async () => {
+    const { id: _id, stage: _stage, startedAt: _startedAt, ...first } = job("unused");
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const call = (name: string) => async (): Promise<VideoJob> => {
+      await gate;
+      return { operation: { job: name }, warnings: [], notes: [] };
+    };
+    const one = runner.begin(first, call("x"));
+    const two = runner.begin({ ...first, take: 2 }, call("y"));
+    const again = runner.begin(first, call("z"));
+    release();
+    const [a, b, c] = await Promise.all([one, two, again]);
+    expect([a.joined, b.joined, c.joined]).toEqual([false, false, true]);
+    expect(c.job.id).toBe(a.job.id);
+    expect(b.job).toMatchObject({ take: 2 });
+    expect(b.job.id).not.toBe(a.job.id);
   });
 
   it("names a clip for its type, and a clip whatever else its provider calls it", async () => {
@@ -125,12 +161,12 @@ describe("createJobRunner", () => {
     });
     status = sent("video/quicktime");
     add(job("mov"));
-    expect(await runner.collect(job("mov"))).toEqual({ file: `_${"b".repeat(12)}.mov` });
+    expect(await runner.collect(job("mov"))).toEqual({ file: `_${"b".repeat(12)}_0001.mov` });
 
     status = sent("image/png");
     const png = job("png", { digest: "c".repeat(64) });
     add(png);
-    expect(await runner.collect(png)).toEqual({ file: `_${"c".repeat(12)}.mp4` });
+    expect(await runner.collect(png)).toEqual({ file: `_${"c".repeat(12)}_0001.mp4` });
   });
 
   it("counts an outcome delivered and owed while a window's run waits on it", async () => {
@@ -216,11 +252,11 @@ describe("createJobRunner", () => {
   it("saves its own clip rather than copying one through a link under another prefix", async () => {
     const outside = tempDir("pragma-job-runner-outside-");
     writeFileSync(path.join(outside, "secret.txt"), "SECRET");
-    symlinkSync(path.join(outside, "secret.txt"), path.join(space, "clips", `_${"b".repeat(12)}.mp4`));
+    symlinkSync(path.join(outside, "secret.txt"), path.join(space, "clips", `_${"b".repeat(12)}_0001.mp4`));
 
     const poster = add(job("poster", { stem: "poster", prefix: "poster" }));
-    expect(await runner.collect(poster)).toEqual({ file: `poster_${"b".repeat(12)}.mp4` });
-    expect([...readFileSync(path.join(space, "clips", `poster_${"b".repeat(12)}.mp4`))]).toEqual([...MP4]);
+    expect(await runner.collect(poster)).toEqual({ file: `poster_${"b".repeat(12)}_0001.mp4` });
+    expect([...readFileSync(path.join(space, "clips", `poster_${"b".repeat(12)}_0001.mp4`))]).toEqual([...MP4]);
   });
 
   it("ends a job the provider ended, and gives up on one a week old", async () => {
@@ -312,7 +348,7 @@ describe("createJobRunner cancelling", () => {
     await new Promise((wake) => setTimeout(wake, 20));
     expect(records.get("given up")?.stage).toBe("cancelled");
     expect(readdirSync(path.join(space, "clips"))).toEqual([]);
-    expect(await runner.live(job("given up").digest)).toBeUndefined();
+    expect(await runner.live(job("given up").digest, 1)).toBeUndefined();
   });
 
   it("names what an image job makes when it is cancelled, and when its model can't be reached", async () => {

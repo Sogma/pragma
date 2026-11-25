@@ -6,10 +6,8 @@ import type { FlowGraph, FlowNodeInstance } from "../../../src/protocol/types.ts
 import {
   attachPlaceholderSuggestions,
   dateChoices,
-  isResultPrefix,
   matchingChoices,
   openPlaceholder,
-  prefixChoices,
   promptChoices,
   promptPins,
   promptSuggestions,
@@ -222,21 +220,5 @@ describe("a Prompt's editor", () => {
     rows()[0].click();
     expect(view.state.doc.toString()).toBe("Shot on {{$date:%A}}, like @image_1");
     view.destroy();
-  });
-});
-
-// A Generate node's prefix also takes the number the host gives a result.
-describe("a Generate node's prefix", () => {
-  it("offers the result's number first, then the dates, and only on a Generate node's prefix", () => {
-    const now = new Date(2026, 10, 12, 16, 40);
-    expect(prefixChoices(now)[0]).toEqual({
-      text: "{{$number}}",
-      detail: "Next free number in the folder, from 0001",
-    });
-    expect(prefixChoices(now).slice(1)).toEqual(dateChoices(now));
-    expect(isResultPrefix({ type: "generateVideo" }, "prefix")).toBe(true);
-    expect(isResultPrefix({ type: "generateImage" }, "prefix")).toBe(true);
-    expect(isResultPrefix({ type: "joinText" }, "prefix")).toBe(false);
-    expect(isResultPrefix({ type: "generateVideo" }, "prompt")).toBe(false);
   });
 });

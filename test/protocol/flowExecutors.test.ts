@@ -1261,6 +1261,7 @@ describe("the Generate Image node", () => {
     image: { mediaType: "image/png", data: PNG_BASE64 },
     path: "art/shot-12-0123456789ab.png",
     model: "higgsfield/soul_2",
+    take: 1,
     reused: false,
     warnings: ["aspect_ratio: asked for 16:10, used 3:2"],
     notes: ["quality: used 2k (default for model)"],
@@ -1329,21 +1330,48 @@ describe("the Generate Image node", () => {
     });
   });
 
-  // The host fills the number as it saves, and matches a result already made
-  // against the prefix as typed, so the run sends both.
-  it("sends a typed prefix filled and as typed, the number left for the host", async () => {
+  // The host matches a result already made against the prefix as typed, so
+  // the run sends it filled and as typed.
+  it("sends a typed prefix filled and as typed", async () => {
     const generateImage = vi.fn(async () => answer);
     await NODE_EXECUTORS.generateImage(
-      imageNode({ prefix: "shot_{{$number}}_{{$date:%y%m%d}}" }),
+      imageNode({ prefix: "shot_{{$date:%y%m%d}}" }),
       prompt,
       context({ sandbox: { ...context().sandbox, generateImage } }),
     );
     expect(generateImage).toHaveBeenCalledWith(
       "flow",
       "picture.flow.html",
-      expect.objectContaining({ prefix: "shot_{{$number}}_261109", prefixTyped: "shot_{{$number}}_{{$date:%y%m%d}}" }),
+      expect.objectContaining({ prefix: "shot_261109", prefixTyped: "shot_{{$date:%y%m%d}}" }),
       undefined,
     );
+  });
+
+  it("sends the take it holds, and on Regenerate asks for a new take and hands back the one it got", async () => {
+    const generateImage = vi.fn(async (..._args: unknown[]) => ({ ...answer, take: 4 }));
+    const madeTake = vi.fn();
+    const sandbox = { ...context().sandbox, generateImage };
+    await NODE_EXECUTORS.generateImage(imageNode({ take: "2" }), prompt, context({ sandbox, madeTake }));
+    expect(generateImage.mock.lastCall?.[2]).toMatchObject({ take: "2" });
+    expect(generateImage.mock.lastCall?.[2]).not.toHaveProperty("newTake");
+    expect(madeTake).not.toHaveBeenCalled();
+
+    await NODE_EXECUTORS.generateImage(
+      imageNode({ take: "2" }),
+      prompt,
+      context({ sandbox, madeTake, regenerating: "gen-1" }),
+    );
+    expect(generateImage.mock.lastCall?.[2]).toMatchObject({ newTake: true });
+    expect(generateImage.mock.lastCall?.[2]).not.toHaveProperty("take");
+    expect(madeTake).toHaveBeenCalledWith("gen-1", 4);
+  });
+
+  it("fails a take that isn't a whole number before asking for its folder", async () => {
+    const ensureCapability = vi.fn(async () => true);
+    await expect(
+      NODE_EXECUTORS.generateImage(imageNode({ take: "two" }), prompt, context({ ensureCapability })),
+    ).rejects.toThrow('Take "two" isn\'t a whole number, such as 2');
+    expect(ensureCapability).not.toHaveBeenCalled();
   });
 
   it("says when a result was found again rather than generated", async () => {
@@ -1605,6 +1633,7 @@ describe("the Generate Video node", () => {
   const answer = {
     path: "clips/shot-12-0123456789ab.mp4",
     model: "higgsfield/seedance1_5",
+    take: 1,
     reused: false,
     resumed: false,
     warnings: ["aspect_ratio: asked for 21:9, used 16:9 (closest supported aspect ratio)"],
@@ -1724,6 +1753,19 @@ describe("the Generate Video node", () => {
     ]);
   });
 
+  it("asks for a new take on Regenerate, whatever take it holds, and hands back the one it got", async () => {
+    const generateVideo = vi.fn(async (..._args: unknown[]) => ({ ...answer, take: 7 }));
+    const madeTake = vi.fn();
+    await NODE_EXECUTORS.generateVideo(
+      videoNode({ take: "not a take" }),
+      prompt,
+      context({ sandbox: sandbox(generateVideo), madeTake, regenerating: "clip-1" }),
+    );
+    expect(generateVideo.mock.lastCall?.[2]).toMatchObject({ newTake: true });
+    expect(generateVideo.mock.lastCall?.[2]).not.toHaveProperty("take");
+    expect(madeTake).toHaveBeenCalledWith("clip-1", 7);
+  });
+
   it("sends the node's model settings, and none when it keeps none", async () => {
     const generateVideo = vi.fn(async () => ({ ...answer, warnings: [] }));
     const run = (config: Record<string, unknown>) =>
@@ -1839,6 +1881,7 @@ describe("dates in typed text", () => {
       image: { mediaType: "image/png", data: PNG_BASE64 },
       path: "art/x.png",
       model: "m",
+      take: 1,
       reused: false,
       warnings: [],
     }));

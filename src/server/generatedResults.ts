@@ -3,23 +3,20 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileStemFor, isHiddenName } from "../protocol/entryName.ts";
 import { refuseLink } from "./rootedFiles.ts";
-import { withFileLock } from "./spaceFiles.ts";
 
-/** How a result's name begins, before `_` and its digest: the prefix as its
- * run filled the dates in, `{{$number}}` still to come, and as typed,
- * placeholders and all, which a result already made is matched against.
- * Both are "" for a blank prefix, which leaves the name's `_` first and
- * which every result found carries. */
+/** How a result's name begins, before `_`, its digest, `_` and its take: the
+ * prefix as its run filled the dates in, and as typed, placeholders and all,
+ * which a result already made is matched against. Both are "" for a blank
+ * prefix, which leaves the name's `_` first and which every result found
+ * carries. */
 export interface ResultStart {
   filled: string;
   typed: string;
 }
 
 // The placeholders the host fills, named in any case as every placeholder
-// is: the dates, and a result's number.
+// is.
 const PLACEHOLDERS = /\{\{\$[a-z]+(?::[^{}\n]*)?\}\}/gi;
-const NUMBER = /\{\{\$number\}\}/i;
-const NUMBERS = /\{\{\$number\}\}/gi;
 
 // The private-use characters a typed prefix's placeholders stand as while it
 // is repaired, so the repair never reaches inside one.
@@ -47,29 +44,34 @@ export function resultStart(filled: string | undefined, typed: string | undefine
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // A typed start as a pattern of names: its own words as they stand and each
-// placeholder any value, so a result made on another day, or numbered
-// earlier, still carries it. The first `{{$number}}` is caught.
+// placeholder any value, so a result made on another day still carries it.
 function startPattern(typed: string): string {
+  const text = typed.normalize("NFC");
   let pattern = "";
   let from = 0;
-  let caught = false;
-  for (const match of typed.normalize("NFC").matchAll(PLACEHOLDERS)) {
-    pattern += escapeRegExp(typed.normalize("NFC").slice(from, match.index));
-    if (NUMBER.test(match[0])) {
-      pattern += caught ? "\\d+" : "(\\d+)";
-      caught = true;
-    } else {
-      pattern += ".+?";
-    }
+  for (const match of text.matchAll(PLACEHOLDERS)) {
+    pattern += `${escapeRegExp(text.slice(from, match.index))}.+?`;
     from = match.index + match[0].length;
   }
-  return pattern + escapeRegExp(typed.normalize("NFC").slice(from));
+  return pattern + escapeRegExp(text.slice(from));
 }
 
-/** The file already in the folder for these inputs: one whose name ends in
- * `_`, the digest and an extension, in any case. One carrying `start` comes
- * first, and `carried` says whether the one found does; one that doesn't is
- * copied to the request's prefix.
+/** A request's take as a whole number: blank, or anything but a whole
+ * number from 1, is take 1. */
+export function takeOf(text: string | undefined): number {
+  const take = text && /^\d+$/.test(text) ? Number(text) : 1;
+  return Number.isSafeInteger(take) && take >= 1 ? take : 1;
+}
+
+// The end of a result's name for these inputs: `_`, the digest, `_`, the
+// take and an extension, in any case. A take matches by its number, so one
+// renamed with more or fewer leading zeros is the same take.
+const takeEnding = (digest: string, take: number | "any") =>
+  new RegExp(`_${digest}_${take === "any" ? "(\\d+)" : `0*${take}`}\\.[a-z0-9]+$`, "i");
+
+/** The file already in the folder for these inputs and this take. One
+ * carrying `start` comes first, and `carried` says whether the one found
+ * does; one that doesn't is copied to the request's prefix.
  *
  * Only a regular file is found: callers read it without resolving it again,
  * and a link can point anywhere. A link carrying the start refuses, as
@@ -78,9 +80,10 @@ function startPattern(typed: string): string {
 export async function findResult(
   folderPath: string,
   digest: string,
+  take: number,
   start: ResultStart,
 ): Promise<{ found: string; carried: boolean } | undefined> {
-  const ending = new RegExp(`_${digest}\\.[a-z0-9]+$`, "i");
+  const ending = takeEnding(digest, take);
   const carries = new RegExp(`^${startPattern(start.typed)}$`, "i");
   const carried = (entry: Dirent) =>
     start.typed === "" || carries.test(entry.name.normalize("NFC").replace(ending, ""));
@@ -94,25 +97,27 @@ export async function findResult(
   return found && { found: found.name, carried: carried(found) };
 }
 
-/** Saves a new result as its start, then `_` and the digest.
- * `{{$number}}` in the start becomes one past the highest number a
- * result in the folder has under the same typed start, four digits at least,
- * taken while no other save into the folder can. `write` gets the name's path
- * without an extension and answers the path it wrote. */
+/** The highest take any result in the folder has for these inputs, whatever
+ * its prefix; 0 when none has one. */
+export async function highestTake(folderPath: string, digest: string): Promise<number> {
+  const ending = takeEnding(digest, "any");
+  let highest = 0;
+  for (const name of await readdir(folderPath)) {
+    const take = isHiddenName(name) ? 0 : Number(ending.exec(name)?.[1] ?? 0);
+    if (Number.isSafeInteger(take)) highest = Math.max(highest, take);
+  }
+  return highest;
+}
+
+/** Saves a new result as its start, then `_`, the digest, `_` and the take,
+ * four digits at least. `write` gets the name's path without an extension
+ * and answers the path it wrote. */
 export async function saveResult(
   folderPath: string,
   start: ResultStart,
   digest: string,
+  take: number,
   write: (base: string) => Promise<string>,
 ): Promise<string> {
-  const base = (filled: string) => path.join(folderPath, `${filled}_${digest}`);
-  if (!NUMBER.test(start.filled)) return write(base(start.filled));
-  return withFileLock(path.join(folderPath, "{{$number}}"), async () => {
-    const numbered = new RegExp(`^${startPattern(start.typed || start.filled)}_[0-9a-f]{12}\\.[a-z0-9]+$`, "i");
-    let highest = 0;
-    for (const name of await readdir(folderPath)) {
-      highest = Math.max(highest, Number(numbered.exec(name.normalize("NFC"))?.[1] ?? 0));
-    }
-    return write(base(start.filled.replace(NUMBERS, String(highest + 1).padStart(4, "0"))));
-  });
+  return write(path.join(folderPath, `${start.filled}_${digest}_${String(take).padStart(4, "0")}`));
 }

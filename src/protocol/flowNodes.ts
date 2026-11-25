@@ -175,13 +175,14 @@ export interface FlowNodeTypeDefinition {
   // instance, so no saved graph can promote a node to a button.
   action?: boolean;
   // A run may hand back the node's earlier result instead of running it
-  // again. "always": the type finds its own earlier results by its inputs,
-  // so Regenerate changes `regenerate.key` to ask for another. "optional": a
-  // host that remembers runs keeps the last result, and the node's `reuse`
-  // turns reuse on. A host offers Regenerate by this flag, never by type name.
+  // again. "always": the type finds its own earlier results by its inputs
+  // and take, so Regenerate asks the host for a new take. "optional": a host
+  // that remembers runs keeps the last result, and the node's `reuse` turns
+  // reuse on. A host offers Regenerate by this flag, never by type name.
   reuse?: "always" | "optional";
-  // An "always" type's input that Regenerate moves on, and its next value.
-  regenerate?: { key: string; next: (current: string) => string };
+  // An "always" type's config key holding its take, where an editor writes
+  // the take a Regenerate made.
+  regenerate?: { key: string };
   // A config value an editor moves on once a run it started has run the
   // node, to what `next` gives; undefined leaves it. A run started anywhere
   // else moves nothing (docs/protocol.md, Execution).
@@ -774,8 +775,8 @@ const generateText: FlowNodeTypeDefinition = {
 // needn't follow the model.
 const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5", "21:9"];
 
-// Generate Image's next seed and Int's randomize. Under 2^31, since many
-// models take a seed as a signed 32-bit number.
+// Int's randomize. Under 2^31, since many models take a seed as a signed
+// 32-bit number.
 function randomSeed(): string {
   return String(1 + Math.floor(Math.random() * 2_147_483_646));
 }
@@ -786,9 +787,9 @@ function randomSeed(): string {
  * wire would be a write nothing granted. `prefix` may arrive on a wire
  * because it only starts a file name inside that folder, never a path.
  *
- * A result's name ends in a digest of its inputs, so an unchanged Run finds
- * it instead of paying again; `seed` is how Regenerate changes the inputs.
- * A random id there would pay on every Run. */
+ * A result's name ends in a digest of its inputs and its take, so an
+ * unchanged Run finds it instead of paying again, and Regenerate asks for
+ * the next take. A random id there would pay on every Run. */
 const generateImage: FlowNodeTypeDefinition = {
   type: "generateImage",
   label: "Generate Image (AI)",
@@ -812,15 +813,21 @@ const generateImage: FlowNodeTypeDefinition = {
       key: "seed",
       label: "Seed",
       type: "text",
-      description: "A number the model draws from. Regenerate picks a new one.",
+      description: "A number the model draws from for take 1, one more for each later take. Blank is 1.",
+    },
+    {
+      key: "take",
+      label: "Take",
+      type: "text",
+      description: "Which take of the image. Regenerate makes the next.",
     },
   ],
-  configKeys: ["outputFolderPath", "seed", IMAGE_REFERENCE_SLOTS.slotsKey],
-  regenerate: { key: "seed", next: randomSeed },
+  configKeys: ["outputFolderPath", "seed", "take", IMAGE_REFERENCE_SLOTS.slotsKey],
+  regenerate: { key: "take" },
   inputWidgets: [
     { portId: "model", type: "imageModel" },
     { portId: "aspect_ratio", type: "select", options: ASPECT_RATIOS, defaultValue: "1:1" },
-    { portId: "prefix", type: "text", defaultValue: "{{$number}}_{{$date:%y%m%d}}" },
+    { portId: "prefix", type: "text", defaultValue: "{{$date:%y%m%d}}" },
   ],
   capabilityFor: (config) => {
     const path = configString(config, "outputFolderPath");
@@ -838,8 +845,8 @@ const VIDEO_DURATIONS = ["3", "4", "5", "6", "8", "10", "12", "15"];
 
 /** Generates a clip into a folder dragged onto the node, as generateImage
  * does an image (docs/flow-nodes.md's "generateVideo" section). The clip
- * leaves by its `path`. No video model takes a seed, so a `take` that never
- * reaches the model names each new result. */
+ * leaves by its `path`. No video model takes a seed, so the take never
+ * reaches the model and only names each result. */
 const generateVideo: FlowNodeTypeDefinition = {
   type: "generateVideo",
   label: "Generate Video (AI)",
@@ -870,7 +877,7 @@ const generateVideo: FlowNodeTypeDefinition = {
       key: "take",
       label: "Take",
       type: "text",
-      description: "Which take of the clip, never sent to the model. Regenerate moves it on.",
+      description: "Which take of the clip, never sent to the model. Regenerate makes the next.",
     },
   ],
   configKeys: [
@@ -881,16 +888,13 @@ const generateVideo: FlowNodeTypeDefinition = {
     "removedFrames",
     "modelSettings",
   ],
-  regenerate: {
-    key: "take",
-    next: (current) => String((/^\d+$/.test(current) ? Math.max(1, Number(current)) : 1) + 1),
-  },
+  regenerate: { key: "take" },
   inputWidgets: [
     { portId: "model", type: "videoModel" },
     { portId: "aspect_ratio", type: "select", options: VIDEO_ASPECT_RATIOS, defaultValue: "1:1" },
     { portId: "resolution", type: "select", options: VIDEO_RESOLUTIONS, defaultValue: "480p" },
     { portId: "duration", type: "select", options: VIDEO_DURATIONS, defaultValue: "3" },
-    { portId: "prefix", type: "text", defaultValue: "{{$number}}_{{$date:%y%m%d}}" },
+    { portId: "prefix", type: "text", defaultValue: "{{$date:%y%m%d}}" },
   ],
   capabilityFor: (config) => {
     const path = configString(config, "outputFolderPath");
@@ -1445,12 +1449,14 @@ export function affixModeOf(node: FlowNodeInstance): AffixMode {
   return FLOW_NODE_REGISTRY[node.type]?.affix?.fallback ?? "prepend";
 }
 
-/** Moves a node's regenerate input on, so its next run asks for a new result
- * rather than finding the last one; false for a type that has none. */
-export function moveOnForRegenerate(node: FlowNodeInstance): boolean {
-  const moveOn = FLOW_NODE_REGISTRY[node.type]?.regenerate;
-  if (!moveOn) return false;
-  node.config[moveOn.key] = moveOn.next(configString(node.config, moveOn.key));
+/** Writes the take a Regenerate made into its node, so the next Run finds
+ * that take; take 1 goes blank, as clearing the take finds the first. False
+ * for a type with no take, or when the node holds that take already. */
+export function writeTake(node: FlowNodeInstance, take: number): boolean {
+  const key = FLOW_NODE_REGISTRY[node.type]?.regenerate?.key;
+  if (!key || configString(node.config, key).trim() === (take > 1 ? String(take) : "")) return false;
+  if (take > 1) node.config[key] = String(take);
+  else delete node.config[key];
   return true;
 }
 

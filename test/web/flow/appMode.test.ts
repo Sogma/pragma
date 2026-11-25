@@ -1034,18 +1034,18 @@ describe("an exposed Int in App mode", () => {
   });
 
   // A run moves a value on under the form's own control: an Int's value
-  // after the run, a Generate Image's seed on Regenerate.
+  // after the run, a Generate Image's take on Regenerate.
   it("shows a value a run moved on, from the node's config", () => {
     const int = node("int", { value: "4" }, ["value"]);
-    const image = { ...node("generateImage", { seed: "7" }, ["seed"]), id: "generateImage-2" };
+    const image = { ...node("generateImage", { take: "2" }, ["take"]), id: "generateImage-2" };
     const { appMode, elements } = setup([int, image]);
     appMode.setActive(true);
     int.config.value = "9";
-    image.config.seed = "8";
+    image.config.take = "5";
     appMode.showConfig(["int-1", "generateImage-2"]);
     expect(elements.appModePane.querySelector<HTMLInputElement>(".flow-int-stepper input")?.value).toBe("9");
-    const seed = elements.appModePane.querySelector<HTMLInputElement>('[data-node-id="generateImage-2"] input');
-    expect(seed?.value).toBe("8");
+    const take = elements.appModePane.querySelector<HTMLInputElement>('[data-node-id="generateImage-2"] input');
+    expect(take?.value).toBe("5");
   });
 });
 
