@@ -39,7 +39,7 @@ import type { ContextMenuService } from "../services/menus.ts";
 import type { ModelConsole } from "../services/modelConsole.ts";
 import type { ModelLists } from "../services/modelLists.ts";
 import { injectAppletNodeRuntime } from "../services/sandboxHost.ts";
-import { createAppMode } from "./appMode.ts";
+import { type AppMode, createAppMode } from "./appMode.ts";
 import { type NodeConfig, paneFlowPosition, wireCanvasDrop } from "./canvasDrop.ts";
 import { type CanvasRunHost, type CanvasRunInfo, createCanvasRun } from "./canvasRun.ts";
 import { createCanvasView } from "./canvasView.ts";
@@ -112,13 +112,11 @@ export interface FlowView {
   run(): Promise<void>;
   setRunCount(count: number): void;
   showPermissionsPanel(): void;
-  // App mode — the published-form counterpart to the graph canvas (see
-  // docs/protocol.md's App mode section): renders exactly the fields marked
-  // Expose as a plain form, inputs editable, output pins read-only until Run
-  // populates them. main.ts owns the toggle button's chrome
-  // (aria-pressed/title), reading the state back after every toggle.
+  // App mode: the fields marked Expose as a form (docs/protocol.md's App mode
+  // section). Design mode arranges it, and leaving App mode ends that.
   toggleAppMode(): void;
   isAppModeActive(): boolean;
+  appModeDesign: Pick<AppMode, "isDesigning" | "setDesigning">;
   // The view shown against the Flow's default view, its file's `viewport`
   // and `appModeActive`: whether they differ where the file takes a write,
   // and making the shown one the default with an awaited save.
@@ -759,6 +757,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
       deps.onAppModeChange(appMode.isActive());
     },
     isAppModeActive: () => appMode.isActive(),
+    appModeDesign: appMode,
     defaultViewDiffers: () =>
       activeFlow !== undefined &&
       !locked() &&

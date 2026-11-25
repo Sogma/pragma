@@ -29,7 +29,7 @@ Open [[sample-scene]], select a sentence or two in the story, and click **Tighte
 
 ## Look inside
 
-In Story Expander, unchecking **App mode** in the `⋮` menu shows the wiring. The starter and the dials' direction fill the Scene prompt's placeholders through Template Variables, then go to Generate and Show Text. Edit the Scene prompt's text to change what the AI is told.
+In Story Expander, the toolbar's **Switch to Graph mode** toggle, left of `⋮`, shows the wiring. The starter and the dials' direction fill the Scene prompt's placeholders through Template Variables, then go to Generate and Show Text. Edit the Scene prompt's text to change what the AI is told.
 
 In the toolkit, a click starts at its Button and runs only the branch wired after it. Each Button's comment appears on hover; right-click its node title and pick **Comment…** to edit it.
 

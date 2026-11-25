@@ -60,6 +60,16 @@ function buildToolbar() {
   flowRun.hidden = true;
   flowRun.innerHTML = `${PLAY_ICON}<span>Run</span>`;
 
+  // A Flow's main view switch, where a note's reading toggle sits, and like
+  // it: the icon names where a click goes, the tiles from the graph and the
+  // graph's glyph from App mode, and aria-pressed marks App mode.
+  const appModeToggle = iconButton("editor-toolbar-app-toggle", "Switch to App mode");
+  appModeToggle.setAttribute("aria-pressed", "false");
+  appModeToggle.hidden = true;
+  const appModeIcon = document.createElement("span");
+  appModeIcon.className = "editor-toolbar-toggle-icon editor-toolbar-app-icon";
+  appModeToggle.append(appModeIcon);
+
   const menuButton = iconButton("", "More options");
   menuButton.setAttribute("aria-haspopup", "true");
   menuButton.setAttribute("aria-expanded", "false");
@@ -69,10 +79,10 @@ function buildToolbar() {
   const paneControls = document.createElement("div");
   paneControls.className = "editor-toolbar-pane";
 
-  box.append(paneControls, readingToggle, flowRun, menuButton);
+  box.append(paneControls, readingToggle, flowRun, appModeToggle, menuButton);
   end.append(box, below);
   toolbar.append(aside, end);
-  return { toolbar, aside, box, below, paneControls, readingToggle, flowRun, menuButton };
+  return { toolbar, aside, box, below, paneControls, readingToggle, flowRun, appModeToggle, menuButton };
 }
 
 export interface EditorChromeDeps {
@@ -121,6 +131,9 @@ export interface EditorChrome {
    * toolbar's own copy hides rather than offering two ways to run, and the
    * run count with it. */
   refreshFlowRun(): void;
+  /** Switches the mounted Flow between the graph and App mode: the
+   * toolbar's toggle and the palette's command alike. */
+  toggleAppMode(): void;
   setFlowRuns(count: number): void;
   currentMode(): EditorMode;
   setMode(mode: EditorMode): void;
@@ -163,7 +176,22 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
   function refreshFlowRun(): void {
     const flow = deps.activeFlowView();
     elements.flowRun.hidden = !flow || flow.isAppModeActive();
+    drawAppModeToggle();
     drawRunCount();
+  }
+
+  function drawAppModeToggle(): void {
+    const on = deps.activeFlowView()?.isAppModeActive() ?? false;
+    elements.appModeToggle.setAttribute("aria-pressed", String(on));
+    elements.appModeToggle.setAttribute("aria-label", on ? "Switch to Graph mode" : "Switch to App mode");
+  }
+
+  function toggleAppMode(): void {
+    deps.activeFlowView()?.toggleAppMode();
+    refreshFlowRun();
+    // The title bar moves between the canvas (a fixed banner over it) and
+    // the App mode pane (scrolls with the form).
+    refreshTitle();
   }
 
   function drawRunCount(): void {
@@ -221,6 +249,7 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
   });
   elements.readingToggle.addEventListener("click", toggleReadingView);
   elements.flowRun.addEventListener("click", () => void deps.activeFlowView()?.run());
+  elements.appModeToggle.addEventListener("click", toggleAppMode);
 
   return {
     toolbar: elements.toolbar,
@@ -234,6 +263,8 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
       // the pane that declares it shows it on render; the chrome only ever
       // clears it.
       if (!chrome.actions.includes("flow-run")) elements.flowRun.hidden = true;
+      elements.appModeToggle.hidden = !chrome.actions.includes("flow-app-mode");
+      drawAppModeToggle();
       drawRunCount();
     },
     mountPane(pane) {
@@ -251,6 +282,7 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
     },
     refreshTitle,
     refreshFlowRun,
+    toggleAppMode,
     setFlowRuns(count) {
       runs = count;
       drawRunCount();
@@ -399,9 +431,12 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     run: (context) => context.pane?.openFind?.(true),
   });
   // Design is a per-pane mode picked from the menu rather than a toolbar
-  // button, the same placement as App mode: the rare, deliberate action
-  // stays off the toolbar. Refused on a read-only tab, whose shape is as
-  // locked as its values.
+  // button: the rare, deliberate action stays off the toolbar. Refused on a
+  // read-only tab, whose shape is as locked as its values, and offered only
+  // where the view shown has a shape to design: never on a Flow's graph.
+  function designable(context: CommandContext): boolean {
+    return chromeAllows("data-design")(context) && context.pane?.design?.available?.() !== false;
+  }
   function toggleDesign(): void {
     const chrome = deps.focused();
     chrome.setMode(chrome.currentMode() === "design" ? "edit" : "design");
@@ -409,21 +444,14 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   commands.register({
     id: "data.design",
     label: "Design mode",
-    when: (context) => chromeAllows("data-design")(context) && !isReadOnlyTab(context.tab),
+    when: (context) => designable(context) && !isReadOnlyTab(context.tab),
     run: toggleDesign,
   });
   commands.register({
     id: "flow.appMode",
     label: "App mode",
     when: chromeAllows("flow-app-mode"),
-    run: () => {
-      const chrome = deps.focused();
-      deps.activeFlowView()?.toggleAppMode();
-      chrome.refreshFlowRun();
-      // The title bar moves between the canvas (a fixed banner over it) and
-      // the App mode pane (scrolls with the form).
-      chrome.refreshTitle();
-    },
+    run: () => deps.focused().toggleAppMode(),
   });
   commands.register({ id: "flow.rename", label: "Title…", when: chromeAllows("flow-rename"), run: openFlowRename });
   commands.register({
@@ -486,7 +514,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // shape is fixed.
   const designItem: MenuItem = {
     label: "Design mode",
-    when: chromeAllows("data-design"),
+    when: designable,
     checked: () => deps.focused().currentMode() === "design",
     disabled: (context) => isReadOnlyTab(context.tab),
     run: toggleDesign,
@@ -496,10 +524,11 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // card's own ⋮ holds the same item.
   menus.register(ROW_CARD_MENU, [designItem]);
 
-  // A view a file switches into is a checkbox named for its mode, checked
-  // while in it: Source mode, Design mode, App mode. A label naming the other
-  // view instead would give one command two names across the menu, the
-  // palette and Shortcuts, and hide which view is showing.
+  // The occasional modes are checkboxes named for the mode, checked while in
+  // it: Source mode, Design mode. A label naming the other view instead would
+  // give one command two names across the menu, the palette and Shortcuts.
+  // A file's main view switch is the toggle left of ⋮ instead: reading view,
+  // or a Flow's App mode, never repeated here.
   menus.register("editor.toolbar", (context) => [
     { command: "editor.toggleFormat", checked: () => deps.formatColumn.get() },
     { command: "editor.toggleSourceMode", checked: () => deps.focused().isSourceMode() },
@@ -507,7 +536,6 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     designItem,
     ...layoutSubmenu(context),
     { command: "document.addProperty" },
-    { command: "flow.appMode", checked: () => deps.activeFlowView()?.isAppModeActive() ?? false },
     { command: "flow.rename" },
     { command: "flow.permissions" },
     ...defaultViewItem(context),

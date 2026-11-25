@@ -77,6 +77,11 @@
   opacity: 0;
 }
 
+/* Tiles that can't be arranged now offer no way to: no grip, no x. */
+.tile-grid:not(.is-arrangeable) :is(.tile-grid-grip, .tile-grid-remove) {
+  display: none;
+}
+
 .tile-grid-tiles > .resizing {
   outline: 2px solid var(--color-accent);
 }

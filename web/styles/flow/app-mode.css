@@ -61,12 +61,7 @@
   font-size: var(--ui-font-size);
   font-weight: 400;
   color: var(--text-primary);
-  cursor: grab;
   user-select: none;
-}
-
-.flow-app-node-title:active {
-  cursor: grabbing;
 }
 
 .flow-app-node-title > .flow-node-dot {

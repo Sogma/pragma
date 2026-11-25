@@ -47,6 +47,6 @@ const HANDLES = {
   keys: ".flow-app-node-title, .flow-app-run-button",
 };
 
-export function createAppModeGrid(options: Pick<TileGridOptions, "onMove" | "onResize">): TileGrid {
+export function createAppModeGrid(options: Pick<TileGridOptions, "onMove" | "onResize" | "arrangeable">): TileGrid {
   return createTileGrid({ ...options, prefix: "flow-app", handles: HANDLES });
 }

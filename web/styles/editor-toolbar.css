@@ -78,9 +78,11 @@
 }
 
 /* The icon names where a click goes, not the mode you are in: a book while
-   editing, a pencil in reading view. aria-pressed adds only the highlight
-   that marks reading view. */
-.editor-toolbar-reading-toggle[aria-pressed="true"] {
+   editing, a pencil in reading view; on a Flow, the tiles on the graph and
+   the graph's glyph in App mode. aria-pressed adds only the highlight that
+   marks reading view or App mode. */
+.editor-toolbar-reading-toggle[aria-pressed="true"],
+.editor-toolbar-app-toggle[aria-pressed="true"] {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
@@ -94,4 +96,12 @@
 
 .editor-toolbar-reading-toggle[aria-pressed="true"] .editor-toolbar-toggle-icon {
   mask-image: var(--icon-pencil);
+}
+
+.editor-toolbar-app-icon {
+  mask-image: var(--icon-tiles);
+}
+
+.editor-toolbar-app-toggle[aria-pressed="true"] .editor-toolbar-app-icon {
+  mask-image: var(--icon-flow);
 }

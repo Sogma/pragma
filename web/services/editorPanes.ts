@@ -92,11 +92,11 @@ export interface EditorPane {
   // Opens find's card, with Replace showing for `replace`.
   openFind?(replace: boolean): void;
   // Design mode, for a kind with a shape of its own: a Table's columns, a
-  // row card's layout. Edit changes values; Design changes the shape, with
-  // the values shown in it locked. Each is a deliberate step away from the
-  // other, so neither can damage what the other edits. Absent for a kind
-  // with nothing to design.
-  design?: { isActive(): boolean; toggle(): void };
+  // row card's layout, App mode's form. Edit changes values; Design changes
+  // the shape, with the values shown in it locked, so neither can damage
+  // what the other edits. Absent for a kind with nothing to design;
+  // `available` false while the view shown has none, as a Flow's graph.
+  design?: { isActive(): boolean; toggle(): void; available?(): boolean };
   // The ways this pane can draw its rows, for a kind that has more than
   // one: a Table's list and cards, a gallery's tile sizes and cards. Never
   // written to the file; the chrome lists them under one heading so a third

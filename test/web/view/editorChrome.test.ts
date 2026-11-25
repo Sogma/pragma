@@ -71,6 +71,8 @@ function setup(
     const openFind = (replace: boolean) => (documentPane as Partial<DocumentPane>).openFind?.(replace);
     Object.assign(pane, { findable, openFind });
   }
+  // A Flow's Design mode arranges App mode's form, so only App mode offers it.
+  if (tab.kind === "flow") Object.assign(pane.design, { available: () => flowView?.isAppModeActive() ?? false });
   const create = () => pane;
   let readingView = reading;
   let sourceMode = false;
@@ -90,7 +92,12 @@ function setup(
   });
   panes.register({
     kind: "flow",
-    chrome: { toolbar: true, readingView: false, statusbar: true, actions: ["flow-run", "flow-app-mode"] },
+    chrome: {
+      toolbar: true,
+      readingView: false,
+      statusbar: true,
+      actions: ["flow-run", "flow-app-mode", "data-design"],
+    },
     create,
   });
   const chrome = createEditorChrome({
@@ -99,7 +106,7 @@ function setup(
     titleBar,
     activeTab: () => tab,
     activePane: () => pane,
-    activeFlowView: () => undefined,
+    activeFlowView: () => flowView,
     readingView: () => readingView,
     setReadingView: (on) => {
       readingView = on;
@@ -217,9 +224,9 @@ describe("editorChrome modes", () => {
     }
   });
 
-  // A view a file switches into is a checkbox named for its mode, whose
-  // label never changes.
-  it("offers App mode on a Flow and Source mode on an Applet as checkboxes, checked while in them", async () => {
+  // A Flow's main view switch is the toggle left of ⋮, named for where it
+  // goes; Design mode joins the ⋮ only while App mode shows the form.
+  it("switches a Flow to App mode from the toolbar's toggle, and offers Design mode only there", async () => {
     let appMode = false;
     const flowView = {
       isAppModeActive: () => appMode,
@@ -229,11 +236,25 @@ describe("editorChrome modes", () => {
       run: vi.fn(),
     } as unknown as FlowView;
     const onFlow = setup(flow, false, undefined, {}, flowView);
-    expect(onFlow.item("App mode")).toMatchObject({ command: "flow.appMode", checked: false });
-    await onFlow.commands.run("flow.appMode", onFlow.context());
-    expect(onFlow.item("App mode")).toMatchObject({ checked: true });
-    expect(onFlow.palette()).toContain("Flow: Toggle App mode");
+    const toggle = onFlow.chrome.toolbar.querySelector(".editor-toolbar-app-toggle") as HTMLButtonElement;
+    const face = () => [toggle.getAttribute("aria-pressed"), toggle.getAttribute("aria-label")];
+    expect(toggle.hidden).toBe(false);
+    expect(face()).toEqual(["false", "Switch to App mode"]);
+    expect(onFlow.item("App mode")).toBeUndefined();
+    expect(onFlow.item("Design mode")).toBeUndefined();
 
+    toggle.click();
+    expect(flowView.toggleAppMode).toHaveBeenCalledTimes(1);
+    expect(face()).toEqual(["true", "Switch to Graph mode"]);
+    expect(onFlow.item("Design mode")).toMatchObject({ checked: false });
+
+    await onFlow.commands.run("flow.appMode", onFlow.context());
+    expect(face()).toEqual(["false", "Switch to App mode"]);
+    expect(onFlow.palette()).toContain("Flow: Toggle App mode");
+    expect((setup(note).chrome.toolbar.querySelector(".editor-toolbar-app-toggle") as HTMLElement).hidden).toBe(true);
+  });
+
+  it("offers an Applet's Source mode as a checkbox, checked in its source", () => {
     const running = setup({ kind: "applet", path: "tool.applet.html" });
     expect(running.item("Source mode")).toMatchObject({ checked: false });
     const source = setup({ kind: "applet-source", path: "tool.applet.html" });
@@ -291,7 +312,11 @@ describe("editorChrome title bar", () => {
 describe("editorChrome Title", () => {
   function askTitle(name: string | undefined) {
     const prompt = vi.fn(async (_options: PromptOptions) => null);
-    const flowView = { getFileName: () => name, setDisplayName: vi.fn(async (_name: string) => true) };
+    const flowView = {
+      getFileName: () => name,
+      setDisplayName: vi.fn(async (_name: string) => true),
+      isAppModeActive: () => false,
+    };
     const shown = setup(flow, false, undefined, { prompt }, flowView as unknown as FlowView);
     void shown.commands.get("flow.rename")?.run(shown.context(), undefined);
     const options = prompt.mock.calls[0]?.[0];

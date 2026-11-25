@@ -277,7 +277,7 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     grid = createTileGrid({
       prefix: "row-card",
       handles: HANDLES,
-      canArrange: () => deps.arrangeable(),
+      arrangeable,
       removal: arrangeable ? { label: "Remove from card", onRemove: removeTile } : undefined,
       onMove(element, target, zone) {
         target.parentElement?.insertBefore(element, zone === "before" ? target : target.nextSibling);

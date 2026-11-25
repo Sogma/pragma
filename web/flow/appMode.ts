@@ -175,10 +175,15 @@ export interface AppMode {
   // Shows these nodes' fields from their config again, once a run has moved
   // a value on.
   showConfig(nodeIds: readonly string[]): void;
+  // Design mode: the form's tiles arrange, its fields lock and Run waits.
+  // Only while the form shows; leaving App mode ends it.
+  isDesigning(): boolean;
+  setDesigning(on: boolean): void;
 }
 
 export function createAppMode(deps: AppModeDeps): AppMode {
   let appModeActive = false;
+  let designing = false;
   // The count beside the form's Run, while the form shows; the count is
   // kept meanwhile, for the form built next.
   let appModeRunCountEl: HTMLButtonElement | null = null;
@@ -741,7 +746,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     const label = document.createElement("span");
     label.textContent = "Run";
     button.append(playIcon, label);
-    button.addEventListener("click", () => void deps.run());
+    button.addEventListener("click", () => {
+      if (!designing) void deps.run();
+    });
     const count = buildRunCount(deps.showRuns);
     setRunCount(count, runCount);
     appModeRunCountEl = count;
@@ -785,6 +792,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     }
 
     const grid = createAppModeGrid({
+      arrangeable: designing,
       onMove: (tile, target, zone) => {
         const draggedId = appModeChildItemId(tile);
         const targetId = appModeChildItemId(target);
@@ -807,7 +815,23 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       if (tile) grid.add(tile.el, tile.size);
     }
     grid.layout();
+    applyDesigning();
     deps.elements.appModePane.scrollTop = scrollTop;
+  }
+
+  // Design mode is applied to the form shown, in place: building it again
+  // would reload its Applets and take the group's title bar with it.
+  function applyDesigning(): void {
+    appModeGrid?.setArrangeable(designing);
+    appModeGrid?.setGuides(designing);
+    const pane = deps.elements.appModePane;
+    for (const locked of pane.querySelectorAll<HTMLElement>(".flow-app-node-fields, .flow-app-toggle .toggle-switch")) {
+      locked.inert = designing;
+    }
+    for (const run of pane.querySelectorAll<HTMLElement>(".flow-app-run-button")) {
+      if (designing) run.setAttribute("aria-disabled", "true");
+      else run.removeAttribute("aria-disabled");
+    }
   }
 
   // One exposed node's tile, or nothing when none of its exposed ids builds
@@ -863,6 +887,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     const light = () => section.classList.toggle("on", toggle.getAttribute("aria-checked") === "true");
     light();
     section.addEventListener("click", (event) => {
+      if (designing) return;
       if (!toggle.contains(event.target as Node)) toggle.click();
       light();
     });
@@ -870,6 +895,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
 
   function setAppModeActive(active: boolean): void {
     appModeActive = active;
+    designing = false;
     // Never copied into the graph: its `appModeActive` is the Flow's default
     // view, which only setting the default writes (docs/protocol.md, Graph
     // shape). Which view shows is this install's.
@@ -933,6 +959,12 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   return {
     isActive: () => appModeActive,
     setActive: setAppModeActive,
+    isDesigning: () => designing,
+    setDesigning(on) {
+      if (!appModeActive || on === designing) return;
+      designing = on;
+      applyDesigning();
+    },
     setRunCount(count) {
       runCount = count;
       if (appModeRunCountEl) setRunCount(appModeRunCountEl, count);

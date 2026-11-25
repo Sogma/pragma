@@ -1,5 +1,26 @@
 /* Arranging App mode's tiles (appModeGrid.ts) on the shared grid
-   (tile-grid.css): App mode's own looks for a move and a resize. */
+   (tile-grid.css), in Design mode alone: App mode's own looks for a move
+   and a resize. */
+
+/* A title, Run and a toggle tile grab only while the tiles can be moved;
+   otherwise they are what they show. */
+.flow-app-board.is-arrangeable :is(.flow-app-node-title, .flow-app-run-item, .flow-app-toggle) {
+  cursor: grab;
+}
+
+.flow-app-board.is-arrangeable :is(.flow-app-node-title, .flow-app-run-item, .flow-app-toggle):active {
+  cursor: grabbing;
+}
+
+/* In Design mode Run waits and the fields are locked, so both step back. */
+.flow-app-board.is-arrangeable .flow-app-run-button {
+  background: var(--bg-selected);
+  color: var(--text-muted);
+}
+
+.flow-app-board.is-arrangeable .flow-app-node-fields {
+  opacity: 0.6;
+}
 
 /* A drop lands on the side of the tile its marker sits on, a bar in the gap. */
 .flow-app-grid > .drop-before {

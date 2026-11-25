@@ -10,11 +10,7 @@
   display: flex;
   border-radius: var(--panel-radius);
   box-shadow: var(--tile-drop);
-  cursor: grab;
-}
-
-.flow-app-run-item:active {
-  cursor: grabbing;
+  cursor: pointer;
 }
 
 .flow-app-run-button {

@@ -40,8 +40,9 @@ export interface TileGridOptions {
   // Where a press can start a move, where it never can, and what takes a
   // tile's keys: selectors inside a tile.
   handles: { move: string; not: string; keys: string };
-  // Whether the tiles may move or resize now; absent, they always may.
-  canArrange?: () => boolean;
+  // Whether the tiles may move, resize and leave; true where absent.
+  // setArrangeable changes it in place.
+  arrangeable?: boolean;
   // A tile dropped beside another, never beside itself. The grid leaves the
   // move to the caller, whose order it is.
   onMove(tile: HTMLElement, target: HTMLElement, zone: DropZone): void;
@@ -65,6 +66,8 @@ export interface TileGrid {
   remove(tile: HTMLElement): void;
   // Keeps the cell guides showing while on, not only during a gesture.
   setGuides(on: boolean): void;
+  // Lets the tiles be arranged, or not, without drawing them again.
+  setArrangeable(on: boolean): void;
   // Measures the grid now, rather than on its next resize.
   layout(): void;
   dispose(): void;
@@ -74,6 +77,8 @@ export interface TileGrid {
 interface Arrangeable {
   board: HTMLElement;
   grid: HTMLElement;
+  // Whether the tiles may be arranged now.
+  arrangeable(): boolean;
   // The element of `tile` that takes its keys.
   handleOf(tile: HTMLElement): HTMLElement;
   columns(): number;
@@ -100,11 +105,26 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
   // Whether a gesture shows the guides now, and whether they show anyway.
   let gesturing = false;
   let pinned = false;
+  let arrangeable = options.arrangeable ?? true;
+  board.classList.toggle("is-arrangeable", arrangeable);
   const keyHandle = options.handles.keys
     .split(",")
     .map((selector) => `:scope > ${selector.trim()}`)
     .join(", ");
   const handleOf = (tile: HTMLElement) => tile.querySelector<HTMLElement>(keyHandle) ?? tile;
+  // While the tiles can't be arranged, a handle is no stop in the tab order
+  // and claims no keys, so Tab goes from field to field. A handle that is a
+  // button stays one.
+  const keyStop = (tile: HTMLElement) => {
+    const handle = handleOf(tile);
+    if (arrangeable) {
+      handle.tabIndex = 0;
+      handle.setAttribute("aria-keyshortcuts", options.removal ? `${KEY_SHORTCUTS} Delete` : KEY_SHORTCUTS);
+    } else {
+      handle.removeAttribute("tabindex");
+      handle.removeAttribute("aria-keyshortcuts");
+    }
+  };
 
   function applySpan(tile: HTMLElement, size: TileSize): void {
     const span = fitTile(size, columns);
@@ -147,6 +167,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
     {
       board,
       grid,
+      arrangeable: () => arrangeable,
       handleOf,
       columns: () => columns,
       sizeOf: (tile) => sizes.get(tile) ?? { columns: 1, rows: 1 },
@@ -169,14 +190,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
     add(tile, size) {
       sizes.set(tile, size);
       applySpan(tile, size);
-      // A tile added while the grid can't be arranged gets no stop in the
-      // tab order and claims no keys, so Tab goes from field to field. A
-      // caller whose answer changes adds its tiles again.
-      if (!options.canArrange || options.canArrange()) {
-        const handle = handleOf(tile);
-        handle.tabIndex = 0;
-        handle.setAttribute("aria-keyshortcuts", options.removal ? `${KEY_SHORTCUTS} Delete` : KEY_SHORTCUTS);
-      }
+      keyStop(tile);
       const grip = document.createElement("span");
       grip.className = `corner-grip tile-grid-grip ${prefix}-tile-grip`;
       tile.appendChild(grip);
@@ -188,7 +202,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
         remove.tabIndex = -1;
         remove.setAttribute("aria-label", removal.label);
         remove.addEventListener("click", () => {
-          if (!options.canArrange || options.canArrange()) removal.onRemove(tile);
+          if (arrangeable) removal.onRemove(tile);
         });
         tile.appendChild(remove);
       }
@@ -203,6 +217,13 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
     setGuides(on) {
       pinned = on;
       showGuides();
+    },
+    setArrangeable(on) {
+      if (on === arrangeable) return;
+      if (!on) gestures.cancel();
+      arrangeable = on;
+      board.classList.toggle("is-arrangeable", on);
+      for (const tile of sizes.keys()) keyStop(tile);
     },
     layout,
     dispose() {
@@ -295,7 +316,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
   grid.addEventListener("pointerdown", (event) => {
     const under = event.target;
     if (press || event.button !== 0 || !(under instanceof Element)) return;
-    if (options.canArrange && !options.canArrange()) return;
+    if (!arrange.arrangeable()) return;
     const tile = tileOf(under);
     if (!tile) return;
     const grip = under.closest(`.${prefix}-tile-grip`);
@@ -319,7 +340,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     const arrow = ARROWS[event.key];
     const handle = event.target;
     if (!arrow || !event.altKey || event.ctrlKey || event.metaKey || press) return;
-    if (options.canArrange && !options.canArrange()) return;
+    if (!arrange.arrangeable()) return;
     if (!(handle instanceof HTMLElement) || !handle.matches(handles.keys)) return;
     const tile = tileOf(handle);
     if (!tile) return;
@@ -335,7 +356,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     const { removal } = options;
     if (!removal || press || (event.key !== "Delete" && event.key !== "Backspace")) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (options.canArrange && !options.canArrange()) return;
+    if (!arrange.arrangeable()) return;
     const handle = event.target;
     if (!(handle instanceof HTMLElement) || !handle.matches(handles.keys)) return;
     const tile = tileOf(handle);

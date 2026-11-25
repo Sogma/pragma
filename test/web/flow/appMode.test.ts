@@ -695,6 +695,7 @@ describe("moving an App mode tile", () => {
     const prompt = node("prompt", { text: "" }, ["text"]);
     const { appMode, deps, elements, graph } = setup([toggle, prompt]);
     appMode.setActive(true);
+    appMode.setDesigning(true);
     const grid = elements.appModePane.querySelector(".flow-app-grid") as HTMLElement;
     const [toggleTile, promptTile, runTile] = [...grid.children] as HTMLElement[];
     [toggleTile, promptTile, runTile].forEach((tile, index) => {
@@ -741,19 +742,20 @@ describe("moving an App mode tile", () => {
     expect(toggleTile.classList.contains("drop-before")).toBe(false);
   });
 
-  it("leaves a press that travels under 5px a click", () => {
+  it("presses nothing in Design mode: a short press neither flips a toggle tile nor runs", () => {
     const { deps, toggle, toggleTile, runButton } = row();
     pointer("pointerdown", toggleTile, 50);
     pointer("pointermove", document, 53);
     pointer("pointerup", document, 53);
     click(toggleTile);
-    expect(toggle.config.true).toBe("true");
+    expect(toggle.config.true).toBe("false");
     expect(document.querySelector(".flow-app-move-ghost")).toBeNull();
 
     pointer("pointerdown", runButton, 250);
     pointer("pointerup", document, 250);
     runButton.click();
-    expect(deps.run).toHaveBeenCalledTimes(1);
+    expect(deps.run).not.toHaveBeenCalled();
+    expect(runButton.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("puts a tile last when it drops on the grid's background or below its last row", () => {
@@ -801,6 +803,7 @@ describe("resizing an App mode tile", () => {
     stubPointerCapture();
     const { appMode, deps, elements, graph } = setup(nodes);
     appMode.setActive(true);
+    appMode.setDesigning(true);
     const board = elements.appModePane.querySelector(".flow-app-board") as HTMLElement;
     const tiles = [...(board.querySelector(".flow-app-grid")?.children ?? [])] as HTMLElement[];
     const span = (tile: HTMLElement) =>
@@ -835,7 +838,8 @@ describe("resizing an App mode tile", () => {
     expect(prompt.appModeSize).toEqual({ columns: 4, rows: 3 });
     expect(deps.persistGraph).toHaveBeenCalledTimes(1);
     expect(tile.querySelector(".flow-app-tile-badge")).toBeNull();
-    expect(board.classList.contains("arranging")).toBe(false);
+    // Design mode keeps the guides showing once the resize ends.
+    expect(board.classList.contains("arranging")).toBe(true);
   });
 
   it("keeps a tile within the grid's columns and 8 rows, and at least one cell", () => {
@@ -908,6 +912,7 @@ describe("arranging an App mode tile from the keyboard", () => {
     const prompt = node("prompt", { text: "" }, ["text"]);
     const { appMode, deps, elements, graph } = setup([toggle, prompt]);
     appMode.setActive(true);
+    appMode.setDesigning(true);
     const grid = elements.appModePane.querySelector(".flow-app-grid") as HTMLElement;
     const order = () => [...grid.children].map((tile) => (tile as HTMLElement).dataset.nodeId ?? "run");
     const title = grid.querySelector('[data-node-id="prompt-1"] > .flow-app-node-title') as HTMLElement;
@@ -933,6 +938,7 @@ describe("arranging an App mode tile from the keyboard", () => {
     const prompt = node("prompt", { text: "" }, ["text"]);
     const { appMode, deps, elements, graph } = setup([prompt]);
     appMode.setActive(true);
+    appMode.setDesigning(true);
     const tile = elements.appModePane.querySelector(".flow-app-node") as HTMLElement;
     const title = tile.querySelector(".flow-app-node-title") as HTMLElement;
     const span = () => `${tile.style.getPropertyValue("--tile-columns")}x${tile.style.getPropertyValue("--tile-rows")}`;
@@ -953,6 +959,7 @@ describe("arranging an App mode tile from the keyboard", () => {
   it("leaves the arrows to a field, and Mod+Alt+Arrow to Back and Forward", () => {
     const { appMode, deps, elements } = setup([node("prompt", { text: "" }, ["text"])]);
     appMode.setActive(true);
+    appMode.setDesigning(true);
     const textarea = elements.appModePane.querySelector("textarea") as HTMLTextAreaElement;
     const title = elements.appModePane.querySelector(".flow-app-node-title") as HTMLElement;
     expect(key(textarea, "ArrowRight").defaultPrevented).toBe(false);
@@ -960,6 +967,63 @@ describe("arranging an App mode tile from the keyboard", () => {
     expect(key(title, "ArrowRight", { metaKey: true }).defaultPrevented).toBe(false);
     expect(key(title, "ArrowRight", { altKey: false }).defaultPrevented).toBe(false);
     expect(deps.persistGraph).not.toHaveBeenCalled();
+  });
+});
+
+describe("App mode's Design mode", () => {
+  afterEach(unstubGestures);
+
+  it("arranges nothing outside Design mode, where a press clicks as always", () => {
+    const toggle = node("toggleText", { true: "false" }, ["true"]);
+    const prompt = node("prompt", { text: "" }, ["text"]);
+    const { appMode, deps, elements } = setup([toggle, prompt]);
+    appMode.setActive(true);
+    const board = elements.appModePane.querySelector(".flow-app-board") as HTMLElement;
+    const title = board.querySelector('[data-node-id="prompt-1"] > .flow-app-node-title') as HTMLElement;
+    expect(board.classList.contains("is-arrangeable")).toBe(false);
+    expect(title.hasAttribute("tabindex")).toBe(false);
+    title.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(deps.persistGraph).not.toHaveBeenCalled();
+
+    (board.querySelector('[data-node-id="toggleText-1"]') as HTMLElement).click();
+    expect(toggle.config.true).toBe("true");
+    (board.querySelector(".flow-app-run-button") as HTMLButtonElement).click();
+    expect(deps.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks the fields, holds Run and shows the guides in place, and ends with App mode", () => {
+    const { appMode, elements } = setup([node("prompt", { text: "" }, ["text"])]);
+    appMode.setActive(true);
+    const pane = elements.appModePane;
+    const textarea = pane.querySelector("textarea");
+    const fields = () => pane.querySelector(".flow-app-node-fields") as HTMLElement;
+    const run = () => pane.querySelector(".flow-app-run-button") as HTMLElement;
+    const board = () => pane.querySelector(".flow-app-board") as HTMLElement;
+
+    appMode.setDesigning(true);
+    expect(appMode.isDesigning()).toBe(true);
+    expect(pane.querySelector("textarea")).toBe(textarea);
+    expect(fields().inert).toBe(true);
+    expect(run().getAttribute("aria-disabled")).toBe("true");
+    expect([board().classList.contains("is-arrangeable"), board().classList.contains("arranging")]).toEqual([
+      true,
+      true,
+    ]);
+    expect((pane.querySelector(".flow-app-node-title") as HTMLElement).tabIndex).toBe(0);
+
+    appMode.setDesigning(false);
+    expect([fields().inert, run().hasAttribute("aria-disabled")]).toEqual([false, false]);
+    expect(board().classList.contains("arranging")).toBe(false);
+
+    appMode.setDesigning(true);
+    appMode.setActive(false);
+    expect(appMode.isDesigning()).toBe(false);
+    appMode.setDesigning(true);
+    expect(appMode.isDesigning()).toBe(false);
+    appMode.setActive(true);
+    expect([appMode.isDesigning(), board().classList.contains("is-arrangeable")]).toEqual([false, false]);
   });
 });
 

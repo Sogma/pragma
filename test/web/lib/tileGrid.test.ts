@@ -58,7 +58,7 @@ function grid(options: Partial<TileGridOptions> = {}) {
 describe("createTileGrid", () => {
   it("names its parts by the shared grid and by the caller, and spans each tile clamped to the grid", () => {
     const { grid: made, tiles } = grid();
-    expect(made.el.className).toBe("tile-grid demo-board");
+    expect(made.el.className).toBe("tile-grid demo-board is-arrangeable");
     expect([...made.el.children].map((child) => child.className)).toEqual([
       "tile-grid-guides demo-guides",
       "tile-grid-tiles demo-grid",
@@ -100,13 +100,30 @@ describe("createTileGrid", () => {
     document.body.replaceChildren();
 
     const onRemove = vi.fn();
-    const { deps, tiles, handle, key } = grid({ canArrange: () => false, removal: { label: "Remove", onRemove } });
+    const { deps, tiles, handle, key } = grid({ arrangeable: false, removal: { label: "Remove", onRemove } });
     (tiles[0].querySelector(".tile-grid-remove") as HTMLButtonElement).click();
     key(handle(tiles[1]), "Delete");
     key(handle(tiles[1]), "ArrowRight", { altKey: true });
     expect(onRemove).not.toHaveBeenCalled();
     expect(deps.onMove).not.toHaveBeenCalled();
     expect(handle(tiles[1]).hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("lets its tiles be arranged, or not, in place: the tab stops and keys follow", () => {
+    const { grid: made, deps, tiles, handle, key } = grid({ arrangeable: false });
+    expect(made.el.classList.contains("is-arrangeable")).toBe(false);
+    made.setArrangeable(true);
+    expect(made.el.classList.contains("is-arrangeable")).toBe(true);
+    expect([handle(tiles[1]).tabIndex, handle(tiles[1]).hasAttribute("aria-keyshortcuts")]).toEqual([0, true]);
+    key(handle(tiles[1]), "ArrowRight", { altKey: true });
+    expect(deps.onMove).toHaveBeenCalledTimes(1);
+    made.setArrangeable(false);
+    expect([handle(tiles[1]).hasAttribute("tabindex"), handle(tiles[1]).hasAttribute("aria-keyshortcuts")]).toEqual([
+      false,
+      false,
+    ]);
+    key(handle(tiles[1]), "ArrowRight", { altKey: true });
+    expect(deps.onMove).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the cell guides showing while set, as a gesture shows them", () => {

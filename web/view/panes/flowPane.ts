@@ -97,7 +97,7 @@ export function flowPane({ tabs, ...deps }: FlowPaneWiring): EditorPaneDescripto
       toolbar: true,
       readingView: false,
       statusbar: true,
-      actions: ["flow-run", "flow-app-mode", "flow-rename", "flow-permissions"],
+      actions: ["flow-run", "flow-app-mode", "flow-rename", "flow-permissions", "data-design"],
     },
     create: (group) =>
       createFlowPane({
@@ -255,6 +255,13 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
   return {
     kind: "flow",
     element: elements.root,
+    // Design mode arranges App mode's form; the graph is where the Flow
+    // itself is built, so there it is not offered.
+    design: {
+      isActive: () => flowView.isAppModeActive() && flowView.appModeDesign.isDesigning(),
+      toggle: () => flowView.appModeDesign.setDesigning(!flowView.appModeDesign.isDesigning()),
+      available: () => flowView.isAppModeActive(),
+    },
     inspector: selected.section,
     properties: properties.section,
     tools: jobs.element,

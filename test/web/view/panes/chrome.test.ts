@@ -31,7 +31,11 @@ describe("pane chrome declarations", () => {
     [
       "flow",
       flowPane(deps),
-      { ...full, readingView: false, actions: ["flow-run", "flow-app-mode", "flow-rename", "flow-permissions"] },
+      {
+        ...full,
+        readingView: false,
+        actions: ["flow-run", "flow-app-mode", "flow-rename", "flow-permissions", "data-design"],
+      },
     ],
     ["image", imagePane(deps), { ...none, statusbar: true }],
     ["video", videoPane(deps), { ...none, statusbar: true }],
