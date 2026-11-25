@@ -8,6 +8,7 @@
 // does: Add property, or a toolkit run showing its result.
 import { type FileInfoResponse, getFileInfo, getFileSha256, type Tab } from "../core/apiClient.ts";
 import { isForeignRootTab } from "../core/paths.ts";
+import { folderTotalsAt } from "../core/spaceTree.ts";
 import { dateTimeLabel } from "../lib/dateText.ts";
 import { appendCodeRow, appendMetaRow, createInspectorSection, formatFileSize, iconButton, must } from "../lib/dom.ts";
 import { pixelToken, wirePanelResize } from "../lib/panelResize.ts";
@@ -27,6 +28,9 @@ export interface InspectorDeps {
   fileInfo(path: string): Promise<FileInfoResponse>;
   // The server's streamed digest of the whole file, as lowercase hex.
   fileSha256(path: string): Promise<string>;
+  // What a folder holds, all the way down, in its tree row's words:
+  // undefined where the tree counts nothing.
+  folderTotals(path: string): string | undefined;
   view: Setting<string>;
   collapsed: Setting<boolean>;
   // Where the inspector/chat split was left, as the inspector's height.
@@ -45,6 +49,8 @@ export interface Inspector {
   // `path` changed on disk — a save, a publish. Re-reads its facts if it is
   // the one showing.
   refreshFacts(path: string): void;
+  // The space's files changed: an open folder's count is taken again.
+  noteSpaceChanged(): void;
   // Shows the assistant, unfolds the inspector and selects `view`.
   show(view: InspectorView): void;
 }
@@ -193,8 +199,20 @@ export function createInspector(deps: InspectorDeps): Inspector {
   let entryName: HTMLElement | undefined;
   let systemFolder: HTMLElement | undefined;
   let size: HTMLElement | undefined;
+  let contains: HTMLElement | undefined;
   let modified: HTMLElement | undefined;
   let sha256: HTMLElement | undefined;
+
+  // Counted from the tree the app holds, not read with the other facts, so
+  // it never disagrees with the folder's tree row; hidden while that counts
+  // nothing.
+  function countContents(): void {
+    const row = contains?.parentElement;
+    if (!contains || !row || factsPath === undefined) return;
+    const totals = deps.folderTotals(factsPath);
+    row.hidden = totals === undefined;
+    contains.textContent = totals ?? "";
+  }
 
   // Leaves the rows as they are while the lookups run, so a refresh after a
   // save changes a value in place instead of blinking it back to "…". The
@@ -338,7 +356,7 @@ export function createInspector(deps: InspectorDeps): Inspector {
     bar.classList.toggle("foreign-root", isForeignRootTab(tab));
     factsToken++;
     facts.body.replaceChildren();
-    entryName = systemFolder = size = modified = sha256 = undefined;
+    entryName = systemFolder = size = contains = modified = sha256 = undefined;
     factsPath = tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version" ? undefined : tab.path;
     facts.section.hidden = factsPath === undefined;
     empty.hidden = factsPath !== undefined;
@@ -350,15 +368,18 @@ export function createInspector(deps: InspectorDeps): Inspector {
     // Name is the whole name, extension included, which the tab and the tree
     // hide unless Show extensions is on; Path is the folder holding it on
     // disk. A folder's byte count is its directory entry's, not its
-    // contents', and it has no bytes of its own to hash.
+    // contents', and it has no bytes of its own to hash: in Size's place it
+    // says what it holds.
     const isFolder = tab.kind === "gallery";
     entryName = appendMetaRow(facts.body, "Name", "…");
     entryName.classList.add("meta-name");
     systemFolder = appendMetaRow(facts.body, "Path", "…");
     systemFolder.classList.add("meta-path");
-    if (!isFolder) size = appendMetaRow(facts.body, "Size", "…");
+    if (isFolder) contains = appendMetaRow(facts.body, "Contains", "");
+    else size = appendMetaRow(facts.body, "Size", "…");
     modified = appendMetaRow(facts.body, "Modified", "…");
     if (!isFolder) sha256 = appendCodeRow(facts.body, "SHA-256", "…");
+    countContents();
     fillFacts(factsPath);
   }
 
@@ -409,6 +430,7 @@ export function createInspector(deps: InspectorDeps): Inspector {
     refreshFacts(path) {
       if (path === factsPath) fillFacts(path);
     },
+    noteSpaceChanged: countContents,
     show(next) {
       deps.showAssistant();
       select(next, false);
@@ -440,6 +462,7 @@ export function wireAssistantPanel(
   const inspector = createInspector({
     fileInfo: getFileInfo,
     fileSha256: getFileSha256,
+    folderTotals: folderTotalsAt,
     view: settings.inspectorView,
     collapsed: settings.inspectorCollapsed,
     height: settings.inspectorHeight,

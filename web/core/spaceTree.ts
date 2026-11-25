@@ -48,6 +48,7 @@ import {
   isJsonFile,
   nodeFileType,
   pathHint,
+  treeTotalsLabel,
 } from "./paths.ts";
 import { inTemplateFolders, isPresetPath, setPresets } from "./presets.ts";
 
@@ -281,6 +282,17 @@ export function entryIconAt(path: string, type: "file" | "directory"): EntryIcon
   if (type === "file") return { glyph: fileTypeAt(path) };
   const folder = findDirectoryNode(path);
   return folder ? entryIcon(folder) : { glyph: "folder" };
+}
+
+/** What a space folder holds, all the way down, as its tree row's tooltip
+ * counts it: "5 files, 2 folders". Undefined until the tree is first read,
+ * and for a folder it doesn't list. A library's is never counted: a library
+ * is listed a folder at a time, so a big or slow drive never decides how
+ * fast it opens, and a count would read all of it. */
+export function folderTotalsAt(path: string): string | undefined {
+  if (currentPaths === undefined) return undefined;
+  const children = findDirectoryChildren(path);
+  return children && treeTotalsLabel(children);
 }
 
 /** What a path label asks of the space: a library's name and an entry's

@@ -50,7 +50,7 @@ import {
   stripExtension,
   wireEntryDrag,
 } from "../../core/paths.ts";
-import { entryIconAt, findEntry, readingResolvers } from "../../core/spaceTree.ts";
+import { entryIconAt, findEntry, folderTotalsAt, readingResolvers } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
 import { createFilePreview, createSelectedSection, type PreviewKind, previewKind } from "../../filePreview.ts";
 import type { ContextView } from "../../lib/contextView.ts";
@@ -225,6 +225,9 @@ export interface GalleryPaneDeps {
   /** A file's size and date, which the Info tab reads only for an entry
    * listed without them. */
   fileInfo(path: string): Promise<FileInfoResponse>;
+  /** What a selected folder holds, all the way down, in its tree row's
+   * words: undefined where the tree counts nothing. */
+  folderTotals(path: string): string | undefined;
   /** A file as a document route reads it, for its page. */
   loadFile(path: string): Promise<FileResponse>;
   /** Where the links and embeds in a previewed note at `docPath` lead. */
@@ -1195,6 +1198,7 @@ export function galleryPane(wiring: GalleryWiring): EditorPaneDescriptor {
     videoFormat: getVideoFormat,
     pixelFormat: getPixelFormat,
     fileInfo: getFileInfo,
+    folderTotals: folderTotalsAt,
     loadFile: fetchFile,
     readingResolvers,
     formats: wiring.formats,

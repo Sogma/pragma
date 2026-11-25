@@ -72,7 +72,7 @@ function el(selector: string): HTMLElement {
 
 function facts(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const row of el("#inspector-info").querySelectorAll(".meta-row")) {
+  for (const row of el("#inspector-info").querySelectorAll(".meta-row:not([hidden])")) {
     out[row.querySelector(".meta-key")?.textContent ?? ""] = row.querySelector(".meta-value")?.textContent ?? "";
   }
   return out;
@@ -92,12 +92,22 @@ function setup(
 ) {
   const fileInfo = vi.fn(info);
   const fileSha256 = vi.fn(sha256);
+  const folderTotals = vi.fn((_path: string): string | undefined => "12 files, 3 folders");
   const view = fakeSetting(remembered);
   const collapsed = fakeSetting(false);
   const showAssistant = vi.fn();
   const height = fakeSetting<number | undefined>(undefined);
-  const inspector = createInspector({ fileInfo, fileSha256, view, collapsed, height, showAssistant, contributed });
-  return { inspector, fileInfo, fileSha256, view, collapsed, showAssistant };
+  const inspector = createInspector({
+    fileInfo,
+    fileSha256,
+    folderTotals,
+    view,
+    collapsed,
+    height,
+    showAssistant,
+    contributed,
+  });
+  return { inspector, fileInfo, fileSha256, folderTotals, view, collapsed, showAssistant };
 }
 
 describe("the inspector's Info tab", () => {
@@ -120,12 +130,42 @@ describe("the inspector's Info tab", () => {
   });
 
   // A folder's byte count is its directory entry's, not its contents', and
-  // it has no bytes of its own to hash.
-  it("leaves the size and hash off a folder", () => {
-    const { inspector, fileSha256 } = setup();
+  // it has no bytes of its own to hash: in Size's place it says what it
+  // holds, in its tree row's words.
+  it("gives a folder what it holds in place of its size, and no hash", () => {
+    const { inspector, fileSha256, folderTotals } = setup();
+    inspector.setTab({ kind: "gallery", path: "novel/part-one" });
+    expect(Object.keys(facts())).toEqual(["Name", "Path", "Contains", "Modified"]);
+    expect(facts().Contains).toBe("12 files, 3 folders");
+    expect(folderTotals).toHaveBeenCalledWith("novel/part-one");
+    expect(fileSha256).not.toHaveBeenCalled();
+  });
+
+  // The tree counts no library's folder, and nothing before its first read.
+  it("leaves the count off while the tree counts nothing, and adds it once it does", () => {
+    const { inspector, folderTotals } = setup();
+    folderTotals.mockReturnValue(undefined);
     inspector.setTab({ kind: "gallery", path: "novel/part-one" });
     expect(Object.keys(facts())).toEqual(["Name", "Path", "Modified"]);
-    expect(fileSha256).not.toHaveBeenCalled();
+
+    folderTotals.mockReturnValue("1 file, 0 folders");
+    inspector.noteSpaceChanged();
+    expect(Object.keys(facts())).toEqual(["Name", "Path", "Contains", "Modified"]);
+    expect(facts().Contains).toBe("1 file, 0 folders");
+  });
+
+  it("counts an open folder again when the space's files change, and nothing else", () => {
+    const { inspector, folderTotals } = setup();
+    inspector.setTab({ kind: "gallery", path: "novel" });
+    folderTotals.mockReturnValue("13 files, 3 folders");
+    inspector.noteSpaceChanged();
+    expect(facts().Contains).toBe("13 files, 3 folders");
+
+    inspector.setTab({ kind: "document", path: "notes/song.md", documentType: "note" });
+    folderTotals.mockClear();
+    inspector.noteSpaceChanged();
+    expect(folderTotals).not.toHaveBeenCalled();
+    expect(Object.keys(facts())).not.toContain("Contains");
   });
 
   // Each piece is an inline-block, so a wrapped path breaks between folders
@@ -313,6 +353,7 @@ describe("the inspector's tabs", () => {
     createInspector({
       fileInfo: vi.fn(),
       fileSha256: vi.fn(),
+      folderTotals: vi.fn(),
       view: fakeSetting("links"),
       collapsed: fakeSetting(false),
       height: fakeSetting<number | undefined>(undefined),
@@ -363,6 +404,7 @@ describe("the inspector's tabs", () => {
     createInspector({
       fileInfo: vi.fn(),
       fileSha256: vi.fn(),
+      folderTotals: vi.fn(),
       view: fakeSetting("properties"),
       collapsed: fakeSetting(false),
       height: fakeSetting<number | undefined>(undefined),
@@ -378,6 +420,7 @@ describe("the inspector's tabs", () => {
     createInspector({
       fileInfo: vi.fn(),
       fileSha256: vi.fn(),
+      folderTotals: vi.fn(),
       view: fakeSetting("links"),
       collapsed: fakeSetting(false),
       height: fakeSetting<number | undefined>(undefined),
@@ -392,6 +435,7 @@ describe("the inspector's tabs", () => {
     createInspector({
       fileInfo: vi.fn(),
       fileSha256: vi.fn(),
+      folderTotals: vi.fn(),
       view: fakeSetting("tools"),
       collapsed: fakeSetting(true),
       height: fakeSetting<number | undefined>(undefined),

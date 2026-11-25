@@ -180,6 +180,39 @@ describe("findDirectoryNode / findDirectoryChildren", () => {
   });
 });
 
+// What the Info tab says a folder holds, in its tree row's words.
+describe("folderTotalsAt", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("counts everything under a space folder, all the way down, once the tree is read", async () => {
+    const spaceTree = await freshSpaceTree();
+    vi.stubGlobal("fetch", serve(SAMPLE_TREE));
+    expect(spaceTree.folderTotalsAt("")).toBeUndefined();
+    await spaceTree.refresh();
+    expect(spaceTree.folderTotalsAt("")).toBe("3 files, 2 folders");
+    expect(spaceTree.folderTotalsAt("projects")).toBe("2 files, 1 folder");
+    expect(spaceTree.folderTotalsAt("projects/nested")).toBe("1 file, 0 folders");
+  });
+
+  // Counting a library's folder would read its whole drive.
+  it("counts no file, no folder the tree doesn't list, and no library's folder", async () => {
+    const spaceTree = await freshSpaceTree();
+    const fetchMock = serve(SAMPLE_TREE, listingOf(SAMPLE_TREE), {
+      footage: [{ name: "takes", path: "takes", type: "directory", children: [] }],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await spaceTree.refresh();
+    fetchMock.mockClear();
+    expect(spaceTree.folderTotalsAt("root.md")).toBeUndefined();
+    expect(spaceTree.folderTotalsAt("nope")).toBeUndefined();
+    expect(spaceTree.folderTotalsAt("lib:footage")).toBeUndefined();
+    expect(spaceTree.folderTotalsAt("lib:footage/takes")).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("fileTypeAt", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

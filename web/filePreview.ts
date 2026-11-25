@@ -27,7 +27,7 @@ import {
   type SelectedFile,
 } from "./core/apiClient.ts";
 import { fileTypeLabel, type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
-import { fileTypeAt, readingResolvers } from "./core/spaceTree.ts";
+import { fileTypeAt, folderTotalsAt, readingResolvers } from "./core/spaceTree.ts";
 import { type ContextView, createViewBinding } from "./lib/contextView.ts";
 import { dateTimeLabel } from "./lib/dateText.ts";
 import {
@@ -117,6 +117,9 @@ export interface SelectedReads {
   /** A raster still's color mode, bit depth and source, read from its
    * header by the server. */
   pixelFormat(path: string): Promise<PixelFormatResponse>;
+  /** What a folder holds, all the way down, in its tree row's words:
+   * undefined where the tree counts nothing. */
+  folderTotals(path: string): string | undefined;
 }
 
 /** The server's routes and this browser's settings, for a preview and the
@@ -128,6 +131,7 @@ export function servedPreviewSources(): PreviewSources & SelectedReads {
     videoFormat: getVideoFormat,
     fileInfo: getFileInfo,
     pixelFormat: getPixelFormat,
+    folderTotals: folderTotalsAt,
     readingResolvers,
     readableLineLength,
     videoLoop,
@@ -185,6 +189,8 @@ export function createSelectedSection(reads: SelectedReads): SelectedSection {
         ];
     for (const row of rows) appendMetaRow(body, row.label, row.value);
     if (entry.type === "file" && entry.size !== undefined) appendMetaRow(body, "Size", formatFileSize(entry.size));
+    const totals = entry.type === "directory" ? reads.folderTotals(entry.path) : undefined;
+    if (totals !== undefined) appendMetaRow(body, "Contains", totals);
     if (entry.modified !== undefined) appendMetaRow(body, "Modified", dateTimeLabel(entry.modified));
   }
 

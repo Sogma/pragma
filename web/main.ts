@@ -298,12 +298,13 @@ async function main(): Promise<void> {
       show: () => sidebarViews.activate("space"),
       // An open site's accordion draws the same rows, so it redraws with them.
       onRendered: () => websitesView.refreshExpanded(),
-      // A gallery lists its folder again, and a screenplay's names read the
-      // same core/spaceTree.ts tree the view does, so both follow whatever
-      // just changed it; so do the uncommitted count and the bookmarks, for
-      // a create, move or delete.
+      // A gallery lists its folder again, and a screenplay's names and an
+      // open folder's count in Info read the same core/spaceTree.ts tree the
+      // view does, so all follow whatever just changed it; so do the
+      // uncommitted count and the bookmarks, for a create, move or delete.
       onChanged: () => {
         editorArea.noteSpaceChanged();
+        inspector.noteSpaceChanged();
         gitStatusStore.noteLocalChange();
         void bookmarks.read();
       },

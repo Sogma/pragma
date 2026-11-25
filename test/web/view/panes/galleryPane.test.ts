@@ -141,6 +141,7 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
     })),
     pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: true, bitDepth: 8, sourceType: null })),
     fileInfo: vi.fn(async (path: string) => ({ kind: "file" as const, name: path, size: 1, modified: "" })),
+    folderTotals: vi.fn(() => undefined),
     clipFacts: vi.fn(async () => ({ width: 1188, height: 2112, duration: 26.8, clip: proresDetails })),
     loadFile: vi.fn(async (path: string) => textFile(path, "# A note\n\nIts text.\n")),
     readingResolvers: vi.fn(() => ({
@@ -757,6 +758,29 @@ describe("the gallery pane", () => {
       pane.dismissTransient?.();
       expect(title(), name).toBe(expected);
     }
+  });
+
+  // In Size's place, in the words of the folder's tree row.
+  it("says what a selected folder holds, where the tree counts it", async () => {
+    const folderTotals = vi.fn((path: string) => (path === "footage/takes" ? "5 files, 2 folders" : undefined));
+    const { pane } = setup(
+      [
+        { ...folder("takes"), path: "footage/takes" },
+        { ...folder("stills"), path: "footage/stills" },
+        { ...file("scene.md"), path: "footage/scene.md" },
+      ],
+      { folderTotals },
+    );
+    await open(pane, "footage");
+    await settle();
+    tileNamed(pane, "takes").click();
+    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Contains", "Modified"]);
+    expect(infoRows(pane).Contains).toBe("5 files, 2 folders");
+    tileNamed(pane, "stills").click();
+    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Modified"]);
+    tileNamed(pane, "scene").click();
+    pane.dismissTransient?.();
+    expect(folderTotals).not.toHaveBeenCalledWith("footage/scene.md");
   });
 
   it("keeps a picture's top bar empty until its dimensions are known", async () => {
