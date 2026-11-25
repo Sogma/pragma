@@ -429,10 +429,10 @@ describe("a media field checked against the space's listing", () => {
 
   it("believes the listing again only once a read started after a noted write lands", async () => {
     const { spaceTree, draw } = await listed();
-    spaceTree.noteUnlistedWrites();
+    spaceTree.noteWritten(["new.png"]);
     expect(draw("new.png").querySelector("img")).not.toBeNull();
     const reading = spaceTree.refresh();
-    spaceTree.noteUnlistedWrites();
+    spaceTree.noteWritten(["new.png"]);
     await reading;
     expect(draw("new.png").querySelector("img")).not.toBeNull();
     await spaceTree.refresh();

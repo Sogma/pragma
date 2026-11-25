@@ -220,6 +220,40 @@ describe("the browser's flow environment", () => {
     await sandbox.write("flow", "f.flow.html", "stills/notes.md", "text");
     expect(spaceTree.listedAsGone("stills/new.png")).toBe(false);
   });
+
+  // The views listing a written file's folder are told at once, each file
+  // rooted: a written document from the Flow's own folder, a result as its
+  // node's folder names it, in a library too.
+  it("tells the views each file a run wrote, rooted", async () => {
+    vi.resetModules();
+    const spaceTree = await import("../../../web/core/spaceTree.ts");
+    const environment = await import("../../../web/flow/browserEnvironment.ts");
+    const told: string[][] = [];
+    spaceTree.onWritten((paths) => told.push([...paths]));
+    const image = { image: { mediaType: "image/png", data: "" }, model: "m", take: 1, reused: false, warnings: [] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { folder?: string };
+        if (String(url).includes("generate-image")) return Response.json({ ...image, path: `${body.folder}/a.png` });
+        return Response.json({});
+      }),
+    );
+    const { sandbox } = environment.createFlowContext({
+      flowPath: "shots/f.flow.html",
+      pickedImages: new Map(),
+      ensureCapability: async () => true,
+      beginLlmActivity: () => {},
+      endLlmActivity: () => {},
+      generations: unrecorded,
+    });
+    await sandbox.write("flow", "shots/f.flow.html", "notes.md", "text");
+    const body = { prompt: "p", references: [] };
+    await sandbox.generateImage("flow", "shots/f.flow.html", { ...body, folder: "../stills" });
+    await sandbox.generateImage("flow", "shots/f.flow.html", { ...body, folder: "lib:refs/Tests" });
+    await vi.waitFor(() => expect(told.flat()).toHaveLength(3));
+    expect(told.flat()).toEqual(["shots/notes.md", "stills/a.png", "lib:refs/Tests/a.png"]);
+  });
 });
 
 // Every browser run records a text generation through the one context, so

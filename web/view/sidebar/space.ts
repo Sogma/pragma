@@ -94,6 +94,7 @@ import { countText, must, renderTreeIcon } from "../../lib/dom.ts";
 import { Emitter } from "../../lib/emitter.ts";
 import { flash } from "../../lib/flash.ts";
 import type { CreateKind, NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
+import { oneAtATime } from "../../lib/oneAtATime.ts";
 import { createPathLabel } from "../../lib/pathLabel.ts";
 import { createSectionAction, createSectionStack } from "../../lib/sectionStack.ts";
 import { SPACE_ICON } from "../../lib/spaceIcon.ts";
@@ -434,8 +435,13 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   });
   elements.panel.append(stack.element);
   // A change made outside this window (another program, another device, an
-  // agent) re-reads the tree the way the refresh button does.
-  spaceChanges.followSpace(() => void refresh());
+  // agent) re-reads the tree the way the refresh button does, and so does a
+  // file this window wrote in the space, at once. One read at a time.
+  const refreshOnce = oneAtATime(refresh);
+  spaceChanges.followSpace(refreshOnce);
+  spaceTree.onWritten((paths) => {
+    if (paths.some((path) => !isLibraryPath(path))) refreshOnce();
+  });
   onPresetsChanged(() => renderPresets());
 
   function hasRow(path: string): boolean {

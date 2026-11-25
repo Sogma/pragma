@@ -34,6 +34,7 @@ import {
 } from "../../core/apiClient.ts";
 import { setLibraryPermissions } from "../../core/libraries.ts";
 import { desktopFiles, readDraggedPath, removalLabel } from "../../core/paths.ts";
+import { onWritten } from "../../core/spaceTree.ts";
 import { buildAccordionRow, setRowExpanded } from "../../lib/accordion.ts";
 import { copyPathItem } from "../../lib/copyPath.ts";
 import { renderTreeLoading } from "../../lib/dom.ts";
@@ -42,6 +43,7 @@ import type { NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
 import { createInlineError } from "../../lib/inlineError.ts";
 import type { ListItemTarget } from "../../lib/listItemMenu.ts";
 import { createListItemMenuButton } from "../../lib/listItemMenu.ts";
+import { oneAtATime } from "../../lib/oneAtATime.ts";
 import type { CollapsedFolders } from "../../services/collapsedFolders.ts";
 import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
 import type { DialogService } from "../../services/dialog.ts";
@@ -92,6 +94,9 @@ export interface LibrariesViewDeps {
   // listings were read at, until the returned function is called
   // (web/services/spaceChanges.ts).
   followLibrary: (id: string, readAt: () => string | undefined, onChanged: () => void) => () => void;
+  // Calls the listener with the rooted paths this window wrote
+  // (web/core/spaceTree.ts).
+  onWritten: (listener: (paths: readonly string[]) => void) => () => void;
   createTree: (listPath: string) => TreeView;
   showExtensions: () => boolean;
   createMenuButton: (label: string, target: ListItemTarget) => HTMLButtonElement;
@@ -191,6 +196,16 @@ interface Row {
   header: HTMLDivElement;
   body: HTMLDivElement;
   writable: boolean;
+}
+
+// The library a rooted path is in: none for a space path.
+function libraryOf(rootedPath: string): string[] {
+  try {
+    const { root } = parseRootedPath(rootedPath);
+    return isLibraryRoot(root) ? [root.library] : [];
+  } catch {
+    return [];
+  }
 }
 
 export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
@@ -326,6 +341,19 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     renderExpanded();
     listOpenFolders(id);
   }
+
+  const reloadOnce = oneAtATime(reload);
+
+  // A file this window wrote in a library shows at once: the open library
+  // lists again, and for another its cached tree goes and whatever lists it
+  // from disk lists it again, as for a change from outside.
+  deps.onWritten((paths) => {
+    const written = new Set(paths.flatMap(libraryOf));
+    if (written.size === 0) return;
+    for (const id of written) if (id !== expandedId) deps.forgetLibraryTree(id);
+    if (expandedId !== undefined && written.has(expandedId)) reloadOnce();
+    else deps.onChanged();
+  });
 
   // A library's tree lists by name, so a sort picked for one of its folders
   // shows only in a gallery, which lists it again; the tree stays as it is.
@@ -545,14 +573,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     unfollow?.();
     readAt = undefined;
     // A change from outside re-lists what is listed, as a write here does.
-    unfollow =
-      id === undefined
-        ? undefined
-        : deps.followLibrary(
-            id,
-            () => readAt,
-            () => void reload(),
-          );
+    unfollow = id === undefined ? undefined : deps.followLibrary(id, () => readAt, reloadOnce);
     expandedView?.dispose();
     expandedView = undefined;
     editingPath = undefined;
@@ -1117,6 +1138,7 @@ export interface LibrariesPanelDeps
       | "importFiles"
       | "fetchLibraryFolder"
       | "followLibrary"
+      | "onWritten"
     >,
     Omit<
       LibraryManagerDeps,
@@ -1162,6 +1184,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     // listing is one folder of it.
     fetchLibraryFolder,
     followLibrary: spaceChanges.followLibrary,
+    onWritten,
     importFiles: (files, dir) =>
       importDroppedFiles(files, dir, { dialog: deps.dialog(), createEntry: postCreateEntry, upload: postUploadFile }),
     // The same surface the space tree reports a failed write on. A tree

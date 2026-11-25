@@ -51,6 +51,23 @@ describe("createJobsFeed", () => {
     unfollow();
   });
 
+  // A clip whose run stopped waiting still shows once the feed sees it saved;
+  // a job saved before the feed first saw it going is old news.
+  it("tells the views the file of a job it saw going and then saved", async () => {
+    answers = [
+      [job("going"), job("old", { stage: "saved", file: "clips/old.mp4" })],
+      [job("going", { stage: "saved", file: "clips/new.mp4" }), job("old", { stage: "saved", file: "clips/old.mp4" })],
+    ];
+    const noteWritten = vi.fn();
+    const unfollow = createJobsFeed({ fetchJobs, markJobsShown, noteWritten } as never).follow("v.flow.html", () => []);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(noteWritten).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(noteWritten).toHaveBeenCalledTimes(1);
+    expect(noteWritten).toHaveBeenCalledWith(["clips/new.mp4"]);
+    unfollow();
+  });
+
   it("says shown only the ended jobs a follower showed, where it names them", async () => {
     answers = [[job("mine", { stage: "saved" }), job("theirs", { stage: "failed", error: "nope" })]];
     const unfollow = feed().follow("v.flow.html", () => ["mine"]);

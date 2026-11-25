@@ -46,6 +46,7 @@ function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
     forgetLibraryTree: vi.fn(),
     onChanged: vi.fn(),
     followLibrary: vi.fn(() => vi.fn()),
+    onWritten: vi.fn(() => vi.fn()),
     createTree: vi.fn((listPath: string) => {
       const element = document.createElement("ul");
       element.className = "rendered";
@@ -589,6 +590,40 @@ describe("createLibrariesView", () => {
     two.click();
     expect(stops[0]).toHaveBeenCalled();
     expect(followLibrary).toHaveBeenLastCalledWith("two", expect.any(Function), expect.any(Function));
+  });
+
+  // A file this window wrote, a Flow's result say, shows without waiting for
+  // the feed: the open library lists again, and another one's cached tree
+  // goes and whatever lists it from disk is told.
+  it("re-lists the open library when this window writes into it, and tells for another", async () => {
+    let written: (paths: readonly string[]) => void = () => {};
+    const onWritten = vi.fn((listener: (paths: readonly string[]) => void) => {
+      written = listener;
+      return vi.fn();
+    });
+    const d = deps({ onWritten });
+    const { view } = await shown(d);
+    headers(view.panel)[0].click();
+    await vi.waitFor(() => expect(d.fetchLibraryFolder).toHaveBeenCalledWith("one", ""));
+
+    vi.mocked(d.fetchLibraryFolder).mockClear();
+    vi.mocked(d.onChanged).mockClear();
+    written(["notes/a.md"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(d.fetchLibraryFolder).not.toHaveBeenCalled();
+    expect(d.onChanged).not.toHaveBeenCalled();
+
+    written(["lib:one/Tests/new.png"]);
+    await vi.waitFor(() => expect(d.fetchLibraryFolder).toHaveBeenCalledWith("one", ""));
+    expect(d.forgetLibraryTree).toHaveBeenCalledWith("one");
+
+    vi.mocked(d.fetchLibraryFolder).mockClear();
+    vi.mocked(d.forgetLibraryTree).mockClear();
+    vi.mocked(d.onChanged).mockClear();
+    written(["lib:two/still.png"]);
+    expect(d.forgetLibraryTree).toHaveBeenCalledWith("two");
+    expect(d.onChanged).toHaveBeenCalledTimes(1);
+    expect(d.fetchLibraryFolder).not.toHaveBeenCalled();
   });
 
   it("re-lists every listed folder on a reload, and forgets the tree its links resolve against", async () => {

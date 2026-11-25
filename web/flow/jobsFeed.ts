@@ -7,6 +7,7 @@
 // A hidden window asks only for its waiting runs; showing it asks at once.
 import type { JobView } from "../../src/protocol/api.ts";
 import { fetchJobs, markJobsShown } from "../core/apiClient.ts";
+import { noteWritten } from "../core/spaceTree.ts";
 
 const POLL_MS = 5000;
 // How long after a run starts to keep asking for the job it may start.
@@ -17,6 +18,8 @@ const MISSES = 3;
 export interface JobsFeedDeps {
   fetchJobs: typeof fetchJobs;
   markJobsShown: typeof markJobsShown;
+  // Where a job's saved result is told, as a write this window made.
+  noteWritten?: typeof noteWritten;
 }
 
 /** Handed each poll's jobs; returns the ended ones it showed, or nothing
@@ -43,6 +46,8 @@ interface Waiter {
 interface PathFeed {
   listeners: Set<JobsListener>;
   waiters: Set<Waiter>;
+  // The jobs the last poll saw still going, by id.
+  going: Set<string>;
   live: boolean;
   watchUntil: number;
   timer?: number;
@@ -58,7 +63,15 @@ export function createJobsFeed(deps: JobsFeedDeps = { fetchJobs, markJobsShown }
   function feedOf(path: string): PathFeed {
     let feed = feeds.get(path);
     if (!feed) {
-      feed = { listeners: new Set(), waiters: new Set(), live: false, watchUntil: 0, polling: false, again: false };
+      feed = {
+        listeners: new Set(),
+        waiters: new Set(),
+        going: new Set(),
+        live: false,
+        watchUntil: 0,
+        polling: false,
+        again: false,
+      };
       feeds.set(path, feed);
     }
     return feed;
@@ -90,6 +103,13 @@ export function createJobsFeed(deps: JobsFeedDeps = { fetchJobs, markJobsShown }
       const waiting = [...feed.waiters].map((waiter) => waiter.id);
       const { jobs } = await deps.fetchJobs(path, waiting);
       feed.live = jobs.some(isLive);
+      // A job seen going that has saved its result since: the file shows at
+      // once, though the run that started it may have stopped waiting.
+      const saved = jobs.flatMap((job) =>
+        job.stage === "saved" && feed.going.has(job.id) && job.file ? [job.file] : [],
+      );
+      feed.going = new Set(jobs.filter(isLive).map((job) => job.id));
+      if (saved.length > 0) (deps.noteWritten ?? noteWritten)(saved);
       const taken: string[] = [];
       for (const waiter of [...feed.waiters]) {
         const job = jobs.find((each) => each.id === waiter.id);

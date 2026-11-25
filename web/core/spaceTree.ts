@@ -68,6 +68,10 @@ let readAt: string | undefined;
 // held when its read went out: undefined until a read lands.
 let unlistedWrites = 0;
 let listedThrough: number | undefined;
+// Paths written since the views were last told, and who to tell.
+let written = new Set<string>();
+let telling: ReturnType<typeof setTimeout> | undefined;
+const writtenListeners = new Set<(paths: readonly string[]) => void>();
 
 export function getTree(): SpaceTreeNode[] {
   return currentTree;
@@ -195,11 +199,28 @@ export async function refresh(): Promise<SpaceTreeNode[]> {
   return currentTree;
 }
 
-/** Notes that files may have been written which the listing doesn't hold
- * yet: a copy dropped in, a Flow's run. Until a read started after this
- * lands, the listing never says a file is gone. */
-export function noteUnlistedWrites(): void {
+/** Notes files this window wrote, by rooted path: a Flow's result, a frame
+ * saved, a file dropped in. Until a read started after this lands, the
+ * listing never says one is gone, and every view listing their folders hears
+ * of them at once, so it reads them without waiting for the change feed. */
+export function noteWritten(paths: readonly string[]): void {
   unlistedWrites++;
+  for (const path of paths) written.add(path);
+  // Paths written in one go are told together, so a view reads once.
+  if (telling !== undefined) return;
+  telling = setTimeout(() => {
+    const told = [...written];
+    written = new Set();
+    telling = undefined;
+    if (told.length > 0) for (const listener of writtenListeners) listener(told);
+  }, 0);
+}
+
+/** Calls `listener` with the rooted paths this window wrote, those written
+ * together at once. Returns the way to stop. */
+export function onWritten(listener: (paths: readonly string[]) => void): () => void {
+  writtenListeners.add(listener);
+  return () => writtenListeners.delete(listener);
 }
 
 /** Whether the space's listing says nothing is at `rootedPath`. Never for a
