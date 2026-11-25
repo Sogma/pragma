@@ -927,7 +927,7 @@ export async function postFlowAppMode(path: string, appMode: boolean): Promise<v
   await requestVoid("/api/space/flow-app-mode", {
     method: "POST",
     body: { path, appMode } satisfies FlowAppModeRequestBody,
-    fallback: "Remembering App Mode failed",
+    fallback: "Remembering App mode failed",
   });
 }
 

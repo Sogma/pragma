@@ -11,7 +11,7 @@ import { readableTextColor } from "../lib/color.ts";
 import { wireChoicePicker } from "../lib/picker.ts";
 import type { ContextMenuService } from "../services/menus.ts";
 
-// Shared plumbing for the canvas and App Mode: the select-bearing controls,
+// Shared plumbing for the canvas and App mode: the select-bearing controls,
 // a select widget's picker, and the card's color. The plumbing behind every
 // select-bearing control (a picker's dropdown, toggleText's affix picker):
 // one `.nodrag` <select> with its change listener wired once.
@@ -88,7 +88,7 @@ export function skippedText(graph: FlowGraph, disabledId: string): string {
   return `Skipped: ${disabled ? nodeLabel(disabled) : disabledId} is disabled`;
 }
 
-// Regenerate's tooltip on the card and in App Mode: the input it moves on,
+// Regenerate's tooltip on the card and in App mode: the input it moves on,
 // for a type that finds its results by its inputs, or a held result's own.
 export function regenerateHint(type: string): string {
   return `A new ${FLOW_NODE_REGISTRY[type]?.regenerate?.key ?? "result"}, run on this node's last inputs`;

@@ -201,7 +201,7 @@ export function createPropertyEditor(
   // A removable row's icon is its menu button: a click, a right-click or the
   // keyboard opens the menu under it. Remove lives there, two clicks away,
   // since nothing undoes it. The icon is also what the property is dragged by,
-  // and Alt+Up and Alt+Down move it, as Alt+arrows move an App Mode tile.
+  // and Alt+Up and Alt+Down move it, as Alt+arrows move an App mode tile.
   function buildIcon(key: string): HTMLElement {
     const icon = propertyIcon(key, data, path);
     if (readOnlyKeys?.includes(key)) return icon;

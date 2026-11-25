@@ -2099,10 +2099,10 @@ describe("API contract — libraries", () => {
     }
   });
 
-  // Whether a Flow shows App Mode is host state too, in any root: switching
+  // Whether a Flow shows App mode is host state too, in any root: switching
   // never writes the file, and the view the file opens in keeps nothing. It
   // follows a move and goes with a delete.
-  it("opens a Flow in the App Mode this install picked, through a move, until it is deleted", async () => {
+  it("opens a Flow in the App mode this install picked, through a move, until it is deleted", async () => {
     const open = async (target: string) =>
       (await (
         await fetch(`${testServer.baseUrl}/api/file?path=${encodeURIComponent(target)}`)

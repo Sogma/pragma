@@ -140,7 +140,7 @@ describe("appMode", () => {
   });
 
   it("describes an exposed input over its field, and no output", () => {
-    // `path` names the output: App Mode matches an exposed id to an output first.
+    // `path` names the output: App mode matches an exposed id to an output first.
     const resolve = node("resolvePath", { base: "notes/" }, ["base", "path"]);
     const { appMode, elements } = setup([resolve]);
     appMode.setActive(true);
@@ -555,7 +555,7 @@ describe("appMode", () => {
   });
 });
 
-describe("App Mode tiles", () => {
+describe("App mode tiles", () => {
   afterEach(() => vi.restoreAllMocks());
 
   // jsdom lays nothing out, so the grid reads as a 1,238px pane: 6 columns.
@@ -684,7 +684,7 @@ const pointer = (type: string, on: EventTarget, x: number, y = 40) =>
 
 const click = (on: Element) => on.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-describe("moving an App Mode tile", () => {
+describe("moving an App mode tile", () => {
   afterEach(unstubGestures);
 
   // One row of three 100px tiles, toggle, prompt and Run, and the point under
@@ -789,7 +789,7 @@ describe("moving an App Mode tile", () => {
   });
 });
 
-describe("resizing an App Mode tile", () => {
+describe("resizing an App mode tile", () => {
   afterEach(unstubGestures);
 
   // A grid `width` px wide, in which every tile's box is the span it shows,
@@ -888,7 +888,7 @@ describe("resizing an App Mode tile", () => {
   });
 });
 
-describe("arranging an App Mode tile from the keyboard", () => {
+describe("arranging an App mode tile from the keyboard", () => {
   afterEach(unstubGestures);
 
   const key = (on: Element, name: string, modifiers: KeyboardEventInit = {}) => {
@@ -1016,7 +1016,7 @@ describe("placeExposedNode", () => {
   });
 });
 
-describe("an exposed Int in App Mode", () => {
+describe("an exposed Int in App mode", () => {
   it("steps its value with the card's arrows, and picks its control with blank shown as fixed", () => {
     const int = node("int", { value: "4" }, ["value", "control"]);
     const { appMode, deps, elements, opened } = setup([int]);
@@ -1049,7 +1049,7 @@ describe("an exposed Int in App Mode", () => {
   });
 });
 
-describe("App Mode and a disabled node", () => {
+describe("App mode and a disabled node", () => {
   // Its place in the order stays, so it comes back where it was.
   it("shows no tile for a node a run leaves out, and says so when that is every tile", () => {
     const disabled = { ...node("prompt", { text: "hi" }, ["text"]), mode: "disabled" as const };

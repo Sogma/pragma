@@ -208,7 +208,7 @@
   text-align: center;
 }
 
-/* App Mode: a document heading over the tile grid, left-aligned with it like
+/* App mode: a document heading over the tile grid, left-aligned with it like
    Table's rather than centred like the graph view's banner. */
 .flow-app-pane > .editor-title-bar > .editor-title-inner {
   max-width: none;

@@ -72,7 +72,7 @@ export interface FlowViewDeps {
   // Called after every (re-)render, once the flow's name (if any) is in
   // hand, so the group re-places its title bar, same as the table pane.
   onRendered: () => void;
-  // Where a pan or zoom left the canvas, and the App Mode switch: your view,
+  // Where a pan or zoom left the canvas, and the App mode switch: your view,
   // reported for this install to keep, never saved to the file.
   onViewportChange: (viewport: Viewport) => void;
   onAppModeChange: (appMode: boolean) => void;
@@ -84,7 +84,7 @@ export interface FlowViewDeps {
   // A run's paid generation, with the path of the Flow that ran it: the
   // Console records each, while the card shows only the last run's.
   spent: (flowPath: string, spend: GenerationSpend) => void;
-  // Every Flow's runs going, as each changes, and App Mode's count showing them.
+  // Every Flow's runs going, as each changes, and App mode's count showing them.
   onRunsChange: (runs: readonly CanvasRunInfo[]) => void;
   showRuns: () => void;
   // A Generate node's result file, by tree path, previewed over the pane.
@@ -96,7 +96,7 @@ export interface FlowViewDeps {
 
 export interface FlowView {
   // `local` is your view of the file, where its tab left the canvas and the
-  // App Mode this install keeps, each shown over the file's own.
+  // App mode this install keeps, each shown over the file's own.
   render(file: FlowFileResponse, local?: { viewport?: Viewport; appMode?: boolean }): void;
   clear(): void;
   isActive(): boolean;
@@ -112,8 +112,8 @@ export interface FlowView {
   run(): Promise<void>;
   setRunCount(count: number): void;
   showPermissionsPanel(): void;
-  // App Mode — the published-form counterpart to the graph canvas (see
-  // docs/protocol.md's App Mode section): renders exactly the fields marked
+  // App mode — the published-form counterpart to the graph canvas (see
+  // docs/protocol.md's App mode section): renders exactly the fields marked
   // Expose as a plain form, inputs editable, output pins read-only until Run
   // populates them. main.ts owns the toggle button's chrome
   // (aria-pressed/title), reading the state back after every toggle.
@@ -129,7 +129,7 @@ export interface FlowView {
   hasTransient(): boolean;
   dismissTransient(): void;
   // The node selected on the canvas, which the copilot is told of. None
-  // while App Mode hides the canvas.
+  // while App mode hides the canvas.
   selectedNode(): string | undefined;
   // The canvas's keys (flowKeys.ts): Undo, Redo, and removing or disabling the
   // selected node. Each applies only while focus is on the canvas, not a field.
@@ -417,7 +417,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     removeNode,
   });
 
-  // What the node cards and App Mode both work through: this view's
+  // What the node cards and App mode both work through: this view's
   // persistence and reads, and the open Flow's path, which every path a node
   // stores is read from.
   const nodeDeps = {
@@ -721,7 +721,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
       }
       renderEdges();
       // After every node has mounted and the edges are drawn: building the
-      // App Mode form reads the live graph's nodes and edges, not file.graph.
+      // App mode form reads the live graph's nodes and edges, not file.graph.
       appMode.setActive(local?.appMode ?? file.graph.appModeActive === true);
       deps.onRendered();
     },

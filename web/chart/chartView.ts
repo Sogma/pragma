@@ -1,5 +1,5 @@
 // A chart drawn into an element of its own, for a Chart node's card and its
-// App Mode field alike. The adapter loads on the first draw, so a Flow with
+// App mode field alike. The adapter loads on the first draw, so a Flow with
 // no chart on screen never loads Plot.
 import type { ChartSpec } from "../../src/protocol/types.ts";
 
@@ -14,7 +14,7 @@ export interface ChartView {
 
 export interface ChartViewOptions {
   // Draw to the element's height as well as its width, for a box whose
-  // height its container sets (an App Mode tile). Without it the chart takes
+  // height its container sets (an App mode tile). Without it the chart takes
   // its height from its width, and a box of fixed height would cut it off.
   fill?: boolean;
 }
@@ -23,7 +23,7 @@ export interface ChartViewOptions {
 const MIN_FILL_HEIGHT = 120;
 
 // `empty` and `error` mark the placeholder and a failure, the state classes
-// App Mode's output values already style. `spec` is read at each draw, so a
+// App mode's output values already style. `spec` is read at each draw, so a
 // redraw follows a config edit made since.
 //
 // A failure also carries `nodrag`, so its text can be selected and copied:

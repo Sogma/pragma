@@ -131,7 +131,7 @@ export function mountEntryRoutes(app: Hono, { spaceRoot }: RouteContext): void {
     }
   };
 
-  // And a Flow's App Mode.
+  // And a Flow's App mode.
   const keepFlowAppModes = async (change: Parameters<typeof updateFlowAppModes>[1]): Promise<void> => {
     try {
       await updateFlowAppModes(spaceRoot, change);

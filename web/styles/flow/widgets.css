@@ -35,7 +35,7 @@
 /* The picked picture's box (pickerHud.ts), in the picture's own shape. On a
    card that grows to its picture it takes the zone's width; in a sized
    card's zone of fixed height, the most that fits, as object-fit: contain
-   would. Scaled up as well as down. App Mode's fills its zone instead
+   would. Scaled up as well as down. App mode's fills its zone instead
    (app-mode.css). */
 /* Its one grid cell is fixed to the box, so a picture taller than the box
    is contained in it rather than growing the cell past it. */
@@ -94,7 +94,7 @@
   overflow: hidden;
 }
 
-/* Shown only in an App Mode tile too narrow for the dimensions, which the
+/* Shown only in an App mode tile too narrow for the dimensions, which the
    ratio alone stands in for there (app-mode.css). */
 .flow-picture-ratio {
   display: none;

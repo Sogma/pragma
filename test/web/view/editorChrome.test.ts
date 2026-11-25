@@ -476,29 +476,29 @@ describe("editorChrome Format", () => {
     } as unknown as DocumentPane & { applyFormat: Mock };
   }
 
-  it("lists the format's own rows right after Format… and Source mode, before the pane's", () => {
+  it("lists the format's own rows right after Format and Source mode, before the pane's", () => {
     const zoom = { label: "Zoom", submenu: [{ label: "100%", run: vi.fn() }] };
     const { toolbar } = setup(note, false, formatPane(offered, undefined, [zoom]));
-    expect(toolbar().map((entry) => entry.label)).toEqual(["Format…", "Source mode", "Zoom", "Layout"]);
+    expect(toolbar().map((entry) => entry.label)).toEqual(["Format", "Source mode", "Zoom", "Layout"]);
   });
 
-  it("offers Format… first, then Source mode, checked while the setting is on, and flips the setting", () => {
+  it("offers Format first, then Source mode, checked while the setting is on, and flips the setting", () => {
     const { toolbar, item, commands, context, formatColumn } = setup(note, false, formatPane(offered));
     expect(
       toolbar()
         .map((entry) => entry.label)
         .slice(0, 2),
-    ).toEqual(["Format…", "Source mode"]);
-    expect(item("Format…")?.checked).toBe(false);
+    ).toEqual(["Format", "Source mode"]);
+    expect(item("Format")?.checked).toBe(false);
 
     void commands.run("editor.toggleFormat", context());
     expect(formatColumn.get()).toBe(true);
-    expect(item("Format…")?.checked).toBe(true);
+    expect(item("Format")?.checked).toBe(true);
   });
 
   it("offers it nowhere a note's editor can't change", () => {
-    expect(setup(note, false, formatPane(undefined)).item("Format…")).toBeUndefined();
-    expect(setup(table).item("Format…")).toBeUndefined();
+    expect(setup(note, false, formatPane(undefined)).item("Format")).toBeUndefined();
+    expect(setup(table).item("Format")).toBeUndefined();
   });
 
   it("makes each format's actions commands, named for the palette, run on the focused note", () => {
@@ -524,7 +524,7 @@ describe("editorChrome Format", () => {
 });
 
 describe("editorChrome run count", () => {
-  it("counts the runs going beside Run, reveals them, and hides with Run in App Mode", () => {
+  it("counts the runs going beside Run, reveals them, and hides with Run in App mode", () => {
     const panes = createEditorPanes();
     panes.register({
       kind: "flow",

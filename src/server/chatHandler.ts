@@ -262,7 +262,7 @@ function describeWires(edges: readonly FlowEdgeInstance[], nodeId: string): stri
 
 /** The node the writer has selected on a Flow's canvas, quoted from the
  * saved file with its wires and hedged as a text selection is. Its layout
- * (position, size, colour, collapsed, App Mode's order and tile) is left out.
+ * (position, size, colour, collapsed, App mode's order and tile) is left out.
  *
  * Undefined when the saved Flow has no such node: the save that added it
  * failed, or the file isn't a Flow that reads. */

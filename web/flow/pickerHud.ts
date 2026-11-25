@@ -1,7 +1,7 @@
-// A Load Image picker's picture, on the graph card and in App Mode alike,
+// A Load Image picker's picture, on the graph card and in App mode alike,
 // with the gallery's hover bars: the picture's dimensions with their aspect
 // ratio and the scale it is shown at along its top edge, or the ratio alone
-// in a narrow App Mode tile, and the file's name and size along its bottom.
+// in a narrow App mode tile, and the file's name and size along its bottom.
 
 import { formatAspectRatio } from "../../src/protocol/aspectRatio.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";

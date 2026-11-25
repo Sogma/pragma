@@ -82,7 +82,7 @@ export function createFlowElements(): FlowElements {
   // the canvas's keys (flowKeys.ts) act only while it has focus.
   pane.tabIndex = -1;
 
-  // The graph's alternate view (docs/protocol.md, App Mode): a plain form
+  // The graph's alternate view (docs/protocol.md, App mode): a plain form
   // of only the exposed fields, built by the view, never static markup.
   const appModePane = div("flow-app-pane");
   appModePane.hidden = true;

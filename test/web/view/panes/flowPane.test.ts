@@ -314,7 +314,7 @@ describe("flowPane", () => {
     expect(onViewChange).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps App Mode per Flow on this install, over what a file read brings", async () => {
+  it("keeps App mode per Flow on this install, over what a file read brings", async () => {
     const saveAppMode = vi.fn(async () => undefined);
     const onViewChange = vi.fn();
     const pane = setup(vi.fn(), { saveAppMode, onViewChange });
@@ -337,12 +337,12 @@ describe("flowPane", () => {
     });
   });
 
-  it("sets the default view the canvas offers, then lets this install's App Mode go", async () => {
+  it("sets the default view the canvas offers, then lets this install's App mode go", async () => {
     const saveAppMode = vi.fn(async () => undefined);
     const pane = setup(vi.fn(), { saveAppMode });
     await pane.setInput(tab, current, file());
     expect(pane.defaultView?.tooltip).toBe(
-      "Saves this position, zoom and App Mode into the Flow, for every device and app.",
+      "Saves this position, zoom and App mode into the Flow, for every device and app.",
     );
     canvas.differs = true;
     expect(pane.defaultView?.differs()).toBe(true);

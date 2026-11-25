@@ -31,7 +31,7 @@ const graph: FlowGraph = {
 };
 
 describe("a flow's run inputs", () => {
-  it("are its exposed value-holding fields, typed, in App Mode order", () => {
+  it("are its exposed value-holding fields, typed, in App mode order", () => {
     expect(flowRunInputs(graph)).toEqual([
       { name: "toggle-1.true", nodeId: "toggle-1", field: "true", label: "Toggle · true", type: "boolean" },
       { name: "join-1.text_1", nodeId: "join-1", field: "text_1", label: "Greeting · text_1", type: "text" },

@@ -976,7 +976,7 @@ const prompt: NodeExecutor = async (node, _inputs, context) => {
   return { text: { type: "text", value: fillDates(configString(node, "text"), context.clock) } };
 };
 
-// The card and App Mode only ever store one of the options, so a pick that
+// The card and App mode only ever store one of the options, so a pick that
 // isn't one came from a caller outside the app, or a hand edit. Refused
 // rather than passed on: it's a value the form could never have given.
 //

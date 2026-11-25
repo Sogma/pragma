@@ -63,8 +63,8 @@ describe("rankPaths", () => {
 
 describe("scoreLabel", () => {
   it("scores a label on every word, case-insensitively, or rejects it", () => {
-    expect(scoreLabel("Flow: App Mode", "app")).toBeGreaterThan(scoreLabel("Flow: App Mode", "fam") ?? 0);
-    expect(scoreLabel("Flow: App Mode", "FLOW mode")).toBeDefined();
-    expect(scoreLabel("Flow: App Mode", "rename")).toBeUndefined();
+    expect(scoreLabel("Flow: App mode", "app")).toBeGreaterThan(scoreLabel("Flow: App mode", "fam") ?? 0);
+    expect(scoreLabel("Flow: App mode", "FLOW mode")).toBeDefined();
+    expect(scoreLabel("Flow: App mode", "rename")).toBeUndefined();
   });
 });

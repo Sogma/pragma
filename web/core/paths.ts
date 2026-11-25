@@ -368,7 +368,7 @@ export const SELECTION_DRAG_TYPE = "application/x-pragma-selection";
 /** The path a drag carries, parsed. A tree row writes its rooted path as
  * `text/plain` on purpose, so a drop into an ordinary text field still pastes
  * something readable. Undefined covers both "no path" and "not a path" — an
- * OS file drag, or App Mode's reorder payload, a node id that must keep
+ * OS file drag, or App mode's reorder payload, a node id that must keep
  * falling through untouched. */
 export function readDraggedPath(event: DragEvent): RootedPath | undefined {
   const text = event.dataTransfer?.getData("text/plain");

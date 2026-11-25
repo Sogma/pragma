@@ -1,5 +1,5 @@
 // A Flow's run parameters: the exposed fields that hold a value of their own
-// (docs/protocol.md, Flows → Execution). The same declaration App Mode renders
+// (docs/protocol.md, Flows → Execution). The same declaration App mode renders
 // its form from, so a caller outside the canvas gets the signature a person
 // sees there rather than a second notion of what a flow takes.
 import {
@@ -82,7 +82,7 @@ function inputFor(node: FlowNodeInstance, id: string): FlowRunInput | undefined 
   return undefined;
 }
 
-// App Mode's order: appModeOrder ascending, graph order otherwise. A node a
+// App mode's order: appModeOrder ascending, graph order otherwise. A node a
 // run leaves out takes no input and gives no result.
 function exposedNodes(graph: FlowGraph): FlowNodeInstance[] {
   const leftOut = nodesLeftOut(graph);

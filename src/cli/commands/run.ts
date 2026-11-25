@@ -38,7 +38,7 @@ function formatValue(value: PortValue): string {
 // By default stdout carries the flow's *results* and nothing else — one value
 // per line, so a single-output graph is a bare scalar you can redirect or
 // pipe. Which values is the flow's own declaration: the output ports marked
-// Expose, the same ones App Mode publishes, so a flow exposing none prints
+// Expose, the same ones App mode publishes, so a flow exposing none prints
 // none. `--all` is the debug view; `--json` carries the structure.
 function printOutcome(outcome: FlowRunOutcome, all: boolean): void {
   if (all) {

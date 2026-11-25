@@ -1,4 +1,4 @@
-/* A node's glyph: its card's title icon, App Mode's tile glyph and its
+/* A node's glyph: its card's title icon, App mode's tile glyph and its
    add-node menu entry all read --node-glyph, which each type's rule below
    sets on whatever carries its data-node-type. background-color:
    currentColor, so a node color recolours it along with the title text. */

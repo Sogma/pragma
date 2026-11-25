@@ -102,13 +102,13 @@ export async function updateTableLayouts(
   await layoutStore().updateTableLayouts(registered(spaceRoot), change);
 }
 
-/** Whether each Flow shows App Mode on this install. */
+/** Whether each Flow shows App mode on this install. */
 export async function readFlowAppModes(spaceRoot: string): Promise<Record<string, boolean>> {
   const id = spaceIdOf(spaceRoot);
   return id === undefined ? {} : layoutStore().flowAppModes(id);
 }
 
-/** Rewrites every Flow's App Mode through `change`, as the Tables' layouts
+/** Rewrites every Flow's App mode through `change`, as the Tables' layouts
  * are rewritten above. */
 export async function updateFlowAppModes(
   spaceRoot: string,
@@ -124,7 +124,7 @@ export async function readFrameFolders(spaceRoot: string): Promise<Record<string
 }
 
 /** Rewrites every context's frame folder through `change`, as the Flows'
- * App Mode is rewritten above. */
+ * App mode is rewritten above. */
 export async function updateFrameFolders(
   spaceRoot: string,
   change: (folders: Record<string, string>) => Record<string, string> | undefined,

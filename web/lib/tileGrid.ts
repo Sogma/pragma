@@ -1,7 +1,7 @@
 // A grid of tiles that fill it row by row in order, each spanning whole
 // cells. Six columns, or two on a narrow grid, so a stored width is a share
 // of the row its designer can predict, and a tile wider than the grid spans
-// it whole (docs/protocol.md's App Mode section).
+// it whole (docs/protocol.md's App mode section).
 //
 // A tile moves by its handle, resizes by its corner grip, takes Alt with the
 // arrows, and leaves by its x where the caller allows. Its looks are

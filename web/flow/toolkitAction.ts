@@ -92,7 +92,7 @@ function display(value: PortValue): string {
   return String(value.value);
 }
 
-// What the flow exposes, as App Mode would show it, from the part that ran.
+// What the flow exposes, as App mode would show it, from the part that ran.
 function resultRows(graph: FlowGraph, result: RunResult): string[] {
   return flowRunOutputs(graph).flatMap(({ nodeId, port, label }) => {
     const value = result.outputs.get(nodeId)?.[port];

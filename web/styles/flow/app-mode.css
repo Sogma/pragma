@@ -1,4 +1,4 @@
-/* App Mode (docs/protocol.md): the fields marked Expose, as tiles on a grid.
+/* App mode (docs/protocol.md): the fields marked Expose, as tiles on a grid.
    Same absolute-fill footprint as .flow-pane; the two are never visible at
    once. The pane keeps the editor's prose size for the title bar's em
    sizing, and the grid takes the UI size back. No top padding: the title
@@ -22,7 +22,7 @@
   text-align: center;
 }
 
-/* The cells of App Mode's grid, shared by the tiles and the cell guides
+/* The cells of App mode's grid, shared by the tiles and the cell guides
    beneath them; tile-grid.css lays the grid out. */
 .flow-app-board {
   --app-row: 80px;

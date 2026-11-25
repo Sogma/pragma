@@ -739,7 +739,7 @@ export interface FlowPort {
   description?: string;
 }
 
-/** A tile's span on App Mode's grid, in whole cells. A hint: the host owns
+/** A tile's span on App mode's grid, in whole cells. A hint: the host owns
  * the column count and clamps to it, and may ignore sizes altogether. */
 export interface AppModeSize {
   columns: number;
@@ -789,17 +789,17 @@ export interface FlowNodeInstance {
   // (docs/protocol.md, Execution). Absent, it runs. It changes what a run
   // does, so the capability digest covers it.
   mode?: "disabled";
-  // The port ids, config keys and picker keys App Mode's form shows — see
-  // docs/protocol.md's "App Mode" section. Never a connect-only socket's
+  // The port ids, config keys and picker keys App mode's form shows — see
+  // docs/protocol.md's "App mode" section. Never a connect-only socket's
   // port id: it has no value of its own to show.
   exposed?: string[];
-  // This node's position among App Mode's cards, lowest first and absent
+  // This node's position among App mode's cards, lowest first and absent
   // last; ties fall back to `graph.nodes` order through a stable sort. Read only on exposed
   // nodes. A drag reorder renumbers every exposed node, and Run, to a fresh
-  // 0-based sequence — not gap numbering, which App Mode's handful of cards
+  // 0-based sequence — not gap numbering, which App mode's handful of cards
   // never needs.
   appModeOrder?: number;
-  // This node's App Mode tile; absent means the host's default for it. Cells,
+  // This node's App mode tile; absent means the host's default for it. Cells,
   // never pixels: `size` above is the canvas card's. Like appModeOrder, it
   // never reorders a run's inputs or results.
   appModeSize?: AppModeSize;
@@ -820,14 +820,14 @@ export interface FlowGraph {
   nodes: FlowNodeInstance[];
   edges: FlowEdgeInstance[];
   viewport?: { x: number; y: number; zoom: number };
-  // Where Run's card sits among App Mode's exposed-node cards — a node's
+  // Where Run's card sits among App mode's exposed-node cards — a node's
   // appModeOrder, graph-scoped since Run isn't a node. Absent sorts Run after
   // every exposed card: fill in the fields, then Run.
   runAppModeOrder?: number;
-  // Run's App Mode tile — a node's appModeSize, graph-scoped like
+  // Run's App mode tile — a node's appModeSize, graph-scoped like
   // runAppModeOrder.
   runAppModeSize?: AppModeSize;
-  // Whether the flow opens in App Mode. With `viewport`, its default view,
+  // Whether the flow opens in App mode. With `viewport`, its default view,
   // written only when someone sets it (docs/protocol.md, Graph shape): a
   // switch of view is the host's state, never the file's.
   appModeActive?: boolean;

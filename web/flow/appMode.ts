@@ -1,11 +1,11 @@
-// App Mode: the published-form view of a Flow (see docs/protocol.md's App
+// App mode: the published-form view of a Flow (see docs/protocol.md's App
 // Mode section) — a plain form of exactly the exposed fields plus a
 // draggable Run item.
 //
 // It reuses the graph card's field CSS and markup, and its pickers through an
-// instance over App Mode's own deps, but never the card's DOM-building
+// instance over App mode's own deps, but never the card's DOM-building
 // helpers: those register elements in the view's per-node maps keyed by node
-// id alone, so an App Mode copy would silently overwrite the card's entry and
+// id alone, so an App mode copy would silently overwrite the card's entry and
 // break its widget visibility on the next edge change.
 
 import { APPLET_NODE_TYPE } from "../../src/protocol/appletNode.ts";
@@ -47,7 +47,7 @@ import { createResultClip, type ResultClip } from "./resultClip.ts";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// One entry in App Mode's own draggable list — either an exposed node's
+// One entry in App mode's own draggable list — either an exposed node's
 // card, or the single Run item. A discriminated union rather than two
 // parallel lists so reordering and rendering both walk one combined,
 // already-sorted sequence instead of interleaving two sources by hand.
@@ -78,7 +78,7 @@ function appModeItems(graph: FlowGraph): AppModeItem[] {
 }
 
 // A plain 0-based sequence over the whole list rather than gapped
-// numbering — App Mode holds a handful of items, so rewriting every one is
+// numbering — App mode holds a handful of items, so rewriting every one is
 // cheap and never needs renormalizing.
 function writeAppModeOrder(graph: FlowGraph, items: AppModeItem[]): void {
   items.forEach((item, index) => {
@@ -87,7 +87,7 @@ function writeAppModeOrder(graph: FlowGraph, items: AppModeItem[]): void {
   });
 }
 
-/** Gives a node whose first field was just exposed its App Mode position:
+/** Gives a node whose first field was just exposed its App mode position:
  * just before Run when it exposes an input, last when it exposes only
  * outputs. Without this, once anything has been ordered, a newly exposed
  * card sorts after all of it — below Run and the results. A graph nobody
@@ -144,7 +144,7 @@ export interface AppModeDeps {
   ): string;
   // What the count beside Run shows: the Flow's runs, in the inspector.
   showRuns(): void;
-  // Rebuilds the graph cards of nodes an App Mode control edited, so they
+  // Rebuilds the graph cards of nodes an App mode control edited, so they
   // show the current config instead of what they mounted with.
   remountNodes(nodeIds: string[]): void;
   // A Generate node's result file, by tree path, previewed over the pane.
@@ -207,9 +207,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   // How each exposed field that a run can move on shows its config again, by
   // node id: an Int's value, a Generate node's seed.
   const appModeFieldShows = new Map<string, (() => void)[]>();
-  // Node ids edited via an App Mode control since the mode was entered —
+  // Node ids edited via an App mode control since the mode was entered —
   // remounted on leaving, so a graph card never shows a stale value after a
-  // round trip through App Mode.
+  // round trip through App mode.
   const appModeDirtyNodeIds = new Set<string>();
   // The form's tiles, while it shows, and the node each tile shows.
   let appModeGrid: TileGrid | null = null;
@@ -226,7 +226,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return FLOW_NODE_REGISTRY[node.type]?.label || node.type;
   }
 
-  // Every App Mode field edit goes through this rather than saving
+  // Every App mode field edit goes through this rather than saving
   // directly: the controls here are independent elements from the graph
   // card's, so the node is also marked for a remount on leaving — otherwise
   // its card keeps showing the value it mounted with, though config and the
@@ -237,8 +237,8 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     syncAppModeRegenerate(nodeId);
   }
 
-  // Every checkbox-shaped App Mode field is the app's switch, not the graph
-  // card's cramped inline checkbox: App Mode has the room for a real one.
+  // Every checkbox-shaped App mode field is the app's switch, not the graph
+  // card's cramped inline checkbox: App mode has the room for a real one.
   function buildAppModeSwitchField(
     node: FlowNodeInstance,
     key: string,
@@ -398,7 +398,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
-  // A widget input's App Mode control — the counterpart to the graph card's
+  // A widget input's App mode control — the counterpart to the graph card's
   // inline widget, with the same config[port.id] storage and the same
   // widget types. A port also wired from upstream still renders and stays
   // editable here, as its card control does behind the wire —
@@ -416,7 +416,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       );
 
     // An input's description, as on the card. An output's stays on the card:
-    // it says how the pin is wired, which App Mode hides.
+    // it says how the pin is wired, which App mode hides.
     if (widget.type === "checkbox") {
       return buildAppModeSwitchField(node, port.id, formLabel(port.label), port.description, currentValue() === "true");
     }
@@ -467,10 +467,10 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
-  // A plain config field's App Mode control — the counterpart to the graph
+  // A plain config field's App mode control — the counterpart to the graph
   // card's config field. Built-in nodes route their inline config through
   // widget inputs or bespoke pickers instead, but the registry shape
-  // supports config fields, so App Mode renders them rather than silently
+  // supports config fields, so App mode renders them rather than silently
   // dropping one.
   function buildAppModeConfigField(node: FlowNodeInstance, field: FlowNodeConfigField): HTMLDivElement {
     const stored = () => (typeof node.config[field.key] === "string" ? (node.config[field.key] as string) : "");
@@ -552,7 +552,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return wrap;
   }
 
-  // The card's own pickers over App Mode's deps, so they register in none of
+  // The card's own pickers over App mode's deps, so they register in none of
   // the card's maps. An edit through one marks its card for a remount on
   // leaving. A right-click offers the field's own actions, never Expose,
   // which is the canvas's: every field here is exposed already.
@@ -720,7 +720,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return undefined;
   }
 
-  // The inline, draggable Run tile, the only Run control while App Mode is
+  // The inline, draggable Run tile, the only Run control while App mode is
   // active (the toolbar's hides), styled the same so it reads as the same
   // action, with the count of runs going over its foot.
   function buildAppModeRunItem(): HTMLElement {
@@ -749,13 +749,13 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return tile;
   }
 
-  // Only for a fresh entry into App Mode — a reorder moves DOM nodes
+  // Only for a fresh entry into App mode — a reorder moves DOM nodes
   // instead. That keeps the replaceChildren() below safe: the group's title
   // bar moves into the pane only after the toggle returns, so on a fresh
   // entry it isn't a child yet. Rebuilding while the form is showing would
   // wipe the title bar.
   function buildAppModeForm(): void {
-    // Re-entering App Mode (toggle out, back in) should land back where
+    // Re-entering App mode (toggle out, back in) should land back where
     // you left it, not snap to the top — replaceChildren() below empties
     // the pane for a moment, collapsing scrollHeight to ~0 and clamping
     // scrollTop down with it, so this needs restoring after.
@@ -822,7 +822,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     section.dataset.nodeId = node.id; // same convention as .flow-node's own data-node-id
     section.dataset.nodeType = node.type; // picks the graph card's glyph
     // The graph card's color, or its type's default, read fresh on
-    // every build so a colour set in the graph shows the next time App Mode
+    // every build so a colour set in the graph shows the next time App mode
     // opens.
     const color = node.color ?? FLOW_NODE_REGISTRY[node.type]?.defaultColor;
     if (color) section.style.setProperty("--node-color", color);
@@ -884,7 +884,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     deps.elements.appModePane.replaceChildren();
     disposeAppModeForm();
     appModeRunCountEl = null;
-    // Remount every node an App Mode control edited, so its graph card
+    // Remount every node an App mode control edited, so its graph card
     // reflects the current config rather than what it mounted with.
     if (appModeDirtyNodeIds.size > 0) {
       deps.remountNodes([...appModeDirtyNodeIds]);

@@ -744,7 +744,7 @@ export interface FlowFileResponse {
   name?: string;
   metadata?: MetadataEntry[];
   graph: FlowGraph;
-  // Whether this install shows App Mode, which it opens in over the graph's
+  // Whether this install shows App mode, which it opens in over the graph's
   // `appModeActive`; absent where it was never switched here.
   localAppMode?: boolean;
   // Set only when a host must not save over this file.
@@ -1768,7 +1768,7 @@ export interface TableLayoutRequestBody {
   layout: TableLayout;
 }
 
-// POST /api/space/flow-app-mode: whether one Flow shows App Mode, in any
+// POST /api/space/flow-app-mode: whether one Flow shows App mode, in any
 // root, on this install. Its file's own `appModeActive` keeps nothing.
 export interface FlowAppModeRequestBody {
   path: string;

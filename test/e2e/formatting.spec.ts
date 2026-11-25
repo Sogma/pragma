@@ -137,7 +137,7 @@ test("turns the Format column on from ⋮ and writes a mark and a kind of line f
   const column = page.locator(".format-column");
   await expect(column).toBeHidden();
   await page.locator('.editor-toolbar-box button[aria-label="More options"]').click();
-  await page.locator(".context-menu button", { hasText: /^Format…$/ }).click();
+  await page.locator(".context-menu button", { hasText: /^Format$/ }).click();
   await expect(column).toBeVisible();
   // Measured once it has slid into place.
   await expect(column).not.toHaveClass(/is-opening/);
@@ -179,7 +179,7 @@ test("drags the Format column's foot to bring more tools in", async ({ page, req
   await (await treeRow(page, name)).click();
   const column = page.locator(".format-column");
   await page.locator('.editor-toolbar-box button[aria-label="More options"]').click();
-  await page.locator(".context-menu button", { hasText: /^Format…$/ }).click();
+  await page.locator(".context-menu button", { hasText: /^Format$/ }).click();
   await expect(column).not.toHaveClass(/is-opening/);
   const labels = () =>
     column
@@ -229,7 +229,7 @@ test("writes a screenplay's scene heading from the picker and underlines a word 
   await page.goto("/");
   await (await treeRow(page, name)).click();
   await page.locator('.editor-toolbar-box button[aria-label="More options"]').click();
-  await page.locator(".context-menu button", { hasText: /^Format…$/ }).click();
+  await page.locator(".context-menu button", { hasText: /^Format$/ }).click();
   const column = page.locator(".format-column");
   await expect(column).toBeVisible();
 

@@ -669,7 +669,7 @@ export function mountSpaceRoutes(
     return c.body(null, 204);
   });
 
-  // Whether a Flow shows App Mode on this install, the same host state, so a
+  // Whether a Flow shows App mode on this install, the same host state, so a
   // read-only library's Flow takes one too. The file is read only for the
   // view it opens in itself, which keeps nothing.
   app.all("/api/space/flow-app-mode", async (c) => {

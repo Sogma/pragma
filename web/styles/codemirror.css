@@ -134,7 +134,7 @@
 
 /* Readable line length toggled off: .wide-editor on a pane drops the cap
    on edit view, reading view and the title bar so each fills its pane with
-   a 24px inset, as flow/canvas.css does for App Mode and file-preview.css
+   a 24px inset, as flow/canvas.css does for App mode and file-preview.css
    for a previewed note. The gutter goes back in flow. Not covered:
    .fountain-editor (a page format, not a preference), the applet's title. */
 #editor .wide-editor .editor-document.has-title {

@@ -979,7 +979,7 @@ const int: FlowNodeTypeDefinition = {
       label: "Control after run",
       type: "select",
       options: INT_CONTROLS,
-      description: "How a run from the canvas or App Mode changes the value once it has used it.",
+      description: "How a run from the canvas or App mode changes the value once it has used it.",
     },
   ],
   configKeys: ["value", "control"],

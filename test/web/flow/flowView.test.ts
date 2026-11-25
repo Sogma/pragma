@@ -100,7 +100,7 @@ function setup() {
 describe("flowView", () => {
   // The view rebuilds its live graph from the file it renders, so a field it
   // fails to carry shows for the session and is gone from the next save.
-  it("saves the App Mode layout of the file it rendered", () => {
+  it("saves the App mode layout of the file it rendered", () => {
     const { lastSave, view } = setup();
     view.setMetadata([]); // saves without editing the graph
     const saved = lastSave();
@@ -224,7 +224,7 @@ function runnableView() {
   return { view, regenerate, elements, openToSide };
 }
 
-// Your view, the canvas's place and the App Mode switch, is only reported:
+// Your view, the canvas's place and the App mode switch, is only reported:
 // the file keeps the Flow's default view, which a person sets on purpose
 // (docs/protocol.md, Graph shape).
 describe("flowView default view", () => {
@@ -255,7 +255,7 @@ describe("flowView default view", () => {
     return { elements, lastSaved, onAppModeChange, onViewportChange, saveNow, scheduleSave, view, zoomTo };
   }
 
-  it("reports a zoom and an App Mode switch without saving, and an edit keeps the file's view", async () => {
+  it("reports a zoom and an App mode switch without saving, and an edit keeps the file's view", async () => {
     const { lastSaved, onAppModeChange, onViewportChange, scheduleSave, view, zoomTo } = viewportView();
     view.render(file());
     await zoomTo(150);
@@ -397,7 +397,7 @@ type OpenCase = { type: string; config: Record<string, unknown>; exposed?: strin
 
 // Each node type first and a marker after it, so a save composed while the
 // cards are built shows whether it held the whole graph. An empty pick, or a
-// stale weight column, makes the card save as it's built, and its App Mode
+// stale weight column, makes the card save as it's built, and its App mode
 // field too when the pick is exposed: those cases test a save mid-open.
 describe("opening a Flow", () => {
   const savingPicks = [
@@ -411,7 +411,7 @@ describe("opening a Flow", () => {
     ...savingPicks.flatMap((pick) => [false, true].map((appMode) => ({ ...pick, appMode, saves: true }))),
   ];
 
-  it.each(cases)("never saves fewer nodes than it holds: $type, App Mode $appMode", async (open) => {
+  it.each(cases)("never saves fewer nodes than it holds: $type, App mode $appMode", async (open) => {
     const elements = createFlowElements();
     const scheduleSave = vi.fn();
     const saveNow = vi.fn(async () => true);
@@ -691,7 +691,7 @@ describe("flowView keys", () => {
 
   // What the copilot is told of: the canvas's selection, which a press
   // outside the canvas, such as in the chat, leaves alone.
-  it("reports the selected node until Escape or a press on empty canvas, and none in App Mode", () => {
+  it("reports the selected node until Escape or a press on empty canvas, and none in App mode", () => {
     const { card, click, elements, view } = keyedView([joinNode("joinText-1"), showNode("showText-2")]);
     expect(view.selectedNode()).toBeUndefined();
     click(card("showText-2") as HTMLElement);
@@ -711,7 +711,7 @@ describe("flowView keys", () => {
     expect(view.selectedNode()).toBeUndefined();
   });
 
-  it("takes no keys in App Mode or on a locked Flow", () => {
+  it("takes no keys in App mode or on a locked Flow", () => {
     const { card, click, view } = keyedView([joinNode("joinText-1")]);
     click(card("joinText-1") as HTMLElement);
     expect(view.canEdit("remove")).toBe(true);
@@ -757,7 +757,7 @@ describe("flowView Int", () => {
     expect(card("int-2")?.querySelector(".flow-node-error")?.textContent).toMatch(/"five" isn't a whole number/);
   });
 
-  it("shows the moved value in App Mode when the run started there", async () => {
+  it("shows the moved value in App mode when the run started there", async () => {
     const { elements, view } = keyedView([intNode("int-1", { value: "1", control: "decrement" }, ["value"])]);
     view.toggleAppMode();
     expect(box(elements.appModePane)).toBe("1");

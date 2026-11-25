@@ -255,7 +255,7 @@ describe("a folder's sort on this install", () => {
     expect(await readTableLayouts(root)).toEqual({ "b.table.html": "cards" });
   });
 
-  it("keeps whether a Flow shows App Mode, and nothing for its file's own", async () => {
+  it("keeps whether a Flow shows App mode, and nothing for its file's own", async () => {
     await saveFlowAppMode(root, "flows/brief.flow.html", true, false);
     await saveFlowAppMode(root, "form.flow.html", false, true);
     expect(await readFlowAppModes(root)).toEqual({ "flows/brief.flow.html": true, "form.flow.html": false });

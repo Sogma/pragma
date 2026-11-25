@@ -184,7 +184,7 @@ const RUN_COUNT_SPINNER =
   '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="42 14" /></svg>';
 
 /** How many runs of a Flow are going, beside its Run on the toolbar and in
- * App Mode, which stays clickable meanwhile; a click shows them. Hidden while
+ * App mode, which stays clickable meanwhile; a click shows them. Hidden while
  * none is. */
 export function buildRunCount(show: () => void): HTMLButtonElement {
   const button = document.createElement("button");

@@ -1,4 +1,4 @@
-// The canvas's Run, started from the toolbar, App Mode's Run item or a
+// The canvas's Run, started from the toolbar, App mode's Run item or a
 // node's Regenerate. Runs go side by side, each on a snapshot of the Flow
 // saved as it starts: it shows each node's result as that node finishes,
 // unless a newer run has reached the node, and moves on a node's value once
@@ -161,7 +161,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     // below calls deps.saveNow directly, skipping the immediate-save
     // helper's lock check, so this is that path's guard, not a duplicate.
     // Running without the save would execute what's on disk instead of
-    // what App Mode's inputs show.
+    // what App mode's inputs show.
     if (deps.locked()) {
       window.alert(`This Flow uses ${formatVersionPhrase(flow.file.version)}, so it can't be run here.`);
       return;

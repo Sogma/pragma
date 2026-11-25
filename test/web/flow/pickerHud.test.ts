@@ -22,7 +22,7 @@ describe("pickerHud", () => {
     expect(el.style.aspectRatio).toBe("896 / 1344");
     expect(Number(el.style.getPropertyValue("--picture-ratio"))).toBeCloseTo(2 / 3);
     // The dimensions and the scale in one box, then the ratio alone, the
-    // stand-in a narrow App Mode tile shows instead; jsdom lays nothing out,
+    // stand-in a narrow App mode tile shows instead; jsdom lays nothing out,
     // so no scale.
     const cells = [...bars.children].map((bar) =>
       [...bar.children].map((cell) =>
@@ -38,7 +38,7 @@ describe("pickerHud", () => {
     expect(bars.querySelector(".flow-picture-ratio")?.textContent).toBe("2:3");
   });
 
-  // On a card the picture's box has its shape; in App Mode it fills the
+  // On a card the picture's box has its shape; in App mode it fills the
   // tile, which contains the picture.
   it("shows the scale the picture is drawn at, measured as it loads and as the pointer arrives", () => {
     const { el, img } = createPickedPicture("data:image/png;base64,AAAA", { name: "plate.png", size: 2048 });

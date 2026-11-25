@@ -118,7 +118,7 @@ export async function saveTableLayout(
   });
 }
 
-/** Sets whether the Flow at `key` shows App Mode here. Its file's own,
+/** Sets whether the Flow at `key` shows App mode here. Its file's own,
  * `own`, keeps nothing, so the file leads again. */
 export async function saveFlowAppMode(spaceRoot: string, key: string, appMode: boolean, own: boolean): Promise<void> {
   await updateFlowAppModes(spaceRoot, (modes) => {
@@ -192,7 +192,7 @@ export function forgottenLocalSorts(
 }
 
 /** After `from` moved to `to`: what is kept by a file's path follows it, a
- * Table's layout or a Flow's App Mode, as do those under a moved folder.
+ * Table's layout or a Flow's App mode, as do those under a moved folder.
  * Undefined when none did. */
 export function movedByPath<T>(entries: Record<string, T>, from: string, to: string): Record<string, T> | undefined {
   let changed = false;

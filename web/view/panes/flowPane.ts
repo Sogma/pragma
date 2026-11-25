@@ -1,4 +1,4 @@
-// The Flow pane: a `.flow.html` graph on the xyflow canvas, with App Mode
+// The Flow pane: a `.flow.html` graph on the xyflow canvas, with App mode
 // as its alternate view. Adapts createFlowView to the EditorPane contract;
 // the pane builds its own DOM (flow/flowElements.ts), so any number can
 // exist.
@@ -42,9 +42,9 @@ export interface FlowPaneDeps
   // The pane wrote where the canvas was left onto its tab, once a pan or
   // zoom ended.
   onPlaceChange: () => void;
-  // The view shown changed: a pan, a zoom or an App Mode switch.
+  // The view shown changed: a pan, a zoom or an App mode switch.
   onViewChange: () => void;
-  // Keeps whether the Flow at `path` shows App Mode on this install.
+  // Keeps whether the Flow at `path` shows App mode on this install.
   saveAppMode: (path: string, appMode: boolean) => Promise<void>;
   loadFile: (path: string) => Promise<FileResponse>;
   // The base the pane's next save names (see services/saveQueue.ts).
@@ -118,7 +118,7 @@ export function flowPane({ tabs, ...deps }: FlowPaneWiring): EditorPaneDescripto
 
 type ResultPreviewDeps = Omit<FilePreviewDeps, "host" | "refocus" | "count" | "fileAt" | "openInPlace" | "shown">;
 
-// A Generate node's result over the whole pane, canvas or App Mode, with
+// A Generate node's result over the whole pane, canvas or App mode, with
 // the gallery's preview: one file, so no arrows, and a double-click or
 // Enter opens nothing. While it shows, the pane's box holds focus for its
 // keys, off the canvas, whose own keys would act on the node behind it.
@@ -209,7 +209,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
   // again on every switch back, outside edit and rename, and the file's
   // viewport is only where it was at the last save.
   let shownTab: Extract<Tab, { kind: "flow" }> | undefined;
-  // The App Mode switched to this session, by Flow path, over what the file
+  // The App mode switched to this session, by Flow path, over what the file
   // read brought: a switch back can read the file before the switch's own
   // save has landed.
   const appModes = new Map<string, boolean>();
@@ -287,12 +287,12 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
       jobs.clear();
     },
     defaultView: {
-      tooltip: "Saves this position, zoom and App Mode into the Flow, for every device and app.",
+      tooltip: "Saves this position, zoom and App mode into the Flow, for every device and app.",
       differs: () => flowView.defaultViewDiffers(),
       async set() {
         const path = shown;
         if (!(await flowView.setDefaultView())) return false;
-        // The App Mode kept for this install now matches the file's, and
+        // The App mode kept for this install now matches the file's, and
         // posting it again lets the host drop it.
         const appMode = path === undefined ? undefined : appModes.get(path);
         if (path !== undefined && appMode !== undefined) await saveAppMode(path, appMode).catch(() => undefined);
@@ -301,7 +301,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
     },
     title: () => flowView.getFileName(),
     // The canvas has no scroll of its own (it pans and zooms), so the title
-    // is a fixed banner over it. App Mode is a plain scrolling form, so
+    // is a fixed banner over it. App mode is a plain scrolling form, so
     // there the title scrolls away with the cards like every other pane's.
     titleHost: () => (flowView.isAppModeActive() ? elements.appModePane : elements.root),
     hasTransient: () => results.isOpen() || flowView.hasTransient(),

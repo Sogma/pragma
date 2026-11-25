@@ -117,7 +117,7 @@ export interface EditorChrome {
    * scroll region is showing. An image, empty tab or Find in context has no
    * title; the document pane draws its own editable heading. */
   refreshTitle(): void;
-  /** Run becomes an item inside the form while App Mode is active, so the
+  /** Run becomes an item inside the form while App mode is active, so the
    * toolbar's own copy hides rather than offering two ways to run, and the
    * run count with it. */
   refreshFlowRun(): void;
@@ -230,7 +230,7 @@ export function createEditorChrome(deps: EditorChromeDeps): EditorChrome {
       elements.box.hidden = !chrome.toolbar;
       elements.readingToggle.hidden = !chrome.readingView || isReadOnlyTab(tab);
       drawReadingToggle();
-      // Run alone is live state, not static per kind (App Mode hides it), so
+      // Run alone is live state, not static per kind (App mode hides it), so
       // the pane that declares it shows it on render; the chrome only ever
       // clears it.
       if (!chrome.actions.includes("flow-run")) elements.flowRun.hidden = true;
@@ -355,7 +355,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // setting for every group, where Source mode is each group's own.
   commands.register({
     id: "editor.toggleFormat",
-    label: "Format…",
+    label: "Format",
     when: () => deps.activeDocumentPane()?.formatActions() !== undefined,
     run: () => deps.formatColumn.set(!deps.formatColumn.get()),
   });
@@ -399,7 +399,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     run: (context) => context.pane?.openFind?.(true),
   });
   // Design is a per-pane mode picked from the menu rather than a toolbar
-  // button, the same placement as App Mode: the rare, deliberate action
+  // button, the same placement as App mode: the rare, deliberate action
   // stays off the toolbar. Refused on a read-only tab, whose shape is as
   // locked as its values.
   function toggleDesign(): void {
@@ -421,7 +421,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
       deps.activeFlowView()?.toggleAppMode();
       chrome.refreshFlowRun();
       // The title bar moves between the canvas (a fixed banner over it) and
-      // the App Mode pane (scrolls with the form).
+      // the App mode pane (scrolls with the form).
       chrome.refreshTitle();
     },
   });

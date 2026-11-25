@@ -25,7 +25,7 @@ export interface FormatColumnDeps {
   // How many tools past the format's usual ones the column holds, fewer
   // below 0: where a drag on its foot left it, in every group.
   extra: Setting<number>;
-  // Turns the column off, as ⋮'s Format… does.
+  // Turns the column off, as ⋮'s Format does.
   close(): void;
   // Moves the cursor into the title bar where the pane shows one, and says
   // whether it did: what the title's kind of line does there.

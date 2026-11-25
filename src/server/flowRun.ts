@@ -43,7 +43,7 @@ export interface FlowRunOutcome {
   /** Nodes whose run failed, by id. Empty on a clean run. */
   errors: { nodeId: string; message: string }[];
   /** What the flow produced: the output ports a human marked with right-click
-   * → Expose, in App Mode's own order. **Empty when the flow exposes none** —
+   * → Expose, in App mode's own order. **Empty when the flow exposes none** —
    * a flow that declares no outputs produces none, rather than having some
    * guessed for it from the graph's shape. */
   results: { nodeId: string; nodeType: string; port: string; value: PortValue }[];
@@ -232,7 +232,7 @@ function summarize(graph: FlowGraph, result: RunResult): FlowRunOutcome {
     .map((node) => ({ nodeId: node.id, nodeType: node.type, values: result.outputs.get(node.id) ?? {} }));
 
   // What a flow returns is what a human marked with Expose — the same
-  // declaration App Mode renders its published view from, rather than a
+  // declaration App mode renders its published view from, rather than a
   // second notion of "the output" that could disagree with it.
   const types = new Map(graph.nodes.map((node) => [node.id, node.type]));
   const results = flowRunOutputs(graph)

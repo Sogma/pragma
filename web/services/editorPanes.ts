@@ -182,7 +182,7 @@ export interface PaneGroup {
   readonly notices: Pick<FileNotices, "begin" | "add">;
   // The pane wrote where its tab is left onto the tab, for the layout.
   placeChanged(): void;
-  // The view shown changed, such as a Flow's pan, zoom or App Mode, so a
+  // The view shown changed, such as a Flow's pan, zoom or App mode, so a
   // status bar line saying it is the default may no longer hold.
   viewChanged(): void;
   // Opens a file in the group beside this one, focus staying here: what a

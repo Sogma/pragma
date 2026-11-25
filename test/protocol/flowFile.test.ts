@@ -348,7 +348,7 @@ describe("readFlowFile per-field parse tolerance", () => {
     expect(graph.edges.map((e) => e.id)).toEqual(["e1"]);
   });
 
-  it("keeps an App Mode size only when both counts are whole and positive, and never clamps one", async () => {
+  it("keeps an App mode size only when both counts are whole and positive, and never clamps one", async () => {
     const sizes = [
       { columns: 40, rows: 20 },
       { columns: 0, rows: 1 },

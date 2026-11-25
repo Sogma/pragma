@@ -155,7 +155,7 @@ export interface Pickers {
   createAddRowPicker(node: FlowNodeInstance, onChosen: () => void): AddRowPicker;
   createFolderPicker(node: FlowNodeInstance): PathPicker;
   // The dropdown alone of the value a Load Row or a folder loader exposes,
-  // as App Mode shows it, with no chip naming the table or folder.
+  // as App mode shows it, with no chip naming the table or folder.
   createRowSelect(node: FlowNodeInstance): LoaderSelect;
   createFolderSelect(node: FlowNodeInstance): LoaderSelect;
   createGenerationPicker(node: FlowNodeInstance, onRegenerate: () => void): GenerationView;
@@ -852,7 +852,7 @@ export function createPickers(deps: PickerDeps): Pickers {
   }
 
   // A Load Row's "Select <column>" dropdown over its table's first column,
-  // the value Expose shows: App Mode builds it alone, the card under the chip
+  // the value Expose shows: App mode builds it alone, the card under the chip
   // naming the table. Neither `tablePath` nor `selectedValue` is in
   // configFields, and editing one refreshes the other.
   //
@@ -1000,7 +1000,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     });
     weightField.append(weightLabel, weightSelect);
     // Not exposable, like tablePath: a design-time schema choice, not a
-    // per-run value an App Mode user would pick.
+    // per-run value an App mode user would pick.
 
     // Re-reads the table at tablePath and refills the weight dropdown from
     // its integer columns, through the same capability as loadRow's read.
@@ -1328,7 +1328,7 @@ export function createPickers(deps: PickerDeps): Pickers {
   }
 
   // A folder loader's "Selected …" dropdown of its folder's direct children
-  // the node takes (no recursion), the value Expose shows: App Mode builds it
+  // the node takes (no recursion), the value Expose shows: App mode builds it
   // alone, the card under the chip naming the folder, which hears how many
   // there are.
   //

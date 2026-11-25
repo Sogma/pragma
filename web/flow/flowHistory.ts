@@ -17,7 +17,7 @@ import { missingPortIds } from "../../src/protocol/flowProblems.ts";
 import type { FlowEdgeInstance, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 
 // What a step covers: the graph but where the canvas looks and which mode it
-// shows. An Undo never pans the canvas or leaves App Mode.
+// shows. An Undo never pans the canvas or leaves App mode.
 export type RecordedGraph = Omit<FlowGraph, "viewport" | "appModeActive">;
 
 // A graph as written, to restore it key for key, and canonical, to compare

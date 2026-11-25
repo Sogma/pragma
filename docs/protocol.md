@@ -494,7 +494,7 @@ A card takes its picture from the first `media` column, its title from the first
 
 #### Table row cards
 
-A row's full card shows its fields as tiles on the grid [App Mode](#app-mode) lays out. `<ol data-role="card">`, after `<table data-role="data">`, arranges it:
+A row's full card shows its fields as tiles on the grid [App mode](#app-mode) lays out. `<ol data-role="card">`, after `<table data-role="data">`, arranges it:
 
 ```html
 <ol data-role="card">
@@ -505,7 +505,7 @@ A row's full card shows its fields as tiles on the grid [App Mode](#app-mode) la
 ```
 
 - **Each `<li>` is a tile, in order.** `data-field` names the column it shows, else `data-heading` is a heading across the card, its value the text. An item naming no column, or with neither, is skipped.
-- **`data-columns` and `data-rows`** span the tile as `appModeSize` spans an App Mode item: whole numbers from 1, the host's choice where absent.
+- **`data-columns` and `data-rows`** span the tile as `appModeSize` spans an App mode item: whole numbers from 1, the host's choice where absent.
 - **The card shows the columns it lists**, or every column in order without the block. A writer adds the block only once a card is arranged, and keeps it, empty included. An added column joins its end; a deleted one leaves it.
 
 #### Table writes
@@ -810,9 +810,9 @@ FlowGraph {
   nodes: FlowNodeInstance[]
   edges: FlowEdgeInstance[]
   viewport?: { x, y, zoom }
-  runAppModeOrder?: number      // where Run sits among App Mode's items
-  runAppModeSize?: { columns, rows }  // Run's span in App Mode, in grid cells
-  appModeActive?: boolean       // whether the flow opens in App Mode
+  runAppModeOrder?: number      // where Run sits among App mode's items
+  runAppModeSize?: { columns, rows }  // Run's span in App mode, in grid cells
+  appModeActive?: boolean       // whether the flow opens in App mode
 }
 
 FlowNodeInstance {
@@ -828,15 +828,15 @@ FlowNodeInstance {
   collapsed?: boolean
   settingsFolded?: boolean      // the card's set-once settings folded to a summary
   mode?: "disabled"             // a run leaves the node out (see Execution); absent = it runs
-  exposed?: string[]            // port ids / config keys shown in App Mode
+  exposed?: string[]            // port ids / config keys shown in App mode
   appModeOrder?: number
-  appModeSize?: { columns, rows }  // the node's span in App Mode, in grid cells
+  appModeSize?: { columns, rows }  // the node's span in App mode, in grid cells
 }
 
 FlowEdgeInstance { id, source, sourcePort, target, targetPort }
 ```
 
-**`viewport` and `appModeActive` are the Flow's default view**: where its canvas opens, and whether in App Mode. A host writes them only when asked to make its view the default, never with a pan, zoom, switch of view or other save.
+**`viewport` and `appModeActive` are the Flow's default view**: where its canvas opens, and whether in App mode. A host writes them only when asked to make its view the default, never with a pan, zoom, switch of view or other save.
 
 `config` is an unvalidated bag per node type. **Port ids and config keys are wire identifiers**: a saved edge references a port by id, so renaming a port id or config key orphans every saved graph that uses it. A built-in port's id is lowercase snake_case (`aspect_ratio`, `image_1`) and is also the name its pin shows; a form for a Flow's users may show it as words. Node labels, categories, and keywords may change freely; ids may not. `typeVersion` and `data-format-version` do not trigger migrations. The file's `data-format-version` still governs the [safe-write guard](#format-versions-and-safe-writes).
 
@@ -859,9 +859,9 @@ The built-in node types are specified in [Flow nodes](flow-nodes.md), each under
 
 **Paths in config come only from a drag off a tree**, never typed, and are re-read fresh on every run. Every node but `loadImage`, `loadVideo`, `generateImage` and `generateVideo` takes space paths only and refuses a path naming another root. A node may also take its path from a wire (see [Wired paths](#wired-paths)).
 
-#### App Mode
+#### App mode
 
-A Flow has two views over the same graph: the **graph canvas** and **App Mode**, a form of exactly the fields marked exposed, on the nodes a run doesn't leave out. Marking is per field, and only for fields that hold a value by themselves — widget inputs, outputs, config fields, and the folder/Table/image/video pickers — never for a connect-only socket. `exposed` on the node instance is the persisted list.
+A Flow has two views over the same graph: the **graph canvas** and **App mode**, a form of exactly the fields marked exposed, on the nodes a run doesn't leave out. Marking is per field, and only for fields that hold a value by themselves — widget inputs, outputs, config fields, and the folder/Table/image/video pickers — never for a connect-only socket. `exposed` on the node instance is the persisted list.
 
 - **Inputs are editable; outputs are read-only and filled by a run.** A field output is the exception: a Prompt's or Choice's `text` passes on the node's own value, so exposing it gives a text box or dropdown for that value.
 - **An exposed Applet node's `state` shows the Applet itself**, in a frame as tall as its item. The Applet fits itself to that frame.
@@ -869,11 +869,11 @@ A Flow has two views over the same graph: the **graph canvas** and **App Mode**,
 - **Editing a field edits the same `config` the canvas reads.** Run is the shared action in both views.
 - **The selected view is host state.** The default view is the Flow's `appModeActive` (see [Graph shape](#graph-shape)).
 
-**Item sizes are grid spans.** `appModeSize` gives an exposed node's item a span of `columns` by `rows`; `runAppModeSize` does the same for Run. Items fill the grid row by row in App Mode order.
+**Item sizes are grid spans.** `appModeSize` gives an exposed node's item a span of `columns` by `rows`; `runAppModeSize` does the same for Run. Items fill the grid row by row in App mode order.
 
 - The grid has six columns, or two when narrower than 650 CSS pixels. Three columns span half the six-column row. A width at or beyond the grid's column count spans the whole row.
 - Both dimensions are positive integers. Any other value reads as absent; an absent size uses the host's default for that item.
-- The host determines cell heights, gaps, and defaults, and may cap `rows`. A host presenting App Mode as a list may ignore sizes.
+- The host determines cell heights, gaps, and defaults, and may cap `rows`. A host presenting App mode as a list may ignore sizes.
 - Sizes never reorder a run's inputs or results. The [capability digest](#capability-digest) excludes them, so resizing does not require renewed consent.
 
 ### LUTs
@@ -918,7 +918,7 @@ Grants are lazy and first-use, prompted the moment a node needs one, user-grante
 
 A grant's `contentHash` is its **capability digest** (see [Grant storage](#grant-storage)): a hash over only the part of the graph that decides what a run can do — which nodes exist, how they are wired, and every config value a node reads. A Flow cannot pin its raw file: dragging a node or resizing a card rewrites the file, and a grant has to survive that. Hashing behaviour instead of bytes means a match says the graph still does what a human approved, whoever wrote the file last.
 
-What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color, collapsed and folded state, App Mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
+What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color, collapsed and folded state, App mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
 
 Which changes may carry an entry to a new digest is set in [Grant storage](#grant-storage) and [Applet nodes](#applet-nodes).
 
@@ -948,7 +948,7 @@ Order is topological: a node runs once every upstream node has finished. These r
 
 #### Disabled-node propagation
 
-**A disabled node never runs, and neither does any node it feeds.** A node whose `mode` is `disabled` gives nothing, and each node wired downstream of it, however far, is skipped: never run on a stand-in for the missing value, so a write downstream never empties or redirects. The graph marks what is left out, and an editor shows it, so a run still computes what the canvas shows. A skipped node has not failed, and its outputs are absent. A node left out asks for no capability, gives no toolkit button, and holds no run input or result, so App Mode shows no item for it.
+**A disabled node never runs, and neither does any node it feeds.** A node whose `mode` is `disabled` gives nothing, and each node wired downstream of it, however far, is skipped: never run on a stand-in for the missing value, so a write downstream never empties or redirects. The graph marks what is left out, and an editor shows it, so a run still computes what the canvas shows. A skipped node has not failed, and its outputs are absent. A node left out asks for no capability, gives no toolkit button, and holds no run input or result, so App mode shows no item for it.
 
 #### Run result reuse
 
@@ -966,11 +966,11 @@ Order is topological: a node runs once every upstream node has finished. These r
 
 #### Run inputs and results
 
-The fields exposed in [App Mode](#app-mode) define a run's public inputs and results. The [execution rules](#execution) and [grants](#capabilities-and-grants) apply to every invocation.
+The fields exposed in [App mode](#app-mode) define a run's public inputs and results. The [execution rules](#execution) and [grants](#capabilities-and-grants) apply to every invocation.
 
-**A run's inputs are its exposed fields that hold a value of their own** — widget inputs, config fields, pickers, and a Prompt's or Choice's own `text`, never a socket or another output — in App Mode order, each named `<node id>.<field>`. A caller may supply values. A value applies to that run only and is never written to the file; a name the Flow does not expose is refused before any node runs; a boolean field takes a boolean, a whole-number field a whole number, and every other a string. A supplied path is checked against the grants like any other read, so an input reaches only what was approved.
+**A run's inputs are its exposed fields that hold a value of their own** — widget inputs, config fields, pickers, and a Prompt's or Choice's own `text`, never a socket or another output — in App mode order, each named `<node id>.<field>`. A caller may supply values. A value applies to that run only and is never written to the file; a name the Flow does not expose is refused before any node runs; a boolean field takes a boolean, a whole-number field a whole number, and every other a string. A supplied path is checked against the grants like any other read, so an input reaches only what was approved.
 
-**A run's results are its exposed output ports**, in App Mode order — the declaration App Mode shows, never a second notion of output that could disagree with it. A Prompt's or Choice's `text` is the exception: it passes on the node's own value, so exposing it makes an input, not a result. An exposed output whose node failed is absent, not empty. A Flow that exposes no output has no results, and a host never infers one from the graph's shape; showing every node's value is a diagnostic view, never the results.
+**A run's results are its exposed output ports**, in App mode order — the declaration App mode shows, never a second notion of output that could disagree with it. A Prompt's or Choice's `text` is the exception: it passes on the node's own value, so exposing it makes an input, not a result. An exposed output whose node failed is absent, not empty. A Flow that exposes no output has no results, and a host never infers one from the graph's shape; showing every node's value is a diagnostic view, never the results.
 
 ### Toolkit resolution
 
@@ -1039,7 +1039,7 @@ The source map below is the only part of this document that names implementation
 | Project context, space reads, private-document refusal | `src/server/spaceFiles.ts`, `src/server/tree.ts` |
 | Injected `pragma` clients, standard style, CSP | `web/services/sandboxHost.ts` |
 | Sandbox broker, client half (first-use prompt, permissions, frame dispatch); the toolkit broker on it | `web/services/capabilityBroker.ts`, `web/view/toolkitRunner.ts` |
-| Flow editor, App Mode | `web/flow/xyflowAdapter.ts`, `web/flow/appMode.ts`, `web/flow/appModeGrid.ts` |
+| Flow editor, App mode | `web/flow/xyflowAdapter.ts`, `web/flow/appMode.ts`, `web/flow/appModeGrid.ts` |
 | Math | `src/protocol/mathSyntax.ts` |
 | Wikilink syntax, resolution and writing | `src/protocol/wikilinkSyntax.ts`, `src/protocol/wikilink.ts`, `web/core/spaceTree.ts`, `web/wikilinkCompletion.ts` |
 | What a note links to, and the backlinks a host keeps | `src/protocol/markdownLinks.ts`, `src/server/documentIndex.ts` |

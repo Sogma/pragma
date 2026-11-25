@@ -1,5 +1,5 @@
 // Each space's remembered layout on this install: open tabs, folded and
-// sorted folders, each Table's layout, which Flows show App Mode, and each
+// sorted folders, each Table's layout, which Flows show App mode, and each
 // context's frame folder, guides and look. Host state, kept by the space's
 // id and never inside the space (docs/architecture.md, Space identity and
 // state ownership).

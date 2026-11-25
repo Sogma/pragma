@@ -1,4 +1,4 @@
-// An Applet running as a Flow node, in its card or its App Mode field: one
+// An Applet running as a Flow node, in its card or its App mode field: one
 // sandboxed frame, what it reports saved into the node's config, and the
 // node's inputs handed to it after a run.
 import { appletNodeProblem, appletOutputsFrom, appletStateFrom } from "../../src/protocol/appletNode.ts";
@@ -15,7 +15,7 @@ export interface AppletFrameDeps {
   // The file as read, before the frame mounts, so the caller can bring the
   // node's recorded hash, ports and title up to date with it.
   onLoaded?(file: AppletFileResponse): void;
-  // App Mode's frame is its tile's height, so the content height the Applet
+  // App mode's frame is its tile's height, so the content height the Applet
   // reports is never applied there.
   fillsTile?: boolean;
 }

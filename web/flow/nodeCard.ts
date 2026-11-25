@@ -840,8 +840,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   }
 
   // Right-click a widget fallback, an output, a config field, or a bespoke
-  // picker to mark it exposed for Flow's App Mode form (docs/protocol.md's
-  // App Mode section). Callers may pass the whole row as `contextTarget` so
+  // picker to mark it exposed for Flow's App mode form (docs/protocol.md's
+  // App mode section). Callers may pass the whole row as `contextTarget` so
   // right-clicking anywhere on it works, and `actions` for what the field
   // itself offers there, read as the menu opens.
   //
@@ -962,7 +962,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // One of an Add Row node's column inputs: pin and the column's label, plus
   // what the cell gets when nothing is wired, hidden once something is.
   //
-  // No Expose: App Mode and a run's inputs set a field by its config key,
+  // No Expose: App mode and a run's inputs set a field by its config key,
   // and these values live under `values`, apart from the node's own keys.
   function createColumnPortRow(node: FlowNodeInstance, column: TableColumn, port: FlowPort): HTMLDivElement {
     const row = document.createElement("div");
@@ -1789,7 +1789,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
 
   // An Applet node: its frame, then its file below it, so the Applet sits
   // right under the pins it drives. Exposing the node puts the Applet itself
-  // in App Mode; the field it holds a value in by itself is its state, so that
+  // in App mode; the field it holds a value in by itself is its state, so that
   // is the id Expose marks.
   function createAppletContent(node: FlowNodeInstance): HTMLDivElement {
     const wrap = document.createElement("div");
@@ -1825,7 +1825,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   }
 
   // The drawing exposes the node's `rows` output, so it shares that pin's
-  // label: exposing from either place tints the one label, and App Mode and
+  // label: exposing from either place tints the one label, and App mode and
   // a caller outside the app both read the same exposed output.
   function createChartDrawing(node: FlowNodeInstance, rowsLabelEl: HTMLElement): HTMLDivElement {
     const view = createChartView("flow-chart", () => chartSpecFrom(node.config), "Run the flow to draw the chart");

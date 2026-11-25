@@ -1,4 +1,4 @@
-// App Mode's tile grid: the shared grid (lib/tileGrid.ts) with App Mode's
+// App mode's tile grid: the shared grid (lib/tileGrid.ts) with App mode's
 // tiles, their default sizes and the handles they move by.
 
 import {

@@ -1,5 +1,5 @@
-/* Arranging App Mode's tiles (appModeGrid.ts) on the shared grid
-   (tile-grid.css): App Mode's own looks for a move and a resize. */
+/* Arranging App mode's tiles (appModeGrid.ts) on the shared grid
+   (tile-grid.css): App mode's own looks for a move and a resize. */
 
 /* A drop lands on the side of the tile its marker sits on, a bar in the gap. */
 .flow-app-grid > .drop-before {

@@ -100,7 +100,7 @@ describe("runFlowHeadless", () => {
     expect(outcome.outputs.map((entry) => entry.nodeId)).toEqual(["load-1", "show-1"]);
   });
 
-  // The flow's own declaration of what it produces, reusing App Mode's Expose
+  // The flow's own declaration of what it produces, reusing App mode's Expose
   // rather than inventing a second notion of "the output".
   // A gone Table fails its node as a gone note does, rather than reading as
   // an empty one the rest of the run carries on with.

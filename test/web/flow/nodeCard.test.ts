@@ -351,7 +351,7 @@ describe("nodeCard", () => {
     expect(row.dataset.tooltip).toBe('This node has no "image1" pin.');
   });
 
-  it("a node's first Expose in an ordered graph places its App Mode card before Run", () => {
+  it("a node's first Expose in an ordered graph places its App mode card before Run", () => {
     const { cards, deps, graph } = setup();
     const flowNode = node("toggleText", {});
     graph.nodes.push(flowNode);

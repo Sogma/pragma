@@ -3,7 +3,7 @@ import type { FrameKind } from "../../../src/protocol/flowNodes.ts";
 import type { EffortField, ModelFields } from "../../../web/flow/modelOptions.ts";
 import type { ModelKind } from "../../../web/lib/modelPicker.ts";
 
-// A Flow's model fields as a card or App Mode sees them: each create is
+// A Flow's model fields as a card or App mode sees them: each create is
 // recorded, and returns a plain picker-classed button. The pickers' own
 // drawing and menu are modelOptions.test.ts's.
 //

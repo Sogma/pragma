@@ -1,4 +1,4 @@
-// A clip on a Flow card or App Mode tile, a Generate Video's result or a
+// A clip on a Flow card or App mode tile, a Generate Video's result or a
 // Load Video's file: the file under the player every video plays under
 // (lib/videoPlayer.ts), asking for only its header until it plays. A click
 // on the picture opens the file's preview, while the player's buttons play
