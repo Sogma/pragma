@@ -28,6 +28,13 @@
   container-type: size;
 }
 
+/* The padding is a fitted picture's margin. At actual size there is none:
+   the picture runs to the pane's edges, and its scroll stops at the
+   picture's own edges rather than at an empty margin past them. */
+.editor-image.is-actual-size .editor-image-scroller {
+  --hud-stick: 0px;
+}
+
 /* Centred both ways by auto margins, not the scroller's own centring, which
    would push a picture bigger than the pane past its left or top edge, out
    of scroll reach. */
@@ -65,25 +72,20 @@
 }
 
 /* At actual size the overlay covers the part of the picture in view, not
-   all of it: it sticks to the scroller, reaching back over its padding to
-   the edge, so every fact and a look's badge stay in sight as the picture
-   scrolls under it.
+   all of it: it sticks to the scroller, so every fact and a look's badge
+   stay in sight as the picture scrolls under it.
 
-   Across a picture wider than the view, it hangs over the padding on both
-   sides (--hud-overhang steps from none to the padding), so it never runs
-   past a side and no fact needs to stick on its own. None may: a fact
-   sticking in a sticky bar in this sticky overlay is shifted twice, which
-   flings the first fact to the far end of its bar. */
+   Held to the view, it never runs past a side, so no fact needs to stick on
+   its own. None may: a fact sticking in a sticky bar in this sticky overlay
+   is shifted twice, which flings the first fact to the far end of its bar. */
 .editor-image.is-actual-size .media-hud {
-  --hud-overhang: clamp(0px, (100% - 100cqw) * 1000, var(--hud-stick));
   position: sticky;
-  top: calc(-1 * var(--hud-stick));
-  left: calc(-1 * var(--hud-stick));
+  top: 0;
+  left: 0;
   justify-self: start;
   align-self: start;
-  margin-inline: calc(-1 * var(--hud-overhang));
-  width: min(100% + 2 * var(--hud-overhang), 100cqw + 2 * var(--hud-stick));
-  height: min(100%, 100cqh + 2 * var(--hud-stick));
+  width: min(100%, 100cqw);
+  height: min(100%, 100cqh);
 }
 
 /* Its scrollbars are hidden but keep their room, so nothing moves as the
@@ -143,10 +145,6 @@
    hovered, along an image's top and bottom edges, along a video's top edge
    only. It shares its frame's one grid cell with the media, so its box is
    the media's; contain: size keeps its text from widening that cell.
-
-   At an image's actual size the overlay covers the part of the picture in
-   view. Where it runs past the scroller's top or bottom edge by the
-   padding, its bars stick to that edge.
 
    pointer-events: none keeps the hover, right-click, drag and the player's
    controls on the media underneath — without it, the bars would end the
