@@ -342,7 +342,7 @@ describe("the unattended row", () => {
     const set = vi.fn(async () => undefined);
     const subject = open({ granted: false, set });
     const allow = buttonNamed(row(), "Allow");
-    expect(allow.className).toBe("btn btn-large dialog-primary danger permission-allow");
+    expect(allow.className).toBe("btn btn-large primary dialog-primary danger permission-allow");
     expect(allow.getAttribute("aria-haspopup")).toBe("menu");
 
     allow.click();

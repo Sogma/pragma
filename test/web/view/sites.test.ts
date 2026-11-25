@@ -194,7 +194,7 @@ describe("createSiteDialogs: Site Settings", () => {
     const actions = () => panel().querySelector<HTMLElement>(".settings-body .site-settings-actions");
     expect(visibleTitles()).toEqual(["Name", "Assets folder"]);
     expect(actions()?.hidden).toBe(false);
-    expect(buttonNamed(panel(), "Save").className).toBe("btn dialog-primary");
+    expect(buttonNamed(panel(), "Save").className).toBe("btn primary");
 
     buttonNamed(panel(), "Analytics").click();
     expect(visibleTitles()).toEqual(["Google Analytics ID", "Google Tag Manager ID"]);

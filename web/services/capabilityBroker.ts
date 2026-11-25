@@ -395,7 +395,7 @@ export function createCapabilityBroker(deps: CapabilityBrokerDeps): CapabilityBr
       button.textContent = "Revoke";
       button.addEventListener("click", () => void change(false));
     } else {
-      button.className = "btn btn-large dialog-primary danger permission-allow";
+      button.className = "btn btn-large primary dialog-primary danger permission-allow";
       button.setAttribute("aria-haspopup", "menu");
       button.setAttribute("aria-expanded", "false");
       const chevron = el("span", "picker-chevron");

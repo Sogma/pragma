@@ -340,7 +340,7 @@ export function createDialogService(root: HTMLElement = document.body, deps?: Di
     const cancel = button(options.cancelLabel ?? "Cancel", "btn btn-large");
     const primary = button(
       primaryLabel,
-      danger ? "btn btn-large dialog-primary danger" : "btn btn-large dialog-primary",
+      danger ? "btn btn-large primary dialog-primary danger" : "btn btn-large primary dialog-primary",
     );
     cancel.addEventListener("click", onCancel);
     actions.append(cancel, primary);

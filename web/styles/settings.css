@@ -55,11 +55,11 @@
 }
 
 /* A round button, its X a hole the panel shows through: the disc rests in
-   the confirm button's fill (dialog.css, .dialog-panel) and turns red under
-   the pointer, while the X keeps the panel's colour. No hover fill:
+   the default button's fill (controls.css, .btn.primary) and turns red
+   under the pointer, while the X keeps the panel's colour. No hover fill:
    .icon-button's square would frame the disc and show through its X. */
 .dialog-close {
-  color: var(--dialog-confirm-bg);
+  color: var(--tooltip-bg);
 }
 
 .dialog-close:hover {

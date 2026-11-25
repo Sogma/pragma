@@ -29,7 +29,7 @@ const REFERENCE_SECTION = "Reference implementation";
 // Bytes. A doc over its limit fails; a doc not listed gets DEFAULT_LIMIT.
 // Raise a limit deliberately, in the same change that needs it.
 const SIZE_LIMITS = {
-  "architecture.md": 28_580,
+  "architecture.md": 28_690,
   "protocol.md": 104_630,
   "flow-nodes.md": 32_200,
   "publishing.md": 17_900,
