@@ -806,8 +806,9 @@ describe("the gallery pane", () => {
     img.dispatchEvent(new Event("load"));
     await settle();
     const top = preview.querySelector(".media-hud-bar") as HTMLElement;
-    // No LOOK, with no pixels to grade, and the scale against that extent.
-    expect([...top.children].map((cell) => cell.textContent)).toEqual(["2412 × 1137 (2.12:1)", "27%"]);
+    // No LOOK, with no pixels to grade: the middle cell holds the guides
+    // switch alone. The scale is against that extent.
+    expect([...top.children].map((cell) => cell.textContent)).toEqual(["2412 × 1137 (2.12:1)", "", "27%"]);
   });
 
   // Drawn sooner, the board would flash in the picture's box before its

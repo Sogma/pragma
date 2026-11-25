@@ -40,7 +40,18 @@ import {
   must,
 } from "./lib/dom.ts";
 import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "./lib/mediaDetails.ts";
-import { fitHud, hudCells, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
+import {
+  fitHud,
+  type GuidesSwitch,
+  guidesSwitch,
+  hudBadges,
+  hudCells,
+  hudRoot,
+  type LookBadge,
+  lookBadge,
+  mediaFrame,
+  showTransparency,
+} from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
 import { canAnimate, frameZoom, shownPercent } from "./lib/pictureZoom.ts";
@@ -326,6 +337,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   const view = createViewBinding(deps.views);
   let previewPlayer: VideoPlayer | undefined;
   let previewLook: LookBadge | undefined;
+  let previewGuides: GuidesSwitch | undefined;
   let previewMore: MoreOptionsButton | undefined;
   let previewLayers: PictureLayers | undefined;
 
@@ -354,6 +366,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     previewPlayer = undefined;
     previewLook?.dispose();
     previewLook = undefined;
+    previewGuides?.dispose();
+    previewGuides = undefined;
     previewMore?.dispose();
     previewMore = undefined;
     previewLayers?.dispose();
@@ -426,9 +440,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
 
   // The image view's overlay, in the previewed picture's own frame: the
   // dimensions with their ratio along the top, as the image and video views
-  // write them, then the LOOK badge where a look can apply, and a clip's
-  // frame rate or a still's display scale; a still's name and ⋮ along the
-  // bottom, a clip's length and ⋮ left to the pill.
+  // write them, then the guides switch and the LOOK badge where a look can
+  // apply, and a clip's frame rate or a still's display scale; a still's
+  // name and ⋮ along the bottom, a clip's length and ⋮ left to the pill.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
   // A clip's header stands in, in the Info section, for one never decoded.
@@ -439,7 +453,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     name.className = "media-hud-name";
     name.textContent = file.name;
     previewLook = isVideo || rasterType ? lookBadge(view.look) : undefined;
-    const top = previewLook ? [dimensions, previewLook.element, topRight] : [dimensions, topRight];
+    previewGuides = guidesSwitch(view.guides);
+    const top = [dimensions, hudBadges(previewGuides.element, previewLook?.element), topRight];
     const hud = isVideo ? hudRoot(top) : hudRoot(top, [name, fileMoreOptions(file.path, MEDIA_MENU)]);
     const fill = (width = 0, height = 0) => {
       if (width <= 0 || height <= 0) return;
@@ -506,7 +521,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     }
     // The overlay follows the media: `:is(img, video):hover + .media-hud`.
     // Its bars lie in bands of the mat (media-bands.css).
-    const frame = mediaFrame(media, hud, "file-preview-frame has-bands");
+    const frame = mediaFrame(media, hud, "file-preview-frame has-bands has-mat");
     if (layers) frame.append(layers.element);
     if (media instanceof HTMLVideoElement) {
       previewPlayer = createVideoPlayer(media, {
@@ -529,9 +544,9 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     fitPreview = () => {
       if (!decoded || !media.isConnected) return;
       const shown = media.getBoundingClientRect();
+      if (fullWidth > 0 && shown.width > 0) topRight.textContent = `${shownPercent(shown.width, fullWidth)}%`;
       fitHud(hud, shown.width, shown.height);
       zoom?.fit(shown.width, fullWidth);
-      if (fullWidth > 0 && shown.width > 0) topRight.textContent = `${shownPercent(shown.width, fullWidth)}%`;
     };
     // Measured again as the overlay is about to show, so a layout change no
     // observer saw can't leave it on a picture too small for it.
@@ -678,15 +693,16 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     true,
   );
   // A double-click begun on what opened the preview presses nothing on a
-  // clip, its controls, its LOOK badge or a ⋮, where it would pause the clip,
-  // turn the shared Loop or look, or open a menu.
+  // clip, its controls, its LOOK badge, its guides switch or a ⋮, where it
+  // would pause the clip, turn the shared Loop, look or guides, or open a menu.
   previewStage.addEventListener(
     "click",
     (event) => {
       const target = event.target;
       const pressable =
         target instanceof HTMLVideoElement ||
-        (target instanceof Element && target.closest(".video-player, .media-hud-badge, .media-hud-more") !== null);
+        (target instanceof Element &&
+          target.closest(".video-player, .media-hud-badge, .media-hud-guides, .media-hud-more") !== null);
       if (pressable && event.detail > 1 && !pressedInPreview) event.stopPropagation();
     },
     true,

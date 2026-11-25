@@ -1,0 +1,65 @@
+/* How the media is shown, beside a top bar's facts (mediaHud.ts): the
+   guides switch and the LOOK badge, in one cell as wide as the badge, so the
+   bar keeps LOOK on the media's centre. The switch hangs left of LOOK, out
+   of the bar's flow, or takes the centre where no look applies. */
+.media-hud-badges {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* With nothing to show, the cell draws no box, so the facts around it
+   spread as if it weren't there. */
+.media-hud-badges:not(:has(> .media-hud-badge:not(:empty, [hidden]), > .media-hud-guides:not([hidden]))) {
+  display: none;
+}
+
+.media-hud-badges > .media-hud-badge:empty {
+  display: none;
+}
+
+/* Drawn as the band's ⋮ is, wider than tall. It fades with the facts and
+   stays in its bar while an on LOOK rides over the media: the guides it
+   turns show for themselves. */
+.media-hud-guides {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 32px;
+  height: 24px;
+  border-radius: var(--box-radius);
+  color: inherit;
+  pointer-events: auto;
+}
+
+.media-hud-badges:has(> .media-hud-badge:not(:empty, [hidden])) > .media-hud-guides {
+  left: auto;
+  right: calc(100% + 8px);
+  translate: 0 -50%;
+}
+
+/* The Guides menu's own Title safe glyph. */
+.media-hud-guides::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  background-color: currentColor;
+  mask: var(--icon-safe-title) center / contain no-repeat;
+}
+
+/* Muted while the guides are hidden. A hover keeps either colour, so a
+   hidden switch never passes for a shown one. */
+.media-hud-guides[aria-pressed="false"] {
+  color: color-mix(in srgb, var(--media-hud-fg) 50%, transparent);
+}
+
+.media-hud-guides:hover {
+  background: color-mix(in srgb, var(--media-hud-fg) 16%, transparent);
+}
+
+/* Where it would touch a fact (mediaHud.ts measures), it stays out of
+   sight, and G still turns the guides. */
+.media-hud-guides.is-cramped {
+  visibility: hidden;
+}

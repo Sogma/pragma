@@ -14,12 +14,16 @@ import { formatAspectRatio } from "../../src/protocol/aspectRatio.ts";
 import { rasterImageMediaTypeForPath, vectorImageMediaTypeForPath } from "../../src/protocol/types.ts";
 import { formatDimensions, formatDuration, formatFileSize, formatFrameRate } from "./dom.ts";
 import { shownPercent } from "./pictureZoom.ts";
+import { anyGuide, type GuidesChoice, toggleGuides } from "./videoGuides.ts";
 import { type LutChoice, lookLabel, toggleLook } from "./videoLut.ts";
 
 // Below this, in CSS pixels, the bars would cover most of the picture they
 // describe, so the overlay stays off.
 const HUD_MIN_WIDTH = 200;
 const HUD_MIN_HEIGHT = 120;
+
+// The least room, in CSS pixels, between the guides switch and a fact.
+const SWITCH_CLEARANCE = 4;
 
 /** An overlay holding `bars`, each a row of cells, hidden until shown. */
 export function hudRoot(...bars: HTMLElement[][]): HTMLElement {
@@ -80,6 +84,79 @@ export function lookBadge(choice: LutChoice): LookBadge {
   return { element, dispose };
 }
 
+export interface GuidesSwitch {
+  readonly element: HTMLButtonElement;
+  /** Stops following the guides it turns. */
+  dispose(): void;
+}
+
+/** The guides' switch (web/styles/media-hud-badges.css): hidden until a
+ * guide is picked, then drawn as the ⋮ is, muted while the guides are
+ * hidden. A click hides or shows them, keeping the picks. Out of the tab
+ * order, and a press leaves focus on the surface whose keys turn it with G. */
+export function guidesSwitch(choice: GuidesChoice): GuidesSwitch {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = "icon-button media-hud-guides";
+  element.tabIndex = -1;
+  element.setAttribute("aria-label", "Guides");
+  element.addEventListener("mousedown", (event) => event.preventDefault());
+  element.addEventListener("click", () => toggleGuides(choice));
+  const dispose = choice.subscribe((guides) => {
+    element.hidden = !anyGuide(guides);
+    element.setAttribute("aria-pressed", String(guides.shown));
+    element.dataset.tooltip = `Guides ${guides.shown ? "on, click to turn off" : "off, click to turn on"} (G)`;
+    fitGuidesSwitch(element);
+  });
+  return { element, dispose };
+}
+
+/** A top bar's cell for how the media is shown: the guides switch, then the
+ * LOOK badge where a look can apply. The cell is as wide as the badge, so
+ * the bar keeps LOOK on the media's centre (web/styles/media-hud-badges.css). */
+export function hudBadges(guides: HTMLElement, look?: HTMLElement): HTMLSpanElement {
+  const cell = document.createElement("span");
+  cell.className = "media-hud-badges";
+  cell.append(guides, ...(look ? [look] : []));
+  return cell;
+}
+
+// The nearest fact beside `cell` the bar shows, toward `side`.
+function shownFact(cell: Element, side: "previous" | "next"): Element | null {
+  let fact = side === "previous" ? cell.previousElementSibling : cell.nextElementSibling;
+  while (fact && fact.getClientRects().length === 0) {
+    fact = side === "previous" ? fact.previousElementSibling : fact.nextElementSibling;
+  }
+  return fact;
+}
+
+// Where a fact's text is drawn. Never its own box: a bar's grid stretches
+// that across the fact's column, up to the badges' cell.
+function drawnBox(fact: Element): DOMRect {
+  const range = document.createRange();
+  range.selectNodeContents(fact);
+  const drawn = typeof range.getBoundingClientRect === "function" ? range.getBoundingClientRect() : undefined;
+  return drawn && drawn.width > 0 ? drawn : fact.getBoundingClientRect();
+}
+
+// Hides the guides switch while it would touch a fact beside its cell. It
+// hangs outside the bar's flow, beside LOOK or over the bar's middle, so the
+// bar itself never keeps them apart. Measuring decides only that.
+function fitGuidesSwitch(element: HTMLElement): void {
+  element.classList.remove("is-cramped");
+  const cell = element.parentElement;
+  const box = element.getBoundingClientRect();
+  if (!cell || box.width === 0) return; // hidden, or not laid out
+  const previous = shownFact(cell, "previous");
+  const next = shownFact(cell, "next");
+  const before = previous ? drawnBox(previous) : undefined;
+  const after = next ? drawnBox(next) : undefined;
+  const cramped =
+    (before !== undefined && box.left < before.right + SWITCH_CLEARANCE) ||
+    (after !== undefined && box.right > after.left - SWITCH_CLEARANCE);
+  element.classList.toggle("is-cramped", cramped);
+}
+
 /** The box `media` and its `hud` share (web/styles/media-panes.css): it
  * hugs the media, and the bars cover it. */
 export function mediaFrame(media: HTMLElement, hud: HTMLElement, className: string): HTMLDivElement {
@@ -123,12 +200,14 @@ function hudFits(width: number, height: number): boolean {
 
 /** Shows `hud` over media shown this size: its bars where they fit, and
  * otherwise nothing, or its ⋮ alone where it has one, so the file's menu
- * stays within reach on a picture of any size. */
+ * stays within reach on a picture of any size. Its facts are filled first:
+ * the guides switch is fitted between them. */
 export function fitHud(hud: HTMLElement, width: number, height: number): void {
   const fits = hudFits(width, height);
   const keepsMore = hud.querySelector(".media-hud-more") !== null;
   hud.hidden = !fits && !keepsMore;
   hud.classList.toggle("is-bare", !fits && keepsMore);
+  for (const toggle of hud.querySelectorAll<HTMLElement>(".media-hud-guides")) fitGuidesSwitch(toggle);
 }
 
 /** What a thumbnail's bars say of its file, each where it is known. */

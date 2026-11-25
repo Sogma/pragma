@@ -241,6 +241,15 @@ describe("a double-click on what opened the preview", () => {
     press(badge, "click", 2);
     expect(look.get()).toEqual({ lut: "panchromatic", on: true });
   });
+
+  it("never turns the guides whose switch it lands on", () => {
+    const { preview, overlay, guides } = setup({ files: ["clips/a.mp4"] });
+    guides.set({ ...guides.get(), title: true });
+    preview.show(0);
+    const toggle = overlay.querySelector(".media-hud-guides") as HTMLButtonElement;
+    press(toggle, "click", 2);
+    expect(guides.get().shown).toBe(true);
+  });
 });
 
 // The badge the video tab's overlay holds, over the look every viewer shares.
@@ -252,7 +261,8 @@ describe("a previewed clip's or still's LOOK badge", () => {
     const [bar, ...others] = overlay.querySelectorAll(".media-hud-bar");
     const badge = bar.querySelector("button.media-hud-badge") as HTMLButtonElement;
     expect(others).toHaveLength(0);
-    expect([bar.children.length, [...bar.children].indexOf(badge), badge.textContent]).toEqual([3, 1, "LOOK"]);
+    const cell = badge.parentElement as HTMLElement;
+    expect([bar.children.length, [...bar.children].indexOf(cell), badge.textContent]).toEqual([3, 1, "LOOK"]);
 
     badge.click();
     expect(look.get()).toEqual({ lut: "panchromatic", on: false });
@@ -274,7 +284,8 @@ describe("a previewed clip's or still's LOOK badge", () => {
     preview.show(0);
     const [top] = overlay.querySelectorAll(".media-hud-bar");
     const badge = top.querySelector("button.media-hud-badge") as HTMLButtonElement;
-    expect([top.children.length, [...top.children].indexOf(badge), badge.textContent]).toEqual([3, 1, "LOOK"]);
+    const cell = badge.parentElement as HTMLElement;
+    expect([top.children.length, [...top.children].indexOf(cell), badge.textContent]).toEqual([3, 1, "LOOK"]);
     expect(preview.key("d")).toBe(true);
     expect(look.get()).toEqual({ lut: "orthochromatic", on: false });
   });
@@ -484,6 +495,23 @@ describe("a previewed still's guides and look", () => {
     preview.show(2);
     expect(preview.key("g")).toBe(false);
     expect(guides.get().shown).toBe(true);
+  });
+
+  it("holds a guides switch before any LOOK, on a still, a clip or a vector image, its click turning them in place", () => {
+    const { preview, overlay, guides } = setup({ files: ["stills/a.png", "clips/b.mp4", "stills/c.svg"] });
+    guides.set({ ...guides.get(), title: true });
+    const cell = () => overlay.querySelector(".media-hud-bar > .media-hud-badges") as HTMLElement;
+    const parts = () => [...cell().children].map((child) => (child.matches(".media-hud-guides") ? "guides" : "look"));
+    preview.show(0);
+    expect(parts()).toEqual(["guides", "look"]);
+    preview.show(1);
+    expect(parts()).toEqual(["guides", "look"]);
+    preview.show(2);
+    expect(parts()).toEqual(["guides"]);
+
+    (cell().querySelector("button.media-hud-guides") as HTMLButtonElement).click();
+    expect(guides.get().shown).toBe(false);
+    expect(preview.shownIndex()).toBe(2);
   });
 });
 

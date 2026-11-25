@@ -154,7 +154,7 @@ describe("imagePane", () => {
     // The overlay follows the picture in the frame they share, never placed
     // by measuring it.
     const hud = img.nextElementSibling as HTMLElement;
-    expect(img.parentElement?.className).toBe("media-frame editor-image-frame has-bands");
+    expect(img.parentElement?.className).toBe("media-frame editor-image-frame has-bands has-mat");
     expect(hud.className).toBe("media-hud");
     expect(hud.hidden).toBe(true);
 
@@ -224,6 +224,32 @@ describe("imagePane", () => {
     const vector = pane.element.querySelector(".picture-layers") as HTMLElement;
     expect([...vector.children].map((child) => child.getAttribute("class"))).toEqual(["video-guides"]);
     expect((pane.element.querySelector(".media-hud-badge") as HTMLElement).hidden).toBe(true);
+  });
+
+  it("holds a guides switch before LOOK, shown once a guide is picked, a click turning them with focus left on the pane", async () => {
+    const { pane, guides } = setup();
+    await pane.setInput(tab, current);
+    const cell = pane.element.querySelector(".media-hud-bar:first-child > .media-hud-badges") as HTMLElement;
+    const toggle = cell.querySelector("button.media-hud-guides") as HTMLButtonElement;
+    expect([...cell.children].map((child) => child.matches(".media-hud-guides"))).toEqual([true, false]);
+    expect(toggle.hidden).toBe(true);
+    guides.set({ ...guides.get(), action: true });
+    expect([toggle.hidden, toggle.getAttribute("aria-pressed")]).toEqual([false, "true"]);
+
+    pane.element.focus();
+    toggle.click();
+    expect(guides.get().shown).toBe(false);
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(pane.element);
+
+    // A vector image has no look, and keeps the switch.
+    await pane.setInput({ kind: "image", path: "art/logo.svg" }, current);
+    expect([(cell.querySelector(".media-hud-badge") as HTMLElement).hidden, toggle.hidden]).toEqual([true, false]);
+
+    // A closed pane stops listening.
+    pane.dispose();
+    guides.set({ ...guides.get(), shown: true });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("turns the guides with G and the look with D while it holds focus, and no look on a vector image", async () => {
@@ -706,7 +732,7 @@ describe("videoPane", () => {
     // Opening a tab must cost a header, not a four-gigabyte clip.
     expect(video?.preload).toBe("metadata");
     // The player sits in its own frame, with its overlay and its controls.
-    expect(video?.parentElement?.className).toBe("media-frame editor-video-stage has-bands");
+    expect(video?.parentElement?.className).toBe("media-frame editor-video-stage has-bands has-mat");
     expect(video?.parentElement?.querySelector(".video-player.is-review")).not.toBeNull();
     expect(details(pane).querySelector(".inspector-section-title")?.textContent).toBe("Video");
     expect(rows(pane)).toEqual({ Dimensions: "…", Duration: "…", "Frame rate": "…", Codec: "…" });
@@ -758,7 +784,7 @@ describe("videoPane", () => {
     const video = pane.element.querySelector("video") as HTMLVideoElement;
     video.getBoundingClientRect = () => ({ left: 0, top: 0, width: 960, height: 540 }) as DOMRect;
     describeLoaded(video, 1920, 1080, 8);
-    const badge = pane.element.querySelector(".media-hud-bar > button.media-hud-badge") as HTMLButtonElement;
+    const badge = pane.element.querySelector(".media-hud-badges > button.media-hud-badge") as HTMLButtonElement;
     // Before the first pick there is nothing for it to turn on.
     expect(badge.textContent).toBe("");
 
@@ -778,6 +804,21 @@ describe("videoPane", () => {
     pane.dispose();
     lut.set({ lut: "orthochromatic", on: true });
     expect(badge.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("holds the guides switch before LOOK, between the scale and the frame rate, a click turning the guides", async () => {
+    const { pane, held, release } = videoSetup();
+    const guides = held.of("lib:takes").guides;
+    guides.set({ ...guides.get(), frames: ["2.39"] });
+    const opening = pane.setInput(videoTab, current);
+    release();
+    await opening;
+    const [top] = pane.element.querySelectorAll(".media-hud-bar");
+    const cell = top.querySelector(".media-hud-badges") as HTMLElement;
+    const toggle = cell.querySelector("button.media-hud-guides") as HTMLButtonElement;
+    expect([[...top.children].indexOf(cell), cell.firstElementChild, toggle.hidden]).toEqual([3, toggle, false]);
+    toggle.click();
+    expect(guides.get().shown).toBe(false);
   });
 
   it("turns the look off and back on from its badge or D, leaving focus on the pane for its keys", async () => {

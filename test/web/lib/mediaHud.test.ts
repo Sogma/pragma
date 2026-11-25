@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { formatFileSize } from "../../../web/lib/dom.ts";
-import { fitHud, hudRoot, lookBadge, thumbnailHud } from "../../../web/lib/mediaHud.ts";
+import {
+  fitHud,
+  guidesSwitch,
+  hudBadges,
+  hudCells,
+  hudRoot,
+  lookBadge,
+  thumbnailHud,
+} from "../../../web/lib/mediaHud.ts";
+import { NO_GUIDES } from "../../../web/lib/videoGuides.ts";
 import { NO_LOOK } from "../../../web/lib/videoLut.ts";
-import { memoryLook } from "../support/editorLayout.ts";
+import { memoryLook, memorySetting } from "../support/editorLayout.ts";
 
 const bars = (box: HTMLElement) =>
   [...box.querySelectorAll<HTMLElement>(".thumbnail-hud-bar")].map((bar) =>
@@ -163,5 +172,76 @@ describe("a clip's LOOK badge", () => {
     badge.dispose();
     look.set({ lut: "panchromatic", on: false });
     expect(badge.element.getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("the guides switch", () => {
+  it("stays hidden until a guide is picked, then says whether the guides show, out of the tab order", () => {
+    const guides = memorySetting(NO_GUIDES);
+    const { element } = guidesSwitch(guides);
+    const name = [element.type, element.className, element.tabIndex, element.getAttribute("aria-label")];
+    expect(name).toEqual(["button", "icon-button media-hud-guides", -1, "Guides"]);
+    expect(element.hidden).toBe(true);
+
+    guides.set({ ...NO_GUIDES, frames: ["2.39"] });
+    expect(element.hidden).toBe(false);
+    expect(element.getAttribute("aria-pressed")).toBe("true");
+    expect(element.dataset.tooltip).toBe("Guides on, click to turn off (G)");
+
+    // Hidden, the picks are kept, and so is the switch.
+    guides.set({ ...guides.get(), shown: false });
+    expect(element.hidden).toBe(false);
+    expect(element.getAttribute("aria-pressed")).toBe("false");
+    expect(element.dataset.tooltip).toBe("Guides off, click to turn on (G)");
+
+    guides.set(NO_GUIDES);
+    expect(element.hidden).toBe(true);
+  });
+
+  it("hides and shows the guides at each click, a press leaving focus where it was, until disposed", () => {
+    const guides = memorySetting({ ...NO_GUIDES, title: true });
+    const toggle = guidesSwitch(guides);
+    const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    toggle.element.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+
+    toggle.element.click();
+    expect(guides.get()).toEqual({ ...NO_GUIDES, title: true, shown: false });
+    toggle.element.click();
+    expect(guides.get().shown).toBe(true);
+
+    toggle.dispose();
+    guides.set({ ...guides.get(), shown: false });
+    expect(toggle.element.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // jsdom lays nothing out: the boxes a laid-out bar gives.
+  const placeAt = (element: Element, left: number, width: number) => {
+    const box = { left, right: left + width, width, top: 0, bottom: 19, height: 19 } as DOMRect;
+    element.getBoundingClientRect = () => box;
+    element.getClientRects = () => [box] as unknown as DOMRectList;
+  };
+
+  it("shares a cell with LOOK, before it, and stays out of sight where it would touch a fact beside the cell", () => {
+    const toggle = guidesSwitch(memorySetting({ ...NO_GUIDES, center: true }));
+    const look = lookBadge(memoryLook({ lut: "panchromatic", on: true }));
+    const [dimensions, scale] = hudCells(2);
+    const cell = hudBadges(toggle.element, look.element);
+    expect([...cell.children]).toEqual([toggle.element, look.element]);
+    const hud = hudRoot([dimensions, cell, scale]);
+    placeAt(dimensions, 0, 124);
+    placeAt(scale, 452, 28);
+
+    placeAt(toggle.element, 160, 32);
+    fitHud(hud, 480, 300);
+    expect(toggle.element.classList.contains("is-cramped")).toBe(false);
+
+    placeAt(toggle.element, 126, 32); // 2px off the dimensions
+    fitHud(hud, 480, 300);
+    expect(toggle.element.classList.contains("is-cramped")).toBe(true);
+
+    placeAt(toggle.element, 160, 32);
+    fitHud(hud, 480, 300);
+    expect(toggle.element.classList.contains("is-cramped")).toBe(false);
   });
 });

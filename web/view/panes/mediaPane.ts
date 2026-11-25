@@ -30,12 +30,21 @@ import {
   must,
 } from "../../lib/dom.ts";
 import { clipDetailRows, pictureDetailRows, pixelFormatRows, pixelFormatText } from "../../lib/mediaDetails.ts";
-import { fitHud, hudCells, hudRoot, lookBadge, mediaFrame, showTransparency } from "../../lib/mediaHud.ts";
+import {
+  fitHud,
+  guidesSwitch,
+  hudBadges,
+  hudCells,
+  hudRoot,
+  lookBadge,
+  mediaFrame,
+  showTransparency,
+} from "../../lib/mediaHud.ts";
 import { moreOptionsButton } from "../../lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "../../lib/pictureLayers.ts";
 import { dragToScroll, keepClickedPoint, shownPercent, zoomFrom } from "../../lib/pictureZoom.ts";
 import { describeLoaded, readSvgStandInSize } from "../../lib/svgSize.ts";
-import { toggleGuides } from "../../lib/videoGuides.ts";
+import { type GuidesChoice, toggleGuides } from "../../lib/videoGuides.ts";
 import { type LutChoice, toggleLook } from "../../lib/videoLut.ts";
 import { createVideoPlayer, type LoopChoice, type VideoPlayer, type VolumeChoice } from "../../lib/videoPlayer.ts";
 import { contextView } from "../../services/contextViews.ts";
@@ -139,27 +148,29 @@ export function videoPane(contextMenu: ContextMenuService): EditorPaneDescriptor
   return { kind: "video", chrome: CHROME, create: () => createVideoPane(deps) };
 }
 
-/** The image's overlay: dimensions, the LOOK badge once a look has been
- * picked, and display scale along the top edge; the file's details and the
- * ⋮ along the bottom, its name being the status bar's. The top holds three
- * facts at most, so the badge stays centred on the picture
- * (web/styles/media-panes.css). */
-function createImageHud(lut: LutChoice, more: HTMLButtonElement) {
+/** The image's overlay: dimensions, the guides switch and the LOOK badge
+ * once a guide or a look has been picked, and display scale along the top
+ * edge; the file's details and the ⋮ along the bottom, its name being the
+ * status bar's. The top holds three cells at most, so the badge stays
+ * centred on the picture (web/styles/media-panes.css). */
+function createImageHud(lut: LutChoice, guides: GuidesChoice, more: HTMLButtonElement) {
   const [details, dimensions, scale] = hudCells(3);
   details.className = "media-hud-details";
   const look = lookBadge(lut);
-  const root = hudRoot([dimensions, look.element, scale], [details, more]);
-  return { root, details, dimensions, scale, look };
+  const toggle = guidesSwitch(guides);
+  const root = hudRoot([dimensions, hudBadges(toggle.element, look.element), scale], [details, more]);
+  return { root, details, dimensions, scale, look, guides: toggle };
 }
 
-/** The video's overlay: dimensions, codec, display scale, the LOOK badge
- * once a look has been picked, and frame rate, along the top edge only. The
- * player's own controls show the duration. */
-function createVideoHud(lut: LutChoice) {
+/** The video's overlay: dimensions, codec, display scale, the guides switch
+ * and the LOOK badge once a guide or a look has been picked, and frame rate,
+ * along the top edge only. The player's own controls show the duration. */
+function createVideoHud(lut: LutChoice, guides: GuidesChoice) {
   const [dimensions, codec, scale, frameRate] = hudCells(4);
   const look = lookBadge(lut);
-  const root = hudRoot([dimensions, codec, scale, look.element, frameRate]);
-  return { root, dimensions, codec, frameRate, look, scale };
+  const toggle = guidesSwitch(guides);
+  const root = hudRoot([dimensions, codec, scale, hudBadges(toggle.element, look.element), frameRate]);
+  return { root, dimensions, codec, frameRate, look, guides: toggle, scale };
 }
 
 // The display scale beside the facts, as a whole percent, and whether the
@@ -172,9 +183,9 @@ function measureScaledHud(
 ): number | undefined {
   if (!naturalWidth) return undefined; // not decoded yet
   const shown = media.getBoundingClientRect();
-  fitHud(hud.root, shown.width, shown.height);
   const percent = shownPercent(shown.width, naturalWidth);
   hud.scale.textContent = `${percent}%`;
+  fitHud(hud.root, shown.width, shown.height);
   return percent;
 }
 
@@ -196,7 +207,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
     if (shownPath !== undefined) moreOptionsMenu(deps.contextMenu, shownPath, { context: view.context })(anchor);
   });
   more.element.tabIndex = -1;
-  const hud = createImageHud(view.look, more.element);
+  const hud = createImageHud(view.look, view.guides, more.element);
   let layers: PictureLayers | undefined;
   let shown: HTMLImageElement | undefined;
   // The width the picture counts as at 100%: its own, or an SVG's stand-in.
@@ -317,8 +328,9 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       // observer saw can't leave it showing a stale scale.
       img.addEventListener("pointerenter", place);
       // The overlay follows the image: `.media-frame > img:hover + .media-hud`.
-      // Its bars lie in bands above and below it (media-bands.css).
-      const frame = mediaFrame(img, hud.root, "editor-image-frame has-bands");
+      // Its bars lie in bands above and below it, in a mat in the light theme
+      // (media-bands.css).
+      const frame = mediaFrame(img, hud.root, "editor-image-frame has-bands has-mat");
       frame.append(imageLayers.element);
       scroller.replaceChildren(frame);
       element.append(scroller);
@@ -378,6 +390,7 @@ export function createImagePane(deps: ImagePaneDeps): EditorPane {
       layers?.dispose();
       more.dispose();
       hud.look.dispose();
+      hud.guides.dispose();
       element.remove();
     },
   };
@@ -388,7 +401,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
   element.className = "editor-video";
   const details = detailsSection("Video");
   const view = createViewBinding(deps.views);
-  const hud = createVideoHud(view.look);
+  const hud = createVideoHud(view.look, view.guides);
   let mounted: HTMLVideoElement | undefined;
   let player: VideoPlayer | undefined;
 
@@ -453,8 +466,8 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
         moreOptions: moreOptionsMenu(deps.contextMenu, tab.path, { context: view.context }),
       });
       // The overlay follows the player: `video:hover + .media-hud`. Its bar
-      // lies in a band above it (media-bands.css).
-      const frame = mediaFrame(video, hud.root, "editor-video-stage has-bands");
+      // lies in a band above it, in a mat in the light theme (media-bands.css).
+      const frame = mediaFrame(video, hud.root, "editor-video-stage has-bands has-mat");
       frame.append(player.element);
       element.append(frame);
 
@@ -506,6 +519,9 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
       video.addEventListener("resize", () => {
         if (ctx.isCurrent()) place();
       });
+      // Measured again as the overlay is about to show, so facts that
+      // arrived since can't leave the guides switch over one.
+      video.addEventListener("pointerenter", place);
       video.addEventListener("error", () => {
         if (!ctx.isCurrent() || !failure.hidden) return;
         unplayable = true;
@@ -557,6 +573,7 @@ export function createVideoPane(deps: VideoPaneDeps): EditorPane {
       stop();
       resize.disconnect();
       hud.look.dispose();
+      hud.guides.dispose();
       element.remove();
     },
   };

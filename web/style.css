@@ -48,6 +48,7 @@
 @import "./styles/tag-suggestions.css" layer(components);
 @import "./styles/panes.css" layer(components);
 @import "./styles/media-panes.css" layer(components);
+@import "./styles/media-hud-badges.css" layer(components);
 @import "./styles/video-player.css" layer(components);
 @import "./styles/media-bands.css" layer(components);
 @import "./styles/video-volume.css" layer(components);

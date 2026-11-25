@@ -143,6 +143,21 @@ export function insetBox(box: Box, insets: Insets): Box {
   };
 }
 
+/** Whether any guide is picked, shown or hidden by G. */
+export function anyGuide(guides: Guides): boolean {
+  return (
+    guides.frames.length > 0 ||
+    guides.extents ||
+    guides.action ||
+    guides.title ||
+    guides.center ||
+    guides.social ||
+    guides.cross ||
+    guides.level ||
+    guides.protection > 0
+  );
+}
+
 /** Hides every guide or shows them again, keeping the picks: G's turn. */
 export function toggleGuides(choice: GuidesChoice): void {
   const current = choice.get();
@@ -370,17 +385,7 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
 
   function draw(): void {
     const current = guides.get();
-    const any =
-      current.frames.length > 0 ||
-      current.extents ||
-      current.action ||
-      current.title ||
-      current.center ||
-      current.social ||
-      current.cross ||
-      current.level ||
-      current.protection > 0;
-    const visible = current.shown && any && width > 0 && height > 0;
+    const visible = current.shown && anyGuide(current) && width > 0 && height > 0;
     element.toggleAttribute("hidden", !visible);
     if (!visible) return;
     for (const layer of [lines, markers]) layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
