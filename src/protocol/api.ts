@@ -717,7 +717,7 @@ export interface AppletFileResponse {
   path: string;
   revision: string;
   manifest: AppletManifest;
-  // The raw file, what the frame runs and "Edit code" edits.
+  // The raw file, what the frame runs and Source mode edits.
   html: string;
   // The file's and its imports' hash, which an Applet node records.
   contentHash: string;

@@ -16,7 +16,7 @@ export interface AppletPaneDeps {
   // Each mount records the revision it runs, which outside edits are checked
   // against (services/outsideEdits.ts). Unrecorded, a running Applet would
   // never follow its file, or would reload on every check against an older
-  // revision its Edit code left.
+  // revision its Source mode left.
   //
   // Reload writes what is queued for the file first, so it runs what Edit
   // code shows, not the last save.

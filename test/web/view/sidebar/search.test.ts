@@ -168,7 +168,7 @@ describe("search view", () => {
     expect(revealLine).not.toHaveBeenCalled();
   });
 
-  it("opens an Applet's line match in Edit code, where its source is visible", async () => {
+  it("opens an Applet's line match in Source mode, where its source is visible", async () => {
     const { type, openPath, revealLine } = setup();
     await type("fox");
     q(".search-match")[3].click();

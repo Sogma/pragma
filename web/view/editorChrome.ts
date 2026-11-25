@@ -414,7 +414,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   });
   commands.register({
     id: "flow.appMode",
-    label: "App Mode",
+    label: "App mode",
     when: chromeAllows("flow-app-mode"),
     run: () => {
       const chrome = deps.focused();
@@ -434,7 +434,7 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   });
   commands.register({
     id: "applet.toggleCode",
-    label: "Edit code",
+    label: "Source mode",
     when: (context) => context.tab.kind === "applet" || context.tab.kind === "applet-source",
     run: (context) => {
       if (context.tab.kind === "applet") void deps.openAppletCode(context.tab.path);
@@ -496,6 +496,10 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // card's own ⋮ holds the same item.
   menus.register(ROW_CARD_MENU, [designItem]);
 
+  // A view a file switches into is a checkbox named for its mode, checked
+  // while in it: Source mode, Design mode, App mode. A label naming the other
+  // view instead would give one command two names across the menu, the
+  // palette and Shortcuts, and hide which view is showing.
   menus.register("editor.toolbar", (context) => [
     { command: "editor.toggleFormat", checked: () => deps.formatColumn.get() },
     { command: "editor.toggleSourceMode", checked: () => deps.focused().isSourceMode() },
@@ -503,13 +507,11 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     designItem,
     ...layoutSubmenu(context),
     { command: "document.addProperty" },
-    // A text toggle, not a checkmark: its label names the destination, the
-    // same convention as Edit code / Run applet (docs/protocol.md, App Mode).
-    { command: "flow.appMode", label: () => (deps.activeFlowView()?.isAppModeActive() ? "Graph Mode" : "App Mode") },
+    { command: "flow.appMode", checked: () => deps.activeFlowView()?.isAppModeActive() ?? false },
     { command: "flow.rename" },
     { command: "flow.permissions" },
     ...defaultViewItem(context),
-    { command: "applet.toggleCode", label: (context) => (context.tab.kind === "applet" ? "Edit code" : "Run Applet") },
+    { command: "applet.toggleCode", checked: (context) => context.tab.kind === "applet-source" },
   ]);
 
   // The toolbar menu's commands, named for a list that has no toolbar
@@ -525,9 +527,9 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
     { command: "document.addProperty" },
     { command: "document.find", label: "Find in document…" },
     { command: "document.replace", label: "Replace in document…" },
-    { command: "data.design", label: "Toggle design mode" },
-    { command: "applet.toggleCode", label: "Applet: Toggle code view" },
-    { command: "flow.appMode", label: "Flow: Toggle App Mode" },
+    { command: "data.design", label: "Toggle Design mode" },
+    { command: "applet.toggleCode", label: "Applet: Toggle Source mode" },
+    { command: "flow.appMode", label: "Flow: Toggle App mode" },
     { command: "flow.rename", label: "Flow: Title…" },
     { command: "flow.permissions", label: "Flow: Permissions…" },
   ]);

@@ -88,9 +88,9 @@ describe("the Code settings page", () => {
     return { layout, onFoldMarkersHidden, settings, page, toggle };
   }
 
-  it("is named for Edit code", () => {
+  it("is named for an applet's Source mode", () => {
     const { settings } = open();
-    expect([settings.label, settings.detail]).toEqual(["Code", "An applet's Edit code view"]);
+    expect([settings.label, settings.detail]).toEqual(["Code", "An applet in Source mode"]);
   });
 
   it("holds the Editor page's three layout switches and the guides', each showing its setting, then a font", () => {
@@ -101,7 +101,7 @@ describe("the Code settings page", () => {
     expect(switches).toEqual(["false", "true", "true", "true"]);
   });
 
-  it("unfolds Edit code when its folding markers are turned off, and only then", () => {
+  it("unfolds Source mode when its folding markers are turned off, and only then", () => {
     const { layout, toggle, onFoldMarkersHidden } = open();
     toggle("Line numbers").click();
     expect(layout.lineNumbers.get()).toBe(false);

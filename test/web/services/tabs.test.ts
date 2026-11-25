@@ -440,7 +440,7 @@ describe("openAppletCode", () => {
     expect(workspace.focusedGroup().activeTabIndex).toBe(0);
   });
 
-  it("Run Applet writes the code's queued edit before the running view reads the file", async () => {
+  it("leaving Source mode writes the code's queued edit before the running view reads the file", async () => {
     const applet = { kind: "applet", path: "tool.applet.html", revision: "rev-1" } as unknown as FileResponse;
     const { tabs, workspace, log } = await setup({
       loadFile: vi.fn(async () => {
@@ -460,7 +460,7 @@ describe("openAppletCode", () => {
 });
 
 describe("an open's view", () => {
-  it("opens an Applet asked for as code straight into Edit code, fetched once", async () => {
+  it("opens an Applet asked for as code straight into Source mode, fetched once", async () => {
     const applet = { kind: "applet", path: "tool.applet.html", revision: "rev-1" } as unknown as FileResponse;
     const { tabs, workspace, deps } = await setup({ loadFile: vi.fn(async () => applet) });
     await tabs.openEntry("tool.applet.html", { view: "code" });
@@ -954,7 +954,7 @@ describe("dropDeleted", () => {
 });
 
 describe("listChanged", () => {
-  it("persists the thin shape: an Edit code tab as Edit code, a Find Context tab as empty", async () => {
+  it("persists the thin shape: a Source mode tab as Source mode, a Find Context tab as empty", async () => {
     const { tabs, workspace, deps } = await setup();
     workspace.focusedGroup().tabs = [
       { kind: "applet-source", path: "tool.applet.html", state: {} as never },
@@ -980,7 +980,7 @@ describe("listChanged", () => {
     );
   });
 
-  it("restores an Edit code tab as Edit code, with no fetch until it shows", async () => {
+  it("restores a Source mode tab as Source mode, with no fetch until it shows", async () => {
     const { tabs, workspace, deps } = await setup({
       loadLayout: persisted([
         { tabs: [{ kind: "applet-source", path: "tool.applet.html" }, { kind: "empty" }], activeTabIndex: 1 },
@@ -1049,7 +1049,7 @@ describe("Source mode", () => {
   });
 });
 
-// A table's pane keeps its own copy of the file, as an Applet's Edit code
+// A table's pane keeps its own copy of the file, as an Applet's Source mode
 // does; a document or a running Applet two groups may share.
 function servedFile(path: string): FileResponse {
   if (path.endsWith(".table.html")) return { kind: "table", path, revision: "rev-1" } as unknown as FileResponse;
@@ -1337,7 +1337,7 @@ describe("two groups", () => {
     expect(workspace.focusedGroup()).toBe(right);
   });
 
-  it("Edit code goes to the code open in the other group, leaving this tab running", async () => {
+  it("Source mode goes to the code open in the other group, leaving this tab running", async () => {
     const { tabs, workspace, deps } = await withGroups();
     await tabs.openEntry("tool.applet.html");
     await tabs.split();
@@ -1604,7 +1604,7 @@ describe("two groups", () => {
   });
 
   // Its cached editor state is the old pane's, wired to that pane's saves.
-  it("moving an Edit code tab leaves its view state behind, so the new pane reads the file again", async () => {
+  it("moving a Source mode tab leaves its view state behind, so the new pane reads the file again", async () => {
     const { tabs, workspace } = await withGroups();
     workspace.focusedGroup().tabs = [
       { kind: "applet-source", path: "tool.applet.html", state: {} as never },

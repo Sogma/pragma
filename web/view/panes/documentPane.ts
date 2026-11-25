@@ -170,7 +170,7 @@ type DocumentTab = Extract<Tab, { kind: DocumentPaneKind }>;
 
 export interface DocumentPaneDeps {
   documents: DocumentsService;
-  // The "Edit code" variant writes its raw HTML straight here; a document
+  // An applet in Source mode writes its raw HTML straight here; a document
   // model schedules its own saves.
   saveQueue: SaveQueue;
   loadFile: (path: string) => Promise<FileResponse>;
@@ -231,7 +231,7 @@ export interface DocumentPaneDeps {
   // from the tree: an image too large to copy in, a drop the space can't take.
   notify: (message: string) => void;
   // Settings → Editor's layout for a note or screenplay, the Code page's for
-  // Edit code.
+  // an applet in Source mode.
   layout: EditorLayout;
   // Whether a note being edited shows its Format column, and how many tools
   // past its format's usual ones it holds.

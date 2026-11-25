@@ -1,4 +1,4 @@
-// Edit code's own preferences and its page under Settings → Editor → Formats:
+// Source mode's own preferences and its page under Settings → Editor → Formats:
 // how an applet's source is laid out, apart from a note's, and the font it is
 // set in. Code runs the pane's width with its line numbers, folding markers
 // and indentation guides showing until they are turned off here. The font
@@ -47,11 +47,11 @@ export interface CodeSettingsDeps {
   contextMenu: ContextMenuService;
   fonts?: InstalledFonts;
   // Folding markers turned off: the only way back into a folded block went
-  // with them, so every open Edit code tab is unfolded.
+  // with them, so every open Source mode tab is unfolded.
   onFoldMarkersHidden: () => void;
 }
 
-/** Keeps the code font on :root, and returns Edit code's page for the
+/** Keeps the code font on :root, and returns Source mode's page for the
  * Formats list. */
 export function wireCodeSettings(deps: CodeSettingsDeps): { id: string; settings: FormatSettings } {
   wireCodeFont(deps.font);
@@ -62,7 +62,7 @@ export function codeSettings(deps: CodeSettingsDeps): FormatSettings {
   const { layout = codeLayout, font = codeFont, fonts = createInstalledFonts() } = deps;
   return {
     label: "Code",
-    detail: "An applet's Edit code view",
+    detail: "An applet in Source mode",
     page() {
       const card = document.createElement("div");
       card.className = "settings-card";

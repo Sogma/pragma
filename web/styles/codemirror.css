@@ -336,8 +336,8 @@ html[data-theme="dark"] #editor .cm-cursor {
 }
 
 /* Reading view drops the text caret (editing is already off) so the pointer
-   reads as locked. The class sits on the document pane, so raw code under
-   Edit code is never locked. */
+   reads as locked. The class sits on the document pane, so raw code in an
+   applet's Source mode is never locked. */
 .editor-document-pane.reading-view .cm-content {
   cursor: default;
 }

@@ -183,7 +183,7 @@ One or two editor groups each own their tabs, pane instances, chrome and viewing
 
 - Opens replace the focused group's current tab in place, with no preview tab and no modifier-click; only an open of a surface a person returns to, such as "+", a new file, a version from History or Open in new tab, makes a new tab.
 - A group has at most one tab per file; historical versions have separate identities. Renames repath tabs; the last group always retains a tab.
-- An open may ask for a view, such as an Applet's Edit code; a new view joins an open's options, never a new way to open.
+- An open may ask for a view, like an Applet's Source mode; a new view joins an open's options, never a new way to open.
 - Document content, metadata and Undo are shared by path; selection, folds and scroll belong to each view.
 - Table, Class, Flow and Applet-source panes keep whole-file copies and may occupy only one group. Running Applets save nothing and may appear in both.
 - Editing and reading views of the same file synchronize by source line, never relative height. Views in the same mode scroll independently.

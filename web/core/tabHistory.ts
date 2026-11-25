@@ -13,7 +13,7 @@ export interface Step {
 
 const MAX_PLACES = 50;
 
-/** One entry, whatever view shows it: an applet and its Edit code. A Find
+/** One entry, whatever view shows it: an applet and its Source mode. A Find
  * Context answer is never the folder it searched, and a version is never its
  * file, nor another of its versions. */
 export function samePlace(a: Place, b: Place): boolean {

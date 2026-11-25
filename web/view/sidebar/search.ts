@@ -1,6 +1,6 @@
 // The Search view: every file the space tree shows, searched as you type,
 // results grouped by file. A line match opens its file and selects the
-// match — an Applet's in Edit code, since the running applet shows none of
+// match, an Applet's in Source mode, since the running applet shows none of
 // its source.
 //
 // Private documents are included: this is the person searching their own

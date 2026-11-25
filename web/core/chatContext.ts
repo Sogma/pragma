@@ -6,7 +6,7 @@ import { scopesOf } from "./spaceTree.ts";
 import { activeTabOf, type EditorGroup } from "./workspace.ts";
 
 // What the copilot is told the writer is looking at. `activePath` is only
-// meaningful for a document or "Edit code" tab; every other tab that shows a
+// meaningful for a document or an applet in Source mode; every other tab that shows a
 // file is named from the tab itself. Falling through to activePath for media
 // or a running applet would let the copilot's edit tool treat it as a
 // document and overwrite a file's binary bytes with text.

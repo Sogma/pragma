@@ -67,7 +67,7 @@ describe("wireFormatsPanel", () => {
     const formats = createFormats();
     formats.register("screenplay", format({ label: "Screenplay", detail: "Fountain", page: () => page("Font") }));
     const openSettingsSubpage = vi.fn();
-    const code = { label: "Code", detail: "An applet's Edit code view", page: () => page("Line numbers") };
+    const code = { label: "Code", detail: "An applet in Source mode", page: () => page("Line numbers") };
     wireFormatsPanel(root, { formats, pages: [{ id: "code", settings: code }], openSettingsSubpage });
 
     const rows = [...root.querySelectorAll<HTMLButtonElement>("#settings-format-list > .settings-open-row")];

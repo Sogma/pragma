@@ -130,8 +130,8 @@ export interface EditorPane {
 // and which actions apply: overflow-menu items, plus "flow-run" for the
 // toolbar's own Run button. Static per kind, applied on every switch.
 //
-// Two items are decided when the menu opens instead, from the mounted
-// applet: Edit prompts and Edit code / Run applet.
+// An applet's Source mode is decided when the menu opens instead, from the
+// tab it is open in.
 export interface PaneChrome {
   toolbar: boolean;
   readingView: boolean;

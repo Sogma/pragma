@@ -38,7 +38,7 @@ export interface OpenSource {
   marked?: boolean;
 }
 
-/** A view an open asks for: `code` is an Applet's Edit code. A file whose
+/** A view an open asks for: `code` is an Applet's Source mode. A file whose
  * kind has the view shows in it wherever the open lands; any other opens as
  * it would have. */
 export type OpenView = "code";
@@ -94,7 +94,7 @@ export interface Tabs {
    * one moved the writer there, so whatever draws it marks where it went. */
   onOpenedBeside(listener: (group: EditorGroup) => void): () => void;
   /** The open text document's path in `groupId`, or in the focused group
-   * without one; undefined for every other kind. An "Edit code" tab counts:
+   * without one; undefined for every other kind. A Source mode tab counts:
    * it is an editable file behind a CodeMirror view. */
   activePath(groupId?: string): string | undefined;
   /** The model behind the focused document tab, undefined for every other
@@ -194,7 +194,7 @@ export interface Tabs {
    * a file. A folder may show in both groups, so nothing elsewhere is
    * focused instead. */
   openFolderToSide(dirPath: string): Promise<void>;
-  /** "Edit code": the running applet's tab becomes its raw source in
+  /** Source mode: the running applet's tab becomes its raw source in
    * CodeMirror, an open in the focused group asking for the `code` view. */
   openAppletCode(path: string): Promise<void>;
   /** The reverse: re-fetches and mounts the running iframe. */
@@ -458,7 +458,7 @@ export function createTabs(deps: TabsDeps): Tabs {
   }
 
   // A file is open in at most one tab per group, whatever view shows it: a
-  // running applet and its "Edit code" source are one file, and the tab
+  // running applet and its Source mode are one file, and the tab
   // already holding it is where its unsaved edits live. A blank tab gets no
   // exception. A second view of one file is a split, never a second tab.
   function tabShowing(group: EditorGroup, path: string): number {
@@ -469,7 +469,7 @@ export function createTabs(deps: TabsDeps): Tabs {
 
   // A tab in a group other than `except` showing `path` the way only one
   // group may (see SINGLE_GROUP_KINDS): as an ordinary open shows it, or as
-  // `kind`. An ordinary open never shows Edit code, so the code open in one
+  // `kind`. An ordinary open never shows Source mode, so the code open in one
   // group never stops its Applet running in another.
   function heldElsewhere(
     path: string,
@@ -627,7 +627,7 @@ export function createTabs(deps: TabsDeps): Tabs {
     if (from.tabs.length === 0) removeGroup(from);
     else if (wasActive) await renderActive(from);
     if (!alive(target)) return;
-    // An Edit code state is the old pane's, wired to its saves: the new
+    // A Source mode state is the old pane's, wired to its saves: the new
     // pane reads the file again instead. A document's is rebuilt anyway.
     if (tab.kind === "applet-source") tab.state = undefined;
 
@@ -657,9 +657,9 @@ export function createTabs(deps: TabsDeps): Tabs {
   ): Promise<void> {
     const token = nextToken(group);
     const kind = viewKind(filePath, view);
-    // The code already open in the other group is where Edit code goes,
+    // The code already open in the other group is where Source mode goes,
     // even from a running tab of its own here: converted, that tab would be
-    // a second Edit code, saving over the first's edits.
+    // a second Source mode, saving over the first's edits.
     const held = heldElsewhere(filePath, group, kind);
     if (kind && held) {
       focusGroup(held.group.id);

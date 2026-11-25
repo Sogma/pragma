@@ -1214,9 +1214,9 @@ describe("editor area", () => {
     const { tabs, area, root } = await setup();
     await tabs.openAppletCode("tools/hello.applet.html");
     const content = root.querySelector<HTMLElement>(".editor-applet-source .cm-editor");
-    if (!content) throw new Error("no Edit code view");
+    if (!content) throw new Error("no Source mode view");
     const view = EditorView.findFromDOM(content);
-    if (!view) throw new Error("no editor on the Edit code view");
+    if (!view) throw new Error("no editor on the Source mode view");
     view.dispatch({ effects: foldEffect.of({ from: 6, to: 20 }) });
 
     area.unfoldAll("document");

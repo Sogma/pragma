@@ -311,8 +311,8 @@ export type Tab = (
   // file (docs/protocol.md, Graph shape).
   | { kind: "flow"; path: string; viewport?: TabViewport }
   | { kind: "applet"; path: string }
-  // A `.applet.html` being edited as raw code rather than run — the `⋮` menu's
-  // "Edit code" ⇄ "Run" toggle (docs/architecture.md, Files and views). Caches its
+  // A `.applet.html` being edited as raw code rather than run: the `⋮` menu's
+  // Source mode (docs/architecture.md, Files and views). Caches its
   // CodeMirror state like a "document" tab; persists to the layout as
   // "applet" so a reload comes back running (applets default to run).
   | { kind: "applet-source"; path: string; state?: EditorState; scrollTop?: number }

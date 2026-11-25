@@ -941,7 +941,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       : []),
     ...fileItems(target),
   ];
-  // An Applet's Edit on the side follows the chrome's Edit code with no line
+  // An Applet's Edit on the side follows the chrome's Source mode with no line
   // between; a document's sits with Split, the other way to a side.
   deps.menus.register("editor.toolbar", () => {
     const group = workspace.focusedGroup();

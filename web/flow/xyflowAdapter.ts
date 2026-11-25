@@ -577,7 +577,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     pickedImages.clear();
     graph = { nodes: [], edges: [] };
     renderEdges();
-    // Resets to Graph Mode as a neutral baseline for closing the flow. A file
+    // Resets to the graph as a neutral baseline for closing the flow. A file
     // load clears first too but then restores that file's remembered mode,
     // so this reset is never the last word for an actual open.
     appMode.setActive(false);

@@ -90,7 +90,7 @@ function setup(
   });
   panes.register({
     kind: "flow",
-    chrome: { toolbar: true, readingView: false, statusbar: true, actions: ["flow-run"] },
+    chrome: { toolbar: true, readingView: false, statusbar: true, actions: ["flow-run", "flow-app-mode"] },
     create,
   });
   const chrome = createEditorChrome({
@@ -217,6 +217,30 @@ describe("editorChrome modes", () => {
     }
   });
 
+  // A view a file switches into is a checkbox named for its mode, whose
+  // label never changes.
+  it("offers App mode on a Flow and Source mode on an Applet as checkboxes, checked while in them", async () => {
+    let appMode = false;
+    const flowView = {
+      isAppModeActive: () => appMode,
+      toggleAppMode: vi.fn(() => {
+        appMode = !appMode;
+      }),
+      run: vi.fn(),
+    } as unknown as FlowView;
+    const onFlow = setup(flow, false, undefined, {}, flowView);
+    expect(onFlow.item("App mode")).toMatchObject({ command: "flow.appMode", checked: false });
+    await onFlow.commands.run("flow.appMode", onFlow.context());
+    expect(onFlow.item("App mode")).toMatchObject({ checked: true });
+    expect(onFlow.palette()).toContain("Flow: Toggle App mode");
+
+    const running = setup({ kind: "applet", path: "tool.applet.html" });
+    expect(running.item("Source mode")).toMatchObject({ checked: false });
+    const source = setup({ kind: "applet-source", path: "tool.applet.html" });
+    expect(source.item("Source mode")).toMatchObject({ checked: true });
+    expect(source.palette()).toContain("Applet: Toggle Source mode");
+  });
+
   // A row's card covers the menu's ⋮, so its own ⋮ holds the same item.
   it("puts Design mode on a row card's ⋮ too, where it switches the same mode", () => {
     const { chrome, pane, context, menus } = setup(table);
@@ -241,12 +265,12 @@ describe("editorChrome modes", () => {
     expect(readOnly.chrome.isReadingView()).toBe(true);
     expect(readOnly.readingToggle.hidden).toBe(true);
     expect(readOnly.item("Design mode")).toMatchObject({ checked: false, disabled: true });
-    expect(readOnly.palette()).not.toContain("Toggle design mode");
+    expect(readOnly.palette()).not.toContain("Toggle Design mode");
 
     setLibraryPermissions([library("pool", "read-write")]);
     const writable = setup(tab);
     expect(writable.item("Design mode")).toMatchObject({ checked: false, disabled: false });
-    expect(writable.palette()).toContain("Toggle design mode");
+    expect(writable.palette()).toContain("Toggle Design mode");
   });
 });
 

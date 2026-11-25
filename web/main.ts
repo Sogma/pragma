@@ -418,7 +418,7 @@ async function main(): Promise<void> {
 
   // The Editor page's layout, for notes and screenplays. Only the switches
   // are bound here: each pane lays itself out from the settings it was
-  // given, so Edit code can follow its own page instead.
+  // given, so an applet's Source mode can follow its own page instead.
   bindToggle(settingLineNumbers, settings.showLineNumbers);
 
   // Fold markers are the only way to expand a folded block, so hiding them

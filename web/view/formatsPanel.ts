@@ -1,6 +1,6 @@
 // Settings → Editor → Formats: a row per registered format with a page of its
 // own, and per page given for a text view that is no document type's format
-// (Edit code), opening that page as a subpage. Whoever owns the page builds
+// (an applet's Source mode), opening that page as a subpage. Whoever owns the page builds
 // its content; this frames it as every Settings subpage is framed.
 //
 // The subpages are mounted when this runs, which must come before the
