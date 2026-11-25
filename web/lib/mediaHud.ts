@@ -75,11 +75,14 @@ export function lookBadge(choice: LutChoice): LookBadge {
     const name = lookLabel(named);
     element.setAttribute("aria-label", missing ? `${name} look, missing` : `${name} look`);
     element.setAttribute("aria-pressed", String(on));
+    // The LUT's name in brackets, so a name that reads as words stays apart
+    // from the hint around it.
+    const tag = `[${name}]`;
     element.dataset.tooltip = trying
-      ? `Trying ${name}`
+      ? `Trying ${tag}`
       : missing
-        ? `${name}'s file is missing, so the picture shows no look`
-        : `${name} ${kept.on ? "on, click to turn off" : "off, click to turn on"} (D)`;
+        ? `${tag}'s file is missing, so the picture shows no look`
+        : `${tag} ${kept.on ? "on, click to turn off" : "off, click to turn on"} (D)`;
   });
   return { element, dispose };
 }

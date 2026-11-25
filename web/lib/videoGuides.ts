@@ -28,6 +28,7 @@ export interface Guides {
   social: boolean;
   cross: boolean;
   level: boolean;
+  thirds: boolean;
   /** The share of each frame kept around its framing, in whole percents up
    * to a quarter. */
   protection: number;
@@ -50,6 +51,7 @@ export const NO_GUIDES: Guides = {
   social: false,
   cross: false,
   level: false,
+  thirds: false,
   protection: 0,
 };
 
@@ -154,6 +156,7 @@ export function anyGuide(guides: Guides): boolean {
     guides.social ||
     guides.cross ||
     guides.level ||
+    guides.thirds ||
     guides.protection > 0
   );
 }
@@ -246,6 +249,7 @@ export function readGuides(value: unknown): Guides {
     social: flag("social", false),
     cross: flag("cross", false),
     level: flag("level", false),
+    thirds: flag("thirds", false),
     protection: storedProtection(record.protection),
   };
 }
@@ -283,6 +287,15 @@ function crossPaths(width: number, height: number): { lines: string; bars: strin
   return { lines, bars, cut };
 }
 
+/** The rule of thirds over a picture `width` by `height`: lines a third and
+ * two thirds of the way across it each way, out to its edges. */
+function thirdsPath(width: number, height: number): string {
+  const [w, h] = [round(width), round(height)];
+  const [left, right] = [round(width / 3), round((width * 2) / 3)];
+  const [top, bottom] = [round(height / 3), round((height * 2) / 3)];
+  return `M${left} 0V${h}M${right} 0V${h}M0 ${top}H${w}M0 ${bottom}H${w}`;
+}
+
 // Ids are page-wide, so each overlay names its own mask: a second player's
 // bars would otherwise take the first one's.
 let overlayCount = 0;
@@ -298,9 +311,15 @@ const LEVEL_DOTS = [
   [x, -y],
   [x, y],
 ]);
+// The horizon's white ends run between these distances from the middle; its
+// green runs in from each edge of the picture to where they begin.
+const LEVEL_ENDS = { inner: 215, outer: 260 };
 const LEVEL_MARKS: readonly { className: string; d: string; green?: boolean }[] = [
   { className: "video-guides-level-horizon", d: "", green: true },
-  { className: "video-guides-level-ends", d: "M-260 0H-215M215 0H260" },
+  {
+    className: "video-guides-level-ends",
+    d: `M${-LEVEL_ENDS.outer} 0H${-LEVEL_ENDS.inner}M${LEVEL_ENDS.inner} 0H${LEVEL_ENDS.outer}`,
+  },
   {
     className: "video-guides-level-brackets",
     d: "M-269 -155V-195H-229M229 -195H269V-155M269 155V195H229M-229 195H-269V155",
@@ -316,9 +335,6 @@ const LEVEL_MARKS: readonly { className: string; d: string; green?: boolean }[] 
     d: LEVEL_DOTS.map(([x, y]) => `M${round(x - 2.6)} ${y}a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0`).join(""),
   },
 ];
-// The horizon runs from each edge of the picture to this far from the middle.
-const LEVEL_GAP = 215;
-
 export interface GuidesOverlay {
   /** The lines' SVG, and the ratios' box over it. */
   readonly element: HTMLElement;
@@ -364,6 +380,7 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
   const crossKeep = shape("path", "video-guides-cross-keep", crossMask);
   const crossCut = shape("path", "video-guides-cross-cut", crossMask);
   crossBars.setAttribute("mask", `url(#${crossMask.id})`);
+  const thirdsLines = shape("path", "video-guides-line is-thirds", markers);
   // The level in two layers, placed alike: its white marks with the lines,
   // its green ones with the cross.
   const levels = [shape("g", "video-guides-level"), shape("g", "video-guides-level", markers)];
@@ -481,7 +498,9 @@ export function createGuidesOverlay(guides: GuidesChoice): GuidesOverlay {
       show(level, current.level);
     }
     const end = round(width / 2 / scale);
-    levelHorizon.setAttribute("d", `M${-end} 0H${-LEVEL_GAP}M${LEVEL_GAP} 0H${end}`);
+    levelHorizon.setAttribute("d", `M${-end} 0H${-LEVEL_ENDS.outer}M${LEVEL_ENDS.outer} 0H${end}`);
+    thirdsLines.setAttribute("d", thirdsPath(width, height));
+    show(thirdsLines, current.thirds);
   }
 
   const unsubscribe = guides.subscribe(draw);

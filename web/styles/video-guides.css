@@ -51,9 +51,10 @@
   stroke-opacity: 0.5;
 }
 
-/* Snapped to whole pixels: a 1px line astride two of them draws at half
-   strength, darker than the solid bars it meets. */
-.video-guides-line.is-cross {
+/* The frame markers' lines, in their green, snapped to whole pixels: a 1px
+   line astride two of them draws at half strength, darker than the cross's
+   solid bars it meets. */
+.video-guides-line:is(.is-cross, .is-thirds) {
   stroke: var(--media-guide-marker);
   shape-rendering: crispEdges;
 }

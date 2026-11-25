@@ -792,13 +792,13 @@ describe("videoPane", () => {
     expect(hudText(pane)).toEqual(["1920 × 1080 (16:9) | H.264 | 50% | LOOK | 25 fps"]);
     expect(badge.getAttribute("aria-pressed")).toBe("true");
     expect(badge.getAttribute("aria-label")).toBe("Panchromatic look");
-    expect(badge.dataset.tooltip).toBe("Panchromatic on, click to turn off (D)");
+    expect(badge.dataset.tooltip).toBe("[Panchromatic] on, click to turn off (D)");
     expect(badge.tabIndex).toBe(-1);
 
     lut.set({ lut: "orthochromatic", on: false });
     expect(badge.textContent).toBe("LOOK");
     expect(badge.getAttribute("aria-pressed")).toBe("false");
-    expect(badge.dataset.tooltip).toBe("Orthochromatic off, click to turn on (D)");
+    expect(badge.dataset.tooltip).toBe("[Orthochromatic] off, click to turn on (D)");
 
     // A closed pane stops listening.
     pane.dispose();

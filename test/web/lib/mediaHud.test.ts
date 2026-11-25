@@ -140,11 +140,11 @@ describe("a clip's LOOK badge", () => {
     expect(element.textContent).toBe("LOOK");
     expect(element.getAttribute("aria-pressed")).toBe("true");
     expect(element.getAttribute("aria-label")).toBe("Panchromatic look");
-    expect(element.dataset.tooltip).toBe("Panchromatic on, click to turn off (D)");
+    expect(element.dataset.tooltip).toBe("[Panchromatic] on, click to turn off (D)");
 
     look.set({ lut: "orthochromatic", on: false });
     expect(element.getAttribute("aria-pressed")).toBe("false");
-    expect(element.dataset.tooltip).toBe("Orthochromatic off, click to turn on (D)");
+    expect(element.dataset.tooltip).toBe("[Orthochromatic] off, click to turn on (D)");
 
     // As a viewer moves to a context with no look picked.
     look.set({ lut: "panchromatic", on: true });

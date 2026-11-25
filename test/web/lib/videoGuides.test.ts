@@ -83,6 +83,7 @@ describe("readGuides", () => {
       social: true,
       cross: true,
       level: true,
+      thirds: true,
       protection: 0.07,
     };
     expect(readGuides(stored)).toEqual(stored);
@@ -484,7 +485,7 @@ describe("createGuidesOverlay", () => {
   });
 
   // On a 1920 by 1080 picture the display draws in its own pixels from the middle, unscaled.
-  it("draws the level display over the whole picture, its horizon out to both edges", () => {
+  it("draws the level display over the whole picture, its green horizon from both edges in to its white ends", () => {
     const { choice, overlay, svg, markers, shown } = draw({ ...NO_GUIDES, level: true });
     overlay.setSize(1920, 1080);
     // Its white marks with the lines, its green ones with the cross: two groups, placed alike.
@@ -500,21 +501,34 @@ describe("createGuidesOverlay", () => {
       "video-guides-level-horizon",
       "video-guides-level-indicator",
     ]);
-    expect(placed()).toEqual(["translate(960 540) scale(1)", "translate(960 540) scale(1)", "M-960 0H-215M215 0H960"]);
+    expect(placed()).toEqual(["translate(960 540) scale(1)", "translate(960 540) scale(1)", "M-960 0H-260M260 0H960"]);
     // Half the size, half the scale; a tall picture sizes it by its width, the horizon still out to its edges.
     overlay.setSize(960, 540);
     expect(placed()).toEqual([
       "translate(480 270) scale(0.5)",
       "translate(480 270) scale(0.5)",
-      "M-960 0H-215M215 0H960",
+      "M-960 0H-260M260 0H960",
     ]);
     overlay.setSize(1080, 1920);
-    expect(placed()).toEqual(["translate(540 960) scale(1)", "translate(540 960) scale(1)", "M-540 0H-215M215 0H540"]);
+    expect(placed()).toEqual(["translate(540 960) scale(1)", "translate(540 960) scale(1)", "M-540 0H-260M260 0H540"]);
     // A frame cut from the picture leaves it whole.
     choice.set({ ...NO_GUIDES, frames: ["16:9"], level: true });
-    expect(placed()).toEqual(["translate(540 960) scale(1)", "translate(540 960) scale(1)", "M-540 0H-215M215 0H540"]);
+    expect(placed()).toEqual(["translate(540 960) scale(1)", "translate(540 960) scale(1)", "M-540 0H-260M260 0H540"]);
     choice.set({ ...NO_GUIDES, title: true });
     expect(levels.map((level) => level.getAttribute("display"))).toEqual(["none", "none"]);
+  });
+
+  // The rule of thirds marks the whole picture, as the cross does, whatever frames are cut from it.
+  it("draws the rule of thirds over the whole picture, in the frame markers' layer", () => {
+    const { choice, overlay, markers } = draw({ ...NO_GUIDES, thirds: true });
+    overlay.setSize(1920, 1080);
+    const thirds = markers.querySelector(".video-guides-line.is-thirds") as SVGPathElement;
+    const lines = "M640 0V1080M1280 0V1080M0 360H1920M0 720H1920";
+    expect([thirds.getAttribute("display"), thirds.getAttribute("d")]).toEqual(["inline", lines]);
+    choice.set({ ...NO_GUIDES, frames: ["9:16"], thirds: true });
+    expect(thirds.getAttribute("d")).toBe(lines);
+    choice.set({ ...NO_GUIDES, title: true });
+    expect(thirds.getAttribute("display")).toBe("none");
   });
 
   // Ids are page-wide: a shared one would hand every player's bars the first player's mask.

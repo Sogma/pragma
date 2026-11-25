@@ -181,9 +181,13 @@ describe("guidesMenuItem", () => {
       ["1:1", "4:5", "9:16", "1.91:1", "16:9"],
       ["None", "1.33", "1.77", "1.85", "2.39"],
       ["Extents", "Social", "Action", "Title", "Center"],
-      ["Cross", "Level"],
+      ["Cross", "Angles", "3x3"],
     ]);
-    expect(markers.tiles.map((tile) => tile.glyph)).toEqual(["var(--icon-marker-cross)", "var(--icon-marker-level)"]);
+    expect(markers.tiles.map((tile) => tile.glyph)).toEqual([
+      "var(--icon-marker-cross)",
+      "var(--icon-marker-level)",
+      "var(--icon-marker-thirds)",
+    ]);
     // 1.77 is 16:9 by another name, drawn the same.
     expect(film.tiles[2].glyph).toBe(social.tiles[4].glyph);
     expect(film.tiles[0].glyph).toBe("var(--icon-frame)");
@@ -193,7 +197,7 @@ describe("guidesMenuItem", () => {
       [false, false, false, false, false],
       [true, false, false, false, false],
       [false, false, false, false, false],
-      [false, false],
+      [false, false, false],
     ]);
   });
 
@@ -249,7 +253,7 @@ describe("guidesMenuItem", () => {
     const guides = memorySetting({ ...NO_GUIDES, shown: false });
     const [, , safe, markers] = sections(guides);
     const [, social, , title, center] = safe.tiles;
-    const [cross, level] = markers.tiles;
+    const [cross, level, thirds] = markers.tiles;
 
     title.pick();
     expect(guides.get()).toEqual({ ...NO_GUIDES, title: true });
@@ -266,5 +270,8 @@ describe("guidesMenuItem", () => {
     level.pick();
     expect(guides.get()).toEqual({ ...NO_GUIDES, center: true, social: true, cross: true, level: true });
     expect(level.checked()).toBe(true);
+    thirds.pick();
+    expect(guides.get()).toEqual({ ...NO_GUIDES, center: true, social: true, cross: true, level: true, thirds: true });
+    expect(thirds.checked()).toBe(true);
   });
 });

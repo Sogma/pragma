@@ -44,7 +44,7 @@ const FRAME_GLYPHS: Record<GuideFrame, string> = {
 };
 
 interface GuideTile {
-  key: "extents" | "action" | "title" | "center" | "social" | "cross" | "level";
+  key: "extents" | "action" | "title" | "center" | "social" | "cross" | "level" | "thirds";
   label: string;
   glyph: string;
   tooltip: string;
@@ -73,9 +73,15 @@ const FRAME_MARKERS: GuideTile[] = [
   },
   {
     key: "level",
-    label: "Level",
+    label: "Angles",
     glyph: "var(--icon-marker-level)",
     tooltip: "A camera's level display: horizon line, tilt marks and focus area",
+  },
+  {
+    key: "thirds",
+    label: "3x3",
+    glyph: "var(--icon-marker-thirds)",
+    tooltip: "Rule of thirds: lines a third of the way across the whole picture, each way",
   },
 ];
 
