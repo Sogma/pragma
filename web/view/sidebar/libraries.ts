@@ -1082,6 +1082,7 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     { command: "editor.editToSide", group: "open" },
     { command: "gallery.openFolderInNewTab", group: "open" },
     { command: "gallery.openFolderToSide", group: "open" },
+    { command: "libraryTree.rename", group: "bookmark" },
     { command: "bookmarks.add", group: "bookmark" },
     { command: "bookmarks.remove", group: "bookmark" },
     ...presetFolderItems(
@@ -1094,7 +1095,6 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     { command: "libraryTree.newNote", group: "create" },
     { command: "libraryTree.newFolder", group: "create" },
     copyPathItem({ group: "copy" }),
-    { command: "libraryTree.rename", group: "rename" },
     {
       command: "libraryTree.delete",
       group: "delete",

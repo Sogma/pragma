@@ -1049,6 +1049,18 @@ describe("createLibraryManager", () => {
     expect(tree.reload).toHaveBeenCalledTimes(1);
   });
 
+  it("lists Rename… directly above Bookmark, in one group", () => {
+    const { commands, menus } = manager(undefined);
+    commands.register({ id: "bookmarks.add", label: "Bookmark", run: vi.fn() });
+    const node = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
+    const items = menus.resolve("libraryTree", context, { libraryId: "one", node, writable: true });
+    expect(items.map((item) => [item.label, item.group])).toEqual([
+      ["Rename…", "bookmark"],
+      ["Bookmark", "bookmark"],
+      ["Move to Trash", "delete"],
+    ]);
+  });
+
   // Red stays either way: the Trash has no Restore, so a trashed file can't
   // simply be put back. Only the words follow the setting.
   it("names the delete after the trash setting, in the menu and the dialog", async () => {

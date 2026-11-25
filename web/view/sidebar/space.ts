@@ -1481,17 +1481,17 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     },
   });
   const isFolderRow = (context: CommandContext, arg: unknown) => isDirectory(context, arg as TreeTarget);
+  const notFolderRow = (context: CommandContext, arg: unknown) => !isFolderRow(context, arg);
   menus.register("tree", [
     { command: "editor.openInNewTab", group: "open" },
     { command: "editor.openToSide", group: "open" },
     { command: "editor.editToSide", group: "open" },
-    // A file's sits after the ways to open it, and a folder's after its own.
-    { command: "bookmarks.add", group: "bookmark", when: (context, arg) => !isFolderRow(context, arg) },
-    {
-      command: "bookmarks.remove",
-      group: "bookmark",
-      when: (context, arg) => !isFolderRow(context, arg),
-    },
+    // A file's Duplicate, Rename… and Bookmark sit after the ways to open it,
+    // and a folder's Rename… and Bookmark after its own.
+    { command: "tree.duplicate", group: "bookmark" },
+    { command: "tree.rename", group: "bookmark", when: notFolderRow },
+    { command: "bookmarks.add", group: "bookmark", when: notFolderRow },
+    { command: "bookmarks.remove", group: "bookmark", when: notFolderRow },
     { command: "tree.newNote", group: "create" },
     { command: "tree.newFolder", group: "create" },
     {
@@ -1517,6 +1517,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     { command: "gallery.openFolder", group: "view", when: isDirectory },
     { command: "gallery.openFolderInNewTab", group: "view" },
     { command: "gallery.openFolderToSide", group: "view" },
+    { command: "tree.rename", group: "folder-bookmark", when: isFolderRow },
     { command: "bookmarks.add", group: "folder-bookmark", when: isFolderRow },
     { command: "bookmarks.remove", group: "folder-bookmark", when: isFolderRow },
     ...presetFolderItems(
@@ -1531,11 +1532,9 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     { command: "search.inFolder", group: "folder" },
     { command: "tree.findContext", group: "folder" },
     copyPathItem({ group: "copy" }),
-    { command: "tree.duplicate", group: "rename" },
-    { command: "tree.rename", group: "rename" },
     {
       command: "tree.delete",
-      group: "rename",
+      group: "delete",
       label: () => removalLabel(deps.moveToTrash.get()),
       danger: true,
     },
