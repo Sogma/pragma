@@ -105,10 +105,18 @@ export function skippedText(graph: FlowGraph, disabledId: string): string {
   return `Skipped: ${disabled ? nodeLabel(disabled) : disabledId} is disabled`;
 }
 
-// Regenerate's tooltip on the card and in App mode: the input it moves on,
-// for a type that finds its results by its inputs, or a held result's own.
-export function regenerateHint(type: string): string {
-  return `A new ${FLOW_NODE_REGISTRY[type]?.regenerate?.key ?? "result"}, run on this node's last inputs`;
+// Regenerate on the card and in App mode. Its tooltip names the input it
+// moves on, for a type that finds its results by its inputs, or a held
+// result's own.
+export function createRegenerateButton(type: string, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn flow-regenerate nodrag";
+  button.textContent = "Regenerate";
+  const key = FLOW_NODE_REGISTRY[type]?.regenerate?.key ?? "result";
+  button.dataset.tooltip = `A new ${key}, run on this node's last inputs`;
+  button.addEventListener("click", onClick);
+  return button;
 }
 
 // A select widget's or select field's control: the app's picker over its

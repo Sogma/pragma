@@ -164,6 +164,8 @@ describe("appMode", () => {
     );
     expect(regenerate).toHaveLength(1);
     expect(regenerate[0].closest(".flow-app-node")?.getAttribute("data-node-id")).toBe("generateImage-1");
+    // The card's own button, which the stylesheet draws with its die.
+    expect(regenerate[0].classList.contains("flow-regenerate")).toBe(true);
     // It asks for another result, so it waits for a first.
     expect(regenerate[0].hidden).toBe(true);
     appMode.showResults({

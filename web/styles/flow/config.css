@@ -304,6 +304,29 @@
   gap: 6px;
 }
 
+/* Regenerate's die before its word, both centered: the card stretches the
+   button to its width. The die is 16px, not the 12px of a glyph beside a
+   word elsewhere: the d20's lines blur together any smaller on a 100% screen.
+
+   The negative margin keeps the button a worded one's height, since the die
+   is taller than the word's line. */
+.flow-regenerate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.flow-regenerate::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-block: -2px;
+  background-color: currentColor;
+  mask: var(--icon-dice-d20) center / contain no-repeat;
+}
+
 /* A chip, the file or folder a node names, is a box of its own, so the area
    holding one draws no divider above it. A form's fields keep theirs. */
 .flow-node-config:has(> .flow-dropzone, > .flow-path-row > .flow-dropzone) {

@@ -73,6 +73,7 @@ import {
   appendSelectOptions,
   applyNodeColor,
   createIntStepper,
+  createRegenerateButton,
   createSelectControl,
   createSelectPicker,
   defaultNodeColor,
@@ -1875,12 +1876,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     report.className = "flow-node-report nodrag";
     report.hidden = true;
     result.append(label, textarea, report);
-    const regenerate = document.createElement("button");
-    regenerate.type = "button";
-    regenerate.className = "btn nodrag";
-    regenerate.textContent = "Regenerate";
-    regenerate.dataset.tooltip = "A new result, run on this node's last inputs";
-    regenerate.addEventListener("click", () => deps.regenerate(node.id));
+    const regenerate = createRegenerateButton(node.type, () => deps.regenerate(node.id));
     wrap.append(result, regenerate);
     let held = false;
     const refresh = () => {

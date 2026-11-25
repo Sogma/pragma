@@ -40,11 +40,11 @@ import { type AppletFrame, createAppletFrame, runInputs } from "./appletFrame.ts
 import { combinedTileSize, createAppModeGrid, TILE_SIZES } from "./appModeGrid.ts";
 import {
   createIntStepper,
+  createRegenerateButton,
   createSelectControl,
   createSelectPicker,
   formLabel,
   nodeColor,
-  regenerateHint,
 } from "./controls.ts";
 import type { FlowElements } from "./flowElements.ts";
 import { flowTreePath } from "./flowPaths.ts";
@@ -318,12 +318,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   function buildAppModeRegenerate(node: FlowNodeInstance, port: FlowPort): HTMLButtonElement | undefined {
     const reuse = FLOW_NODE_REGISTRY[node.type]?.reuse;
     if (!reuse || port.id !== nodePorts(node).outputs[0]?.id) return undefined;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "btn";
-    button.textContent = "Regenerate";
-    button.dataset.tooltip = regenerateHint(node.type);
-    button.addEventListener("click", () => deps.regenerate(node.id));
+    const button = createRegenerateButton(node.type, () => deps.regenerate(node.id));
     appModeRegenerates.set(node.id, { button, node, shown: false });
     syncAppModeRegenerate(node.id);
     return button;

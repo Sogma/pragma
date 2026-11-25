@@ -1126,6 +1126,7 @@ describe("an Applet node's card", () => {
     const preview = el.querySelector<HTMLImageElement>(".flow-node-image-result") as HTMLImageElement;
     const regenerate = [...el.querySelectorAll("button")].find((button) => button.textContent === "Regenerate");
     expect([preview.hidden, regenerate?.hidden]).toEqual([true, true]);
+    expect(regenerate?.classList.contains("flow-regenerate")).toBe(true);
     const picture = { type: "image", mediaType: "image/png", data: "AAAA" } as const;
     const saved = { type: "text", value: "/art/a-0123456789ab.png" } as const;
     cards.showRunResult({
@@ -1732,6 +1733,9 @@ describe("nodeCard Reuse result on repeat", () => {
       reports: new Map([[flowNode.id, ["Held: its inputs and settings repeated."]]]),
     });
     expect(note?.textContent).toBe("Held: its inputs and settings repeated.");
+    // The shared button, which the stylesheet draws with its die.
+    expect(regenerate?.classList.contains("flow-regenerate")).toBe(true);
+    expect(regenerate?.dataset.tooltip).toBe("A new result, run on this node's last inputs");
     regenerate?.click();
     expect(deps.regenerate).toHaveBeenCalledWith(flowNode.id);
 

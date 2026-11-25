@@ -42,7 +42,7 @@ import { pathNames } from "../core/spaceTree.ts";
 import { countText, formatFrameRate } from "../lib/dom.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
-import { appendSelectOptions, createSelectControl, fillPickSelect, regenerateHint } from "./controls.ts";
+import { appendSelectOptions, createRegenerateButton, createSelectControl, fillPickSelect } from "./controls.ts";
 import type { ChipTarget } from "./flowMenus.ts";
 import { flowPickPath, flowStoredPath, flowTreePath } from "./flowPaths.ts";
 import { createPickedPicture, type PickedFile, storedFile } from "./pickerHud.ts";
@@ -1571,12 +1571,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     const report = document.createElement("p");
     report.className = "flow-node-report nodrag";
     report.hidden = true;
-    const regenerate = document.createElement("button");
-    regenerate.type = "button";
-    regenerate.className = "btn nodrag";
-    regenerate.textContent = "Regenerate";
-    regenerate.dataset.tooltip = regenerateHint(node.type);
-    regenerate.addEventListener("click", onRegenerate);
+    const regenerate = createRegenerateButton(node.type, onRegenerate);
     // Regenerate asks for another result, so it shows only beside one.
     regenerate.hidden = true;
 
