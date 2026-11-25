@@ -11,7 +11,14 @@ import {
 } from "../../../src/protocol/types.ts";
 import { type FileResponse, postTableLayout, type TableFileResponse } from "../../core/apiClient.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
-import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
+import {
+  createMediaPreview,
+  createSelectedSection,
+  type PreviewSources,
+  previewedFile,
+  type SelectedReads,
+  servedPreviewSources,
+} from "../../filePreview.ts";
 import {
   cardParts,
   createCell,
@@ -549,8 +556,8 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
   metadataProperties: () => MetadataProperties;
   // Keeps the layout picked for the Table at `path` on this install.
   saveLayout: (path: string, layout: TableLayout) => Promise<void>;
-  // What a media cell's preview reads.
-  previewSources: PreviewSources;
+  // What a media cell's preview and the Info section it fills read.
+  previewSources: PreviewSources & SelectedReads;
   formats: Pick<FormatRegistry, "get">;
 }
 
@@ -590,8 +597,10 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
   // The context the tab is seen in, whose guides and look a previewed
   // still or clip shows.
   let context = "";
+  const selected = createSelectedSection(deps.previewSources);
   const media = createMediaPreview({
     ...deps.previewSources,
+    details: selected,
     host: frame,
     context: () => context,
     fields: element,
@@ -623,6 +632,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
   return {
     kind: "table",
     element: frame,
+    inspector: selected.section,
     toolbarAside: find.host,
     properties: properties.section,
     async setInput(tab, ctx, prefetched) {

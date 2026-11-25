@@ -9,10 +9,12 @@ import { type FileResponse, postFlowAppMode, type Tab } from "../../core/apiClie
 import { contextOfTab } from "../../core/tabContext.ts";
 import {
   createFilePreview,
+  createSelectedSection,
   type FilePreviewDeps,
   type PreviewFile,
   type PreviewSources,
   previewedFile,
+  type SelectedReads,
   servedPreviewSources,
 } from "../../filePreview.ts";
 import type { CanvasRunHost } from "../../flow/canvasRun.ts";
@@ -55,9 +57,9 @@ export interface FlowPaneDeps
   logEntry: (level: ConsoleEntryLevel, kind: string, label: string, content: string) => ConsoleEntry;
   // What the group's status bar counts of a run's notices.
   notices: Pick<FileNotices, "begin" | "add">;
-  // What a result's preview reads, and where a link on a previewed page
-  // opens a file.
-  previewSources: PreviewSources;
+  // What a result's preview and the Info section it fills read, and where
+  // a link on a previewed page opens a file.
+  previewSources: PreviewSources & SelectedReads;
   formats: Pick<FormatRegistry, "get">;
   openPath: (path: string) => void;
 }
@@ -178,8 +180,10 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
   // The context the Flow's tab is seen in: its previews' guides and look,
   // and the folder Save frame offers for its clips.
   let context = "";
+  const selected = createSelectedSection(previewSources);
   const results = createResultPreview(elements.root, {
     ...previewSources,
+    details: selected,
     context: () => context,
     loadFile,
     formats,
@@ -251,6 +255,7 @@ export function createFlowPane(deps: FlowPaneDeps): FlowPane {
   return {
     kind: "flow",
     element: elements.root,
+    inspector: selected.section,
     properties: properties.section,
     tools: jobs.element,
     flowView,

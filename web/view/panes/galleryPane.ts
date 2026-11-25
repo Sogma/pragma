@@ -13,9 +13,11 @@
 // arranges while that is manual order.
 import type { FolderLayout } from "../../../src/protocol/localSort.ts";
 import { dirnameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
-import { hasKnownKind, rasterImageMediaTypeForPath } from "../../../src/protocol/types.ts";
+import { hasKnownKind } from "../../../src/protocol/types.ts";
 import {
   type ClipFactsResponse,
+  type ClipHeaderResponse,
+  type FileInfoResponse,
   type FileResponse,
   type FolderEntry,
   type FolderListingResponse,
@@ -23,6 +25,7 @@ import {
   fetchFile,
   fetchFileRaw,
   fetchFolder,
+  getFileInfo,
   getPixelFormat,
   getVideoFormat,
   type PixelFormatResponse,
@@ -30,7 +33,6 @@ import {
   putThumbnail,
   rawFileUrl,
   thumbnailUrl,
-  type VideoFormatResponse,
 } from "../../core/apiClient.ts";
 import { shownSort, showsManualOrder } from "../../core/folderOrder.ts";
 import { isWritableRoot } from "../../core/libraries.ts";
@@ -40,7 +42,6 @@ import {
   draggedPathInFlight,
   type EntryIcon,
   extensionOf,
-  fileTypeLabel,
   folderContentsLabel,
   folderTitle,
   OPEN_FOLDER,
@@ -49,21 +50,11 @@ import {
   stripExtension,
   wireEntryDrag,
 } from "../../core/paths.ts";
-import { entryIconAt, fileTypeAt, findEntry, readingResolvers } from "../../core/spaceTree.ts";
+import { entryIconAt, findEntry, readingResolvers } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
-import { createFilePreview, type PreviewKind, previewKind } from "../../filePreview.ts";
+import { createFilePreview, createSelectedSection, type PreviewKind, previewKind } from "../../filePreview.ts";
 import type { ContextView } from "../../lib/contextView.ts";
-import { dateTimeLabel } from "../../lib/dateText.ts";
-import {
-  appendMetaRow,
-  createInspectorSection,
-  formatDimensions,
-  formatDuration,
-  formatFileSize,
-  formatFrameRate,
-  must,
-  setEntryIcon,
-} from "../../lib/dom.ts";
+import { setEntryIcon } from "../../lib/dom.ts";
 import {
   attachEditInputHandlers,
   createPlaceholder,
@@ -71,7 +62,6 @@ import {
   type PendingCreate,
 } from "../../lib/inlineEdit.ts";
 import { createInlineError } from "../../lib/inlineError.ts";
-import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "../../lib/mediaDetails.ts";
 import { type ThumbnailHud, thumbnailHud } from "../../lib/mediaHud.ts";
 import type { LoopChoice, VolumeChoice } from "../../lib/videoPlayer.ts";
 import type { CommandRegistry } from "../../services/commands.ts";
@@ -226,12 +216,15 @@ export interface GalleryPaneDeps {
   /** For a clip the browser couldn't decode, its facts from its header, kept
    * by the host in place of a thumbnail. */
   clipFacts(path: string, version: string): Promise<ClipFactsResponse>;
-  /** A previewed clip's codec and frame rate, read from its header by the server. */
-  videoFormat(path: string): Promise<VideoFormatResponse>;
+  /** A previewed clip's header, read by the server. */
+  videoFormat(path: string): Promise<ClipHeaderResponse>;
   /** For a still listed without its header's facts, as one whose thumbnail
    * this browser made is: its color mode, bit depth and source, read from
-   * its header by the server. */
+   * its header by the server when the Info tab first shows it. */
   pixelFormat(path: string): Promise<PixelFormatResponse>;
+  /** A file's size and date, which the Info tab reads only for an entry
+   * listed without them. */
+  fileInfo(path: string): Promise<FileInfoResponse>;
   /** A file as a document route reads it, for its page. */
   loadFile(path: string): Promise<FileResponse>;
   /** Where the links and embeds in a previewed note at `docPath` lead. */
@@ -312,9 +305,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
   scroller.append(status, canvas);
   element.append(scroller);
 
-  const details = createInspectorSection("Selected");
-  const detailsTitle = must<HTMLElement>(".inspector-section-title", details.section);
-  details.body.className = "meta-rows";
+  const details = createSelectedSection(deps);
 
   let folderPath: string | undefined;
   let context = "";
@@ -378,49 +369,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
   }
 
   function renderDetails(): void {
-    details.body.replaceChildren();
-    const entry = selected === undefined ? undefined : entries[selected];
-    details.section.hidden = entry === undefined;
-    if (!entry) return;
-    // Named for what is selected, by the name the tree's icon gives its kind.
-    detailsTitle.textContent =
-      entry.type === "directory" ? "Selected Folder" : `Selected ${fileTypeLabel(fileTypeAt(entry.path)) ?? "File"}`;
-    appendMetaRow(details.body, "Name", entry.name);
-    if (entry.width && entry.height)
-      appendMetaRow(details.body, "Dimensions", formatDimensions(entry.width, entry.height));
-    if (entry.duration !== undefined) appendMetaRow(details.body, "Duration", formatDuration(entry.duration));
-    const still = entry.type === "file" && rasterImageMediaTypeForPath(entry.path) !== undefined;
-    if (still && !entry.picture) readPicture(entry);
-    const rows = entry.clip
-      ? [
-          ...(entry.clip.frameRate === null ? [] : [{ label: "Frame rate", value: formatFrameRate(entry.clip) ?? "" }]),
-          ...(entry.clip.codec === null ? [] : [{ label: "Codec", value: entry.clip.codec }]),
-          ...clipDetailRows(entry.clip),
-        ]
-      : [
-          ...(still ? pixelFormatRows(entry.picture?.pixels ?? null, entry.picture ? "Unknown" : "…") : []),
-          ...(entry.picture ? pictureDetailRows(entry.picture) : []),
-        ];
-    for (const row of rows) appendMetaRow(details.body, row.label, row.value);
-    if (entry.type === "file") appendMetaRow(details.body, "Size", formatFileSize(entry.size));
-    appendMetaRow(details.body, "Modified", dateTimeLabel(entry.modified));
-  }
-
-  // A still whose thumbnail this browser made was listed without its
-  // header's facts. They are read once, when it is first selected, and kept
-  // on the entry, as a clip's are.
-  const readingPictures = new WeakSet<FolderEntry>();
-  function readPicture(entry: FolderEntry): void {
-    if (readingPictures.has(entry)) return;
-    readingPictures.add(entry);
-    const keep = (picture: NonNullable<FolderEntry["picture"]>) => {
-      Object.assign(entry, { picture });
-      if (selected !== undefined && entries[selected] === entry) renderDetails();
-    };
-    deps.pixelFormat(entry.path).then(
-      ({ sourceType, ...pixels }) => keep({ sourceType, pixels }),
-      () => keep({ sourceType: null, pixels: null }),
-    );
+    details.show(selected === undefined ? undefined : entries[selected]);
   }
 
   // ---- tiles ------------------------------------------------------------
@@ -1048,7 +997,7 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     selected = undefined;
     layout = undefined;
     folderLayout = "tiles";
-    details.section.hidden = true;
+    details.show(undefined);
   }
 
   return {
@@ -1245,6 +1194,7 @@ export function galleryPane(wiring: GalleryWiring): EditorPaneDescriptor {
     clipFacts: postClipFacts,
     videoFormat: getVideoFormat,
     pixelFormat: getPixelFormat,
+    fileInfo: getFileInfo,
     loadFile: fetchFile,
     readingResolvers,
     formats: wiring.formats,

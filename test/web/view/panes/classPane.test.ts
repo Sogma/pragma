@@ -673,9 +673,9 @@ describe("classPane: changed where it shows", () => {
 // Info holds facts about the file; what a Class reads is its content, shown
 // in Filter ▸ All views where it changes.
 describe("classPane: the Info tab", () => {
-  it("adds nothing of its own to it", async () => {
+  it("adds nothing of its own to it until a preview shows a file", async () => {
     const { pane } = await setup(classFile({ metadata: [DESCRIPTION] }));
-    expect(pane.inspector).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
   });
 });
 
@@ -1112,7 +1112,7 @@ describe("classPane: screenplays and media as rows", () => {
 
   // A note's media field and a picture's own file share the cards' picture
   // slot, so a preview steps from one to the other.
-  it("previews a card's picture over the Class, stepping from a note's to a file's own, pointing the copilot at each", async () => {
+  it("previews a card's picture over the Class, stepping from a note's to a file's own, pointing the copilot and the Info tab at each", async () => {
     const covered: ClassRow[] = [
       note("look.md", "Look", { cover: "look.png" }),
       { ...note("frame.png", "frame", {}), kind: "image", size: 2048 },
@@ -1128,12 +1128,16 @@ describe("classPane: screenplays and media as rows", () => {
     expect(preview.hidden).toBe(false);
     expect(shown()).toBe("/raw?path=shots/look.png");
     expect(pane.selectedFile?.()).toEqual({ path: "shots/look.png", previewing: true });
+    const named = () => pane.inspector?.querySelector(".meta-value")?.textContent;
+    expect([pane.inspector?.hidden, named()]).toEqual([false, "look.png"]);
     pane.element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(shown()).toBe("/raw?path=shots/frame.png");
     expect(pane.selectedFile?.()).toEqual({ path: "shots/frame.png", previewing: true });
+    expect(named()).toBe("frame.png");
     pane.dismissTransient?.();
     expect(preview.hidden).toBe(true);
     expect(pane.selectedFile?.()).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
     expect(deps.openPath).not.toHaveBeenCalled();
   });
 

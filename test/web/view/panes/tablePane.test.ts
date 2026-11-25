@@ -115,12 +115,12 @@ describe("tablePane", () => {
     await expect(pane.setInput({ kind: "table", path: "x.md" }, current)).rejects.toThrow(/not a table/);
   });
 
-  it("puts all of the table's metadata in its Properties-tab section, and nothing in Info", async () => {
+  it("puts all of the table's metadata in its Properties-tab section, and nothing of it in Info", async () => {
     const { pane } = setup(file({ metadata: [DESCRIPTION, CREATED] }));
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
 
     expect(pane.element.querySelector(".property-editor")).toBeNull();
-    expect(pane.inspector).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
     const rows = [...(pane.properties?.querySelectorAll<HTMLElement>(".property-editor-row") ?? [])];
     expect(rows.map((row) => row.dataset.key)).toEqual(["description", "created"]);
   });
@@ -312,18 +312,26 @@ describe("a media cell's preview", () => {
     }
   });
 
-  it("points the copilot at the file its preview shows, and at nothing once it closes", async () => {
+  it("points the copilot and the Info tab at the file its preview shows, and at nothing once it closes", async () => {
     const { pane } = setup(shots());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    const info = () => [
+      pane.inspector?.hidden,
+      pane.inspector?.querySelector(".inspector-section-title")?.textContent,
+      pane.inspector?.querySelector(".meta-value")?.textContent,
+    ];
     expect(pane.selectedFile?.()).toBeUndefined();
 
     thumbs(pane)[0].click();
     expect(pane.selectedFile?.()).toEqual({ path: "stills/a.png", previewing: true });
+    expect(info()).toEqual([false, "Selected Image", "a.png"]);
     press(pane, "ArrowRight");
     expect(pane.selectedFile?.()).toEqual({ path: "stills/b.mp4", previewing: true });
+    expect(info()).toEqual([false, "Selected Video", "b.mp4"]);
 
     pane.dismissTransient?.();
     expect(pane.selectedFile?.()).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
   });
 
   it("opens the file in place on a double-click begun on the cell, and offers the other ways from its ⋮", async () => {

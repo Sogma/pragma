@@ -133,7 +133,7 @@ describe("flowPane", () => {
     expect(notices.add).toHaveBeenCalledTimes(1);
   });
 
-  it("previews a result's file over the pane, holding its keys off the canvas and pointing the copilot at it until it closes", async () => {
+  it("previews a result's file over the pane, holding its keys off the canvas and pointing the copilot and the Info tab at it until it closes", async () => {
     const openPath = vi.fn();
     const contextMenu = { open: vi.fn(), close: vi.fn(), isOpen: () => false };
     const pane = setup(vi.fn(), { openPath, contextMenu });
@@ -150,6 +150,10 @@ describe("flowPane", () => {
     expect(document.activeElement).toBe(pane.element);
     expect(pane.hasTransient?.()).toBe(true);
     expect(pane.selectedFile?.()).toEqual({ path: "art/a-0123456789ab.png", previewing: true });
+    expect([pane.inspector?.hidden, pane.inspector?.querySelector(".meta-value")?.textContent]).toEqual([
+      false,
+      "a-0123456789ab.png",
+    ]);
 
     // One file: no arrows, and nothing opens in place, only from its ⋮.
     const enter = new KeyboardEvent("keydown", { key: "Enter", cancelable: true });
@@ -170,6 +174,7 @@ describe("flowPane", () => {
     expect(document.activeElement).toBe(canvasPane);
     expect(pane.hasTransient?.()).toBe(false);
     expect(pane.selectedFile?.()).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
 
     // A tab that leaves the Flow takes the preview with it.
     canvas.deps?.previewResult("art/a-0123456789ab.png");
@@ -178,9 +183,9 @@ describe("flowPane", () => {
     pane.element.remove();
   });
 
-  it("shows the flow's description to edit in its Properties-tab section, and has no Info section", async () => {
+  it("shows the flow's description to edit in its Properties-tab section, and nothing of it in Info", async () => {
     const pane = setup();
-    expect(pane.inspector).toBeUndefined();
+    expect(pane.inspector?.hidden).toBe(true);
     expect(pane.properties?.hidden).toBe(true);
 
     await pane.setInput(tab, current, file());

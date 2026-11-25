@@ -129,8 +129,18 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
       async () =>
         new Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2412 1137.4"><path d="M0 0h1v1z"/></svg>'),
     ),
-    videoFormat: vi.fn(async () => ({ codec: "H.264", frameRate: 24_000 / 1001, variableFrameRate: false })),
+    videoFormat: vi.fn(async () => ({
+      ...proresDetails,
+      codec: "H.264",
+      frameRate: 24_000 / 1001,
+      bitDepth: 8,
+      startTimecode: null,
+      width: null,
+      height: null,
+      duration: null,
+    })),
     pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: true, bitDepth: 8, sourceType: null })),
+    fileInfo: vi.fn(async (path: string) => ({ kind: "file" as const, name: path, size: 1, modified: "" })),
     clipFacts: vi.fn(async () => ({ width: 1188, height: 2112, duration: 26.8, clip: proresDetails })),
     loadFile: vi.fn(async (path: string) => textFile(path, "# A note\n\nIts text.\n")),
     readingResolvers: vi.fn(() => ({
@@ -685,6 +695,7 @@ describe("the gallery pane", () => {
       "Modified",
     ]);
     expect(deps.pixelFormat).not.toHaveBeenCalled();
+    expect(deps.fileInfo).not.toHaveBeenCalled();
   });
 
   // A thumbnail this browser made leaves the listing without the header's

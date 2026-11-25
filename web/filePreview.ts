@@ -3,6 +3,10 @@
 // frame, with the image view's overlay, or a document or a Table on its
 // page. The pane hands over the list the arrows step through, and says what
 // opening a file in place means there.
+//
+// The Info tab's "Selected …" section is built here too, one for every pane:
+// a gallery fills it with its selected entry, and a pane with no selection
+// of its own hands it to its preview, which keeps it on the file shown.
 import { basenameOf } from "../src/protocol/rootedPath.ts";
 import {
   rasterImageMediaTypeForPath,
@@ -10,17 +14,32 @@ import {
   vectorImageMediaTypeForPath,
 } from "../src/protocol/types.ts";
 import {
+  type ClipHeaderResponse,
+  type FileInfoResponse,
   type FileResponse,
+  type FolderEntry,
   fetchFileRaw,
+  getFileInfo,
+  getPixelFormat,
   getVideoFormat,
+  type PixelFormatResponse,
   rawFileUrl,
   type SelectedFile,
-  type VideoFormatResponse,
 } from "./core/apiClient.ts";
-import { type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
-import { readingResolvers } from "./core/spaceTree.ts";
+import { fileTypeLabel, type PageKind, pageKind, wireEntryDrag } from "./core/paths.ts";
+import { fileTypeAt, readingResolvers } from "./core/spaceTree.ts";
 import { type ContextView, createViewBinding } from "./lib/contextView.ts";
-import { formatDimensions, formatFrameRate } from "./lib/dom.ts";
+import { dateTimeLabel } from "./lib/dateText.ts";
+import {
+  appendMetaRow,
+  createInspectorSection,
+  formatDimensions,
+  formatDuration,
+  formatFileSize,
+  formatFrameRate,
+  must,
+} from "./lib/dom.ts";
+import { clipDetailRows, pictureDetailRows, pixelFormatRows } from "./lib/mediaDetails.ts";
 import { fitHud, hudCells, hudRoot, type LookBadge, lookBadge, mediaFrame, showTransparency } from "./lib/mediaHud.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPictureLayers, type PictureLayers } from "./lib/pictureLayers.ts";
@@ -63,8 +82,9 @@ export interface PreviewSources {
   rawFileUrl(path: string): string;
   /** A GET against the raw-file route, for an SVG's own text. */
   fetchFile(path: string): Promise<Response>;
-  /** A clip's codec and frame rate, read from its header by the server. */
-  videoFormat(path: string): Promise<VideoFormatResponse>;
+  /** A clip's header as the server reads it: the codec and frame rate its
+   * bar shows, and the rest its Info section lists. */
+  videoFormat(path: string): Promise<ClipHeaderResponse>;
   /** Where the links and embeds in a previewed note at `docPath` lead. */
   readingResolvers: typeof readingResolvers;
   /** Settings → Editor's, which a previewed page is laid out by. */
@@ -78,17 +98,120 @@ export interface PreviewSources {
   views: (context: string) => ContextView;
 }
 
-/** The server's routes and this browser's settings. */
-export function servedPreviewSources(): PreviewSources {
+/** What a "Selected …" section reads of an entry whose facts it lacks. */
+export interface SelectedReads {
+  /** A file's size and date. */
+  fileInfo(path: string): Promise<FileInfoResponse>;
+  /** A raster still's color mode, bit depth and source, read from its
+   * header by the server. */
+  pixelFormat(path: string): Promise<PixelFormatResponse>;
+}
+
+/** The server's routes and this browser's settings, for a preview and the
+ * section its pane keeps in the Info tab. */
+export function servedPreviewSources(): PreviewSources & SelectedReads {
   return {
     rawFileUrl,
     fetchFile: fetchFileRaw,
     videoFormat: getVideoFormat,
+    fileInfo: getFileInfo,
+    pixelFormat: getPixelFormat,
     readingResolvers,
     readableLineLength,
     videoLoop,
     videoVolume,
     views: contextView,
+  };
+}
+
+/** What a "Selected …" section knows of an entry: a listing's facts, or
+ * what a preview learns as it shows the file. A fact it lacks gets no row,
+ * but a raster still's color mode and bit depth read "…" until its
+ * `picture` arrives. */
+export type SelectedEntry = Pick<FolderEntry, "path" | "name" | "type"> &
+  Partial<Pick<FolderEntry, "size" | "modified" | "width" | "height" | "duration" | "clip" | "picture">>;
+
+/** The Info tab's "Selected …" section: the file a pane points at apart
+ * from its own, in the same rows and words on every pane. */
+export interface SelectedSection {
+  /** Hidden while nothing is selected. */
+  readonly section: HTMLElement;
+  /** Shows `entry`, or hides the section. A file's size and date, or a
+   * raster still's pixels, that it lacks are read once and kept on it, so
+   * showing it again reads nothing. */
+  show(entry: SelectedEntry | undefined): void;
+}
+
+const isRasterStill = (entry: SelectedEntry) =>
+  entry.type === "file" && rasterImageMediaTypeForPath(entry.path) !== undefined;
+
+export function createSelectedSection(reads: SelectedReads): SelectedSection {
+  const { section, body } = createInspectorSection("Selected");
+  const title = must<HTMLElement>(".inspector-section-title", section);
+  body.className = "meta-rows";
+  let shown: SelectedEntry | undefined;
+  const asked = new WeakSet<SelectedEntry>();
+
+  function render(entry: SelectedEntry): void {
+    body.replaceChildren();
+    // Named for what is selected, by the name the tree's icon gives its kind.
+    title.textContent =
+      entry.type === "directory" ? "Selected Folder" : `Selected ${fileTypeLabel(fileTypeAt(entry.path)) ?? "File"}`;
+    appendMetaRow(body, "Name", entry.name);
+    if (entry.width && entry.height) appendMetaRow(body, "Dimensions", formatDimensions(entry.width, entry.height));
+    if (entry.duration !== undefined) appendMetaRow(body, "Duration", formatDuration(entry.duration));
+    const still = isRasterStill(entry);
+    const rows = entry.clip
+      ? [
+          ...(entry.clip.frameRate === null ? [] : [{ label: "Frame rate", value: formatFrameRate(entry.clip) ?? "" }]),
+          ...(entry.clip.codec === null ? [] : [{ label: "Codec", value: entry.clip.codec }]),
+          ...clipDetailRows(entry.clip),
+        ]
+      : [
+          ...(still ? pixelFormatRows(entry.picture?.pixels ?? null, entry.picture ? "Unknown" : "…") : []),
+          ...(entry.picture ? pictureDetailRows(entry.picture) : []),
+        ];
+    for (const row of rows) appendMetaRow(body, row.label, row.value);
+    if (entry.type === "file" && entry.size !== undefined) appendMetaRow(body, "Size", formatFileSize(entry.size));
+    if (entry.modified !== undefined) appendMetaRow(body, "Modified", dateTimeLabel(entry.modified));
+  }
+
+  // An answer is kept on its entry even once another shows, and drawn only
+  // while its own does.
+  function keep(entry: SelectedEntry, facts: Partial<SelectedEntry>): void {
+    Object.assign(entry, facts);
+    if (shown === entry) render(entry);
+  }
+
+  function readWhatItLacks(entry: SelectedEntry): void {
+    if (asked.has(entry)) return;
+    asked.add(entry);
+    if (entry.size === undefined || entry.modified === undefined) {
+      reads.fileInfo(entry.path).then(
+        ({ size, modified }) => keep(entry, { size, modified }),
+        () => undefined,
+      );
+    }
+    if (isRasterStill(entry) && !entry.picture) {
+      reads.pixelFormat(entry.path).then(
+        ({ sourceType, ...pixels }) => keep(entry, { picture: { sourceType, pixels } }),
+        () => keep(entry, { picture: { sourceType: null, pixels: null } }),
+      );
+    }
+  }
+
+  return {
+    section,
+    show(entry) {
+      shown = entry;
+      section.hidden = entry === undefined;
+      if (!entry) {
+        body.replaceChildren();
+        return;
+      }
+      readWhatItLacks(entry);
+      render(entry);
+    },
   };
 }
 
@@ -125,7 +248,13 @@ export interface FilePreviewDeps extends PreviewSources {
   openInPlace?(index: number): void;
   /** The file at `index` is the one shown. */
   shown?(index: number): void;
+  /** The Info tab's section, kept on the file shown while the preview is
+   * open, for a pane with no selection of its own to show there. */
+  details?: SelectedSection;
 }
+
+// A fact showing the file taught, for the Info section's entry.
+type Learn = (update: (entry: SelectedEntry) => void) => void;
 
 export interface FilePreview {
   /** The index of the file shown, or undefined while closed. */
@@ -244,6 +373,29 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // Counts the pages shown, so a file arriving after a step is dropped.
   let pageLoad = 0;
 
+  // The Info section's entry for the file shown, from what the pane's list
+  // gave. A file stepped past can still finish decoding, so what it teaches
+  // lands only while its own entry is the one described.
+  let described: SelectedEntry | undefined;
+  function describe(file: PreviewFile): Learn {
+    const details = deps.details;
+    if (!details) return () => undefined;
+    const entry: SelectedEntry = {
+      path: file.path,
+      name: file.name,
+      type: "file",
+      width: file.width,
+      height: file.height,
+    };
+    described = entry;
+    details.show(entry);
+    return (update) => {
+      if (described !== entry) return;
+      update(entry);
+      details.show(entry);
+    };
+  }
+
   function showPreview(index: number): void {
     const shown = previewableAt(index);
     if (!shown) return;
@@ -251,7 +403,10 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     settleClose();
     stopPreviewMedia();
     view.bind(deps.context());
-    const frame = isPageKind(shown.kind) ? pagePreview(shown.file, shown.kind) : mediaPreview(shown.file, shown.kind);
+    const learn = describe(shown.file);
+    const frame = isPageKind(shown.kind)
+      ? pagePreview(shown.file, shown.kind)
+      : mediaPreview(shown.file, shown.kind, learn);
     previewStage.append(frame);
     preview.hidden = false;
     previewIndex = index;
@@ -276,7 +431,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
   // bottom, a clip's length and ⋮ left to the pill.
   //
   // The decoded media has the last word on its size, and on whether bars fit.
-  function mediaPreview(file: PreviewFile, kind: PreviewKind): HTMLElement {
+  // A clip's header stands in, in the Info section, for one never decoded.
+  function mediaPreview(file: PreviewFile, kind: PreviewKind, learn: Learn): HTMLElement {
     const isVideo = kind === "video";
     const rasterType = rasterImageMediaTypeForPath(file.path);
     const [name, dimensions, topRight] = hudCells(3);
@@ -294,6 +450,12 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       deps.videoFormat(file.path).then(
         (clip) => {
           topRight.textContent = formatFrameRate(clip) ?? "";
+          learn((entry) => {
+            entry.clip = clip;
+            if (!entry.width && clip.width && clip.height)
+              Object.assign(entry, { width: clip.width, height: clip.height });
+            if (entry.duration === undefined && clip.duration !== null) entry.duration = clip.duration;
+          });
         },
         () => undefined,
       );
@@ -310,6 +472,10 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
       video.addEventListener("loadedmetadata", () => {
         decoded = true;
         fill(video.videoWidth, video.videoHeight);
+        learn((entry) => {
+          Object.assign(entry, { width: video.videoWidth, height: video.videoHeight });
+          if (Number.isFinite(video.duration)) entry.duration = video.duration;
+        });
         fitPreview();
       });
       video.addEventListener("resize", () => fitPreview());
@@ -330,6 +496,7 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
         decoded = true;
         fullWidth = width;
         fill(width, height);
+        learn((entry) => Object.assign(entry, { width, height }));
         stillLayers.setSize(width, height);
         fitPreview();
       });
@@ -426,6 +593,8 @@ export function createFilePreview(deps: FilePreviewDeps): FilePreview {
     fitPreview = () => {};
     zoomPreview = () => false;
     previewIndex = undefined;
+    described = undefined;
+    deps.details?.show(undefined);
     const frame = previewStage.firstElementChild;
     if (frame instanceof HTMLElement && canAnimate(preview)) {
       for (const video of previewStage.querySelectorAll("video")) video.pause();

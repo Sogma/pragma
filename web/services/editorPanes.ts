@@ -22,10 +22,10 @@ export interface EditorPane {
   // The pane's own DOM subtree, mounted into the group's host while active.
   readonly element: HTMLElement;
   // What this kind knows about the open file beyond the facts every file
-  // shares: an image's dimensions, a Flow's id. Mounted in the
-  // assistant's Info tab while the pane is. One element for the pane's life,
-  // kept current by the pane, so it never has to be re-fetched on an open.
-  // Absent for a kind with nothing to add.
+  // shares, such as an image's dimensions, and about the file it points at
+  // apart from its own. Mounted in the assistant's Info tab while the pane
+  // is. One element for the pane's life, kept current by the pane, so it
+  // never has to be re-fetched on an open. Absent for a kind with neither.
   readonly inspector?: HTMLElement;
   // The pane's own controls in the floating toolbar, mounted before the
   // reading-view toggle while the pane is: one element for the pane's life,
@@ -81,8 +81,9 @@ export interface EditorPane {
   hasTransient?(): boolean;
   dismissTransient?(): void;
   // The file the pane points at apart from its own, which the copilot is
-  // told of and may look at: the one its preview shows, else a selected
-  // entry. Absent for a kind with neither.
+  // told of and may look at, and the inspector's "Selected …" section shows:
+  // the one its preview shows, else a selected entry. Absent for a kind with
+  // neither.
   selectedFile?(): SelectedFile | undefined;
   // What find's card can do in what the pane shows: "replace" where the
   // text can change, "find" where it can only be searched. Absent, or

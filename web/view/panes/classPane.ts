@@ -73,7 +73,14 @@ import {
 } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
 import { tagVocabulary } from "../../core/tagVocabulary.ts";
-import { createMediaPreview, type PreviewSources, previewedFile, servedPreviewSources } from "../../filePreview.ts";
+import {
+  createMediaPreview,
+  createSelectedSection,
+  type PreviewSources,
+  previewedFile,
+  type SelectedReads,
+  servedPreviewSources,
+} from "../../filePreview.ts";
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
 import { openColorPicker } from "../../lib/colorPicker.ts";
 import {
@@ -147,8 +154,9 @@ export interface ClassPaneDeps {
   metadataProperties: () => MetadataProperties;
   // The space's tags, whose colors fill a tag's pill.
   tags: TagSource;
-  // What a media value's preview reads, and where its open button opens.
-  previewSources: PreviewSources;
+  // What a media value's preview and the Info section it fills read, and
+  // where its open button opens.
+  previewSources: PreviewSources & SelectedReads;
   openBeside: (rootedPath: string) => void;
 }
 
@@ -283,8 +291,10 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   // The context the tab is seen in, whose guides and look a previewed
   // still or clip shows.
   let context = "";
+  const selected = createSelectedSection(deps.previewSources);
   const media = createMediaPreview({
     ...deps.previewSources,
+    details: selected,
     host: frame,
     context: () => context,
     fields: element,
@@ -1389,6 +1399,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   return {
     kind: "class",
     element: frame,
+    inspector: selected.section,
     properties: properties.section,
     toolbar: toolbar.element,
     toolbarAside: find.host,

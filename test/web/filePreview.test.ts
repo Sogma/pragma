@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FileResponse } from "../../web/core/apiClient.ts";
+import type { FileInfoResponse, FileResponse } from "../../web/core/apiClient.ts";
 import { DRAGGED_ENTRY_TYPE } from "../../web/core/paths.ts";
-import { createFilePreview, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
+import { createFilePreview, createSelectedSection, PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
+import { dateTimeLabel } from "../../web/lib/dateText.ts";
 import { createDialogService } from "../../web/services/dialog.ts";
 import { createFormats } from "../../web/services/formats.ts";
 import { MEDIA_MENU } from "../../web/services/videoMenu.ts";
@@ -61,16 +62,20 @@ afterEach(() => {
 const STILLS = ["stills/a.png", "stills/b.png"];
 
 // `inPlace` false is a pane that opens nothing in place; `at` is the context
-// the pane's tab is seen in.
-function setup({ files = STILLS, inPlace = true, at = "" } = {}) {
+// the pane's tab is seen in; `details` hands the preview an Info section to
+// keep, as a pane with no selection of its own does.
+function setup({ files = STILLS, inPlace = true, at = "", details = false, sources = testPreviewSources } = {}) {
   const host = document.createElement("div");
   document.body.append(host);
   const refocus = vi.fn();
   const openInPlace = inPlace ? vi.fn() : undefined;
   const contextMenu = fakeContextMenu();
   const held = memoryViews();
+  const read = sources(held);
+  const section = details ? createSelectedSection(read) : undefined;
   const preview = createFilePreview({
-    ...testPreviewSources(held),
+    ...read,
+    details: section,
     host,
     context: () => at,
     refocus,
@@ -95,6 +100,8 @@ function setup({ files = STILLS, inPlace = true, at = "" } = {}) {
     look: held.of(at).look,
     guides: held.of(at).guides,
     held,
+    read,
+    section: section?.section,
   };
 }
 
@@ -492,5 +499,101 @@ describe("a previewed still's drag", () => {
       ["text/plain", "stills/a.png"],
       [DRAGGED_ENTRY_TYPE, "file"],
     ]);
+  });
+});
+
+// A pane with no selection of its own hands the preview its Info section,
+// which then names the file shown as the gallery names its selected entry.
+describe("a previewed file's Info section", () => {
+  const rows = (section: HTMLElement | undefined) =>
+    Object.fromEntries(
+      [...(section?.querySelectorAll(".meta-row") ?? [])].map((row) => [
+        row.querySelector(".meta-key")?.textContent,
+        row.querySelector(".meta-value")?.textContent,
+      ]),
+    );
+  const title = (section: HTMLElement | undefined) => section?.querySelector(".inspector-section-title")?.textContent;
+  const changed = dateTimeLabel("2026-11-01T09:30:00.000Z");
+
+  it("follows the file shown, from what showing it teaches and what it reads, and hides once the preview closes", async () => {
+    const { preview, overlay, section } = setup({ files: ["stills/a.png", "clips/b.mp4"], details: true });
+    expect(section?.hidden).toBe(true);
+
+    preview.show(0);
+    expect([section?.hidden, title(section)]).toEqual([false, "Selected Image"]);
+    expect(rows(section)).toEqual({ Name: "a.png", "Color mode": "…", "Bit depth": "…" });
+    const img = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 4000 });
+    Object.defineProperty(img, "naturalHeight", { value: 3000 });
+    img.dispatchEvent(new Event("load"));
+    await settle();
+    expect(rows(section)).toEqual({
+      Name: "a.png",
+      Dimensions: "4000 × 3000px (4:3)",
+      "Color mode": "RGB",
+      "Bit depth": "8 bits per channel",
+      Size: "2.0 KB",
+      Modified: changed,
+    });
+
+    // jsdom decodes no clip, so its header's size and length stand in.
+    preview.key("ArrowRight");
+    await settle();
+    expect(title(section)).toBe("Selected Video");
+    expect(rows(section)).toEqual({
+      Name: "b.mp4",
+      Dimensions: "1920 × 1080px (16:9)",
+      Duration: "0:12",
+      "Frame rate": "24 fps",
+      Codec: "H.264",
+      "Bit depth": "8 bits per channel",
+      "Dynamic range": "SDR",
+      Audio: "AAC, 2 channels",
+      Size: "2.0 KB",
+      Modified: changed,
+    });
+
+    preview.close();
+    expect(section?.hidden).toBe(true);
+  });
+
+  it("takes nothing from a file stepped past that finishes loading late", async () => {
+    const answers = new Map<string, (size: number) => void>();
+    const { preview, overlay, section } = setup({
+      details: true,
+      sources: (held) => ({
+        ...testPreviewSources(held),
+        fileInfo: vi.fn(
+          (path: string) =>
+            new Promise<FileInfoResponse>((resolve) =>
+              answers.set(path, (size) =>
+                resolve({ kind: "file", name: path, size, modified: "2026-11-01T09:30:00.000Z" }),
+              ),
+            ),
+        ),
+      }),
+    });
+    preview.show(0);
+    const first = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
+    preview.key("ArrowRight");
+    Object.defineProperty(first, "naturalWidth", { value: 4000 });
+    Object.defineProperty(first, "naturalHeight", { value: 3000 });
+    first.dispatchEvent(new Event("load"));
+    answers.get("stills/a.png")?.(9_000_000);
+    await settle();
+    expect(rows(section)).toEqual({ Name: "b.png", "Color mode": "RGB", "Bit depth": "8 bits per channel" });
+
+    answers.get("stills/b.png")?.(2048);
+    await settle();
+    expect(rows(section)).toMatchObject({ Name: "b.png", Size: "2.0 KB" });
+  });
+
+  it("reads nothing for it where the pane shows its own selection", async () => {
+    const { preview, read } = setup({ files: ["stills/a.png", "clips/b.mp4"] });
+    preview.show(0);
+    preview.key("ArrowRight");
+    await settle();
+    expect(read.fileInfo).not.toHaveBeenCalled();
+    expect(read.pixelFormat).not.toHaveBeenCalled();
   });
 });
