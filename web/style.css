@@ -88,6 +88,7 @@
 @import "./styles/thumbnail-hud.css" layer(components);
 @import "./styles/gallery.css" layer(components);
 @import "./styles/pane-overlay.css" layer(components);
+@import "./styles/row-card.css" layer(components);
 @import "./styles/file-preview.css" layer(components);
 @import "./styles/gallery-cards.css" layer(components);
 @import "./styles/assistant.css" layer(components);

@@ -140,6 +140,37 @@ describe(".table.html round-tripping", () => {
     expect(parseTableFile(onText)?.columns[0].showName).toBeUndefined();
   });
 
+  // Written only once arranged, so a Table that never had a card saves
+  // byte-identical; an emptied card stays an empty block, not none.
+  it("round-trips a card block, and writes nothing without one", () => {
+    const base: TableFile = {
+      version: "1.0",
+      columns: [
+        { id: "frame", type: "media", label: "Frame" },
+        { id: "shot", type: "text", label: "Shot" },
+      ],
+      rows: [{ values: { frame: "", shot: "12A" } }],
+    };
+    expect(serializeTableFile(base)).not.toContain('data-role="card"');
+    const card = [{ field: "frame", columns: 3, rows: 3 }, { heading: "Story & notes" }, { field: "shot" }];
+    const html = serializeTableFile({ ...base, card });
+    expect(html).toContain(
+      '  </table>\n\n  <ol data-role="card">\n    <li data-field="frame" data-columns="3" data-rows="3"></li>\n    <li data-heading="Story &amp; notes"></li>\n    <li data-field="shot"></li>\n  </ol>\n\n</body>',
+    );
+    const reparsed = parseTableFile(html);
+    expect(reparsed?.card).toEqual(card);
+    expect(serializeTableFile(reparsed as TableFile)).toBe(html);
+    expect(parseTableFile(serializeTableFile({ ...base, card: [] }))?.card).toEqual([]);
+  });
+
+  it("reads a card's spans only as whole numbers from 1, and skips an item naming nothing", () => {
+    const html = serializeTableFile({ version: "1.0", columns: [], rows: [] }).replace(
+      "</body>",
+      '<ol data-role="card"><li data-field="a" data-columns="0" data-rows="2.5"></li><li></li><li data-field="b" data-columns=" 2 "></li></ol>\n</body>',
+    );
+    expect(parseTableFile(html)?.card).toEqual([{ field: "a" }, { field: "b", columns: 2 }]);
+  });
+
   it("reads the fixture's real rows", async () => {
     const parsed = await readTableFile(fixture);
     expect(parsed.columns.map((c) => c.id)).toEqual(["value"]);

@@ -6,8 +6,8 @@
 // right-click nothing nearer has taken (the Console's), and never one on an
 // image or media.
 //
-// A link puts its own menu above those items instead of taking the
-// right-click, so a selection holding a link can still be copied from it.
+// A link, or a row that opens a card, puts its own menu above those items
+// instead of taking the right-click, so text in it can still be copied.
 //
 // In the desktop app, a misspelled word's suggestions and Add to Dictionary
 // come first, as a browser's menu puts them. In a browser, text it checks
@@ -38,10 +38,12 @@ const CHECKED_INPUTS = new Set(["text", "search"]);
 
 const MAX_SUGGESTIONS = 6;
 
-/** A menu put above the text menu's items for one right-click: a link's. */
+/** A menu put above the text menu's items for one right-click: a link's
+ * registered menu, or a row's own items. */
 export interface TextMenuLead {
-  menu: string;
-  arg: unknown;
+  menu?: string;
+  items?: MenuItem[];
+  arg?: unknown;
   ariaLabel: string;
 }
 
@@ -72,7 +74,7 @@ export function installTextMenu(menu: Pick<ContextMenuService, "open">): Disposa
     const checked = surface ? spellchecked(surface, event.target) : undefined;
     const show = (spelling: MenuItem[]) =>
       menu.open({
-        items: spelling,
+        items: [...spelling, ...(lead?.items ?? [])],
         menu: lead?.menu,
         arg: lead?.arg,
         itemsAfter: surface ? itemsFor(surface) : undefined,

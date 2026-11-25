@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { type HTMLElement, parse } from "node-html-parser";
-import type { MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
+import type { CardTile, MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
 import { emptyTable, parseFieldValueType, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, same convention as every other file reader in
@@ -31,6 +31,7 @@ export function parseTableFile(raw: string): TableFile | undefined {
     const data = root.querySelector("table[data-role=data]");
     const columns = readFieldColumns(data?.querySelector("thead") ?? null);
     const layout = parseTableLayout(data?.getAttribute("data-layout"));
+    const card = readCardBlock(root.querySelector("body > ol[data-role=card]"));
 
     return {
       version: html.getAttribute("data-format-version") || "1.0",
@@ -39,6 +40,7 @@ export function parseTableFile(raw: string): TableFile | undefined {
       columns,
       rows: readRows(data?.querySelector("tbody") ?? null, columns),
       ...(layout ? { layout } : {}),
+      ...(card ? { card } : {}),
     };
   } catch {
     return undefined;
@@ -71,6 +73,29 @@ export function readMetadataBlock(root: HTMLElement): MetadataEntry[] {
     }
   }
   return entries;
+}
+
+/** A row's card, the `<ol data-role="card">` a Table and a Class share:
+ * its tiles in order, or undefined with no block. An item naming neither a
+ * field nor a heading is skipped, and a span that isn't a whole number from
+ * 1 up is left to the host. */
+export function readCardBlock(list: HTMLElement | null | undefined): CardTile[] | undefined {
+  if (!list) return undefined;
+  const span = (raw: string | undefined): number | undefined => {
+    const value = Number(raw?.trim());
+    return Number.isInteger(value) && value >= 1 ? value : undefined;
+  };
+  return list.children.flatMap((li): CardTile[] => {
+    if (li.tagName !== "LI") return [];
+    const field = li.getAttribute("data-field")?.trim();
+    if (field) {
+      const columns = span(li.getAttribute("data-columns"));
+      const rows = span(li.getAttribute("data-rows"));
+      return [{ field, ...(columns ? { columns } : {}), ...(rows ? { rows } : {}) }];
+    }
+    const heading = li.getAttribute("data-heading");
+    return heading === undefined ? [] : [{ heading: heading.trim() }];
+  });
 }
 
 /** A `<thead>`'s columns, the field definitions a Table and a Class

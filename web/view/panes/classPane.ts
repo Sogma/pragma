@@ -6,6 +6,8 @@
 // The Class itself is changed where it shows, with no mode to enter:
 // Filter, Sort, Group and Fields in the floating toolbar, the views' tabs,
 // and a column header's menu. The reading view is the only lock.
+
+import { cardWithoutField } from "../../../src/protocol/card.ts";
 import {
   CLASS_FIELD_TYPE_OPTIONS,
   type ClassPlace,
@@ -91,8 +93,12 @@ import {
   createCell,
   createColumnHeader,
   createGridTable,
+  createRowOpenButton,
+  focusRowAt,
+  rowGutterColumn,
   startLabelRename,
   valueCells,
+  wireRowSelection,
 } from "../../lib/dataGrid.ts";
 import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
 import { createFieldValue } from "../../lib/fieldValue.ts";
@@ -100,6 +106,7 @@ import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
 import { installLinkPreview } from "../../notePreview.ts";
 import { createPageFind } from "../../pageFind.ts";
+import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import { pickFile } from "../../services/filePicker.ts";
@@ -320,6 +327,41 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       }
     | undefined;
   let folderPrompt: DialogHandle | undefined;
+  // The rows the view shows, in the order shown, which a row's card steps
+  // through.
+  let displayed: ClassRow[] = [];
+
+  // A row's full card over the pane, its values its note's.
+  const rowCard = createRowCard({
+    host: frame,
+    count: () => displayed.length,
+    fields: () => open?.file.fields ?? [],
+    card: () => open?.file.card,
+    cell(field, index, { multiline }) {
+      const row = displayed[index];
+      return row ? buildCell(field, row, multiline) : document.createElement("span");
+    },
+    title: (index) => displayed[index]?.title ?? "",
+    source: () => open?.file.name || basenameOf(open?.file.path ?? "").replace(/\.class\.html$/, ""),
+    pathOf: (index) => displayed[index]?.path,
+    openBeside: deps.openBeside,
+    arrangeable: () => editable(),
+    arrange(tiles) {
+      if (!open || !editable()) return;
+      open.file.card = tiles;
+      save();
+    },
+    closed(index) {
+      render();
+      focusRowAt(element, index);
+    },
+  });
+  wireRowSelection(element);
+
+  function openCard(row: ClassRow): void {
+    const index = displayed.indexOf(row);
+    if (index !== -1) rowCard.open(index);
+  }
 
   function editable(): boolean {
     return open !== undefined && open.file.locked === undefined && !deps.isReadingView();
@@ -349,8 +391,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
 
   function save(onWritten?: () => void): void {
     if (!open || open.file.locked) return;
-    const { version, name, metadata, filter, fields, views, links } = open.file;
-    const file: ClassFile = { version, name, metadata, filter, fields, views, links };
+    const { version, name, metadata, filter, fields, views, links, card } = open.file;
+    const file: ClassFile = { version, name, metadata, filter, fields, views, links, card };
     deps.scheduleSave(open.file.path, serializeClassFile(file), onWritten);
   }
 
@@ -398,6 +440,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     save(scope === "rows" ? () => void reloadRows() : undefined);
     showProperties(file);
     render();
+    // A field added, retyped or removed changes what the card shows.
+    rowCard.refresh();
   }
 
   const toolbar = createClassToolbar({
@@ -540,7 +584,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
 
   // A value that isn't its field's type shows as the text it is, and stays
   // until someone sets the field: a click swaps in an empty editor.
-  function unfitCell(field: TableColumn, row: ClassRow, text: string): HTMLElement {
+  function unfitCell(field: TableColumn, row: ClassRow, text: string, multiline = false): HTMLElement {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "class-unfit";
@@ -551,6 +595,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       const editor = createCell(field, "", (next) => setValue(row, field, next), false, cellControls, {
         commit: "change",
         asHeld: true,
+        multiline,
       });
       button.replaceWith(editor);
       editor.focus();
@@ -558,7 +603,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     return button;
   }
 
-  function buildCell(defined: TableColumn, row: ClassRow): HTMLElement {
+  function buildCell(defined: TableColumn, row: ClassRow, multiline = false): HTMLElement {
     const field = fieldAsRead(defined);
     const value = cellValue(field, rowValue(row, field.id));
     const canSet = editable() && settable(row, field);
@@ -595,10 +640,11 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       });
     }
     if (!canSet) return createFieldValue(value.fits ? field.type : "text", value.text);
-    if (!value.fits && field.type !== "select") return unfitCell(field, row, value.text);
+    if (!value.fits && field.type !== "select") return unfitCell(field, row, value.text, multiline);
     return createCell(field, value.text, (next) => setValue(row, field, next), false, cellControls, {
       commit: "change",
       asHeld: true,
+      multiline,
     });
   }
 
@@ -861,6 +907,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         if (!confirmed) return;
         change((file) => {
           file.fields = file.fields.filter((each) => each.id !== field.id);
+          file.card = cardWithoutField(file.card, field.id);
           for (const view of file.views) {
             if (view.fields) view.fields = view.fields.filter((key) => key !== field.id);
           }
@@ -1073,6 +1120,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
 
   function buildList(fields: TableColumn[], rows: ClassRow[], folder: string | undefined): HTMLElement {
     const grid = createGridTable<ClassRow>([
+      rowGutterColumn<ClassRow>(openCard),
       { header: createColumnHeader("Title", undefined).element, cell: buildTitle },
       ...fields.map((field) => ({ header: buildHeader(field), cell: (row: ClassRow) => buildCell(field, row) })),
     ]);
@@ -1116,6 +1164,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         picture: isMedia(row) ? ownPicture(row, picture?.id ?? "") : picture && buildCell(picture, row),
         title: buildTitle(row),
         badge: badge && filled(badge, row) ? buildCell(badge, row) : undefined,
+        actions: [createRowOpenButton(() => openCard(row))],
         lines: lines
           .filter((field) => filled(field, row))
           .map((field) => ({ label: field.label, control: buildCell(field, row) })),
@@ -1339,7 +1388,30 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     return chips;
   }
 
+  // The row a card shows, found again once the rows are drawn anew: the
+  // same row moved by a sort keeps its controls, focus included; one read
+  // again is drawn from its new read; one that left the view takes its card
+  // with it, as it leaves the grid.
+  function followCard(row: ClassRow, at: number): void {
+    const same = displayed.indexOf(row);
+    if (same !== -1) {
+      rowCard.moved(same);
+      return;
+    }
+    const again = displayed.findIndex((each) => each.path === row.path);
+    if (again === -1) {
+      rowCard.close(false);
+      focusRowAt(element, at);
+      return;
+    }
+    rowCard.moved(again);
+    rowCard.refresh();
+  }
+
   function render(): void {
+    const carded = rowCard.shown();
+    const cardRow = carded === undefined ? undefined : displayed[carded];
+    displayed = [];
     element.replaceChildren();
     toolbar.update();
     if (!open) return;
@@ -1358,6 +1430,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       const views = classViews(file);
       const view = views[open.view] ?? views[0];
       const shown = viewRows(rows, view, at);
+      displayed = shown;
       form.appendChild(buildViewBar(views, open.view, shown.length));
       const chips = buildChips(file, view);
       if (chips) form.appendChild(chips);
@@ -1374,7 +1447,9 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         form.appendChild(empty);
       } else if (view.groupBy) {
         const field = findField(file, view.groupBy);
-        form.append(...buildGroups(view, viewFields(file.fields, view), field, groupRows(shown, view.groupBy, field)));
+        const groups = groupRows(shown, view.groupBy, field);
+        displayed = groups.flatMap((group) => group.rows);
+        form.append(...buildGroups(view, viewFields(file.fields, view), field, groups));
       } else {
         form.appendChild(buildRows(view, viewFields(file.fields, view), shown));
       }
@@ -1389,6 +1464,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       }
     }
     paintTagPills(element, deps.tags);
+    if (cardRow && carded !== undefined) followCard(cardRow, carded);
     deps.onRendered();
   }
 
@@ -1418,6 +1494,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         folderPrompt?.close();
         linkPreview.close();
         media.close(false);
+        rowCard.close(false);
       }
       open = { file, rows, view: another ? 0 : (open?.view ?? 0) };
       showProperties(file);
@@ -1429,6 +1506,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       folderPrompt?.close();
       linkPreview.close();
       media.close(false);
+      rowCard.close(false);
       find.show(undefined);
       open = undefined;
       element.replaceChildren();
@@ -1439,11 +1517,13 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     titleHost: () => element,
     refresh: () => {
       render();
+      rowCard.refresh();
       if (open) showProperties(open.file);
     },
-    hasTransient: () => media.isOpen() || find.isOpen(),
+    hasTransient: () => media.isOpen() || rowCard.isOpen() || find.isOpen(),
     dismissTransient: () => {
       if (media.isOpen()) media.close();
+      else if (rowCard.isOpen()) rowCard.close();
       else find.close();
     },
     selectedFile: () => previewedFile(media.shownPath()),

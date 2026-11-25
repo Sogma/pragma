@@ -100,6 +100,19 @@ describe("serializeClassFile", () => {
       '  <dl data-role="metadata">\n  </dl>\n\n  <ul data-role="filter">\n  </ul>\n\n  <table data-role="fields">',
     );
   });
+
+  // The card is the body's own child, between the fields and the views, and
+  // written only once arranged.
+  it("reads and writes a card between the fields and the views, and none without one", () => {
+    const empty = { version: "1.0", filter: [], fields: [], views: [], links: [] };
+    expect(serializeClassFile(empty)).toContain('  </table>\n\n  <ol data-role="views">');
+    const written = serializeClassFile({ ...empty, card: [{ field: "status", columns: 2 }, { heading: "Look" }] });
+    expect(written).toContain(
+      '  </table>\n\n  <ol data-role="card">\n    <li data-field="status" data-columns="2"></li>\n    <li data-heading="Look"></li>\n  </ol>\n\n  <ol data-role="views">',
+    );
+    expect(parseClassFile(written)?.card).toEqual([{ field: "status", columns: 2 }, { heading: "Look" }]);
+    expect(parseClassFile(handWritten)?.card).toBeUndefined();
+  });
 });
 
 function fail(): never {

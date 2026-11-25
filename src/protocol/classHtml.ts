@@ -1,4 +1,4 @@
-import { escapeHtml, fieldHeaderCell, metadataBlock } from "./tableHtml.ts";
+import { cardBlock, escapeHtml, fieldHeaderCell, metadataBlock } from "./tableHtml.ts";
 import type { ClassFile, ClassRule, ClassView } from "./types.ts";
 
 // Pure string-building, isomorphic as a Table's serializer is, and
@@ -58,7 +58,7 @@ ${links(file.links)}
 ${fields}      </tr>
     </thead>
   </table>
-
+${cardBlock(file.card)}
   <ol data-role="views">
 ${views}  </ol>
 

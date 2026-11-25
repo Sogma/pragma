@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { metadataText } from "../../../../src/protocol/metadata.ts";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
-import type { TableLayout } from "../../../../src/protocol/types.ts";
+import type { TableLayout, TableRow } from "../../../../src/protocol/types.ts";
 import type { FileResponse, TableFileResponse } from "../../../../web/core/apiClient.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
@@ -18,6 +18,13 @@ import { testContextMenu } from "../../support/testContextMenu.ts";
 
 // Find measures its matches, which jsdom's Range can't.
 polyfillRangeRects();
+
+// A row's card lays its tiles on a grid that measures itself.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 function file(overrides: Partial<TableFileResponse> = {}): TableFileResponse {
   return {
@@ -463,5 +470,127 @@ describe("tablePane find", () => {
     expect(pane.hasTransient?.()).toBe(true);
     pane.dismissTransient?.();
     expect(pane.hasTransient?.()).toBe(false);
+  });
+});
+
+// A row's full card over the Table, opened from the row's gutter.
+describe("a row's card", () => {
+  afterEach(() => {
+    window.dispatchEvent(new MouseEvent("mousedown", { detail: 1 }));
+    document.body.replaceChildren();
+  });
+
+  const takes = (
+    rows: TableRow[] = [
+      { values: { take: "wide", status: "draft" } },
+      { values: { take: "close", status: "approved" } },
+    ],
+  ) =>
+    file({
+      columns: [
+        { id: "take", label: "Take", type: "text" },
+        { id: "status", label: "Status", type: "select", options: ["draft", "approved"] },
+      ],
+      rows,
+    });
+  const open = (pane: EditorPane, index: number) =>
+    pane.element.querySelectorAll<HTMLButtonElement>(".editor-table tbody .row-open")[index].click();
+  const cardTitle = (pane: EditorPane) => pane.element.querySelector(".row-card-title")?.textContent;
+  const label = (pane: EditorPane, name: string) =>
+    [...pane.element.querySelectorAll(".row-card-label")].find((each) => each.textContent === name) as HTMLElement;
+  const savedLast = (scheduleSave: ReturnType<typeof setup>["scheduleSave"]) => {
+    const saved = parseTableFile(scheduleSave.mock.calls.at(-1)?.[1] ?? "");
+    if (!saved) throw new Error("nothing saved");
+    return saved;
+  };
+  const field = (pane: EditorPane, name: string) =>
+    label(pane, name).closest(".row-card-tile")?.querySelector("input") as HTMLInputElement;
+
+  it("opens over the table from a row's gutter, and an edit on it saves with the table", async () => {
+    const { pane, scheduleSave } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 1);
+    expect(cardTitle(pane)).toBe("close");
+    expect(pane.element.querySelector(".row-card-facts")?.textContent).toBe("Row 2 of 2 · Models");
+
+    const take = field(pane, "Take");
+    take.value = "close up";
+    take.dispatchEvent(new Event("input"));
+    const saved = savedLast(scheduleSave);
+    expect(saved.rows.map((row) => row.values.take)).toEqual(["wide", "close up"]);
+    expect(saved.card).toBeUndefined();
+  });
+
+  it("writes the card block once a tile moves, and arranges nothing while reading", async () => {
+    const { pane, scheduleSave, setReadingView } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 0);
+    label(pane, "Take").dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(savedLast(scheduleSave).card).toEqual([{ field: "status" }, { field: "take" }]);
+
+    scheduleSave.mockClear();
+    setReadingView(true);
+    expect(pane.hasTransient?.()).toBe(true);
+    expect(pane.element.querySelector(".row-card-value input, .row-card-value select")).toBeNull();
+    expect(pane.element.querySelector(".row-card-page")?.classList.contains("is-arrangeable")).toBe(false);
+    label(pane, "Status").dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(scheduleSave).not.toHaveBeenCalled();
+  });
+
+  it("closes from Escape in the pane onto its row, selected, whose Space opens it again", async () => {
+    const { pane } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 1);
+    expect(pane.hasTransient?.()).toBe(true);
+    pane.dismissTransient?.();
+    expect(pane.hasTransient?.()).toBe(false);
+    const row = pane.element.querySelectorAll(".editor-table tbody > tr")[1];
+    expect(row.classList.contains("is-selected")).toBe(true);
+    expect(document.activeElement).toBe(row);
+
+    row.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
+    expect(cardTitle(pane)).toBe("close");
+  });
+
+  it("draws its row again from a reload of the table, and closes when the pane shows another", async () => {
+    const { pane } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 1);
+    const reloaded = takes([
+      { values: { take: "wide", status: "draft" } },
+      { values: { take: "medium", status: "draft" } },
+    ]);
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current, reloaded);
+    expect(cardTitle(pane)).toBe("medium");
+    expect(field(pane, "Take").value).toBe("medium");
+
+    await pane.setInput({ kind: "table", path: "other.table.html" }, current, file({ path: "other.table.html" }));
+    expect(pane.hasTransient?.()).toBe(false);
+  });
+
+  it("closes once a reload has no row where it was", async () => {
+    const { pane } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 1);
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current, takes([{ values: { take: "wide" } }]));
+    expect(pane.hasTransient?.()).toBe(false);
+  });
+
+  it("lays out the tiles the file arranges, its headings among them", async () => {
+    const { pane } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current, {
+      ...takes(),
+      card: [{ heading: "Review" }, { field: "status" }],
+    });
+    open(pane, 0);
+    const tiles = [...pane.element.querySelectorAll(".row-card-grid > *")];
+    expect(tiles.map((tile) => tile.querySelector(".row-card-label")?.textContent ?? tile.textContent)).toEqual([
+      "Review",
+      "Status",
+    ]);
   });
 });

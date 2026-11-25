@@ -164,6 +164,20 @@ describe("text menu", () => {
     expect(opened[1].ariaLabel).toBe("Text");
   });
 
+  it("puts a lead's own items above the text's, and alone where the text doesn't select", () => {
+    html('<div data-select="text"><p>Wide</p></div><div><span>gutter</span></div>');
+    const openCard = vi.fn();
+    const row: TextMenuLead = { items: [{ label: "Open card", run: openCard }], ariaLabel: "Row" };
+    for (const target of document.querySelectorAll("p, span")) {
+      target.addEventListener("contextmenu", (event) => leadTextMenu(event, row));
+    }
+    rightClick(document.querySelector("p") as Element);
+    expect(opened[0]).toMatchObject({ menu: undefined, ariaLabel: "Row" });
+    expect(labels()).toEqual(["Open card", "Copy", "Select All"]);
+    rightClick(document.querySelector("span") as Element);
+    expect(labels()).toEqual(["Open card"]);
+  });
+
   it("opens a link's menu where its text doesn't select, and over a browser's checked text", () => {
     html('<div><a href="#">Rename…</a></div>');
     const link = document.querySelector("a") as Element;

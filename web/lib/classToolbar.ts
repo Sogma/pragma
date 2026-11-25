@@ -3,6 +3,8 @@
 // that changes the Class as it is used, with no mode to enter first. The
 // pane owns the Class and saves it; this only builds the controls and
 // hands each change back.
+
+import { cardWithField } from "../../src/protocol/card.ts";
 import {
   CLASS_FIELD_TYPE_OPTIONS,
   type ClassLinkUse,
@@ -625,6 +627,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
           each.addEventListener("click", () => {
             deps.change((file, view) => {
               file.fields.push({ id: fact.id, type: fact.type, label: fact.label });
+              file.card = cardWithField(file.card, fact.id);
               if (view.fields) view.fields.push(fact.id);
             }, "view");
             draw();
@@ -749,6 +752,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
         if (fill) field.default = fill;
         deps.change((file, view) => {
           file.fields.push(field);
+          file.card = cardWithField(file.card, key);
           if (view.fields) view.fields.push(key);
         }, "view");
         close();

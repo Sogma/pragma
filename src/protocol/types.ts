@@ -200,6 +200,11 @@ export function holdsPath(type: FieldValueType): boolean {
 /** The parsed shape of a `.table.html` file — see docs/protocol.md's
  * "Tables" section. `version` is written back verbatim; a major this build
  * doesn't write locks the document against saving, never against reading. */
+/** One tile of a row's card: a field at a span of the card's grid, or a
+ * heading across it (docs/protocol.md's Table row cards section). A span left
+ * out is the host's to size. */
+export type CardTile = { field: string; columns?: number; rows?: number } | { heading: string };
+
 export interface TableFile {
   version: string;
   name?: string;
@@ -209,6 +214,8 @@ export interface TableFile {
   /** Absent means the list, and is what every file written before the
    * attribute existed says. */
   layout?: TableLayout;
+  /** The tiles of a row's card. Absent shows every column, in order. */
+  card?: CardTile[];
 }
 
 /** A Table with no columns or rows, at the version this build writes: what
@@ -349,6 +356,8 @@ export interface ClassFile {
   // folder or an address; what a link gives the rows follows from what it
   // names.
   links: string[];
+  // The tiles of a row's card, as a Table's. Absent shows every field.
+  card?: CardTile[];
 }
 
 /** A Class with no rules, fields, views or links, at the version this build

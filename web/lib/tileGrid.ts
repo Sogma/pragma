@@ -36,6 +36,8 @@ export interface TileGridOptions {
   // Where a press can start a move, where it never can, and what takes a
   // tile's keys: selectors inside a tile.
   handles: { move: string; not: string; keys: string };
+  // Whether the tiles may move or resize now; absent, they always may.
+  canArrange?: () => boolean;
   // A tile dropped beside another, never beside itself. The grid leaves the
   // move to the caller, whose order it is.
   onMove(tile: HTMLElement, target: HTMLElement, zone: DropZone): void;
@@ -239,6 +241,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
   grid.addEventListener("pointerdown", (event) => {
     const under = event.target;
     if (press || event.button !== 0 || !(under instanceof Element)) return;
+    if (options.canArrange && !options.canArrange()) return;
     const tile = tileOf(under);
     if (!tile) return;
     const grip = under.closest(`.${prefix}-tile-grip`);
@@ -262,6 +265,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     const arrow = ARROWS[event.key];
     const handle = event.target;
     if (!arrow || !event.altKey || event.ctrlKey || event.metaKey || press) return;
+    if (options.canArrange && !options.canArrange()) return;
     if (!(handle instanceof HTMLElement) || !handle.matches(handles.keys)) return;
     const tile = tileOf(handle);
     if (!tile) return;

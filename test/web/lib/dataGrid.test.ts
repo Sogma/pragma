@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { describe, expect, it, type Mock, onTestFinished, vi } from "vitest";
 import type { TableColumn, TableRow } from "../../../src/protocol/types.ts";
 import {
   type CellControls,
@@ -8,9 +8,13 @@ import {
   createCell,
   createGridTable,
   createTableForm,
+  focusRowAt,
   startLabelRename,
   type TableFormSpec,
+  wireRowSelection,
 } from "../../../web/lib/dataGrid.ts";
+import { installTextMenu } from "../../../web/lib/textMenu.ts";
+import type { MenuOpenOptions } from "../../../web/services/menus.ts";
 
 const column = (id: string, type: TableColumn["type"], options?: string[]): TableColumn => ({
   id,
@@ -262,5 +266,159 @@ describe("startLabelRename", () => {
       expect(onRename).not.toHaveBeenCalled();
       expect(label.textContent).toBe("Status");
     }
+  });
+});
+
+describe("a row's card from the grid", () => {
+  const columns = () => [column("take", "text"), column("note", "text")];
+  const rows = (): TableRow[] => [
+    { values: { take: "wide", note: "soft" } },
+    { values: { take: "close", note: "" } },
+    { values: { take: "insert", note: "bell" } },
+  ];
+  // Each cell a text field holding its value, as an editable grid's are.
+  const form = (overrides: Partial<TableFormSpec> = {}) => {
+    const drawn = createTableForm({
+      columns: columns(),
+      rows: rows(),
+      layout: "list",
+      version: "1.0",
+      editable: true,
+      readOnly: false,
+      cell: (each, row) => Object.assign(document.createElement("input"), { value: row.values[each.id] ?? "" }),
+      ...overrides,
+    });
+    document.body.append(drawn);
+    onTestFinished(() => drawn.remove());
+    return drawn;
+  };
+  const key = (target: Element, key: string) =>
+    target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  const selected = (root: Element) =>
+    [...root.querySelectorAll("tbody > tr")].findIndex((tr) => tr.classList.contains("is-selected"));
+
+  it("opens a row's card from a gutter before its values in the list, and from its head on a card", () => {
+    const openRow = vi.fn();
+    const list = form({ openRow });
+    expect(list.querySelector("thead th")?.className).toBe("row-gutter");
+    const gutters = [...list.querySelectorAll<HTMLElement>("tbody td.row-gutter:first-child > .row-open")];
+    expect(gutters).toHaveLength(3);
+    expect(gutters[1].getAttribute("aria-label")).toBe("Open card");
+    expect(gutters[1].tabIndex).toBe(-1);
+    gutters[1].click();
+    expect(openRow).toHaveBeenLastCalledWith(expect.objectContaining({ values: { take: "close", note: "" } }), 1);
+
+    const cards = form({ openRow, layout: "cards" });
+    cards.querySelectorAll<HTMLElement>(".data-cards-head .row-open")[2].click();
+    expect(openRow).toHaveBeenLastCalledWith(expect.objectContaining({ values: { take: "insert", note: "bell" } }), 2);
+  });
+
+  it("has no gutter where rows open no card", () => {
+    const list = form();
+    expect(list.querySelector(".row-gutter, .row-open")).toBeNull();
+  });
+
+  it("selects a field's row on Escape, moves the selection with Up and Down, and opens its card on Space", () => {
+    const openRow = vi.fn();
+    const list = form({ openRow });
+    const undo = wireRowSelection(list);
+    const field = list.querySelectorAll("tbody > tr")[0].querySelectorAll("input")[1];
+    field.focus();
+    key(field, "Escape");
+    expect(selected(list)).toBe(0);
+    expect(document.activeElement).toBe(list.querySelector("tbody > tr"));
+
+    key(document.activeElement as Element, "ArrowDown");
+    key(document.activeElement as Element, "ArrowDown");
+    key(document.activeElement as Element, "ArrowDown");
+    expect(selected(list)).toBe(2);
+    key(document.activeElement as Element, "ArrowUp");
+    expect(selected(list)).toBe(1);
+    key(document.activeElement as Element, " ");
+    expect(openRow).toHaveBeenCalledWith(expect.anything(), 1);
+    undo();
+  });
+
+  it("goes back on Enter into the field Escape left, its caret at the end, and ends the selection", () => {
+    const list = form({ openRow: vi.fn() });
+    wireRowSelection(list);
+    const field = list.querySelectorAll("tbody > tr")[2].querySelectorAll("input")[1];
+    field.focus();
+    key(field, "Escape");
+    key(document.activeElement as Element, "Enter");
+    expect(document.activeElement).toBe(field);
+    expect([field.selectionStart, field.selectionEnd]).toEqual([4, 4]);
+    expect(selected(list)).toBe(-1);
+  });
+
+  it("ends the selection once any field takes focus", () => {
+    const list = form({ openRow: vi.fn() });
+    wireRowSelection(list);
+    const [first, second] = list.querySelectorAll("tbody > tr");
+    const field = first.querySelector("input") as HTMLInputElement;
+    field.focus();
+    key(field, "Escape");
+    (second.querySelector("input") as HTMLInputElement).focus();
+    expect(selected(list)).toBe(-1);
+  });
+
+  it("leaves Escape to a field in a row that opens no card", () => {
+    const list = form();
+    wireRowSelection(list);
+    const field = list.querySelector("tbody input") as HTMLInputElement;
+    field.focus();
+    expect(key(field, "Escape")).toBe(true);
+    expect(selected(list)).toBe(-1);
+  });
+
+  it("offers Open card from a right-click on a row or a card, outside its fields, selecting a list's row", () => {
+    const opened: MenuOpenOptions[] = [];
+    const installed = installTextMenu({ open: (options) => void opened.push(options) });
+    onTestFinished(() => installed.dispose());
+    const openRow = vi.fn();
+    const rightClick = (target: Element) =>
+      target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    const pick = (label: string) =>
+      opened
+        .at(-1)
+        ?.items?.find((item) => item.label === label)
+        ?.run?.({ tab: { kind: "empty" }, pane: undefined }, undefined);
+
+    const list = form({ openRow });
+    wireRowSelection(list);
+    rightClick(list.querySelectorAll("tbody td.row-gutter")[2]);
+    expect(selected(list)).toBe(2);
+    pick("Open card");
+    expect(openRow).toHaveBeenLastCalledWith(expect.anything(), 2);
+
+    const before = opened.length;
+    rightClick(list.querySelectorAll("tbody input")[0]);
+    expect(opened.slice(before).flatMap((menu) => menu.items?.map((item) => item.label))).not.toContain("Open card");
+
+    const cards = form({ openRow, layout: "cards" });
+    wireRowSelection(cards);
+    rightClick(cards.querySelectorAll(".data-cards-card")[1]);
+    pick("Open card");
+    expect(openRow).toHaveBeenLastCalledWith(expect.anything(), 1);
+  });
+
+  it("leaves a right-click something nearer took to it", () => {
+    const list = form({ openRow: vi.fn() });
+    wireRowSelection(list);
+    const gutter = list.querySelector("tbody td.row-gutter") as HTMLElement;
+    gutter.addEventListener("contextmenu", (event) => event.preventDefault());
+    gutter.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(selected(list)).toBe(-1);
+  });
+
+  it("lands back on a row by its place: selected in the list, its button focused on a card", () => {
+    const list = form({ openRow: vi.fn() });
+    focusRowAt(list, 2);
+    expect(selected(list)).toBe(2);
+    expect(document.activeElement).toBe(list.querySelectorAll("tbody > tr")[2]);
+
+    const cards = form({ openRow: vi.fn(), layout: "cards" });
+    focusRowAt(cards, 1);
+    expect(document.activeElement).toBe(cards.querySelectorAll(".row-open")[1]);
   });
 });

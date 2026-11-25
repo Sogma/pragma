@@ -7,6 +7,7 @@ import { createColorChip, paintColorChip } from "./colorChip.ts";
 import { buildLockNotice } from "./dom.ts";
 import { fieldTypeIcon } from "./fieldTypeIcon.ts";
 import { createFieldValue } from "./fieldValue.ts";
+import { leadTextMenu } from "./textMenu.ts";
 import { createTimestampField } from "./timestampField.ts";
 
 /** The cell controls that live above `lib/`, which a pane hands in: a
@@ -25,6 +26,9 @@ export interface CellOptions {
   // among its options marked as such — rather than its first option, for a
   // pane that must not show a value the file doesn't hold.
   asHeld?: boolean;
+  // Text wraps over several lines, as a tall tile of a row's card has room
+  // for.
+  multiline?: boolean;
 }
 
 /** One cell, by its column's type: its editor, or the value as content
@@ -91,6 +95,14 @@ export function createCell(
       });
     });
     return button;
+  }
+
+  if (options.multiline && column.type === "text") {
+    const area = document.createElement("textarea");
+    area.className = "form-input form-input-quiet data-table-cell-text";
+    area.value = value;
+    area.addEventListener(options.commit ?? "input", () => onChange(area.value));
+    return area;
   }
 
   const input = document.createElement("input");
@@ -164,6 +176,123 @@ export interface GridColumn<Row> {
   header?: HTMLElement;
   headerClass?: string;
   cell?: (row: Row, index: number) => HTMLElement;
+  cellClass?: string;
+}
+
+// A row's gutter, the cell before its values: the button that opens the
+// row's full card, shown while the row is hovered or selected.
+const ROW_GUTTER = "row-gutter";
+const GUTTER_OPEN = `:scope > .${ROW_GUTTER} .row-open`;
+
+export function createRowOpenButton(onOpen: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "icon-button row-open";
+  button.tabIndex = -1;
+  button.setAttribute("aria-label", "Open card");
+  button.addEventListener("click", onOpen);
+  return button;
+}
+
+/** The gutter column a grid's rows open their card from. */
+export function rowGutterColumn<Row>(open: (row: Row, index: number) => void): GridColumn<Row> {
+  return {
+    headerClass: ROW_GUTTER,
+    cell: (row, index) => createRowOpenButton(() => open(row, index)),
+    cellClass: ROW_GUTTER,
+  };
+}
+
+const FIELDS = "input, select, textarea, [contenteditable='true']";
+
+// The rows under `root` that open a card, in the order shown, across every
+// grid it holds.
+function openableRows(root: HTMLElement): HTMLTableRowElement[] {
+  return [...root.querySelectorAll<HTMLTableRowElement>("tbody > tr")].filter((tr) => tr.querySelector(GUTTER_OPEN));
+}
+
+/** Back on the row at `index` of those shown, once its card closes: the row
+ * selected in a list, its open button focused on a card. */
+export function focusRowAt(root: HTMLElement, index: number): void {
+  const tr = openableRows(root)[index];
+  if (tr) selectRow(root, tr);
+  else root.querySelectorAll<HTMLElement>(".row-open")[index]?.focus();
+}
+
+/** Marks `tr` as the selected row and gives it focus, so its keys follow. */
+export function selectRow(root: HTMLElement, tr: HTMLTableRowElement): void {
+  for (const each of root.querySelectorAll("tbody > tr.is-selected")) each.classList.remove("is-selected");
+  tr.classList.add("is-selected");
+  tr.tabIndex = -1;
+  tr.focus({ preventScroll: false });
+}
+
+/** Keys on the rows under `root` that open a card: Escape in a field selects
+ * its row; on a selected row, Up and Down move the selection, Space opens
+ * the row's card and Enter goes back into the field left, the caret at its
+ * end. A field taking focus ends the selection. A right-click on a row or a
+ * card, outside its fields, offers Open card. Returns its undoing. */
+export function wireRowSelection(root: HTMLElement): () => void {
+  let left: { tr: HTMLTableRowElement; cell: number } | undefined;
+  const onKey = (event: KeyboardEvent) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || event.altKey || event.ctrlKey || event.metaKey) return;
+    const tr = target.closest<HTMLTableRowElement>("tbody > tr");
+    if (!tr || !root.contains(tr) || !tr.querySelector(GUTTER_OPEN)) return;
+    if (target !== tr) {
+      if (event.key !== "Escape" || !target.matches(FIELDS)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      left = { tr, cell: target.closest("td")?.cellIndex ?? -1 };
+      target.blur();
+      selectRow(root, tr);
+      return;
+    }
+    if (event.shiftKey) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const rows = openableRows(root);
+      const at = rows.indexOf(tr) + (event.key === "ArrowUp" ? -1 : 1);
+      if (rows[at]) selectRow(root, rows[at]);
+    } else if (event.key === " ") {
+      event.preventDefault();
+      tr.querySelector<HTMLButtonElement>(GUTTER_OPEN)?.click();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const cell = left?.tr === tr ? tr.cells[left.cell] : undefined;
+      const field = (cell ?? tr).querySelector<HTMLElement>(FIELDS);
+      tr.classList.remove("is-selected");
+      field?.focus();
+      if (field instanceof HTMLInputElement && field.type === "text")
+        field.setSelectionRange(field.value.length, field.value.length);
+    }
+  };
+  const onFocus = (event: FocusEvent) => {
+    if (event.target instanceof HTMLElement && event.target.matches(FIELDS)) {
+      for (const each of root.querySelectorAll("tbody > tr.is-selected")) each.classList.remove("is-selected");
+    }
+  };
+  // A field keeps the text menu alone, the browser's spelling included, and
+  // a right-click something nearer took (a picture's menu) is left to it.
+  // Elsewhere the row's item leads the text menu, so a value read there
+  // still copies; a list's row is selected first, to show what it acts on.
+  const onMenu = (event: MouseEvent) => {
+    const target = event.target;
+    if (event.defaultPrevented || !(target instanceof Element) || target.closest(FIELDS)) return;
+    const holder = target.closest<HTMLElement>("tbody > tr, .data-cards-card");
+    const open = holder && root.contains(holder) ? holder.querySelector<HTMLButtonElement>(".row-open") : null;
+    if (!holder || !open) return;
+    if (holder instanceof HTMLTableRowElement) selectRow(root, holder);
+    leadTextMenu(event, { items: [{ label: "Open card", run: () => open.click() }], ariaLabel: "Row" });
+  };
+  root.addEventListener("keydown", onKey);
+  root.addEventListener("focusin", onFocus);
+  root.addEventListener("contextmenu", onMenu);
+  return () => {
+    root.removeEventListener("keydown", onKey);
+    root.removeEventListener("focusin", onFocus);
+    root.removeEventListener("contextmenu", onMenu);
+  };
 }
 
 /** A grid of rows, whose body redraws alone from `setRows`. */
@@ -195,6 +324,7 @@ export function createGridTable<Row>(columns: readonly GridColumn<Row>[]): {
         for (const column of columns) {
           if (!column.cell) continue;
           const td = document.createElement("td");
+          if (column.cellClass) td.className = column.cellClass;
           td.appendChild(column.cell(row, index));
           tr.appendChild(td);
         }
@@ -323,6 +453,9 @@ export interface TableFormSpec {
   /** A row's own control, at the end of its line or in its card's head,
    * given how to draw the rows again once the row is gone. */
   rowControl?(row: TableRow, redraw: () => void): HTMLElement;
+  /** Opens the row's full card: from its gutter in the list, from its
+   * head in a card. */
+  openRow?(row: TableRow, index: number): void;
   /** Below the rows, or below an empty Table's notice. */
   after?: HTMLElement;
 }
@@ -355,12 +488,16 @@ function tableCards(spec: TableFormSpec): HTMLElement {
   const { picture, title, badge, lines } = cardParts(spec.columns);
   const list = createCardList();
   const draw = () => list.replaceChildren(...spec.rows.map(card));
-  const card = (row: TableRow) =>
+  const { openRow } = spec;
+  const card = (row: TableRow, index: number) =>
     createCard({
       picture: picture && spec.cell(picture, row),
       title: title && spec.cell(title, row),
       badge: badge && spec.cell(badge, row),
-      actions: spec.rowControl ? [spec.rowControl(row, draw)] : [],
+      actions: [
+        ...(openRow ? [createRowOpenButton(() => openRow(row, index))] : []),
+        ...(spec.rowControl ? [spec.rowControl(row, draw)] : []),
+      ],
       lines: lines
         .filter((column) => !spec.readOnly || (row.values[column.id] ?? "").trim())
         .map((column) => ({ label: column.label, control: spec.cell(column, row) })),
@@ -370,10 +507,13 @@ function tableCards(spec: TableFormSpec): HTMLElement {
 }
 
 function tableGrid(spec: TableFormSpec): HTMLElement {
-  const columns: GridColumn<TableRow>[] = spec.columns.map((column) => ({
-    header: spec.header?.(column) ?? createColumnHeader(column.label, undefined).element,
-    cell: (row) => spec.cell(column, row),
-  }));
+  const columns: GridColumn<TableRow>[] = [
+    ...(spec.openRow ? [rowGutterColumn<TableRow>(spec.openRow)] : []),
+    ...spec.columns.map((column) => ({
+      header: spec.header?.(column) ?? createColumnHeader(column.label, undefined).element,
+      cell: (row: TableRow) => spec.cell(column, row),
+    })),
+  ];
   if (spec.lastHeader) columns.push(spec.lastHeader);
   const { rowControl } = spec;
   const draw = () => grid.setRows(spec.rows);

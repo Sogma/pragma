@@ -307,3 +307,55 @@
   background-color: currentColor;
   mask: var(--icon-plus) center / contain no-repeat;
 }
+
+/* A row's gutter, before its values: where the button opening its full card
+   lies, drawn with no cell of its own, so it reads as margin. */
+.data-table th.row-gutter,
+.data-table td.row-gutter {
+  width: 28px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+}
+
+.row-open {
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+}
+
+.row-open::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-expand-diagonal) center / contain no-repeat;
+}
+
+.data-table tbody tr:hover .row-open,
+.data-table tbody tr.is-selected .row-open,
+.data-table tbody tr:focus-within .row-open,
+.row-open:focus-visible {
+  opacity: 1;
+}
+
+/* A hovered row lies in one very muted band, from its gutter across its
+   cells. Its fields keep their outline but not their fill, so the band
+   shows through; the field being typed in keeps its own. */
+.data-table tbody tr:hover > td {
+  background: var(--bg-secondary);
+}
+
+.data-table tbody tr:hover .form-input-quiet:not(:focus) {
+  background: transparent;
+}
+
+/* A row selected by Escape in one of its fields has no fill of its own,
+   only an accent edge. */
+.data-table tbody tr.is-selected {
+  outline: none;
+}
+
+.data-table tbody tr.is-selected > td.row-gutter + td {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}

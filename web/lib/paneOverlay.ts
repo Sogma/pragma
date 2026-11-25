@@ -2,7 +2,7 @@
 // dimming the pane, arrows stepping through the list, and a stage holding
 // the item. It lies inside the pane's box, so closing it returns to the same
 // scroll and selection. The caller builds each item and decides what else
-// closes it; a gallery's file shows this way.
+// closes it; a gallery's file and a row's card both show this way.
 
 import { canAnimate } from "./pictureZoom.ts";
 

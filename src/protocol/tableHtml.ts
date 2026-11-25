@@ -1,4 +1,4 @@
-import type { MetadataEntry, TableColumn, TableFile } from "./types.ts";
+import type { CardTile, MetadataEntry, TableColumn, TableFile } from "./types.ts";
 
 // Pure string-building, no Node/DOM APIs — isomorphic on purpose, so the
 // server (scaffolding a new file) and the client (persisting an edit) share
@@ -31,6 +31,21 @@ export function fieldHeaderCell(column: TableColumn): string {
   const showName = column.showName ? " data-show-name" : "";
   const defaultValue = column.default ? ` data-default="${escapeHtml(column.default)}"` : "";
   return `        <th data-field="${escapeHtml(column.id)}" data-type="${escapeHtml(column.type)}"${options}${mediaFolder}${showName}${defaultValue}>${escapeHtml(column.label)}</th>\n`;
+}
+
+function cardItem(tile: CardTile): string {
+  if ("heading" in tile) return `    <li data-heading="${escapeHtml(tile.heading)}"></li>\n`;
+  const columns = tile.columns ? ` data-columns="${tile.columns}"` : "";
+  const rows = tile.rows ? ` data-rows="${tile.rows}"` : "";
+  return `    <li data-field="${escapeHtml(tile.field)}"${columns}${rows}></li>\n`;
+}
+
+/** The `<ol data-role="card">` a Table and a Class share, its own lines
+ * with a blank one before; nothing for a card never arranged, so the file
+ * reads as it did before there was one. */
+export function cardBlock(tiles: readonly CardTile[] | undefined): string {
+  if (tiles === undefined) return "";
+  return `\n  <ol data-role="card">\n${tiles.map(cardItem).join("")}  </ol>\n`;
 }
 
 /** Serializes a TableFile back to `.table.html` text. Column/row order is
@@ -68,7 +83,7 @@ ${headerCells}      </tr>
     <tbody>
 ${bodyRows}    </tbody>
   </table>
-
+${cardBlock(file.card)}
 </body>
 </html>
 `;

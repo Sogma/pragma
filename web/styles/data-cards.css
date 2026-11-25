@@ -137,3 +137,10 @@
 .data-cards-field .data-table-cell-text {
   width: 100%;
 }
+
+/* A card's button opening its full card, in its head, shown while the card
+   is hovered or holds focus. */
+.data-cards-card:hover .row-open,
+.data-cards-card:focus-within .row-open {
+  opacity: 1;
+}

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
 import type { TableFileResponse } from "../../../../web/core/apiClient.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createTableView } from "../../../../web/view/panes/tablePane.ts";
@@ -884,5 +885,47 @@ describe("a redraw from inside the table", () => {
     (editorTable.querySelector(".data-table-add-row") as HTMLButtonElement).click();
     expect(editorTable.querySelectorAll(".data-cards-card")).toHaveLength(2);
     expect(intact()).toBe(true);
+  });
+});
+
+describe("an arranged card", () => {
+  const arranged = () => sampleFile({ card: [{ heading: "Stock" }, { field: "done" }, { field: "name", columns: 2 }] });
+  const savedLast = (scheduleSave: Mock) => scheduleSave.mock.calls.at(-1)?.[1] as string;
+  function addColumn(editorTable: HTMLElement, name: string): void {
+    (editorTable.querySelector(".data-table-add-column") as HTMLButtonElement).click();
+    const popover = document.querySelector(".popover") as HTMLElement;
+    const nameInput = popover.querySelector("input") as HTMLInputElement;
+    nameInput.value = name;
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    (popover.querySelector(".action-button") as HTMLButtonElement).click();
+  }
+
+  it("takes a column added at its end, and loses a deleted column's tile", async () => {
+    const { tableView, editorTable, scheduleSave } = setup();
+    tableView.render(arranged());
+    addColumn(editorTable, "Price");
+    expect(parseTableFile(savedLast(scheduleSave))?.card).toEqual([
+      { heading: "Stock" },
+      { field: "done" },
+      { field: "name", columns: 2 },
+      { field: "price" },
+    ]);
+
+    (editorTable.querySelectorAll(".data-table-column-menu")[0] as HTMLButtonElement).click();
+    (document.querySelector(".context-menu button.danger") as HTMLButtonElement).click();
+    (document.querySelector(".dialog-primary") as HTMLButtonElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(parseTableFile(savedLast(scheduleSave))?.card).toEqual([
+      { heading: "Stock" },
+      { field: "done" },
+      { field: "price" },
+    ]);
+  });
+
+  it("is never started by a column added to a Table that arranges none", () => {
+    const { tableView, editorTable, scheduleSave } = setup();
+    tableView.render(sampleFile());
+    addColumn(editorTable, "Price");
+    expect(savedLast(scheduleSave)).not.toContain('data-role="card"');
   });
 });

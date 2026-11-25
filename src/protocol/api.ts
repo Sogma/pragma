@@ -21,6 +21,7 @@ import type { TemplateEntry } from "./templates.ts";
 import type {
   ActionResult,
   AppletManifest,
+  CardTile,
   ClassFile,
   DocumentType,
   FindContextResult,
@@ -702,6 +703,8 @@ export interface TableFileResponse {
   // The layout picked for it on this install, which it opens in over
   // `layout`; absent where none was.
   localLayout?: TableLayout;
+  // A row card's tiles; absent shows every column.
+  card?: CardTile[];
   // Set only when a host must not save over this file.
   locked?: DocumentLock;
   // Nothing is at the path. It still reads as a new, empty Table; a caller

@@ -1,7 +1,15 @@
+import { cardWithField, cardWithoutField } from "../../../src/protocol/card.ts";
 import { stampTableDates, TABLE_DATE_KEYS } from "../../../src/protocol/metadata.ts";
-import { dirnameOf } from "../../../src/protocol/rootedPath.ts";
+import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
 import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
-import type { MetadataEntry, TableColumn, TableFile, TableLayout, TableRow } from "../../../src/protocol/types.ts";
+import type {
+  CardTile,
+  MetadataEntry,
+  TableColumn,
+  TableFile,
+  TableLayout,
+  TableRow,
+} from "../../../src/protocol/types.ts";
 import {
   emptyFieldValue,
   FIELD_VALUE_TYPE_OPTIONS,
@@ -20,18 +28,22 @@ import {
   servedPreviewSources,
 } from "../../filePreview.ts";
 import {
+  type CellOptions,
   cardParts,
   createCell,
   createColumnHeader,
   createTableForm,
+  focusRowAt,
   startLabelRename,
   valueCells,
+  wireRowSelection,
 } from "../../lib/dataGrid.ts";
 import { buildTableRowDeleteButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
 import { uniqueSlug } from "../../lib/slug.ts";
 import { createPageFind } from "../../pageFind.ts";
+import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
@@ -150,6 +162,9 @@ export interface TableViewDeps {
   openPath: (rootedPath: string) => void;
   // A click on a media cell's picture, with the cell's field.
   openMedia: (rootedPath: string, field: HTMLElement) => void;
+  // The pane's box, which a row's card lies over; without one, rows have
+  // no card.
+  overlayHost?: HTMLElement;
 }
 
 export interface TableView {
@@ -182,6 +197,9 @@ export interface TableView {
   // For refreshEditorTitle's title-bar fallback (main.ts) — undefined
   // outside a table tab.
   getFileName(): string | undefined;
+  // A row's card, while one shows over the pane.
+  isCardOpen(): boolean;
+  closeCard(): void;
 }
 
 // Owns the open `.table.html` file's live working copy (columns + rows) and
@@ -195,6 +213,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         file: TableFileResponse;
         columns: TableColumn[];
         rows: TableRow[];
+        card?: CardTile[];
       }
     | undefined;
   let designing = false;
@@ -207,7 +226,7 @@ export function createTableView(deps: TableViewDeps): TableView {
   // section) and left untouched after that.
   function persistActiveTable(): void {
     if (!activeTable) return;
-    const { file, columns, rows } = activeTable;
+    const { file, columns, rows, card } = activeTable;
     // Belt-and-braces against the pane's own read-only lock: re-serializing a
     // locked file drops whatever this build couldn't parse out of it.
     if (file.locked) return;
@@ -221,6 +240,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // The file's own default, carried through untouched: a layout switch
       // is not an edit.
       layout: file.layout,
+      card,
     } satisfies TableFile);
     deps.scheduleSave(file.path, content);
   }
@@ -235,6 +255,7 @@ export function createTableView(deps: TableViewDeps): TableView {
   function addColumn(column: TableColumn): void {
     if (!activeTable) return;
     activeTable.columns.push(column);
+    activeTable.card = cardWithField(activeTable.card, column.id);
     const value = emptyFieldValue(column);
     for (const row of activeTable.rows) row.values[column.id] = value;
     persistActiveTable();
@@ -268,6 +289,7 @@ export function createTableView(deps: TableViewDeps): TableView {
     const index = activeTable.columns.indexOf(column);
     if (index === -1) return;
     activeTable.columns.splice(index, 1);
+    activeTable.card = cardWithoutField(activeTable.card, column.id);
     for (const row of activeTable.rows) delete row.values[column.id];
     persistActiveTable();
     renderActiveTablePane();
@@ -326,14 +348,57 @@ export function createTableView(deps: TableViewDeps): TableView {
   // One cell, by the column's type: its editor in Edit, its value as content
   // wherever values are locked (reading view, Design, a locked file). A blank
   // select takes its first option, as a new row's would.
-  function buildTableCell(column: TableColumn, row: TableRow, onChange: () => void, readOnly: boolean): HTMLElement {
+  function buildTableCell(
+    column: TableColumn,
+    row: TableRow,
+    onChange: () => void,
+    readOnly: boolean,
+    options?: CellOptions,
+  ): HTMLElement {
     if (column.type === "select" && !readOnly) row.values[column.id] ||= column.options?.[0] ?? "";
     const set = (value: string): void => {
       row.values[column.id] = value;
       onChange();
     };
-    return createCell(column, row.values[column.id] ?? "", set, readOnly, cellControls);
+    return createCell(column, row.values[column.id] ?? "", set, readOnly, cellControls, options);
   }
+
+  // Values lock as the grid's do; the card's arrangement is the file's, so
+  // it locks only where nothing can be saved.
+  const valuesLocked = (): boolean => deps.isReadingView() || activeTable?.file.locked !== undefined || designing;
+  const savable = (): boolean => !deps.isReadingView() && activeTable !== undefined && !activeTable.file.locked;
+
+  // A row's full card over the pane, its values the grid's own.
+  const rowCard = deps.overlayHost
+    ? createRowCard({
+        host: deps.overlayHost,
+        count: () => activeTable?.rows.length ?? 0,
+        fields: () => activeTable?.columns ?? [],
+        card: () => activeTable?.card,
+        cell(column, index, { multiline }) {
+          const row = activeTable?.rows[index] ?? { values: {} };
+          return buildTableCell(column, row, persistActiveTable, valuesLocked(), { multiline });
+        },
+        title(index) {
+          const { title } = cardParts(activeTable?.columns ?? []);
+          const text = title ? (activeTable?.rows[index]?.values[title.id] ?? "").trim() : "";
+          return text || `Row ${index + 1}`;
+        },
+        source: () => activeTable?.file.name || basenameOf(activeTable?.file.path ?? "").replace(/\.table\.html$/, ""),
+        arrangeable: savable,
+        arrange(tiles) {
+          if (!activeTable || !savable()) return;
+          activeTable.card = tiles;
+          persistActiveTable();
+        },
+        closed(index) {
+          renderActiveTablePane();
+          deps.onRendered();
+          focusRowAt(deps.editorTable, index);
+        },
+      })
+    : undefined;
+  wireRowSelection(deps.editorTable);
 
   // The column's ⋮ menu — the only way to Rename or Delete it. Its rows act
   // on this column directly; the shared component draws it.
@@ -442,6 +507,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         ? { header: addColumnHeader(columns), headerClass: "data-table-add-column-cell" }
         : undefined,
       rowControl: readOnly ? undefined : (row, redraw) => rowDeleteButton(columns, row, redraw),
+      openRow: rowCard ? (_row, index) => rowCard.open(index) : undefined,
       after,
     });
     deps.editorTable.appendChild(drawn);
@@ -496,6 +562,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       designing = on;
       if (!activeTable) return;
       renderActiveTablePane();
+      rowCard?.refresh();
       deps.onRendered();
     },
     getLayout: () => layout,
@@ -510,18 +577,22 @@ export function createTableView(deps: TableViewDeps): TableView {
       if (another) {
         designing = false;
         folderPrompt?.close();
+        rowCard?.close(false);
       }
       if (activeTable === undefined || another) layout = file.localLayout ?? file.layout ?? "list";
       activeTable = {
         file,
         columns: file.columns,
         rows: file.rows.map((row) => ({ values: { ...row.values } })),
+        ...(file.card ? { card: file.card.map((tile) => ({ ...tile })) } : {}),
       };
       renderActiveTablePane();
+      rowCard?.refresh();
       deps.onRendered(); // now that activeTable.file.name is in hand
     },
     refresh(): void {
       renderActiveTablePane();
+      rowCard?.refresh();
       deps.onRendered();
     },
     setMetadata(metadata: MetadataEntry[]): void {
@@ -533,6 +604,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // Hosted outside this view, so nothing else would take it down with
       // the table it was about.
       folderPrompt?.close();
+      rowCard?.close(false);
       activeTable = undefined;
       designing = false;
     },
@@ -542,6 +614,8 @@ export function createTableView(deps: TableViewDeps): TableView {
     getFileName(): string | undefined {
       return activeTable?.file.name;
     },
+    isCardOpen: () => rowCard?.isOpen() ?? false,
+    closeCard: () => rowCard?.close(),
   };
 }
 
@@ -610,7 +684,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     dialog: deps.dialog,
     openPath: deps.openPath,
   });
-  const view = createTableView({ ...deps, editorTable: element, openMedia: media.open });
+  const view = createTableView({ ...deps, editorTable: element, openMedia: media.open, overlayHost: frame });
   const properties = deps.metadataProperties();
   // Find searches the values in every mode, never replacing them.
   const find = createPageFind({ root: element, values: valueCells });
@@ -661,9 +735,10 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       view.refresh();
       if (shown) showProperties(shown);
     },
-    hasTransient: () => media.isOpen() || find.isOpen(),
+    hasTransient: () => media.isOpen() || view.isCardOpen() || find.isOpen(),
     dismissTransient: () => {
       if (media.isOpen()) media.close();
+      else if (view.isCardOpen()) view.closeCard();
       else find.close();
     },
     selectedFile: () => previewedFile(media.shownPath()),

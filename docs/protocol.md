@@ -492,6 +492,22 @@ A timestamp is an ISO 8601 date and time with `Z` or a UTC offset. Seconds are o
 
 A card takes its picture from the first `media` column, its title from the first column other than the picture, and its badge from the first `select` column other than the title. Every other column is a line. No additional layout attributes are required.
 
+#### Table row cards
+
+A row's full card shows its fields as tiles on the grid [App Mode](#app-mode) lays out. `<ol data-role="card">`, after `<table data-role="data">`, arranges it:
+
+```html
+<ol data-role="card">
+  <li data-field="frame" data-columns="3" data-rows="3"></li>
+  <li data-heading="Story"></li>
+  <li data-field="action" data-columns="6" data-rows="2"></li>
+</ol>
+```
+
+- **Each `<li>` is a tile, in order.** `data-field` names the column it shows, else `data-heading` is a heading across the card, its value the text. An item naming no column, or with neither, is skipped.
+- **`data-columns` and `data-rows`** span the tile as `appModeSize` spans an App Mode item: whole numbers from 1, the host's choice where absent.
+- **The card shows the columns it lists**, or every column in order without the block. A writer adds the block only once a card is arranged, and keeps it, empty included. An added column joins its end; a deleted one leaves it.
+
 #### Table writes
 
 Reading is inert, through an HTML parser rather than a browser. Saving re-serializes the whole Table through the same document-write path as any other file. Serialization is deterministic: after a one-row edit, every other line remains byte-identical.
@@ -563,7 +579,7 @@ A **Class** defines a group of files, the fields they share, and the views and t
 ```
 
 - **`<html data-format>`** must be `"class"`; reading and writing follow [Format versions and safe writes](#format-versions-and-safe-writes). **`<head><title>`** is its [display title](#display-titles), and **`<dl data-role="metadata">`** is its [metadata](#metadata).
-- **The filter, links and views are `<body>`'s own children**, read only there, since a view may carry a filter of its own.
+- **The filter, links, card and views are `<body>`'s own children**, read only there, since a view may carry a filter of its own.
 - **`<ul data-role="filter">`** holds rules, one `<li>` each: `data-property` names a [value](#class-values), `data-test` a test, and its text the test's values, comma-separated.
 - **`<ul data-role="links">`** lists files, one `<li>` each, in order, each a path read from the Class's folder. A writer leaves it out when it is empty.
 - **`<table data-role="fields">`** holds the Class's [fields](#class-fields), and **`<ol data-role="views">`** its [views](#class-views). Neither changes which files a Class holds.
@@ -633,6 +649,10 @@ A writer leaves out the list layout and the ascending order. A view shows its ro
 - **A sort compares values as [Folder order](#folder-order)'s property order does**, rows with no value after the rest in either direction and ties in name order.
 - **With no sort**, a Class reading one folder, the one its Folder rule names or its whole root, shows its rows in the order the host shows that folder, its subfolders' depth-first as a tree lists them. Rows from several folders are in name order: natural, ignoring case.
 - **Groups keep the view's order inside each**, and come in natural order of their values, a `select` field's options first in their own order. The rows with no value come last, and a list value groups as all its items together.
+
+#### Class row cards
+
+`<ol data-role="card">`, after `<table data-role="fields">`, arranges a row's full card as a [Table row card](#table-row-cards) is arranged, each `data-field` naming one of the Class's fields by key. The card leads with the row's title.
 
 #### New notes
 

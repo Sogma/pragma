@@ -26,6 +26,13 @@ function listTemplates(): void {
 // Find measures its matches, which jsdom's Range can't.
 polyfillRangeRects();
 
+// A row's card lays its tiles on a grid that measures itself.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
+
 const opened: EditorPane[] = [];
 
 afterEach(() => {
@@ -163,9 +170,9 @@ describe("classPane", () => {
   it("lists each note under its title, then its fields, with a value that doesn't fit shown as written", async () => {
     const { pane, deps } = await setup(classFile(), rows, { reading: true });
 
-    expect(texts(pane.element, "thead th")).toEqual(["Title", "Status", "Take", "Tags"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Status", "Take", "Tags"]);
     const body = [...pane.element.querySelectorAll("tbody tr")].map((tr) =>
-      [...tr.querySelectorAll("td")].map((td) => td.textContent?.trim()),
+      [...tr.querySelectorAll("td:not(.row-gutter)")].map((td) => td.textContent?.trim()),
     );
     expect(body).toEqual([
       ["Wide", "approved", "2", "night"],
@@ -192,7 +199,7 @@ describe("classPane", () => {
     const pills = (row: number, column: number) => [
       ...pane.element
         .querySelectorAll("tbody tr")
-        [row].querySelectorAll("td")
+        [row].querySelectorAll("td:not(.row-gutter)")
         [column].querySelectorAll<HTMLElement>(".pill"),
     ];
     const shown = (pill: HTMLElement) => [pill.textContent, pill.dataset.tag, pill.classList.contains("has-tag-color")];
@@ -248,7 +255,7 @@ describe("classPane", () => {
     const view = { name: "Board", layout: "list" as const, groupBy: "status", fields: ["take"], filter: [] };
     const { pane } = await setup(classFile({ views: [view] }));
     expect(texts(pane.element, ".class-group-heading")).toEqual(["approved1", "wip1", "No Status1"]);
-    expect(texts(pane.element, "thead th").slice(0, 2)).toEqual(["Title", "Take"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter)").slice(0, 2)).toEqual(["Title", "Take"]);
   });
 
   it("shows only the fields a view lists, in its order", async () => {
@@ -257,8 +264,8 @@ describe("classPane", () => {
       rows,
       { reading: true },
     );
-    expect(texts(pane.element, "thead th")).toEqual(["Title", "Take", "Status"]);
-    expect(texts(pane.element, "tbody tr:first-child td")).toEqual(["Wide", "2", "approved"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Take", "Status"]);
+    expect(texts(pane.element, "tbody tr:first-child td:not(.row-gutter)")).toEqual(["Wide", "2", "approved"]);
   });
 
   it("shows a Class with no views as one, and says when nothing is in it", async () => {
@@ -635,7 +642,7 @@ describe("classPane: changed where it shows", () => {
     menuItem("Hide in this view").click();
 
     expect(saved()?.views[0].fields).toEqual(["status", "tags"]);
-    expect(texts(pane.element, "thead th")).toEqual(["Title", "Status", "Tags"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Status", "Tags"]);
   });
 
   it("deletes a field from the Class alone, and from every view's list", async () => {
@@ -718,7 +725,7 @@ describe("classPane: its Properties-tab section", () => {
 
 describe("classPane: values and new notes", () => {
   const cellOf = (pane: EditorPane, row: number, column: number) =>
-    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td")[column];
+    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter)")[column];
 
   it("writes one key of one note as its field types it, and says which note", async () => {
     const { pane, deps, edited } = await setup();
@@ -1087,7 +1094,7 @@ describe("classPane: its links", () => {
 
 describe("classPane: screenplays and media as rows", () => {
   const cellOf = (pane: EditorPane, row: number, column: number) =>
-    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td")[column];
+    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter)")[column];
   const kinds: ClassRow[] = [
     note("look.md", "Look", { status: "draft" }),
     { ...note("draft.fountain", "Brick", { title: "Brick", status: "approved" }), kind: "screenplay" },
@@ -1205,6 +1212,142 @@ describe("classPane: find", () => {
     expect(count()).toBe("1 of 1");
 
     pane.dismissTransient?.();
+    expect(pane.hasTransient?.()).toBe(false);
+  });
+});
+
+describe("classPane: a row's card", () => {
+  afterEach(() => window.dispatchEvent(new MouseEvent("mousedown", { detail: 1 })));
+
+  const open = (pane: EditorPane, index: number) =>
+    pane.element.querySelectorAll<HTMLButtonElement>("tbody .row-open")[index].click();
+  const cardTitle = (pane: EditorPane) => pane.element.querySelector(".row-card-title")?.textContent;
+  const tile = (pane: EditorPane, name: string) =>
+    [...pane.element.querySelectorAll(".row-card-tile")].find(
+      (each) => each.querySelector(".row-card-label")?.textContent === name,
+    ) as HTMLElement;
+  const facts = (pane: EditorPane) => pane.element.querySelector(".row-card-facts")?.textContent;
+  // Takes in a view sorted by them, so a new take moves its row.
+  const takes = [
+    note("one.md", "One", { status: "draft", take: 1 }),
+    note("two.md", "Two", { status: "draft", take: 2 }),
+    note("three.md", "Three", { status: "draft", take: 3 }),
+  ];
+  const byTake = classFile({
+    views: [{ name: "By take", layout: "list", sort: { property: "take", order: "asc" }, filter: [] }],
+  });
+
+  it("opens a note's card from its gutter, offers the note in a new tab, and writes an edit to it", async () => {
+    const { pane, deps, edited } = await setup();
+    open(pane, 0);
+    expect(cardTitle(pane)).toBe("Wide");
+    expect(facts(pane)).toBe("Row 1 of 3 · Shots");
+    (pane.element.querySelector(".row-card-open") as HTMLButtonElement).click();
+    expect(deps.openBeside).toHaveBeenCalledWith("shots/wide.md");
+
+    const take = tile(pane, "Take").querySelector("input") as HTMLInputElement;
+    take.value = "5";
+    take.dispatchEvent(new Event("change"));
+    expect(deps.editProperties).toHaveBeenCalledWith("shots/wide.md", expect.any(Function));
+    expect(edited).toEqual({ take: 5 });
+  });
+
+  it("writes the Class's card block once a tile moves, and arranges nothing while reading", async () => {
+    const { pane, saved } = await setup();
+    open(pane, 1);
+    tile(pane, "Status")
+      .querySelector(".row-card-label")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));
+    expect(saved()?.card).toEqual([{ field: "take" }, { field: "status" }, { field: "tags" }]);
+
+    const reading = await setup(classFile(), rows, { reading: true });
+    open(reading.pane, 0);
+    expect(reading.pane.element.querySelector(".row-card-page")?.classList.contains("is-arrangeable")).toBe(false);
+    tile(reading.pane, "Status")
+      .querySelector(".row-card-label")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true }));
+    expect(reading.deps.scheduleSave).not.toHaveBeenCalled();
+  });
+
+  it("follows its row to the place a sort moves it, its controls kept", async () => {
+    const { pane } = await setup(byTake, takes);
+    open(pane, 0);
+    const take = tile(pane, "Take").querySelector("input") as HTMLInputElement;
+    take.value = "9";
+    take.dispatchEvent(new Event("change"));
+    expect(cardTitle(pane)).toBe("One");
+    expect(tile(pane, "Take").querySelector("input")).toBe(take);
+    expect(facts(pane)).toBe("Row 3 of 3 · Shots");
+
+    pane.dismissTransient?.();
+    const selected = pane.element.querySelector("tbody > tr.is-selected .class-row-title");
+    expect(selected?.textContent).toBe("One");
+  });
+
+  it("closes with a row an edit takes out of the view, as the row leaves the grid", async () => {
+    const approved = classFile({
+      views: [{ name: "Approved", layout: "list", filter: [{ property: "status", test: "is", values: ["approved"] }] }],
+    });
+    const { pane } = await setup(approved);
+    open(pane, 0);
+    const status = tile(pane, "Status").querySelector("select") as HTMLSelectElement;
+    status.value = "draft";
+    status.dispatchEvent(new Event("change"));
+    expect(pane.hasTransient?.()).toBe(false);
+  });
+
+  it("draws its row again from a fresh read of the rows", async () => {
+    const { pane, deps, sorted } = await setup(classFile(), rows, {
+      arrangement: ["wide.md", "close.md", "insert.md"],
+    });
+    open(pane, 0);
+    const take = tile(pane, "Take").querySelector("input");
+    sorted("shots");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(tile(pane, "Take").querySelector("input")).not.toBe(take));
+    expect(cardTitle(pane)).toBe("Wide");
+  });
+
+  it("takes a field added to the Class at the card's end, and loses a deleted field's tile", async () => {
+    const { pane, saved } = await setup(
+      classFile({ card: [{ field: "take" }, { heading: "Review" }, { field: "status" }] }),
+    );
+    const fields = [...(pane.toolbar as HTMLElement).querySelectorAll("button")].find(
+      (button) => button.textContent === "Fields",
+    );
+    fields?.click();
+    ([...document.querySelectorAll<HTMLButtonElement>(".class-popover-facts button")].at(-2) as HTMLElement).click();
+    expect(saved()?.card).toEqual([
+      { field: "take" },
+      { heading: "Review" },
+      { field: "status" },
+      { field: "file.modified" },
+    ]);
+
+    [...pane.element.querySelectorAll<HTMLElement>(".class-field-header")]
+      .find((header) => header.textContent?.includes("Take"))
+      ?.click();
+    menuItem("Delete field").click();
+    document.querySelector<HTMLButtonElement>(".dialog-panel .dialog-primary")?.click();
+    await vi.waitFor(() =>
+      expect(saved()?.card).toEqual([{ heading: "Review" }, { field: "status" }, { field: "file.modified" }]),
+    );
+  });
+
+  it("closes when the pane shows another Class, or nothing", async () => {
+    const { pane } = await setup();
+    open(pane, 0);
+    await pane.setInput(
+      { kind: "class", path: "other.class.html" },
+      { isCurrent: () => true },
+      {
+        ...classFile(),
+        path: "other.class.html",
+      },
+    );
+    expect(pane.hasTransient?.()).toBe(false);
+    open(pane, 0);
+    pane.clearInput();
     expect(pane.hasTransient?.()).toBe(false);
   });
 });

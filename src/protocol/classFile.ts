@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { HTMLElement, parse } from "node-html-parser";
-import { readFieldColumns, readMetadataBlock } from "./tableFile.ts";
+import { readCardBlock, readFieldColumns, readMetadataBlock } from "./tableFile.ts";
 import type { ClassFile, ClassRule, ClassView } from "./types.ts";
 import { emptyClass, parseTableLayout } from "./types.ts";
 
@@ -30,6 +30,7 @@ export function parseClassFile(raw: string): ClassFile | undefined {
     const body = root.querySelector("body") ?? html;
     const paths = (role: string) =>
       childElements(childElements(body, "ul", role)[0], "li").map((li) => li.textContent.trim());
+    const card = readCardBlock(childElements(body, "ol", "card")[0]);
 
     return {
       version: html.getAttribute("data-format-version") || "1.0",
@@ -39,6 +40,7 @@ export function parseClassFile(raw: string): ClassFile | undefined {
       fields: readFieldColumns(root.querySelector("table[data-role=fields] thead") ?? null),
       views: childElements(childElements(body, "ol", "views")[0], "li").map(readView),
       links: paths("links").filter(Boolean),
+      ...(card ? { card } : {}),
     };
   } catch {
     return undefined;
