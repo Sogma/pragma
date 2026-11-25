@@ -198,7 +198,7 @@ Unsupported content stays in the file and becomes a notice, never silently disca
 
 API failures carry server messages to the invoking surface. Controls clear outcomes on retry and reveal results. Errors repairable in Settings name and link the requirement. An action that reveals an item in an unexpected place flashes it, with the one shared mark. The Console records consequential work not otherwise shown; it is neither an error fallback nor app-readable state.
 
-Every modal opens through the dialog service, which owns focus, scrims and stacking. Every popover opens through the shared flyout, which owns placement, dismissal and focus return and keeps one open at a time. Escape follows the shared control chain. Pane shortcuts and Undo require pane focus outside text fields. Menus restore focus on closing. Pane-scoped permission dialogs stay within their pane, one per broker. A default shortcut the browser keeps from the page, such as Mod+N, Mod+T or Mod+W, is bound in the desktop app alone.
+Every modal opens through the dialog service, which owns focus, scrims and stacking. Every popover opens through the shared flyout, which owns placement, dismissal and focus return and keeps one open at a time. A surface a person arranges by hand, such as App Mode or a row's card, is built on the shared tile grid and its stylesheet, never on a grid of its own. Escape follows the shared control chain. Pane shortcuts and Undo require pane focus outside text fields. Menus restore focus on closing. Pane-scoped permission dialogs stay within their pane, one per broker. A default shortcut the browser keeps from the page, such as Mod+N, Mod+T or Mod+W, is bound in the desktop app alone.
 
 ## Flow execution
 

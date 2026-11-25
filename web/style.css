@@ -70,6 +70,7 @@
 @import "./styles/flow/toolbar.css" layer(components);
 @import "./styles/flow/app-mode.css" layer(components);
 @import "./styles/flow/app-mode-run.css" layer(components);
+@import "./styles/tile-grid.css" layer(components);
 @import "./styles/flow/app-mode-arrange.css" layer(components);
 @import "./styles/flow/jobs.css" layer(components);
 @import "./styles/data-table.css" layer(components);

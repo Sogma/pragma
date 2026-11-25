@@ -548,6 +548,27 @@ describe("a row's card", () => {
     expect(scheduleSave).not.toHaveBeenCalled();
   });
 
+  it("designs the card in Design mode: a heading added and a column taken off write the card block", async () => {
+    const { pane, scheduleSave } = setup(takes());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 0);
+    expect(pane.element.querySelector(".row-card-design")).toBeNull();
+    pane.design?.toggle();
+    const tool = (name: string) =>
+      [...pane.element.querySelectorAll<HTMLButtonElement>(".row-card-design > button")].find(
+        (each) => each.textContent === name,
+      ) as HTMLButtonElement;
+    tool("+ Heading").click();
+    const input = pane.element.querySelector(".row-card-heading input") as HTMLInputElement;
+    input.value = "Review & notes";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    const remove = label(pane, "Take").closest(".row-card-tile")?.querySelector<HTMLButtonElement>(".tile-grid-remove");
+    if (!remove) throw new Error("Take has no x");
+    remove.click();
+    expect(savedLast(scheduleSave).card).toEqual([{ field: "status" }, { heading: "Review & notes" }]);
+    expect(scheduleSave.mock.calls.at(-1)?.[1]).toContain('<li data-heading="Review &amp; notes"></li>');
+  });
+
   it("closes from Escape in the pane onto its row, selected, whose Space opens it again", async () => {
     const { pane } = setup(takes());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);

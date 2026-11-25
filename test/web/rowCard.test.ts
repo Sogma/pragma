@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CardTile, TableColumn } from "../../src/protocol/types.ts";
 import { createRowCard, ROW_CARD_MENU, type RowCardDeps } from "../../web/rowCard.ts";
+import type { MenuOpenOptions } from "../../web/services/menus.ts";
 
 // The tile grid measures itself as it is observed; here every grid is six
 // columns wide, so a tile shows the span it was given.
@@ -43,7 +44,11 @@ function card(overrides: Partial<RowCardDeps> = {}, tiles?: CardTile[]) {
   let arranged = tiles;
   let arrangeable = true;
   let rows = ROWS;
-  const menu = { open: vi.fn(), close: vi.fn(), isOpen: vi.fn((_anchor?: HTMLElement) => false) };
+  const menu = {
+    open: vi.fn((_options: MenuOpenOptions) => {}),
+    close: vi.fn(),
+    isOpen: vi.fn((_anchor?: HTMLElement) => false),
+  };
   const deps = {
     host,
     count: () => rows.length,
@@ -288,5 +293,118 @@ describe("createRowCard", () => {
     rowCard.open(0);
     rowCard.dispose();
     expect(host.querySelector(".row-card")).toBeNull();
+  });
+});
+
+describe("createRowCard: designing", () => {
+  const tools = () => [...document.querySelectorAll(".row-card-design > button")].map((each) => each.textContent);
+  const tool = (label: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>(".row-card-design > button")].find(
+      (each) => each.textContent === label,
+    ) as HTMLButtonElement;
+  const board = () => document.querySelector(".row-card-board") as HTMLElement;
+  const ALL = [{ field: "frame" }, { field: "shot" }, { field: "size" }, { field: "lens" }];
+
+  it("shows Design mode's tools and each tile's x while it can be arranged, and none otherwise", () => {
+    const { rowCard, lock } = card();
+    rowCard.open(0);
+    expect(tools()).toEqual(["+ Heading", "+ Field", "Grid"]);
+    expect(document.querySelectorAll(".row-card-grid .tile-grid-remove")).toHaveLength(4);
+    lock(true);
+    rowCard.refresh();
+    expect(tools()).toEqual([]);
+    expect(document.querySelector(".tile-grid-remove")).toBeNull();
+  });
+
+  it("adds a heading last and names it in its box, writing the arrangement", async () => {
+    const { deps, rowCard } = card();
+    rowCard.open(0);
+    tool("+ Heading").click();
+    expect(deps.arrange).toHaveBeenLastCalledWith([...ALL, { heading: "Heading" }]);
+    const input = document.querySelector(".row-card-heading input") as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    input.value = "Camera";
+    key(input, "Enter");
+    expect(deps.arrange).toHaveBeenLastCalledWith([...ALL, { heading: "Camera" }]);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(document.querySelector(".row-card-heading"));
+  });
+
+  it("renames a heading from a double-click or Enter, keeps it on Escape, and never outside Design mode", () => {
+    const { deps, rowCard, lock } = card({}, [{ heading: "Story" }, { field: "shot" }]);
+    rowCard.open(0);
+    const heading = () => document.querySelector(".row-card-heading") as HTMLElement;
+    heading().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const first = heading().querySelector("input") as HTMLInputElement;
+    first.value = "Notes";
+    key(first, "Escape");
+    expect(heading().textContent).toBe("Story");
+    expect(deps.arrange).not.toHaveBeenCalled();
+
+    key(heading(), "Enter");
+    const second = heading().querySelector("input") as HTMLInputElement;
+    second.value = "Notes";
+    key(second, "Enter");
+    expect(deps.arrange).toHaveBeenLastCalledWith([{ heading: "Notes" }, { field: "shot" }]);
+
+    lock(true);
+    rowCard.refresh();
+    heading().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    expect(heading().querySelector("input")).toBeNull();
+  });
+
+  it("takes a field off the card by its x, and puts it back last from + Field", () => {
+    const { deps, menu, rowCard } = card();
+    rowCard.open(0);
+    const remove = tileOf("Frame")?.querySelector<HTMLButtonElement>(".tile-grid-remove");
+    if (!remove) throw new Error("Frame has no x");
+    remove.click();
+    expect(deps.arrange).toHaveBeenLastCalledWith([{ field: "shot" }, { field: "size" }, { field: "lens" }]);
+    expect(labels()).toEqual(["Shot", "Size", "Lens"]);
+
+    tool("+ Field").click();
+    const opened = menu.open.mock.calls.at(-1)?.[0];
+    expect(opened?.items?.map((item) => item.label)).toEqual(["Frame"]);
+    opened?.items?.[0].run?.({ tab: { kind: "empty" }, pane: undefined }, undefined);
+    expect(deps.arrange).toHaveBeenLastCalledWith([
+      { field: "shot" },
+      { field: "size" },
+      { field: "lens" },
+      { field: "frame" },
+    ]);
+    expect(labels()).toEqual(["Shot", "Size", "Lens", "Frame"]);
+  });
+
+  it("offers no field back while every field is on the card", () => {
+    const { menu, rowCard } = card();
+    rowCard.open(0);
+    tool("+ Field").click();
+    expect(menu.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({ items: [], empty: "Every field is on the card" }),
+    );
+  });
+
+  it("keeps the cell guides on from row to row once Grid is pressed", () => {
+    const { host, rowCard } = card();
+    rowCard.open(0);
+    expect(board().classList.contains("arranging")).toBe(false);
+    tool("Grid").click();
+    expect(tool("Grid").getAttribute("aria-pressed")).toBe("true");
+    expect(board().classList.contains("arranging")).toBe(true);
+    key(host, "ArrowRight");
+    expect(title()).toBe("12B");
+    expect(tool("Grid").getAttribute("aria-pressed")).toBe("true");
+    expect(board().classList.contains("arranging")).toBe(true);
+  });
+
+  it("says when nothing is on the card, and where fields are added", () => {
+    const { rowCard, lock } = card({}, []);
+    rowCard.open(0);
+    expect(document.querySelector(".row-card-empty")?.textContent).toBe("Nothing on this card yet.");
+    lock(true);
+    rowCard.refresh();
+    expect(document.querySelector(".row-card-empty")?.textContent).toBe(
+      "Nothing on this card. Add fields in Design mode.",
+    );
   });
 });

@@ -1,27 +1,5 @@
-/* Arranging App Mode's tiles (appModeGrid.ts): moving and resizing them,
-   and the cell guides both show. */
-
-/* Dashed cells beneath the tiles, shown only while one moves or resizes. */
-.flow-app-guides {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: -1;
-  display: grid;
-  grid-template-columns: repeat(var(--app-columns), minmax(0, 1fr));
-  grid-auto-rows: var(--app-row);
-  gap: var(--app-gap);
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.flow-app-board.arranging > .flow-app-guides {
-  visibility: visible;
-}
-
-.flow-app-guides > i {
-  border: 1px dashed var(--border-input);
-  border-radius: var(--panel-radius);
-}
+/* Arranging App Mode's tiles (appModeGrid.ts) on the shared grid
+   (tile-grid.css): App Mode's own looks for a move and a resize. */
 
 /* A drop lands on the side of the tile its marker sits on, a bar in the gap. */
 .flow-app-grid > .drop-before {
@@ -32,36 +10,13 @@
   --tile-drop: 7px 0 0 -3px var(--color-accent);
 }
 
-/* A tile on the move stays dimmed in its place while a copy follows the
-   pointer (appModeGrid.ts). */
-.flow-app-grid > .moving {
-  opacity: 0.35;
-}
-
-.flow-app-board.moving,
-.flow-app-board.moving * {
-  cursor: grabbing;
-}
-
-/* pointer-events: none is load-bearing: the drop target is whatever lies
-   under the pointer, and the copy is always there. */
+/* The copy following the pointer keeps the tile's color edge. */
 .flow-app-move-ghost {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: var(--z-popover);
-  pointer-events: none;
-  opacity: 0.9;
   box-shadow: var(--shadow-menu), var(--tile-edge, 0 0 transparent);
 }
 
 /* The corner grip, on hover, in the tile's own text colour so it shows on
    Run's fill too. */
-.flow-app-tile-grip {
-  z-index: 1;
-  opacity: 0;
-}
-
 .flow-app-grid > :hover > .flow-app-tile-grip {
   opacity: 0.5;
 }
@@ -72,29 +27,11 @@
 }
 
 .flow-app-grid > .resizing {
-  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 
-.flow-app-board.resizing,
-.flow-app-board.resizing * {
-  cursor: nwse-resize;
-}
-
-/* The size a resize would set, in cells, beside the grip. */
 .flow-app-tile-badge {
-  position: absolute;
-  right: 18px;
-  bottom: 4px;
-  z-index: 1;
-  padding: 1px 6px;
-  border-radius: var(--control-radius);
-  background: var(--color-primary);
-  color: var(--text-on-primary);
   font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
 }
 
 .flow-app-run-item > .flow-app-tile-badge {

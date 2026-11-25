@@ -1,14 +1,18 @@
 // A grid of tiles that fill it row by row in order, each spanning whole
 // cells. Six columns, or two on a narrow grid, so a stored width is a share
 // of the row its designer can predict, and a tile wider than the grid spans
-// it whole (docs/protocol.md's App Mode section). A tile moves by its handle,
-// resizes by its corner grip, and takes Alt with the arrows.
+// it whole (docs/protocol.md's App Mode section).
+//
+// A tile moves by its handle, resizes by its corner grip, takes Alt with the
+// arrows, and leaves by its x where the caller allows. Its looks are
+// tile-grid.css's.
 
-import type { AppModeSize } from "../../src/protocol/types.ts";
-
-/** A tile's span before the grid fits it — a stored size, or its fields'
- * default — whose columns may be FULL_ROW. */
-export type TileSize = AppModeSize;
+/** A tile's span in whole cells, as stored or by default. Its columns may be
+ * FULL_ROW, spanning the row whatever the grid's width. */
+export interface TileSize {
+  columns: number;
+  rows: number;
+}
 
 export const FULL_ROW = Number.POSITIVE_INFINITY;
 
@@ -23,7 +27,7 @@ export function gridColumns(width: number): number {
 }
 
 /** A size as a grid of `columns` shows it. */
-export function fitTile(size: TileSize, columns: number): AppModeSize {
+export function fitTile(size: TileSize, columns: number): TileSize {
   return { columns: Math.min(size.columns, columns), rows: Math.min(size.rows, TILE_MAX_ROWS) };
 }
 
@@ -42,7 +46,11 @@ export interface TileGridOptions {
   // move to the caller, whose order it is.
   onMove(tile: HTMLElement, target: HTMLElement, zone: DropZone): void;
   // A tile's grip set a new size, which the grid already shows.
-  onResize(tile: HTMLElement, size: AppModeSize): void;
+  onResize(tile: HTMLElement, size: TileSize): void;
+  // A tile's x, or Delete on its handle, asks the caller to take the tile
+  // away, through `remove` or by drawing the grid again. `label` names the
+  // x. Absent, tiles have none.
+  removal?: { label: string; onRemove(tile: HTMLElement): void };
 }
 
 export interface TileGrid {
@@ -53,6 +61,10 @@ export interface TileGrid {
   tiles(): HTMLElement[];
   // Appends a tile, last in the sequence.
   add(tile: HTMLElement, size: TileSize): void;
+  // Takes a tile out of the grid.
+  remove(tile: HTMLElement): void;
+  // Keeps the cell guides showing while on, not only during a gesture.
+  setGuides(on: boolean): void;
   // Measures the grid now, rather than on its next resize.
   layout(): void;
   dispose(): void;
@@ -62,6 +74,8 @@ export interface TileGrid {
 interface Arrangeable {
   board: HTMLElement;
   grid: HTMLElement;
+  // The element of `tile` that takes its keys.
+  handleOf(tile: HTMLElement): HTMLElement;
   columns(): number;
   sizeOf(tile: HTMLElement): TileSize;
   // Shows `size` on `tile` now; the grid reflows around it.
@@ -75,18 +89,22 @@ interface Arrangeable {
 export function createTileGrid(options: TileGridOptions): TileGrid {
   const { prefix } = options;
   const board = document.createElement("div");
-  board.className = `${prefix}-board`;
+  board.className = `tile-grid ${prefix}-board`;
   const guides = document.createElement("div");
-  guides.className = `${prefix}-guides`;
+  guides.className = `tile-grid-guides ${prefix}-guides`;
   const grid = document.createElement("div");
-  grid.className = `${prefix}-grid`;
+  grid.className = `tile-grid-tiles ${prefix}-grid`;
   board.append(guides, grid);
   const sizes = new Map<HTMLElement, TileSize>();
   let columns = 1;
+  // Whether a gesture shows the guides now, and whether they show anyway.
+  let gesturing = false;
+  let pinned = false;
   const keyHandle = options.handles.keys
     .split(",")
     .map((selector) => `:scope > ${selector.trim()}`)
     .join(", ");
+  const handleOf = (tile: HTMLElement) => tile.querySelector<HTMLElement>(keyHandle) ?? tile;
 
   function applySpan(tile: HTMLElement, size: TileSize): void {
     const span = fitTile(size, columns);
@@ -96,10 +114,18 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
 
   function layout(): void {
     const next = gridColumns(grid.clientWidth);
-    if (next === columns) return;
-    columns = next;
-    board.style.setProperty("--app-columns", String(columns));
-    for (const [tile, size] of sizes) applySpan(tile, size);
+    if (next !== columns) {
+      columns = next;
+      board.style.setProperty("--app-columns", String(columns));
+      for (const [tile, size] of sizes) applySpan(tile, size);
+    }
+    if (gesturing || pinned) drawGuides();
+  }
+
+  function showGuides(): void {
+    const on = gesturing || pinned;
+    board.classList.toggle("arranging", on);
+    if (on) drawGuides();
   }
 
   // One dashed cell for every cell the tiles reach, and a row more below
@@ -121,16 +147,17 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
     {
       board,
       grid,
+      handleOf,
       columns: () => columns,
       sizeOf: (tile) => sizes.get(tile) ?? { columns: 1, rows: 1 },
       show(tile, size) {
         sizes.set(tile, size);
         applySpan(tile, size);
-        if (board.classList.contains("arranging")) drawGuides();
+        if (gesturing || pinned) drawGuides();
       },
       guides(on) {
-        board.classList.toggle("arranging", on);
-        if (on) drawGuides();
+        gesturing = on;
+        showGuides();
       },
     },
     options,
@@ -146,14 +173,36 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
       // tab order and claims no keys, so Tab goes from field to field. A
       // caller whose answer changes adds its tiles again.
       if (!options.canArrange || options.canArrange()) {
-        const handle = tile.querySelector<HTMLElement>(keyHandle) ?? tile;
+        const handle = handleOf(tile);
         handle.tabIndex = 0;
-        handle.setAttribute("aria-keyshortcuts", KEY_SHORTCUTS);
+        handle.setAttribute("aria-keyshortcuts", options.removal ? `${KEY_SHORTCUTS} Delete` : KEY_SHORTCUTS);
       }
       const grip = document.createElement("span");
-      grip.className = `corner-grip ${prefix}-tile-grip`;
+      grip.className = `corner-grip tile-grid-grip ${prefix}-tile-grip`;
       tile.appendChild(grip);
+      const { removal } = options;
+      if (removal) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = `icon-button tile-grid-remove ${prefix}-tile-remove`;
+        remove.tabIndex = -1;
+        remove.setAttribute("aria-label", removal.label);
+        remove.addEventListener("click", () => {
+          if (!options.canArrange || options.canArrange()) removal.onRemove(tile);
+        });
+        tile.appendChild(remove);
+      }
       grid.appendChild(tile);
+      if (gesturing || pinned) drawGuides();
+    },
+    remove(tile) {
+      sizes.delete(tile);
+      tile.remove();
+      if (gesturing || pinned) drawGuides();
+    },
+    setGuides(on) {
+      pinned = on;
+      showGuides();
     },
     layout,
     dispose() {
@@ -208,8 +257,8 @@ interface Resize {
   cellHeight: number;
   // What the tile held and showed when the grip was pressed.
   stored: TileSize;
-  shown: AppModeSize;
-  size: AppModeSize;
+  shown: TileSize;
+  size: TileSize;
 }
 
 interface Press {
@@ -278,6 +327,23 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     if (event.shiftKey) resizeBy(tile, arrow);
     else moveBy(tile, arrow.place);
     handle.scrollIntoView?.({ block: "nearest" });
+  });
+
+  // Delete on a tile's handle takes the tile away, as its x does, and hands
+  // focus to the tile now in its place, or the one before at the end.
+  grid.addEventListener("keydown", (event) => {
+    const { removal } = options;
+    if (!removal || press || (event.key !== "Delete" && event.key !== "Backspace")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (options.canArrange && !options.canArrange()) return;
+    const handle = event.target;
+    if (!(handle instanceof HTMLElement) || !handle.matches(handles.keys)) return;
+    const tile = tileOf(handle);
+    if (!tile) return;
+    event.preventDefault();
+    const next = tile.nextElementSibling ?? tile.previousElementSibling;
+    removal.onRemove(tile);
+    if (!tile.isConnected && next instanceof HTMLElement) arrange.handleOf(next).focus();
   });
 
   // The neighbour crosses the tile, not the tile the neighbour: taking the
@@ -366,8 +432,8 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     const rect = press.tile.getBoundingClientRect();
     const ghost = press.tile.cloneNode(true) as HTMLElement;
     // A frame in the copy would load and run its page a second time.
-    for (const el of ghost.querySelectorAll(`iframe, .${prefix}-tile-grip`)) el.remove();
-    ghost.classList.add(`${prefix}-move-ghost`);
+    for (const el of ghost.querySelectorAll("iframe, .tile-grid-grip, .tile-grid-remove")) el.remove();
+    ghost.classList.add("tile-grid-ghost", `${prefix}-move-ghost`);
     const width = Math.min(rect.width, GHOST_MAX_WIDTH);
     const height = Math.min(rect.height, GHOST_MAX_HEIGHT);
     ghost.style.width = `${width}px`;
@@ -388,7 +454,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
     const stored = arrange.sizeOf(press.tile);
     const shown = fitTile(stored, arrange.columns());
     const badge = document.createElement("span");
-    badge.className = `${prefix}-tile-badge`;
+    badge.className = `tile-grid-badge ${prefix}-tile-badge`;
     badge.textContent = `${shown.columns} × ${shown.rows}`;
     press.tile.appendChild(badge);
     press.tile.classList.add("resizing");
@@ -454,7 +520,7 @@ function bindGestures(arrange: Arrangeable, options: TileGridOptions): { cancel(
 
   // A dimension a resize left as it was keeps what the tile held, so making
   // a tile taller at split width doesn't narrow it at full width.
-  function commit(tile: HTMLElement, stored: TileSize, shown: AppModeSize, size: AppModeSize): void {
+  function commit(tile: HTMLElement, stored: TileSize, shown: TileSize, size: TileSize): void {
     if (size.columns === shown.columns && size.rows === shown.rows) {
       arrange.show(tile, stored);
       return;

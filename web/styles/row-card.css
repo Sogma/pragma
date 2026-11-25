@@ -41,32 +41,39 @@
   mask: var(--icon-square-arrow-out) center / contain no-repeat;
 }
 
-/* The grid's geometry, shared by the tiles and the cell guides beneath them.
-   Never dense: a dense grid backfills an earlier hole, so a resize or a drop
-   would move tiles nobody touched. tileGrid.ts sets the column count and
-   each tile's span, clamped to it. */
+/* The cells of the card's grid; tile-grid.css lays the grid out. */
 .row-card-board {
   --app-row: 56px;
   --app-gap: 12px;
-  position: relative;
-  isolation: isolate;
   margin: 0 24px;
-}
-
-.row-card-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--app-columns), minmax(0, 1fr));
-  grid-auto-rows: var(--app-row);
-  grid-auto-flow: row;
-  gap: var(--app-gap);
 }
 
 .row-card-grid > * {
   position: relative;
-  grid-column: span var(--tile-columns);
-  grid-row: span var(--tile-rows);
-  min-width: 0;
-  min-height: 0;
+}
+
+.row-card-empty {
+  margin: 4px 24px 0;
+  color: var(--text-muted);
+  font-size: var(--small-font-size);
+}
+
+/* Design mode's tools, under the card's title. */
+.row-card-design {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 24px 12px;
+}
+
+.row-card-design > .action-button {
+  padding: 3px 10px;
+  font-size: var(--small-font-size);
+}
+
+.row-card-design > .action-button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-accent);
 }
 
 .row-card-tile {
@@ -149,9 +156,21 @@
   text-transform: uppercase;
 }
 
+.row-card-heading-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .row-card-page.is-arrangeable .row-card-label,
 .row-card-page.is-arrangeable .row-card-heading {
   cursor: grab;
+}
+
+/* Room at the end for the tile's x, so it never covers the name. */
+.row-card-page.is-arrangeable :is(.row-card-label, .row-card-heading) {
+  padding-right: 24px;
 }
 
 .row-card-facts {
@@ -199,30 +218,9 @@
   color: var(--media-hud-fg);
 }
 
-/* Arranging, as App Mode's tiles arrange (app-mode-arrange.css): dashed
-   cells while a tile moves or resizes, a bar on the side a drop lands, the
-   moved tile dimmed while its copy follows the pointer. */
-.row-card-guides {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: -1;
-  display: grid;
-  grid-template-columns: repeat(var(--app-columns), minmax(0, 1fr));
-  grid-auto-rows: var(--app-row);
-  gap: var(--app-gap);
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.row-card-board.arranging > .row-card-guides {
-  visibility: visible;
-}
-
-.row-card-guides > i {
-  border: 1px dashed var(--border-input);
-  border-radius: var(--panel-radius);
-}
-
+/* Arranging on the shared grid (tile-grid.css): the card's own looks for a
+   move and a resize. A bar marks the side a drop lands; the copy following
+   the pointer is a small card of its own, since a tile has no fill. */
 .row-card-grid > .drop-before {
   box-shadow: -7px 0 0 -3px var(--color-accent);
 }
@@ -231,37 +229,18 @@
   box-shadow: 7px 0 0 -3px var(--color-accent);
 }
 
-.row-card-grid > .moving {
-  opacity: 0.35;
-}
-
-.row-card-board.moving,
-.row-card-board.moving * {
-  cursor: grabbing;
-}
-
-/* pointer-events: none is load-bearing: the drop target is whatever lies
-   under the pointer, and the copy is always there. */
 .row-card-move-ghost {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 6px;
   border-radius: var(--box-radius);
   background: var(--bg-primary);
-  pointer-events: none;
-  opacity: 0.9;
   box-shadow: var(--shadow-menu);
 }
 
 .row-card-tile-grip {
-  z-index: 1;
   color: var(--text-muted);
-  opacity: 0;
 }
 
 .row-card-grid > :hover > .row-card-tile-grip {
@@ -279,29 +258,11 @@
 }
 
 .row-card-grid > .resizing {
-  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 
-.row-card-board.resizing,
-.row-card-board.resizing * {
-  cursor: nwse-resize;
-}
-
-/* The size a resize would set, in cells, beside the grip. */
 .row-card-tile-badge {
-  position: absolute;
-  right: 18px;
-  bottom: 4px;
-  z-index: 1;
-  padding: 1px 6px;
-  border-radius: var(--control-radius);
-  background: var(--color-primary);
-  color: var(--text-on-primary);
   font-size: var(--small-font-size);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
 }
 
 /* A focused label or heading rings its whole tile, the thing its keys move

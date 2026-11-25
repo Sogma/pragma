@@ -7,6 +7,7 @@
 import { cardTiles } from "../src/protocol/card.ts";
 import type { CardTile, FieldValueType, TableColumn } from "../src/protocol/types.ts";
 import { OPEN_IN_NEW_TAB } from "./core/paths.ts";
+import { startLabelRename } from "./lib/dataGrid.ts";
 import { fieldTypeIcon } from "./lib/fieldTypeIcon.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPaneOverlay, swallowRest } from "./lib/paneOverlay.ts";
@@ -99,6 +100,8 @@ export function createRowCard(deps: RowCardDeps): RowCard {
   // The tiles shown, by element, in the order arranged.
   let placed = new Map<HTMLElement, CardTile>();
   let last: number | undefined;
+  // Design mode's Grid: the cell guides kept showing, from row to row.
+  let guidesOn = false;
 
   const overlay = createPaneOverlay({
     host: deps.host,
@@ -136,7 +139,10 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     if ("heading" in tile) {
       const heading = document.createElement("div");
       heading.className = "row-card-heading";
-      heading.textContent = tile.heading;
+      const text = document.createElement("span");
+      text.className = "row-card-heading-text";
+      text.textContent = tile.heading;
+      heading.append(text);
       return heading;
     }
     const field = deps.fields().find((each) => each.id === tile.field);
@@ -164,6 +170,86 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     return grid ? grid.tiles().flatMap((element) => placed.get(element) ?? []) : [];
   }
 
+  // Designing writes the whole arrangement each time, as a move does.
+  function addTile(tile: CardTile): HTMLElement | undefined {
+    if (!grid) return undefined;
+    const element = tileElement(tile, overlay.shownIndex() ?? last ?? 0);
+    placed.set(element, tile);
+    grid.add(element, sizeOf(tile));
+    deps.arrange(arranged());
+    element.scrollIntoView?.({ block: "nearest" });
+    return element;
+  }
+
+  // Off the card only: the field stays in the Table or Class.
+  function removeTile(element: HTMLElement): void {
+    grid?.remove(element);
+    placed.delete(element);
+    deps.arrange(arranged());
+  }
+
+  function fieldsOffCard(): TableColumn[] {
+    const on = new Set(arranged().flatMap((tile) => ("field" in tile ? [tile.field] : [])));
+    return deps.fields().filter((field) => !on.has(field.id));
+  }
+
+  // Focus comes back to the heading once its box closes by key, so the
+  // card's keys and the heading's own still work.
+  function renameHeading(heading: HTMLElement): void {
+    const text = heading.querySelector<HTMLElement>(":scope > .row-card-heading-text");
+    if (!text || !deps.arrangeable()) return;
+    startLabelRename(text, (next) => {
+      placed.set(heading, { heading: next });
+      deps.arrange(arranged());
+    });
+    heading.querySelector("input")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === "Escape") {
+        queueMicrotask(() => heading.isConnected && heading.focus({ preventScroll: true }));
+      }
+    });
+  }
+
+  // Design mode's tools: a heading, a field off the card back on it, and the
+  // cell guides kept showing.
+  function designStrip(): HTMLElement {
+    const strip = document.createElement("div");
+    strip.className = "row-card-design";
+    const tool = (label: string) =>
+      Object.assign(document.createElement("button"), {
+        type: "button",
+        className: "action-button",
+        textContent: label,
+      });
+    const heading = tool("+ Heading");
+    heading.addEventListener("click", () => {
+      const added = addTile({ heading: "Heading" });
+      if (added) renameHeading(added);
+    });
+    const field = tool("+ Field");
+    field.setAttribute("aria-haspopup", "true");
+    field.addEventListener("click", () => {
+      if (deps.contextMenu.isOpen(field)) {
+        deps.contextMenu.close();
+        return;
+      }
+      deps.contextMenu.open({
+        anchor: field,
+        ariaLabel: "Fields off the card",
+        empty: "Every field is on the card",
+        items: fieldsOffCard().map((each) => ({ label: each.label, run: () => void addTile({ field: each.id }) })),
+      });
+    });
+    const guides = tool("Grid");
+    guides.setAttribute("aria-pressed", String(guidesOn));
+    guides.addEventListener("click", () => {
+      guidesOn = !guidesOn;
+      guides.setAttribute("aria-pressed", String(guidesOn));
+      grid?.setGuides(guidesOn);
+    });
+    strip.append(heading, field, guides);
+    return strip;
+  }
+
   function render(index: number): HTMLElement {
     const page = document.createElement("div");
     page.className = "row-card-page";
@@ -187,10 +273,12 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     }
 
     const tiles = cardTiles(deps.fields(), deps.card());
+    const arrangeable = deps.arrangeable();
     grid = createTileGrid({
       prefix: "row-card",
       handles: HANDLES,
       canArrange: () => deps.arrangeable(),
+      removal: arrangeable ? { label: "Remove from card", onRemove: removeTile } : undefined,
       onMove(element, target, zone) {
         target.parentElement?.insertBefore(element, zone === "before" ? target : target.nextSibling);
         deps.arrange(arranged());
@@ -216,6 +304,19 @@ export function createRowCard(deps: RowCardDeps): RowCard {
       placed.set(element, tile);
       grid.add(element, sizeOf(tile));
     }
+    grid.setGuides(arrangeable && guidesOn);
+    // A heading renames from a double-click or Enter, in Design mode alone.
+    grid.el.addEventListener("dblclick", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const heading = target?.closest<HTMLElement>(".row-card-heading");
+      if (heading && !target?.closest("input, button")) renameHeading(heading);
+    });
+    grid.el.addEventListener("keydown", (event) => {
+      const target = event.target;
+      if (event.key !== "Enter" || !(target instanceof HTMLElement) || !target.matches(".row-card-heading")) return;
+      event.preventDefault();
+      renameHeading(target);
+    });
 
     const facts = document.createElement("div");
     facts.className = "row-card-facts";
@@ -228,7 +329,16 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     });
     facts.append(place, more.element);
 
-    page.append(head, grid.el, facts);
+    if (arrangeable) page.append(head, designStrip(), grid.el, facts);
+    else page.append(head, grid.el, facts);
+    if (tiles.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "row-card-empty";
+      empty.textContent = arrangeable
+        ? "Nothing on this card yet."
+        : "Nothing on this card. Add fields in Design mode.";
+      grid.el.after(empty);
+    }
     return page;
   }
 
