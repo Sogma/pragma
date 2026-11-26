@@ -52,6 +52,8 @@ export type DocumentEvent =
 export interface BodyChangeSource {
   origin?: unknown;
   userEvent?: string;
+  /** The Flow whose accepted proposal made the change, by its space path. */
+  proposedBy?: string;
 }
 
 export interface DocumentModel {
@@ -144,13 +146,13 @@ export interface DocumentsDeps {
   fetchFile: (path: string) => Promise<FileResponse>;
 }
 
-// A restore and an accepted copilot edit say so in their transaction's user
-// event, and the save they make carries it, so History labels the version
-// that save replaces.
-function saveSourceOf(userEvent: string | undefined): SaveSource | undefined {
-  if (userEvent === "input.restore") return "restored";
-  if (userEvent === "input.proposal") return "copilot";
-  return undefined;
+// A restore and an accepted proposal say so in their transaction, a Flow's
+// proposal naming its Flow, and the save they make carries it, so History
+// labels the change by who made it.
+function saveSourceOf({ userEvent, proposedBy }: BodyChangeSource): SaveSource | undefined {
+  if (userEvent === "input.restore") return { source: "restored" };
+  if (userEvent !== "input.proposal") return undefined;
+  return proposedBy === undefined ? { source: "copilot" } : { source: "flow", flow: proposedBy };
 }
 
 function heldBy(frontmatter: string | undefined): Record<string, unknown> {
@@ -231,7 +233,7 @@ export function createDocuments(deps: DocumentsDeps): DocumentsService {
     }
     function takeBody(next: Text, changes: ChangeSet, source: BodyChangeSource): void {
       bodyText = next;
-      scheduleSave(saveSourceOf(source.userEvent));
+      scheduleSave(saveSourceOf(source));
       emit({ kind: "body", changes, origin: source.origin, userEvent: source.userEvent });
     }
     function applyContentChanges(changes: ChangeSet, source: BodyChangeSource): void {
@@ -276,7 +278,7 @@ export function createDocuments(deps: DocumentsDeps): DocumentsService {
     function resplit(text: string, below: ChangeSet | undefined, above: string, source: BodyChangeSource): void {
       const was = { body: bodyText, title: title?.text, read: read?.heading, frontmatter, frontmatterError };
       adopt(splitExactly({ documentType: file.documentType, content: text }));
-      scheduleSave(saveSourceOf(source.userEvent));
+      scheduleSave(saveSourceOf(source));
       if (!was.body.eq(bodyText)) {
         const changes =
           below && head() === above

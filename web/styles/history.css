@@ -80,13 +80,46 @@
   min-height: 36px;
 }
 
-.version-when {
+.version-who {
   color: var(--text-primary);
   font-weight: 600;
 }
 
 .version-note {
   margin: 4px 0 12px;
+}
+
+/* Clear of the heading when no switch sits between them. */
+.version-body {
+  margin-top: 12px;
+}
+
+/* Drawn as the Class filter's scope buttons are: the comparison showing
+   pressed. */
+.version-scopes {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 12px;
+}
+
+.version-scope {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--box-radius);
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-default);
+  cursor: pointer;
+}
+
+.version-scope:hover:not([aria-pressed="true"]) {
+  color: var(--text-primary);
+}
+
+.version-scope[aria-pressed="true"] {
+  border-color: var(--border-muted);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .editor-version .diff {

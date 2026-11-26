@@ -49,7 +49,7 @@ export interface ToolkitActionDeps {
 // The run reads and replaces the document as the writer left it at the
 // click, wherever the cursor goes meanwhile. What a Show Result node shows
 // is collected into `shown`, drawn under the button when the run ends.
-function documentPort({ path, access }: ToolkitInvocation, at: DocumentSnapshot, shown: string[]): DocumentPort {
+function documentPort({ path, access, flow }: ToolkitInvocation, at: DocumentSnapshot, shown: string[]): DocumentPort {
   const selection = at.text.slice(at.from, at.to);
   return {
     path,
@@ -60,7 +60,7 @@ function documentPort({ path, access }: ToolkitInvocation, at: DocumentSnapshot,
     },
     replaceSelection(alternatives) {
       const range = { base: at.text, from: at.from, to: at.to };
-      const shown = proposeReplacement(access.editor(path), range, alternatives);
+      const shown = proposeReplacement(access.editor(path), range, alternatives, flow.path);
       if (!shown && alternatives.some((text) => text !== selection)) {
         throw new Error("The selected text was edited while the flow ran, so its result wasn't proposed");
       }

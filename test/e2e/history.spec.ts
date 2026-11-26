@@ -40,7 +40,7 @@ test("compares a version with the file, and restores it as an edit Undo takes ba
   await expect(editor).toContainText("second draft");
 
   const version = (await versionsOf(page, name)).first();
-  await expect(version.locator(".history-source")).toHaveText("Edited");
+  await expect(version.locator(".history-source")).toHaveText("You");
   await version.click();
 
   // Beside the file's own tab, the version's lines taken out and the file's put in.

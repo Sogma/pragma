@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type PutFileResponse, SaveConflictError } from "../../../web/core/apiClient.ts";
-import { createSaveQueue, describeUnsaved } from "../../../web/services/saveQueue.ts";
+import { createSaveQueue, describeUnsaved, type SaveSource } from "../../../web/services/saveQueue.ts";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -8,7 +8,12 @@ afterEach(() => vi.useRealTimers());
 function setup(delayMs = 500) {
   let written = 0;
   const putFile = vi.fn(
-    async (_path: string, _content: string, _baseRevision?: string, _source?: string): Promise<PutFileResponse> => ({
+    async (
+      _path: string,
+      _content: string,
+      _baseRevision?: string,
+      _source?: SaveSource,
+    ): Promise<PutFileResponse> => ({
       revision: `rev-${++written}`,
     }),
   );
@@ -36,10 +41,10 @@ describe("createSaveQueue", () => {
 
   it("names what wrote a save, through the typing that joins it before it goes", async () => {
     const { queue, putFile } = setup();
-    queue.schedule("a.md", "restored", undefined, "restored");
+    queue.schedule("a.md", "restored", undefined, { source: "restored" });
     queue.schedule("a.md", "restored, then typed");
     await vi.advanceTimersByTimeAsync(500);
-    expect(putFile).toHaveBeenLastCalledWith("a.md", "restored, then typed", undefined, "restored");
+    expect(putFile).toHaveBeenLastCalledWith("a.md", "restored, then typed", undefined, { source: "restored" });
 
     queue.schedule("a.md", "typed alone");
     await vi.advanceTimersByTimeAsync(500);

@@ -1708,9 +1708,10 @@ export interface FileTypeSettings {
 
 // /api/history/* — earlier versions of the space's files, kept as host state.
 
-/** What replaced a version: an editor save, an accepted copilot edit, a
- * Flow's write, links updated after a move, a publish stamp, a restore, or a
- * change made outside Pragma. */
+/** Who made the change that replaced a version's text: your own save, an
+ * accepted copilot edit, a Flow's write or its accepted proposal, links
+ * updated after a move, a publish stamp, a restore, or a change made outside
+ * Pragma. */
 export type HistorySource = "edit" | "copilot" | "flow" | "links" | "published" | "restored" | "outside";
 
 export interface HistoryVersion {
@@ -1718,7 +1719,7 @@ export interface HistoryVersion {
   /** When it was kept, in milliseconds since the epoch. */
   time: number;
   source: HistorySource;
-  /** The Flow that wrote over it, by its space path. */
+  /** The Flow that made the change, by its space path. */
   detail?: string;
 }
 
@@ -1738,8 +1739,10 @@ export interface HistoryVersionsResponse {
 
 export interface HistoryVersionResponse {
   content: string;
-  /** The file's text now, which the version is compared with; absent once
-   * the file is gone. */
+  /** The text of the version kept next, which this version's change left;
+   * absent for the newest version, whose change left `current`. */
+  next?: string;
+  /** The file's text now; absent once the file is gone. */
   current?: string;
 }
 
@@ -1858,9 +1861,11 @@ export interface PutFileRequestBody {
   // longer has it, the save is refused with a 409 and nothing is written.
   // Absent writes unconditionally.
   baseRevision?: string;
-  // What wrote `content` when it wasn't the writer's own typing: History
-  // labels the version it replaces so, and always keeps one.
-  source?: "copilot" | "restored";
+  // What wrote `content` when it wasn't the writer's own typing, which
+  // History labels the change by. `flow` names the Flow whose proposal it
+  // was, by its space path.
+  source?: "copilot" | "restored" | "flow";
+  flow?: string;
 }
 
 // /api/sandbox/*: every body names the document the request is about.

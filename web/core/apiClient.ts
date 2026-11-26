@@ -1056,7 +1056,7 @@ export async function putFile(
   filePath: string,
   content: string,
   baseRevision?: string,
-  source?: PutFileRequestBody["source"],
+  source?: Pick<PutFileRequestBody, "source" | "flow">,
 ): Promise<PutFileResponse> {
   // A failed write throws, like every other call here. Everything that
   // writes a document goes through saveQueue, which catches this and retries
@@ -1064,7 +1064,7 @@ export async function putFile(
   // decides.
   return request<PutFileResponse>(`/api/file?path=${encodeURIComponent(filePath)}`, {
     method: "PUT",
-    body: { content, baseRevision, source } satisfies PutFileRequestBody,
+    body: { content, baseRevision, ...source } satisfies PutFileRequestBody,
     fallback: "Write failed",
     error: (message, body, status) =>
       status === 409 ? new SaveConflictError(message, status, body) : new ApiError(message, status, body),

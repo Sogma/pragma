@@ -18,7 +18,7 @@ import {
 import { Emitter } from "../lib/emitter.ts";
 
 /** What wrote a save's content when it wasn't the writer's typing. */
-export type SaveSource = NonNullable<PutFileRequestBody["source"]>;
+export type SaveSource = Required<Pick<PutFileRequestBody, "source">> & Pick<PutFileRequestBody, "flow">;
 
 export interface SaveQueueDeps {
   putFile: (path: string, content: string, baseRevision?: string, source?: SaveSource) => Promise<PutFileResponse>;

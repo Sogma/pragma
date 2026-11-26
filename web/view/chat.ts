@@ -437,7 +437,7 @@ export function wireChat(deps: ChatDeps): Chat {
         acceptButton.disabled = true;
         rejectButton.disabled = true;
         try {
-          await putFile(proposed.path, proposed.newContent);
+          await putFile(proposed.path, proposed.newContent, undefined, { source: "copilot" });
           label.replaceChildren("Applied edit to ", named(proposed.path, "."));
           actions.remove();
           noteProposalOutcome(
@@ -672,7 +672,7 @@ export function wireChat(deps: ChatDeps): Chat {
   async function applyFileEdit(thread: Thread, edit: ProposedFileEdit): Promise<void> {
     let revision: string;
     try {
-      ({ revision } = await putFile(edit.path, edit.newContent, edit.revision));
+      ({ revision } = await putFile(edit.path, edit.newContent, edit.revision, { source: "copilot" }));
     } catch (error) {
       const reason =
         error instanceof SaveConflictError

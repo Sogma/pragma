@@ -476,11 +476,11 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   // text as one edit Undo takes back; a deleted file, or a kind with no text
   // editor, is written whole and read again.
   async function restoreVersion(path: string, text: string, gone: boolean): Promise<void> {
-    if (gone) await putFile(path, text, undefined, "restored");
+    if (gone) await putFile(path, text, undefined, { source: "restored" });
     await tabs.openEntryBeside(path);
     const pane = focusedDocumentPane();
     if (gone || (pane?.path() === path && pane.restore(text))) return;
-    await putFile(path, text, undefined, "restored");
+    await putFile(path, text, undefined, { source: "restored" });
     await tabs.reloadPath(path);
   }
   panes.register(versionPane({ restore: restoreVersion }));

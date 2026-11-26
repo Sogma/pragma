@@ -12,7 +12,7 @@ import {
   type TextFileResponse,
 } from "../../../../web/core/apiClient.ts";
 import type { DocumentLinks } from "../../../../web/core/spaceTree.ts";
-import { acceptAll } from "../../../../web/editProposal.ts";
+import { acceptAll, proposeReplacement } from "../../../../web/editProposal.ts";
 import type { TagSource } from "../../../../web/lib/tagSuggestions.ts";
 import { installTextMenu } from "../../../../web/lib/textMenu.ts";
 import type { CommandContext } from "../../../../web/services/commands.ts";
@@ -1063,9 +1063,32 @@ describe("documentPane", () => {
     expect(pane.restore(noteFile().content.replace("first line", "an older line"))).toBe(true);
 
     expect(model.body()).toBe("an older line\n");
-    expect(queue.schedule).toHaveBeenLastCalledWith("notes/song.md", model.content(), expect.any(Function), "restored");
+    expect(queue.schedule).toHaveBeenLastCalledWith("notes/song.md", model.content(), expect.any(Function), {
+      source: "restored",
+    });
     undo(pane.view);
     expect(model.body()).toBe("first line\n");
+  });
+
+  it("saves an accepted proposal as the copilot's change, or as the Flow's that proposed it", async () => {
+    const { pane, documents, queue } = setup();
+    const model = documents.adopt(noteFile());
+    await pane.setInput(songTab(), current);
+    const lastSource = () => queue.schedule.mock.lastCall?.[3];
+
+    const base = pane.view.state.doc.toString();
+    const line = { base, from: base.indexOf("line"), to: base.indexOf("line") + 4 };
+    proposeReplacement(pane.view, line, ["verse"]);
+    acceptAll(pane.view);
+    expect(model.body()).toBe("first verse\n");
+    expect(lastSource()).toEqual({ source: "copilot" });
+
+    const next = pane.view.state.doc.toString();
+    const verse = { base: next, from: next.indexOf("verse"), to: next.indexOf("verse") + 5 };
+    proposeReplacement(pane.view, verse, ["chorus"], "flows/tidy.flow.html");
+    acceptAll(pane.view);
+    expect(model.body()).toBe("first chorus\n");
+    expect(lastSource()).toEqual({ source: "flow", flow: "flows/tidy.flow.html" });
   });
 
   it("restore() refuses with no document open", () => {

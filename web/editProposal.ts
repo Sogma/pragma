@@ -6,7 +6,15 @@
 // The proposal lives in the editor state, so it maps through every edit like
 // a selection and travels with a tab's cached state; a change the writer's
 // own edit runs into is dropped, never applied over what they typed.
-import { ChangeSet, type EditorState, type Extension, StateEffect, StateField, type Text } from "@codemirror/state";
+import {
+  Annotation,
+  ChangeSet,
+  type EditorState,
+  type Extension,
+  StateEffect,
+  StateField,
+  type Text,
+} from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 import { countText } from "./lib/dom.ts";
 import { diffWords, type TextHunk } from "./lineDiff.ts";
@@ -34,7 +42,13 @@ export interface NewProposal {
   hunks: readonly TextHunk[];
   extras?: readonly ProposalExtra[];
   onSettled?(outcome: ProposalOutcome): void;
+  // The Flow whose run proposed it, by its space path; the copilot's have none.
+  flow?: string;
 }
+
+/** On an accepted change of a Flow's proposal: that Flow's space path, which
+ * the change's save names so History labels it by the Flow. */
+export const proposalFlow = Annotation.define<string>();
 
 interface PendingHunk extends TextHunk {
   id: number;
@@ -56,6 +70,12 @@ interface Proposal {
   outcome: ProposalOutcome;
   onSettled?(outcome: ProposalOutcome): void;
   choice?: Choice;
+  flow?: string;
+}
+
+// What an accepted change of `proposal` carries beside its user event.
+function acceptedBy(proposal: Proposal): Annotation<string>[] {
+  return proposal.flow === undefined ? [] : [proposalFlow.of(proposal.flow)];
 }
 
 interface Resolution {
@@ -168,6 +188,7 @@ export function proposeEdit(view: EditorView, proposal: NewProposal): number {
     extras: proposal.extras ?? [],
     outcome: { accepted: 0, rejected: 0, dropped: 0, replaced: false },
     onSettled: proposal.onSettled,
+    flow: proposal.flow,
   });
 }
 
@@ -186,18 +207,20 @@ function place(view: EditorView, base: string, proposal: Proposal): number {
 
 /** Proposes a replacement for `[from, to)` of `base`, marked word by word so
  * only what differs from the replaced text shows as a change. Several
- * alternatives make one choice, the first showing. Returns how many changes
- * it shows. */
+ * alternatives make one choice, the first showing. `flow` is the Flow whose
+ * run proposed it. Returns how many changes it shows. */
 export function proposeReplacement(
   view: EditorView,
   range: { base: string; from: number; to: number },
   alternatives: readonly string[],
+  flow?: string,
 ): number {
   const [only] = alternatives;
   if (alternatives.length === 1) {
     return proposeEdit(view, {
       base: range.base,
       hunks: hunksAt(range.from, range.base.slice(range.from, range.to), only),
+      flow,
     });
   }
   if (!alternatives.length) return 0;
@@ -207,6 +230,7 @@ export function proposeReplacement(
     extras: [],
     outcome: { accepted: 0, rejected: 0, dropped: 0, replaced: false },
     choice: { from: range.from, to: range.to, texts: alternatives, index: 0 },
+    flow,
   });
 }
 
@@ -224,12 +248,14 @@ export function pendingChanges(state: EditorState): readonly TextHunk[] {
 }
 
 function acceptChange(view: EditorView, id: number): void {
-  const hunk = view.state.field(proposalField, false)?.hunks.find((pending) => pending.id === id);
-  if (!hunk || view.state.readOnly) return;
+  const proposal = view.state.field(proposalField, false);
+  const hunk = proposal?.hunks.find((pending) => pending.id === id);
+  if (!proposal || !hunk || view.state.readOnly) return;
   view.dispatch({
     changes: { from: hunk.from, to: hunk.to, insert: hunk.insert },
     effects: resolveChanges.of({ ids: [id], accept: true }),
     userEvent: "input.proposal",
+    annotations: acceptedBy(proposal),
   });
 }
 
@@ -251,6 +277,7 @@ export function acceptAll(view: EditorView, userEvent = "input.proposal"): void 
       : proposal.hunks.map(({ from, to, insert }) => ({ from, to, insert })),
     effects: resolveChanges.of({ ids: "all", accept: true }),
     userEvent,
+    annotations: acceptedBy(proposal),
   });
   for (const extra of proposal.extras) extra.apply();
 }

@@ -63,7 +63,7 @@ describe("the History section", () => {
     const versionRows = () => [...history.body.querySelectorAll<HTMLElement>(".history-version > .node-label")];
     await vi.waitFor(() => expect(versionRows()).toHaveLength(2));
     expect(versionRows().map((row) => row.querySelector(".history-source")?.textContent)).toEqual([
-      "Edited",
+      "You",
       "Flow: tidy",
     ]);
     versionRows()[1].click();
@@ -84,10 +84,10 @@ describe("the History section", () => {
 });
 
 describe("how History names a writer", () => {
-  it("names what wrote over each version", () => {
+  it("names who made each change", () => {
     const named = (source: HistoryVersion["source"]) => replacedBy({ id: "x", time: 0, source });
     expect(
       ["edit", "copilot", "links", "published", "restored", "outside"].map((source) => named(source as never)),
-    ).toEqual(["Edited", "Copilot", "Links updated", "Published", "Restored", "Changed outside Pragma"]);
+    ).toEqual(["You", "Copilot", "Links updated", "Published", "Restored", "Changed outside Pragma"]);
   });
 });

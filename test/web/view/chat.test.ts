@@ -207,9 +207,10 @@ describe("a turn in Editing", () => {
     vi.mocked(putFile).mockResolvedValueOnce({ revision: "r2" }).mockResolvedValueOnce({ revision: "r3" });
 
     await sendTurn();
-    expect(putFile).toHaveBeenCalledWith("b.md", "new\n", "r1");
+    expect(putFile).toHaveBeenCalledWith("b.md", "new\n", "r1", { source: "copilot" });
     expect(cardLabel()).toBe("Edited b.md.");
 
+    // The writer's own undo, so History names it theirs.
     cardButton("Undo")?.click();
     await vi.waitFor(() => expect(cardLabel()).toBe("Undid the edit to b.md."));
     expect(putFile).toHaveBeenLastCalledWith("b.md", "old\n", "r2");
@@ -270,7 +271,11 @@ describe("a turn in Suggesting", () => {
     await sendTurn();
     expect(putFile).not.toHaveBeenCalled();
     expect(cardLabel()).toBe("Apply this edit to b.md?");
-    expect(cardButton("Apply")).toBeDefined();
+
+    vi.mocked(putFile).mockResolvedValueOnce({ revision: "r2" });
+    cardButton("Apply")?.click();
+    await vi.waitFor(() => expect(cardLabel()).toBe("Applied edit to b.md."));
+    expect(putFile).toHaveBeenCalledWith("b.md", "new\n", undefined, { source: "copilot" });
   });
 });
 

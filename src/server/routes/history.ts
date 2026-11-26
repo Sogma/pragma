@@ -42,11 +42,11 @@ export function mountHistoryRoutes(app: Hono, { spaceRoot }: RouteContext): void
     const spacePath = c.req.query("path");
     const id = c.req.query("id");
     if (!spacePath || !id) return c.text("Missing path or id query parameter", 400);
-    const content = await historyVersion(spaceRoot, spacePath, id);
-    if (content === undefined) return c.text("No such version", 404);
+    const version = await historyVersion(spaceRoot, spacePath, id);
+    if (version === undefined) return c.text("No such version", 404);
     const { filePath, rooted } = resolveRootedPath(spaceRoot, spacePath, "read");
     const current = isLibraryRoot(rooted.root) ? undefined : await readFile(filePath, "utf8").catch(() => undefined);
-    return c.json<HistoryVersionResponse>(current === undefined ? { content } : { content, current });
+    return c.json<HistoryVersionResponse>(current === undefined ? version : { ...version, current });
   });
 
   app.all("/api/history/clear", async (c) => {

@@ -103,6 +103,7 @@ import {
   editProposal,
   type ProposalExtra,
   type ProposalOutcome,
+  proposalFlow,
   proposeEdit,
 } from "../../editProposal.ts";
 import { FIND_KEYMAP, findOnPage, findPanel, openFindOnPage, openReplace } from "../../findPanel.ts";
@@ -828,7 +829,11 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
             // model is not pushed back.
             for (const tr of update.transactions) {
               if (!tr.docChanged || tr.annotation(syncAnnotation)) continue;
-              const source = { origin: view, userEvent: tr.annotation(Transaction.userEvent) };
+              const source = {
+                origin: view,
+                userEvent: tr.annotation(Transaction.userEvent),
+                proposedBy: tr.annotation(proposalFlow),
+              };
               if (holdsWholeFile(tr.startState)) model.applyContentChanges(tr.changes, source);
               else model.applyBodyChanges(tr.changes, source);
             }

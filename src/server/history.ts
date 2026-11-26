@@ -42,19 +42,21 @@ export async function writeDocument(
   content: string,
   change: HistoryChange,
 ): Promise<void> {
-  await keepVersion(spaceRoot, filePath, change);
+  await keepVersion(spaceRoot, filePath, content, change);
   noteKnown(spaceRoot, filePath, content);
   await writeFileAtomic(filePath, content);
 }
 
-/** Keeps what `filePath` holds now, before `change` writes over it. Best
- * effort: a version that can't be kept never stops the write it precedes. */
-async function keepVersion(spaceRoot: string, filePath: string, change: HistoryChange): Promise<void> {
+/** Keeps what `filePath` holds now, before `change` writes `next` over it.
+ * Best effort: a version that can't be kept never stops the write it precedes. */
+async function keepVersion(spaceRoot: string, filePath: string, next: string, change: HistoryChange): Promise<void> {
   try {
     const target = historyTarget(spaceRoot, filePath);
     if (!target) return;
     const content = await readFile(filePath, "utf8").catch(() => undefined);
-    if (content !== undefined) await keepText(target, content, change);
+    // A write that changes nothing keeps nothing: its version would stand
+    // where the next writer's belongs, and hand that writer's change its label.
+    if (content !== undefined && content !== next) await keepText(target, content, change);
   } catch {
     // see above
   }
@@ -89,24 +91,34 @@ function keepsVersionsOf(spacePath: string): boolean {
   );
 }
 
+// A key no file has, so a writer already holding the file's own lock can
+// keep a version without waiting on itself.
+function historyLock(spaceId: string, spacePath: string): string {
+  return `history\0${spaceId}\0${spacePath}`;
+}
+
 // Your own saves keep one version per five minutes of them, unless another
-// writer came between, whose text is then what your next save replaces. A
-// text the same as the newest version is never kept twice.
+// writer came between, whose text is then what your next save replaces.
+//
+// A version starts its writer's change, which runs to the next version. A
+// text the same as the newest version's is never kept twice by one writer;
+// from another, it takes the newest's place, whose change came to nothing.
 async function keepText({ spaceId, spacePath }: Target, content: string, change: HistoryChange): Promise<void> {
   if (Buffer.byteLength(content) > MAX_BYTES) return;
   const store = historyStore();
-  // A key no file has, so a writer already holding the file's own lock
-  // can keep a version without waiting on itself.
-  await withFileLock(`history\0${spaceId}\0${spacePath}`, async () => {
+  await withFileLock(historyLock(spaceId, spacePath), async () => {
     const versions = await store.versions(spaceId, spacePath);
     const latest = versions[0];
     const now = Date.now();
     if (change.source === "edit" && latest?.source === "edit" && now - latest.time < EDIT_INTERVAL_MS) return;
-    if (latest && (await store.read(spaceId, spacePath, latest.id)) === content) return;
+    const repeated = latest !== undefined && (await store.read(spaceId, spacePath, latest.id)) === content;
+    if (repeated && latest.source === change.source && latest.detail === change.detail) return;
     const version: HistoryVersion = { id: randomUUID(), time: now, source: change.source };
     if (change.detail !== undefined) version.detail = change.detail;
     await store.add(spaceId, spacePath, version, content);
-    const dropped = versions.filter((old, index) => index >= KEEP_PER_FILE - 1 || now - old.time > KEEP_MS);
+    const dropped = versions.filter(
+      (old, index) => (repeated && index === 0) || index >= KEEP_PER_FILE - 1 || now - old.time > KEEP_MS,
+    );
     if (dropped.length > 0)
       await store.remove(
         spaceId,
@@ -204,9 +216,25 @@ export async function historyVersions(spaceRoot: string, spacePath: string): Pro
   return versions.filter((version) => version.time >= cutoff);
 }
 
-export async function historyVersion(spaceRoot: string, spacePath: string, id: string): Promise<string | undefined> {
+/** A version's text, and the next version's when one was kept after it: the
+ * text this version's change left. Read under the lock that keeps versions,
+ * so the next one can't be replaced between the reads. */
+export async function historyVersion(
+  spaceRoot: string,
+  spacePath: string,
+  id: string,
+): Promise<{ content: string; next?: string } | undefined> {
   const spaceId = spaceIdOf(spaceRoot);
-  return spaceId === undefined ? undefined : historyStore().read(spaceId, spacePath, id);
+  if (spaceId === undefined) return undefined;
+  const store = historyStore();
+  return withFileLock(historyLock(spaceId, spacePath), async () => {
+    const content = await store.read(spaceId, spacePath, id);
+    if (content === undefined) return undefined;
+    const versions = await store.versions(spaceId, spacePath);
+    const index = versions.findIndex((version) => version.id === id);
+    const next = index > 0 ? await store.read(spaceId, spacePath, versions[index - 1].id) : undefined;
+    return next === undefined ? { content } : { content, next };
+  });
 }
 
 /** Carries the versions of an entry, a file or everything in a folder, to

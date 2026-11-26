@@ -1,7 +1,8 @@
 // The History section under the space tree: the files with earlier versions
-// kept, the most recently changed first. A file opens to its versions, each
-// by when it was kept and what wrote over it; a version opens beside its file
-// to compare and restore. A deleted file stays listed while its versions last.
+// kept, the most recently changed first. A file opens to its changes, each by
+// when it was made and who made it; a change opens beside its file to show
+// what it did and restore the text before it. A deleted file stays listed
+// while its versions last.
 
 import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
 import {

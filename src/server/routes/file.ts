@@ -56,7 +56,7 @@ import { readDigitalSourceType } from "../digitalSourceType.ts";
 import { documentIndex, type IndexRoot } from "../documentIndex.ts";
 import { grantedCapabilities, grantPath, unattendedStanding } from "../grants.ts";
 import { withHeaderReader } from "../headerReader.ts";
-import { noteKnown } from "../history.ts";
+import { type HistoryChange, noteKnown } from "../history.ts";
 import { readPixelFormat, UnreadableImageHeader } from "../imageHeader.ts";
 import { readFlowAppModes, readTableLayouts } from "../layout.ts";
 import { presetPaths } from "../presets.ts";
@@ -123,6 +123,14 @@ async function headerDetails(filePath: string): Promise<{ clip: ClipDetails } | 
 function lockFor(parsed: { version: string } | undefined): DocumentLock | undefined {
   if (!parsed) return "unreadable";
   return isNewerFormatVersion(parsed.version) ? "newer-format" : undefined;
+}
+
+// Who a save says made its change, for History's label. A Flow is named only
+// by a Flow file's path, since History shows that file's name.
+function savedBy({ source, flow }: PutFileRequestBody): HistoryChange {
+  if (source === "copilot" || source === "restored") return { source };
+  if (source !== "flow") return { source: "edit" };
+  return typeof flow === "string" && isFlowFile(flow) ? { source, detail: flow } : { source };
 }
 
 // A vector image opened as a page also loads nothing from elsewhere: a file
@@ -573,10 +581,10 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         if (body.baseRevision !== undefined && (await readRevision(filePath)) !== body.baseRevision) {
           return c.text("The file changed since this copy of it was read", 409);
         }
-        const source = body.source === "copilot" || body.source === "restored" ? body.source : "edit";
+        const change = savedBy(body);
         // A restore may bring back a deleted file, and the folder it was in.
-        if (source === "restored") await mkdir(path.dirname(filePath), { recursive: true });
-        const saved = await saveDocument(spaceRoot, { filePath, relativePath }, body.content, source);
+        if (change.source === "restored") await mkdir(path.dirname(filePath), { recursive: true });
+        const saved = await saveDocument(spaceRoot, { filePath, relativePath }, body.content, change);
         return c.json<PutFileResponse>(saved);
       });
     }

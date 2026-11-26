@@ -9,6 +9,7 @@ import {
   editProposal,
   type NewProposal,
   pendingChanges,
+  proposalFlow,
   proposeEdit,
   proposeReplacement,
   rejectAll,
@@ -221,5 +222,33 @@ describe("editProposal", () => {
       expect(proposeReplacement(view, range, ["swift"])).toBe(1);
       expect(view.dom.querySelector(".cm-proposal-position")).toBeNull();
     });
+  });
+
+  it("marks an accepted change of a Flow's proposal with its Flow, and the copilot's with none", () => {
+    const barHost = document.createElement("div");
+    document.body.append(barHost);
+    const marks: (string | undefined)[] = [];
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "one two three\n",
+        extensions: [
+          editProposal({ barHost }),
+          EditorView.updateListener.of((update) => {
+            for (const tr of update.transactions) if (tr.docChanged) marks.push(tr.annotation(proposalFlow));
+          }),
+        ],
+      }),
+      parent: document.body,
+    });
+
+    proposeEdit(view, proposal("one two three\n", "uno two three\n"));
+    acceptAll(view);
+    proposeReplacement(view, { base: "uno two three\n", from: 4, to: 7 }, ["dos"], "flows/tidy.flow.html");
+    click(view, ".cm-proposal-accept");
+    proposeReplacement(view, { base: "uno dos three\n", from: 8, to: 13 }, ["tres", "três"], "flows/tidy.flow.html");
+    acceptAll(view);
+
+    expect(view.state.doc.toString()).toBe("uno dos tres\n");
+    expect(marks).toEqual([undefined, "flows/tidy.flow.html", "flows/tidy.flow.html"]);
   });
 });

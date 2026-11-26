@@ -1,13 +1,13 @@
 // Writing a document, and the publishing bookkeeping every write of one
 // owes the site it sits in.
 import path from "node:path";
-import type { HistorySource, PutFileResponse, SavedDocumentDates } from "../protocol/api.ts";
+import type { PutFileResponse, SavedDocumentDates } from "../protocol/api.ts";
 import { appletCodeChanged } from "../protocol/appletNode.ts";
 import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
 import { editFrontmatter, isPrivate, parseFrontmatter } from "../protocol/frontmatter.ts";
 import { isFlowFile, isMarkdownFile } from "../protocol/types.ts";
 import { grantPath, remapGrantHash } from "./grants.ts";
-import { noteKnown, writeDocument } from "./history.ts";
+import { type HistoryChange, noteKnown, writeDocument } from "./history.ts";
 import { addPendingEntry, resolveSiteForPath } from "./sites.ts";
 import { revisionOf, writeFileAtomic } from "./spaceFiles.ts";
 
@@ -23,7 +23,7 @@ export async function saveDocument(
   spaceRoot: string,
   { filePath, relativePath }: { filePath: string; relativePath: string },
   content: string,
-  source: HistorySource = "edit",
+  change: HistoryChange = { source: "edit" },
 ): Promise<PutFileResponse> {
   // A flow's grants are pinned to its capability digest, so a save that
   // changes the graph would drop them — including the edits that *are* the
@@ -38,7 +38,7 @@ export async function saveDocument(
   // then comes from code no one approved, so the next run asks again.
   const graphBefore = isFlowFile(filePath) ? (await readFlowFile(filePath)).graph : undefined;
 
-  await writeDocument(spaceRoot, filePath, content, { source });
+  await writeDocument(spaceRoot, filePath, content, change);
 
   if (graphBefore !== undefined) {
     const graphAfter = (await readFlowFile(filePath)).graph;

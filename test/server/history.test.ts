@@ -42,7 +42,7 @@ async function kept(root: string, spacePath: string): Promise<{ text: string | u
   const versions = await historyVersions(root, spacePath);
   return Promise.all(
     versions.map(async (version) => ({
-      text: await historyVersion(root, spacePath, version.id),
+      text: (await historyVersion(root, spacePath, version.id))?.content,
       source: version.source,
     })),
   );
@@ -92,6 +92,27 @@ describe("writeDocument", () => {
     await writeFile(file, "same");
     await writeDocument(root, file, "other", { source: "flow" });
     expect((await kept(root, "note.md")).map(({ text }) => text)).toEqual(["same"]);
+  });
+
+  it("keeps nothing for a write that changes nothing, so the next change keeps its own label", async () => {
+    const root = await space({ "note.md": "mine" });
+    const file = path.join(root, "note.md");
+    await writeDocument(root, file, "mine", { source: "flow", detail: "flows/tidy.flow.html" });
+    expect(await kept(root, "note.md")).toEqual([]);
+
+    await writeDocument(root, file, "mine, edited", { source: "edit" });
+    expect(await kept(root, "note.md")).toEqual([{ text: "mine", source: "edit" }]);
+  });
+
+  it("gives another writer's change the place of one that came to nothing", async () => {
+    const root = await space({ "note.md": "first" });
+    const file = path.join(root, "note.md");
+    await writeDocument(root, file, "typed", { source: "edit" });
+    await writeDocument(root, file, "first", { source: "edit" });
+    await writeDocument(root, file, "the flow's", { source: "flow", detail: "flows/tidy.flow.html" });
+
+    expect(await kept(root, "note.md")).toEqual([{ text: "first", source: "flow" }]);
+    expect((await historyVersions(root, "note.md"))[0].detail).toBe("flows/tidy.flow.html");
   });
 
   it("keeps nothing for a new file, another kind, a dot folder, a large file, or a space without an id", async () => {
@@ -204,6 +225,18 @@ describe("the history routes", () => {
     expect((await request(root, "/api/history/version?path=newer.md&id=../../config")).status).toBe(404);
   });
 
+  it("answers an older version with the next one's text, which its change left", async () => {
+    const root = await space({ "note.md": "one" });
+    const file = path.join(root, "note.md");
+    await writeDocument(root, file, "two", { source: "flow" });
+    await writeDocument(root, file, "three", { source: "copilot" });
+    const [newest, older] = await historyVersions(root, "note.md");
+    const answer = async (id: string) => (await request(root, `/api/history/version?path=note.md&id=${id}`)).json();
+
+    expect(await answer(older.id)).toEqual({ content: "one", next: "two", current: "three" });
+    expect(await answer(newest.id)).toEqual({ content: "two", current: "three" });
+  });
+
   it("answers a deleted file's version with no text now", async () => {
     const root = await space({ "gone.md": "g1" });
     await writeDocument(root, path.join(root, "gone.md"), "g2", { source: "flow" });
@@ -247,6 +280,24 @@ describe("the history routes", () => {
 
     expect((await put("gone/away.md", { content: "back", source: "restored" })).status).toBe(200);
     expect(await readFile(path.join(root, "gone", "away.md"), "utf8")).toBe("back");
+  });
+
+  it("names the Flow whose proposal a save was, by a Flow file's path only", async () => {
+    const root = await space({ "note.md": "typed" });
+    const put = (body: object) =>
+      request(root, "/api/file?path=note.md", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    expect((await put({ content: "tidied", source: "flow", flow: "flows/tidy.flow.html" })).status).toBe(200);
+    expect((await put({ content: "odd", source: "flow", flow: "notes/plain.md" })).status).toBe(200);
+    const versions = await historyVersions(root, "note.md");
+    expect(versions.map(({ source, detail }) => ({ source, detail }))).toEqual([
+      { source: "flow", detail: undefined },
+      { source: "flow", detail: "flows/tidy.flow.html" },
+    ]);
   });
 
   it("notices a served file changed outside Pragma when a window asks after it", async () => {
