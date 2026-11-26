@@ -2,7 +2,7 @@
 
 Pragma is an open protocol and an open-source, local-first editor for AI-assisted work in a space you own. A space is a folder that keeps your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.
 
-We call Pragma a *creative operating environment* because you can shape the tools alongside the work. When a line of dialogue falls flat, you can rewrite it yourself, build a tool that suggests alternatives, or ask an agent to run that tool on other scenes. You decide what runs and which edits to keep.
+We call Pragma a *creative operating environment* because you can shape the tools alongside the work. When a line of dialogue falls flat, you can rewrite it yourself, build a tool that suggests alternatives, or ask an agent to run that tool on other scenes. You decide what runs and curate what comes back.
 
 ## Why Pragma
 
@@ -10,7 +10,7 @@ We call Pragma a *creative operating environment* because you can shape the tool
 
 We want computers worthy of the human imagination. Every expansion of machine capability should bring a corresponding expansion of human agency. Write the sentence yourself. Shape the process that transforms a thousand sentences. Delegate the repetition. Step back into the work wherever judgment, curiosity, or taste demands it.
 
-An interface should evolve with the task and the person, revealing useful controls while preserving the context that gives the work meaning. Creative work needs room for discovery: put drafts beside each other, rearrange the pieces, keep one possibility alive while exploring another. People must be able to inspect, correct, interrupt, and direct the system throughout.
+An interface should evolve with the task and the person, revealing useful controls while preserving the context that gives the work meaning. Creative work needs room for discovery and curation: put drafts beside each other, rearrange the pieces, keep one possibility alive while exploring another. People must be able to inspect, correct, interrupt, and direct the system throughout.
 
 **An interface may change its shape. Its promises must remain legible.**
 
