@@ -24,22 +24,29 @@ export function applyNodeColor(cardEl: HTMLElement, color: string | undefined): 
   cardEl.classList.toggle("tinted", Boolean(color));
 }
 
-// A category's color, drawn for a node with none of its own and never saved.
-// The color picker's first swatch resets to it, so such a node can't go
-// plain. Image and Video have none: a colored frame changes how the colors of
-// the picture or clip inside it read. Applets have none: a green card for
-// every Applet pulls the eye from the rest of the Flow.
+// The color a node with none of its own draws in, never saved. The color
+// picker's first swatch resets to it, so such a node can't go plain.
+//
+// A node whose config names a Table (`tablePath`) takes the Table kind's
+// token, so its card matches the Table's icon in both themes. It goes by that
+// key, not a category: Data also holds nodes that open no Table.
+//
+// Any other node takes its category's. Image and Video have none: a colored
+// frame changes how the colors of the picture or clip inside it read. Applets
+// have none: a green card for every Applet pulls the eye from the rest of the
+// Flow.
 const CATEGORY_COLORS: Partial<Record<FlowNodeCategory, string>> = {
   AI: "#7c3aed", // violet, the de facto "AI" color
 };
 
 /** The color a node of `type` shows with none of its own, if any. */
 export function defaultNodeColor(type: string): string | undefined {
-  const category = FLOW_NODE_REGISTRY[type]?.category;
-  return category && CATEGORY_COLORS[category];
+  const definition = FLOW_NODE_REGISTRY[type];
+  if (definition?.configKeys.includes("tablePath")) return "var(--kind-table)";
+  return definition && CATEGORY_COLORS[definition.category];
 }
 
-/** The color a node shows: its own, else its category's. */
+/** The color a node shows: its own, else its type's default. */
 export function nodeColor(node: Pick<FlowNodeInstance, "type" | "color">): string | undefined {
   return node.color ?? defaultNodeColor(node.type);
 }

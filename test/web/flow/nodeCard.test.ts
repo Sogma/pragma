@@ -1935,15 +1935,22 @@ describe("a node's color", () => {
     document.body.replaceChildren();
   });
 
-  it("is its category's with none of its own: AI's violet, none for the rest", () => {
+  it("is its default with none of its own: the Table kind's on a node naming a Table, AI's violet, none for the rest", () => {
     const { cards } = setup();
     expect(color(cards.build(node("generateImage", { outputFolderPath: "art" })))).toBe("#7c3aed");
+    for (const type of ["loadRow", "loadRandomRow", "loadTableRows", "addRow"]) {
+      const el = cards.build(node(type));
+      expect(color(el)).toBe("var(--kind-table)");
+      expect(el.classList.contains("tinted")).toBe(true);
+    }
     for (const plain of [
       node("loadImage"),
       node("loadFolderImage"),
       node("loadVideo"),
       node("applet"),
       node("prompt", { text: "" }),
+      node("int"),
+      node("getField"),
     ]) {
       const el = cards.build(plain);
       expect(color(el)).toBe("");
