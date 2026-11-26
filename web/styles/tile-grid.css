@@ -74,8 +74,8 @@
 }
 
 /* The resize grip draws the tile's own bottom-right corner, an L in the
-   accent, while the tile is hovered. A surface sets where it sits
-   (--tile-grip-inset, outside the tile when negative) and its radius. */
+   accent, while the tile is hovered or resizing. A surface sets where it
+   sits (--tile-grip-inset, outside the tile when negative) and its radius. */
 .tile-grid-grip {
   position: absolute;
   right: var(--tile-grip-inset, 0px);
@@ -99,13 +99,9 @@
   border-bottom-right-radius: var(--tile-grip-radius, var(--control-radius));
 }
 
-.tile-grid-tiles > :hover > .tile-grid-grip {
-  opacity: 1;
-}
-
-/* While its tile resizes, the tile's ring marks the corner instead. */
+.tile-grid-tiles > :hover > .tile-grid-grip,
 .tile-grid-tiles > .resizing > .tile-grid-grip {
-  opacity: 0;
+  opacity: 1;
 }
 
 /* Tiles that can't be arranged now offer no way to: no grip, no x. */
@@ -113,8 +109,10 @@
   display: none;
 }
 
+/* A tile being resized keeps the dashed edge its surface shows on hover,
+   in the accent; the surface sets the offset. */
 .tile-grid-tiles > .resizing {
-  outline: 2px solid var(--color-accent);
+  outline: 1px dashed var(--color-accent);
 }
 
 .tile-grid.resizing,

@@ -220,8 +220,8 @@
   box-shadow: var(--shadow-menu);
 }
 
-/* A tile has no edge of its own, so the grip sits on the resize ring: 2px
-   at the 3px offset below, the inset following them. */
+/* A tile has no edge of its own, so the grip sits on the dashed edge below,
+   drawn 3px out; the inset follows that offset. */
 .row-card-tile-grip {
   --tile-grip-inset: -5px;
 }
@@ -230,9 +230,9 @@
   display: none;
 }
 
-/* In Design mode a hovered tile shows its edge: the guides' dashed line on
-   the ring's offset, the grip its corner. Under :where so a focus ring wins,
-   and gone while a tile moves or resizes. */
+/* In Design mode a hovered tile shows its edge: the guides' dashed line 3px
+   out, the grip its corner. Under :where so a focus ring wins, and gone
+   while a tile moves or resizes. */
 :where(.row-card-board.is-arrangeable:not(.moving, .resizing)) > .row-card-grid > :hover {
   outline: 1px dashed var(--border-input);
   outline-offset: 3px;

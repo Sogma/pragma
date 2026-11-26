@@ -59,8 +59,12 @@
   outline: 1px dashed var(--border-input);
 }
 
-.flow-app-grid > .resizing {
-  outline-offset: 1px;
+/* A card being resized keeps that edge in the accent: its border again, so
+   the shared outline steps aside. Run's outline sits against its fill. */
+.flow-app-grid > .flow-app-node.resizing {
+  border-style: dashed;
+  border-color: var(--color-accent);
+  outline: none;
 }
 
 .flow-app-tile-badge {
