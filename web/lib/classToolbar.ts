@@ -1,8 +1,8 @@
 // A Class's own controls in its pane's floating toolbar: Filter, Sort,
 // Group, Fields and Links, each named for what it does and opening a popover
-// that changes the Class as it is used, with no mode to enter first. The
-// pane owns the Class and saves it; this only builds the controls and
-// hands each change back.
+// that changes the Class as it is used, with no mode to enter first; and in
+// Design mode Layout. The pane owns the Class and saves it; this only builds
+// the controls and hands each change back.
 
 import { cardWithField } from "../../src/protocol/card.ts";
 import {
@@ -34,9 +34,9 @@ import { type Flyout, openFlyout } from "./flyout.ts";
 export type ChangeScope = "view" | "rows";
 
 export interface ClassToolbarDeps {
-  // The Class as the pane holds it, the view showing, and whether
-  // either may change now.
-  current(): { file: ClassFile; view: ClassView; editable: boolean } | undefined;
+  // The Class as the pane holds it, the view showing, whether either may
+  // change now, and whether Design mode is on.
+  current(): { file: ClassFile; view: ClassView; editable: boolean; designing: boolean } | undefined;
   // The keys the rows' frontmatter uses, offered where a filter or a field
   // names one; `list` says whether any row holds a list there.
   keys(): { key: string; list: boolean }[];
@@ -53,9 +53,12 @@ export interface ClassToolbarDeps {
   // A link as Links shows it: what it gives the rows, and its file's icon,
   // name and path.
   describeLink(link: string): { use: ClassLinkUse; icon: EntryIcon; name: string; path: string };
+  // Layout's popover, which the pane builds from its rows; disposed once it
+  // closes.
+  layoutPanel(): { element: HTMLElement; dispose(): void };
 }
 
-export type ClassTool = "filter" | "sort" | "group" | "fields" | "links";
+export type ClassTool = "filter" | "sort" | "group" | "fields" | "links" | "layout";
 
 export interface ClassToolbar {
   readonly element: HTMLElement;
@@ -211,7 +214,11 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
   linksCount.append(linksDigits);
   linksCount.hidden = true;
   linksButton.appendChild(linksCount);
-  element.append(filterButton, sortButton, groupButton, fieldsButton, linksButton);
+  // In Design mode alone, after the Class's own buttons, so none of them
+  // moves as the mode turns on.
+  const layoutButton = button("Layout");
+  layoutButton.hidden = true;
+  element.append(filterButton, sortButton, groupButton, fieldsButton, linksButton, layoutButton);
 
   let flyout: Flyout | undefined;
   let openedFrom: HTMLButtonElement | undefined;
@@ -227,7 +234,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
 
   // A second press on the button showing its panel closes it. A folded
   // button's panel hangs under the toolbar, where ⋮ is, as does one ⋮ opens.
-  function open(button: HTMLButtonElement | undefined, panel: HTMLElement): void {
+  function open(button: HTMLButtonElement | undefined, panel: HTMLElement, closed?: () => void): void {
     if (button && openedFrom === button && flyout) {
       close();
       return;
@@ -240,7 +247,19 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
       button?.setAttribute("aria-expanded", "false");
       flyout = undefined;
       openedFrom = undefined;
+      closed?.();
     });
+  }
+
+  // Built fresh each time it opens, from the pane's rows, so a second press
+  // closes it before a new one is made.
+  function openLayout(): void {
+    if (openedFrom === layoutButton && flyout) {
+      close();
+      return;
+    }
+    const panel = deps.layoutPanel();
+    open(layoutButton, panel.element, () => panel.dispose());
   }
 
   function fitTo(next: number): void {
@@ -618,6 +637,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
             deps.change((file, view) => {
               file.fields.push({ id: fact.id, type: fact.type, label: fact.label });
               file.card = cardWithField(file.card, fact.id);
+              file.smallCard = cardWithField(file.smallCard, fact.id);
               if (view.fields) view.fields.push(fact.id);
             }, "view");
             draw();
@@ -745,6 +765,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
         deps.change((file, view) => {
           file.fields.push(field);
           file.card = cardWithField(file.card, key);
+          file.smallCard = cardWithField(file.smallCard, key);
           if (view.fields) view.fields.push(key);
         }, "view");
         close();
@@ -770,12 +791,14 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
     group: () => open(groupButton, groupPanel()),
     fields: () => open(fieldsButton, fieldsPanel()),
     links: () => open(linksButton, linksPanel()),
+    layout: openLayout,
   };
   filterButton.addEventListener("click", tools.filter);
   sortButton.addEventListener("click", tools.sort);
   groupButton.addEventListener("click", tools.group);
   fieldsButton.addEventListener("click", tools.fields);
   linksButton.addEventListener("click", tools.links);
+  layoutButton.addEventListener("click", tools.layout);
 
   return {
     element,
@@ -793,6 +816,8 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
       linksCount.hidden = state.file.links.length === 0;
       linksDigits.textContent = String(state.file.links.length);
       linksButton.setAttribute("aria-pressed", String(state.file.links.length > 0));
+      layoutButton.hidden = !state.designing;
+      if (!state.designing && openedFrom === layoutButton) close();
       // Shown again, or with a count that widens it: measured anew.
       fitTo(width);
     },

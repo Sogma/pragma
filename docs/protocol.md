@@ -515,6 +515,13 @@ A row's full card shows its fields as tiles on the grid [App mode](#app-mode) la
 - **`data-columns` and `data-rows`** span the tile as `appModeSize` spans an App mode item: whole numbers from 1, the host's choice where absent.
 - **The card shows the columns it lists**, or every column in order without the block. A writer adds the block only once a card is arranged, and keeps it, empty included. An added column joins its end; a deleted one leaves it.
 
+#### Table small cards
+
+`<ol data-role="small-card">`, after the row card's block, arranges the card a cards view draws for each row, on a grid four tiles across. Its items mean what a [row card](#table-row-cards)'s do, and `<li data-title>` places the card's title:
+
+- **The parts stay the [cards view](#table-views)'s.** The tiles place and size the picture, the title, the badge and the lines, and `data-columns` stops at 4. A column the block doesn't list is off the card.
+- **Without the block**, the card is composed as the cards view says. A writer adds the block only once the card is arranged, and keeps it. An added column joins its end; a deleted one leaves it.
+
 #### Table writes
 
 Reading is inert, through an HTML parser rather than a browser. Saving re-serializes the whole Table through the same document-write path as any other file. Serialization is deterministic: after a one-row edit, every other line remains byte-identical.
@@ -660,6 +667,10 @@ A writer leaves out the list layout and the ascending order. A view shows its ro
 #### Class row cards
 
 `<ol data-role="card">`, after `<table data-role="fields">`, arranges a row's full card as a [Table row card](#table-row-cards) is arranged, each `data-field` naming one of the Class's fields by key. The card leads with the row's title.
+
+#### Class small cards
+
+`<ol data-role="small-card">`, after the row card's block, arranges the card every cards view draws as a [Table small card](#table-small-cards) is arranged, its title the row's title. A view's fields still decide which of its tiles show.
 
 #### New notes
 

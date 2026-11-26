@@ -355,6 +355,10 @@ export function holdsPath(type: FieldValueType): boolean {
  * out is the host's to size. */
 export type CardTile = { field: string; columns?: number; rows?: number } | { heading: string };
 
+/** One tile of the card a cards view draws (docs/protocol.md's Table small
+ * cards section): a row card's tiles, or the card's title at its span. */
+export type SmallCardTile = CardTile | { title: true; columns?: number; rows?: number };
+
 export interface TableFile {
   version: string;
   name?: string;
@@ -366,6 +370,9 @@ export interface TableFile {
   layout?: TableLayout;
   /** The tiles of a row's card. Absent shows every column, in order. */
   card?: CardTile[];
+  /** The tiles of the card a cards view draws. Absent composes it from the
+   * parts rule. */
+  smallCard?: SmallCardTile[];
 }
 
 /** A Table with no columns or rows, at the version this build writes: what
@@ -506,6 +513,8 @@ export interface ClassFile {
   links: string[];
   // The tiles of a row's card, as a Table's. Absent shows every field.
   card?: CardTile[];
+  // The tiles of the card its cards views draw, as a Table's.
+  smallCard?: SmallCardTile[];
 }
 
 /** A Class with no rules, fields, views or links, at the version this build

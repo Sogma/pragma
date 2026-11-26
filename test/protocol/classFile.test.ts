@@ -113,6 +113,20 @@ describe("serializeClassFile", () => {
     expect(parseClassFile(written)?.card).toEqual([{ field: "status", columns: 2 }, { heading: "Look" }]);
     expect(parseClassFile(handWritten)?.card).toBeUndefined();
   });
+
+  it("reads and writes a small card after the row card's block, and none without one", () => {
+    const empty = { version: "1.0", filter: [], fields: [], views: [], links: [] };
+    expect(serializeClassFile(empty)).not.toContain("small-card");
+    const smallCard = [{ title: true as const, columns: 3 }, { field: "status" }];
+    const written = serializeClassFile({ ...empty, card: [{ heading: "Look" }], smallCard });
+    expect(written).toContain(
+      '  </ol>\n\n  <ol data-role="small-card">\n    <li data-title data-columns="3"></li>\n    <li data-field="status"></li>\n  </ol>\n\n  <ol data-role="views">',
+    );
+    const read = parseClassFile(written);
+    expect(read?.smallCard).toEqual(smallCard);
+    expect(read?.card).toEqual([{ heading: "Look" }]);
+    expect(parseClassFile(handWritten)?.smallCard).toBeUndefined();
+  });
 });
 
 function fail(): never {

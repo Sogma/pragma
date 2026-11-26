@@ -1,7 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { type HTMLElement, parse } from "node-html-parser";
 import { isMetadataType } from "./metadata.ts";
-import type { CardTile, FieldDefinition, MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
+import type {
+  CardTile,
+  FieldDefinition,
+  MetadataEntry,
+  SmallCardTile,
+  TableColumn,
+  TableFile,
+  TableRow,
+} from "./types.ts";
 import { emptyTable, isScoreMax, parseFieldValueType, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, same convention as every other file reader in
@@ -33,6 +41,7 @@ export function parseTableFile(raw: string): TableFile | undefined {
     const columns = readFieldColumns(data?.querySelector("thead") ?? null);
     const layout = parseTableLayout(data?.getAttribute("data-layout"));
     const card = readCardBlock(root.querySelector("body > ol[data-role=card]"));
+    const smallCard = readSmallCardBlock(root.querySelector("body > ol[data-role=small-card]"));
 
     return {
       version: html.getAttribute("data-format-version") || "1.0",
@@ -42,6 +51,7 @@ export function parseTableFile(raw: string): TableFile | undefined {
       rows: readRows(data?.querySelector("tbody") ?? null, columns),
       ...(layout ? { layout } : {}),
       ...(card ? { card } : {}),
+      ...(smallCard ? { smallCard } : {}),
     };
   } catch {
     return undefined;
@@ -83,21 +93,42 @@ export function readMetadataBlock(root: HTMLElement): MetadataEntry[] {
  * 1 up is left to the host. */
 export function readCardBlock(list: HTMLElement | null | undefined): CardTile[] | undefined {
   if (!list) return undefined;
+  return list.children.flatMap((li) => {
+    const tile = li.tagName === "LI" ? readCardTile(li) : undefined;
+    return tile ? [tile] : [];
+  });
+}
+
+/** The card a cards view draws, the `<ol data-role="small-card">` a Table
+ * and a Class share: a row card's tiles, and `data-title` for the card's
+ * title, or undefined with no block. */
+export function readSmallCardBlock(list: HTMLElement | null | undefined): SmallCardTile[] | undefined {
+  if (!list) return undefined;
+  return list.children.flatMap((li): SmallCardTile[] => {
+    if (li.tagName !== "LI") return [];
+    if (!li.getAttribute("data-field")?.trim() && li.getAttribute("data-title") !== undefined) {
+      return [{ title: true, ...tileSpans(li) }];
+    }
+    const tile = readCardTile(li);
+    return tile ? [tile] : [];
+  });
+}
+
+function readCardTile(li: HTMLElement): CardTile | undefined {
+  const field = li.getAttribute("data-field")?.trim();
+  if (field) return { field, ...tileSpans(li) };
+  const heading = li.getAttribute("data-heading");
+  return heading === undefined ? undefined : { heading: heading.trim() };
+}
+
+function tileSpans(li: HTMLElement): { columns?: number; rows?: number } {
   const span = (raw: string | undefined): number | undefined => {
     const value = Number(raw?.trim());
     return Number.isInteger(value) && value >= 1 ? value : undefined;
   };
-  return list.children.flatMap((li): CardTile[] => {
-    if (li.tagName !== "LI") return [];
-    const field = li.getAttribute("data-field")?.trim();
-    if (field) {
-      const columns = span(li.getAttribute("data-columns"));
-      const rows = span(li.getAttribute("data-rows"));
-      return [{ field, ...(columns ? { columns } : {}), ...(rows ? { rows } : {}) }];
-    }
-    const heading = li.getAttribute("data-heading");
-    return heading === undefined ? [] : [{ heading: heading.trim() }];
-  });
+  const columns = span(li.getAttribute("data-columns"));
+  const rows = span(li.getAttribute("data-rows"));
+  return { ...(columns ? { columns } : {}), ...(rows ? { rows } : {}) };
 }
 
 // What a type's attributes say whatever the type.

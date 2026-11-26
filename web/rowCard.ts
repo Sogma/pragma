@@ -7,6 +7,7 @@
 import { cardTiles } from "../src/protocol/card.ts";
 import type { CardTile, FieldValueType, TableColumn } from "../src/protocol/types.ts";
 import { OPEN_IN_NEW_TAB } from "./core/paths.ts";
+import { createCardDesignTools } from "./lib/cardDesignTools.ts";
 import { type RowMenu, startLabelRename } from "./lib/dataGrid.ts";
 import { fieldTypeIcon } from "./lib/fieldTypeIcon.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
@@ -214,44 +215,25 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     });
   }
 
-  // Design mode's tools: a heading, a field off the card back on it, and the
-  // cell guides kept showing.
+  // Design mode's tools, under the card's title.
   function designStrip(): HTMLElement {
-    const strip = document.createElement("div");
-    strip.className = "row-card-design";
-    const tool = (label: string) =>
-      Object.assign(document.createElement("button"), {
-        type: "button",
-        className: "action-button",
-        textContent: label,
-      });
-    const heading = tool("+ Heading");
-    heading.addEventListener("click", () => {
-      const added = addTile({ heading: "Heading" });
-      if (added) renameHeading(added);
+    const strip = createCardDesignTools({
+      addHeading() {
+        const added = addTile({ heading: "Heading" });
+        if (added) renameHeading(added);
+      },
+      offCard: () =>
+        fieldsOffCard().map((each) => ({ label: each.label, add: () => void addTile({ field: each.id }) })),
+      guides: {
+        on: () => guidesOn,
+        set(on) {
+          guidesOn = on;
+          grid?.setGuides(on);
+        },
+      },
+      contextMenu: deps.contextMenu,
     });
-    const field = tool("+ Field");
-    field.setAttribute("aria-haspopup", "true");
-    field.addEventListener("click", () => {
-      if (deps.contextMenu.isOpen(field)) {
-        deps.contextMenu.close();
-        return;
-      }
-      deps.contextMenu.open({
-        anchor: field,
-        ariaLabel: "Fields off the card",
-        empty: "Every field is on the card",
-        items: fieldsOffCard().map((each) => ({ label: each.label, run: () => void addTile({ field: each.id }) })),
-      });
-    });
-    const guides = tool("Grid");
-    guides.setAttribute("aria-pressed", String(guidesOn));
-    guides.addEventListener("click", () => {
-      guidesOn = !guidesOn;
-      guides.setAttribute("aria-pressed", String(guidesOn));
-      grid?.setGuides(guidesOn);
-    });
-    strip.append(heading, field, guides);
+    strip.classList.add("row-card-design");
     return strip;
   }
 

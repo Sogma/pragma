@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { HTMLElement, parse } from "node-html-parser";
-import { readCardBlock, readFieldColumns, readMetadataBlock } from "./tableFile.ts";
+import { readCardBlock, readFieldColumns, readMetadataBlock, readSmallCardBlock } from "./tableFile.ts";
 import type { ClassFile, ClassRule, ClassView } from "./types.ts";
 import { emptyClass, parseTableLayout } from "./types.ts";
 
@@ -31,6 +31,7 @@ export function parseClassFile(raw: string): ClassFile | undefined {
     const paths = (role: string) =>
       childElements(childElements(body, "ul", role)[0], "li").map((li) => li.textContent.trim());
     const card = readCardBlock(childElements(body, "ol", "card")[0]);
+    const smallCard = readSmallCardBlock(childElements(body, "ol", "small-card")[0]);
 
     return {
       version: html.getAttribute("data-format-version") || "1.0",
@@ -41,6 +42,7 @@ export function parseClassFile(raw: string): ClassFile | undefined {
       views: childElements(childElements(body, "ol", "views")[0], "li").map(readView),
       links: paths("links").filter(Boolean),
       ...(card ? { card } : {}),
+      ...(smallCard ? { smallCard } : {}),
     };
   } catch {
     return undefined;

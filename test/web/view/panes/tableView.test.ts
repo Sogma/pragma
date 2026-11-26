@@ -6,6 +6,13 @@ import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createTableView } from "../../../../web/view/panes/tablePane.ts";
 import { testContextMenu } from "../../support/testContextMenu.ts";
 
+// Layout's card lays its tiles on a grid that measures itself.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
+
 // Each test opens its own dialog through the service; none of them closes the
 // previous test's, so the body starts clean.
 beforeEach(() => {
@@ -243,7 +250,9 @@ describe("row add/delete", () => {
     rowBox(editing.editorTable, 0).click();
     expect(editing.tableView.toolbar.hidden).toBe(false);
     editing.tableView.setDesigning(true);
-    expect(editing.tableView.toolbar.hidden).toBe(true);
+    // Design's toolbar holds Layout alone.
+    const deleteButton = editing.tableView.toolbar.querySelector(".table-delete-selected") as HTMLElement;
+    expect([editing.tableView.toolbar.hidden, deleteButton.hidden]).toEqual([false, true]);
     expect(editing.reportReadout).toHaveBeenLastCalledWith("");
     editing.tableView.setDesigning(false);
     expect(editing.tableView.toolbar.hidden).toBe(true);
@@ -701,6 +710,32 @@ describe("layouts", () => {
     expect(editorTable.querySelector(".data-table-add-row")).not.toBeNull();
   });
 
+  it("draws an arranged card's tiles on its grid, parts by the rule, blanks kept, actions after the title", () => {
+    const { tableView, editorTable } = setup(false, false);
+    tableView.render({
+      ...mediaFile(),
+      layout: "cards",
+      smallCard: [{ field: "file", rows: 3 }, { title: true }, { heading: "Notes" }, { field: "note", columns: 2 }],
+    });
+    const card = editorTable.querySelectorAll(".data-cards-card")[0] as HTMLElement;
+    expect(card.classList.contains("data-cards-arranged")).toBe(true);
+    const tiles = [...card.querySelectorAll<HTMLElement>(".data-cards-tile")];
+    expect(tiles.map((tile) => tile.className.replace("data-cards-tile ", ""))).toEqual([
+      "data-cards-picture is-tall",
+      "data-cards-title",
+      "data-cards-heading",
+      "data-cards-field",
+    ]);
+    expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["4", "3", "4", "2"]);
+    expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-rows"))).toEqual(["3", "1", "1", "1"]);
+    expect((tiles[1].querySelector("input") as HTMLInputElement).value).toBe("BR2-001");
+    expect(tiles[1].querySelector(".data-table-row-delete")).not.toBeNull();
+    expect(tiles[2].textContent).toBe("Notes");
+    // Status, the badge, is off this card; the blank note keeps its tile.
+    expect(card.querySelector(".data-cards-badge")).toBeNull();
+    expect(tiles[3].querySelector(".data-cards-field-label")?.textContent).toBe("Note");
+  });
+
   // The picture is claimed first: a media column at the front is still the
   // picture, and the title is whatever comes next — or nothing, for a table
   // that is only media.
@@ -749,14 +784,35 @@ describe("layouts", () => {
     ).toHaveLength(1);
   });
 
-  it("is always the list while designing, and comes back once Design is off", () => {
+  it("draws the layout picked while designing, its column tools on the list alone", () => {
     const { tableView, editorTable } = setup(false, false);
     tableView.render({ ...mediaFile(), layout: "cards" });
     tableView.setDesigning(true);
-    expect(editorTable.querySelector("table.data-table")).not.toBeNull();
-    expect(tableView.getLayout()).toBe("cards");
-    tableView.setDesigning(false);
     expect(editorTable.querySelector(".data-cards")).not.toBeNull();
+    expect(editorTable.querySelector(".data-table-column-menu")).toBeNull();
+    tableView.setLayout("list");
+    expect(editorTable.querySelector(".data-table-column-menu")).not.toBeNull();
+  });
+
+  it("offers Layout in Design mode alone, and writes the small card it arranges", () => {
+    const { tableView, editorTable, scheduleSave } = setup(false, false);
+    tableView.render({ ...mediaFile(), layout: "cards" });
+    const layout = [...tableView.toolbar.querySelectorAll<HTMLButtonElement>("button")].find(
+      (each) => each.textContent === "Layout",
+    ) as HTMLButtonElement;
+    expect(layout.hidden).toBe(true);
+    tableView.setDesigning(true);
+    expect([tableView.toolbar.hidden, layout.hidden]).toEqual([false, false]);
+    layout.click();
+    const panel = document.querySelector(".layout-panel") as HTMLElement;
+    const removes = panel.querySelectorAll<HTMLButtonElement>(".tile-grid-remove");
+    removes[removes.length - 1].click();
+    expect(scheduleSave.mock.calls.at(-1)?.[1]).toContain(
+      '<ol data-role="small-card">\n    <li data-field="file"></li>\n    <li data-title></li>\n    <li data-field="status"></li>\n  </ol>',
+    );
+    expect(editorTable.querySelector(".data-cards-arranged")).not.toBeNull();
+    tableView.setDesigning(false);
+    expect(document.querySelector(".layout-panel")).toBeNull();
   });
 
   it("adds and deletes rows from the cards, persisting the file's own layout", async () => {

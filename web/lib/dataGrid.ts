@@ -2,12 +2,13 @@
 // that draws rows the same way. A pane keeps its rows and saves them; these
 // only build the controls and hand each edit back.
 import type { DocumentLock } from "../../src/protocol/api.ts";
-import type { FieldValueType, TableColumn, TableLayout, TableRow } from "../../src/protocol/types.ts";
+import type { FieldValueType, SmallCardTile, TableColumn, TableLayout, TableRow } from "../../src/protocol/types.ts";
 import { currentPlatform } from "../services/keybindings.ts";
 import type { MenuItem } from "../services/menus.ts";
 import { buildLockNotice } from "./dom.ts";
 import { fieldTypeIcon } from "./fieldTypeIcon.ts";
 import type { RowPick, RowSelection } from "./rowSelection.ts";
+import { createArrangedCard, resolveSmallCard } from "./smallCard.ts";
 import { leadTextMenu } from "./textMenu.ts";
 
 /** A column's header: its type's icon, when given, then its label, which is
@@ -469,6 +470,8 @@ export interface TableFormSpec {
   columns: readonly TableColumn[];
   rows: TableRow[];
   layout: TableLayout;
+  /** The cards view's card, as the file arranges it; absent composes it. */
+  smallCard?: readonly SmallCardTile[];
   /** Why the file is shown read-only, said above its rows. */
   locked?: DocumentLock;
   version: string;
@@ -523,19 +526,31 @@ function tableCards(spec: TableFormSpec): HTMLElement {
   const list = createCardList();
   const draw = () => list.replaceChildren(...spec.rows.map(card));
   const { openRow } = spec;
+  const arranged = spec.smallCard && resolveSmallCard(spec.columns, spec.smallCard, { picture, title, badge });
+  const actions = (row: TableRow, index: number) => [
+    ...(openRow ? [createRowOpenButton(() => openRow(row, index))] : []),
+    ...(spec.rowControl ? [spec.rowControl(row, draw)] : []),
+  ];
   const card = (row: TableRow, index: number) =>
-    createCard({
-      picture: picture && spec.cell(picture, row),
-      title: title && spec.cell(title, row),
-      badge: badge && spec.cell(badge, row),
-      actions: [
-        ...(openRow ? [createRowOpenButton(() => openRow(row, index))] : []),
-        ...(spec.rowControl ? [spec.rowControl(row, draw)] : []),
-      ],
-      lines: lines
-        .filter((column) => !spec.readOnly || (row.values[column.id] ?? "").trim())
-        .map((column) => ({ label: column.label, control: spec.cell(column, row) })),
-    });
+    arranged
+      ? createArrangedCard(
+          arranged.map(({ part, size, label, field }) => ({
+            part,
+            size,
+            label,
+            control: field && spec.cell(field, row),
+          })),
+          actions(row, index),
+        )
+      : createCard({
+          picture: picture && spec.cell(picture, row),
+          title: title && spec.cell(title, row),
+          badge: badge && spec.cell(badge, row),
+          actions: actions(row, index),
+          lines: lines
+            .filter((column) => !spec.readOnly || (row.values[column.id] ?? "").trim())
+            .map((column) => ({ label: column.label, control: spec.cell(column, row) })),
+        });
   draw();
   return list;
 }

@@ -58,22 +58,9 @@
   font-size: var(--small-font-size);
 }
 
-/* Design mode's tools, under the card's title. */
+/* Design mode's tools (card-design.css), under the card's title. */
 .row-card-design {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   margin: 0 24px 12px;
-}
-
-.row-card-design > .action-button {
-  padding: 3px 10px;
-  font-size: var(--small-font-size);
-}
-
-.row-card-design > .action-button[aria-pressed="true"] {
-  box-shadow: inset 0 0 0 1px var(--color-accent);
-  color: var(--color-accent);
 }
 
 .row-card-tile {

@@ -1,7 +1,8 @@
 // A grid of tiles that fill it row by row in order, each spanning whole
-// cells. Six columns, or two on a narrow grid, so a stored width is a share
-// of the row its designer can predict, and a tile wider than the grid spans
-// it whole (docs/protocol.md's App mode section).
+// cells. Six columns, or two on a narrow grid, unless its caller fixes the
+// count, so a stored width is a share of the row its designer can predict,
+// and a tile wider than the grid spans it whole (docs/protocol.md's App mode
+// section).
 //
 // A tile moves by its handle, resizes by its corner grip, takes Alt with the
 // arrows, and leaves by its x where the caller allows. Its looks are
@@ -43,6 +44,8 @@ export interface TileGridOptions {
   // Whether the tiles may move, resize and leave; true where absent.
   // setArrangeable changes it in place.
   arrangeable?: boolean;
+  // A column count that holds at any width, as a card's own grid does.
+  columns?: number;
   // A tile dropped beside another, never beside itself. The grid leaves the
   // move to the caller, whose order it is.
   onMove(tile: HTMLElement, target: HTMLElement, zone: DropZone): void;
@@ -101,7 +104,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
   grid.className = `tile-grid-tiles ${prefix}-grid`;
   board.append(guides, grid);
   const sizes = new Map<HTMLElement, TileSize>();
-  let columns = 1;
+  let columns = options.columns ?? 1;
   // Whether a gesture shows the guides now, and whether they show anyway.
   let gesturing = false;
   let pinned = false;
@@ -133,7 +136,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
   }
 
   function layout(): void {
-    const next = gridColumns(grid.clientWidth);
+    const next = options.columns ?? gridColumns(grid.clientWidth);
     if (next !== columns) {
       columns = next;
       board.style.setProperty("--app-columns", String(columns));

@@ -5,6 +5,7 @@ import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
 import type {
   CardTile,
   MetadataEntry,
+  SmallCardTile,
   TableColumn,
   TableFile,
   TableLayout,
@@ -27,6 +28,7 @@ import {
   type SelectedReads,
   servedPreviewSources,
 } from "../../filePreview.ts";
+import { createLayoutPanel } from "../../layoutPanel.ts";
 import {
   cardParts,
   createColumnHeader,
@@ -176,6 +178,9 @@ export interface TableViewDeps {
   overlayHost?: HTMLElement;
   // The status bar's line of the pane's own: how many rows are ticked.
   reportReadout?: (text: string) => void;
+  // A layout picked from Layout: the pane draws it and keeps it for the
+  // table's next open, as it keeps ⋮ › Layout's.
+  pickLayout?: (layout: TableLayout) => void;
 }
 
 export interface TableView {
@@ -228,6 +233,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         columns: TableColumn[];
         rows: TableRow[];
         card?: CardTile[];
+        smallCard?: SmallCardTile[];
       }
     | undefined;
   let designing = false;
@@ -240,7 +246,7 @@ export function createTableView(deps: TableViewDeps): TableView {
   // section) and left untouched after that.
   function persistActiveTable(): void {
     if (!activeTable) return;
-    const { file, columns, rows, card } = activeTable;
+    const { file, columns, rows, card, smallCard } = activeTable;
     // Belt-and-braces against the pane's own read-only lock: re-serializing a
     // locked file drops whatever this build couldn't parse out of it.
     if (file.locked) return;
@@ -255,6 +261,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // is not an edit.
       layout: file.layout,
       card,
+      smallCard,
     } satisfies TableFile);
     deps.scheduleSave(file.path, content);
   }
@@ -270,6 +277,7 @@ export function createTableView(deps: TableViewDeps): TableView {
     if (!activeTable) return;
     activeTable.columns.push(column);
     activeTable.card = cardWithField(activeTable.card, column.id);
+    activeTable.smallCard = cardWithField(activeTable.smallCard, column.id);
     const value = emptyFieldValue(column);
     for (const row of activeTable.rows) row.values[column.id] = value;
     persistActiveTable();
@@ -299,6 +307,7 @@ export function createTableView(deps: TableViewDeps): TableView {
     if (index === -1) return;
     activeTable.columns.splice(index, 1);
     activeTable.card = cardWithoutField(activeTable.card, column.id);
+    activeTable.smallCard = cardWithoutField(activeTable.smallCard, column.id);
     for (const row of activeTable.rows) delete row.values[column.id];
     persistActiveTable();
     renderActiveTablePane();
@@ -408,24 +417,76 @@ export function createTableView(deps: TableViewDeps): TableView {
   const selection = createRowSelection<TableRow>({
     rows: () => activeTable?.rows ?? [],
     key: (row) => row,
-    changed: showSelection,
+    changed: showToolbar,
     root: deps.editorTable,
   });
   const deleteButton = iconButton("table-delete-selected", "Delete entry");
   deleteButton.append(el("span", "table-delete-selected-icon"));
   deleteButton.addEventListener("click", () => deleteRows(selection.selected(), redrawAfterDelete));
+  const layoutButton = el("button", "flat-button table-toolbar-button", "Layout");
+  layoutButton.type = "button";
+  layoutButton.setAttribute("aria-haspopup", "dialog");
+  layoutButton.addEventListener("click", openLayout);
   const toolbar = el("div", "table-toolbar");
   toolbar.hidden = true;
-  toolbar.append(deleteButton);
+  toolbar.append(deleteButton, layoutButton);
+  let layoutFlyout: Flyout | undefined;
 
   // Delete for the ticked rows is offered where rows can change: Edit mode,
-  // on the list. Its label, which its tooltip shows, counts them.
-  function showSelection(): void {
+  // on the list. Its label, which its tooltip shows, counts them. Layout is
+  // offered in Design mode alone, where the Table's shape changes.
+  function showToolbar(): void {
     const count = selection.count();
     const total = activeTable?.rows.length ?? 0;
-    toolbar.hidden = count === 0 || valuesLocked() || layout !== "list";
+    deleteButton.hidden = count === 0 || valuesLocked() || layout !== "list";
+    layoutButton.hidden = !arrangeable();
+    toolbar.hidden = deleteButton.hidden && layoutButton.hidden;
+    if (layoutButton.hidden) layoutFlyout?.close();
     deleteButton.setAttribute("aria-label", count === 1 ? "Delete entry" : `Delete ${count} entries`);
     deps.reportReadout?.(count === 0 ? "" : `${count} of ${total} ${total === 1 ? "entry" : "entries"} selected`);
+  }
+
+  // A row's name: its title column's value, else its place.
+  function rowTitle(index: number): string {
+    const { title } = cardParts(activeTable?.columns ?? []);
+    const text = title ? (activeTable?.rows[index]?.values[title.id] ?? "").trim() : "";
+    return text || `Row ${index + 1}`;
+  }
+
+  // Built fresh from the Table each time it opens, so a second press closes
+  // it before a new one is made.
+  function openLayout(): void {
+    if (layoutFlyout) {
+      layoutFlyout.close();
+      return;
+    }
+    const panel = createLayoutPanel({
+      layout: () => layout,
+      setLayout: (next) => (deps.pickLayout ? deps.pickLayout(next) : showLayout(next)),
+      fields: () => activeTable?.columns ?? [],
+      parts: () => cardParts(activeTable?.columns ?? []),
+      ownTitle: false,
+      card: () => activeTable?.smallCard,
+      arrange(tiles) {
+        if (!activeTable || !arrangeable()) return;
+        activeTable.smallCard = tiles;
+        persistActiveTable();
+        renderActiveTablePane();
+      },
+      count: () => activeTable?.rows.length ?? 0,
+      title: rowTitle,
+      content(tile, index) {
+        const row = activeTable?.rows[index];
+        return row && tile.field ? buildTableCell(tile.field, row, persistActiveTable, true) : undefined;
+      },
+      contextMenu: deps.contextMenu,
+    });
+    layoutButton.setAttribute("aria-expanded", "true");
+    layoutFlyout = openFlyout(layoutButton, panel.element, () => {
+      layoutButton.setAttribute("aria-expanded", "false");
+      panel.dispose();
+      layoutFlyout = undefined;
+    });
   }
 
   // A row's full card over the pane, its values the grid's own.
@@ -439,11 +500,7 @@ export function createTableView(deps: TableViewDeps): TableView {
           const row = activeTable?.rows[index] ?? { values: {} };
           return buildTableCell(column, row, persistActiveTable, valuesLocked(), { multiline });
         },
-        title(index) {
-          const { title } = cardParts(activeTable?.columns ?? []);
-          const text = title ? (activeTable?.rows[index]?.values[title.id] ?? "").trim() : "";
-          return text || `Row ${index + 1}`;
-        },
+        title: rowTitle,
         source: () => activeTable?.file.name || basenameOf(activeTable?.file.path ?? "").replace(/\.table\.html$/, ""),
         arrangeable,
         arrange(tiles) {
@@ -532,17 +589,17 @@ export function createTableView(deps: TableViewDeps): TableView {
     if (columns.length === 0) after = editable ? addFirstColumnButton() : undefined;
     else if (!readOnly) after = addRowButton();
 
-    // Design is always the list: its tools are column-shaped and live in a
-    // header a card has none of.
-    const shownLayout = designing ? "list" : layout;
-
     // Only what the last draw drew: the group's title bar shares this
     // element, and a redraw not followed by onRendered would leave none.
     drawn?.remove();
     drawn = createTableForm({
       columns,
       rows,
-      layout: shownLayout,
+      // Design draws the layout picked too, so a card arranged from Layout
+      // shows on the cards behind it. The column tools live in the list's
+      // header, which cards have none of, so they show on List alone.
+      layout,
+      smallCard: activeTable.smallCard,
       locked: file.locked,
       version: file.version,
       editable,
@@ -564,7 +621,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // A card deletes from its own head; a list row is ticked and deleted
       // from the toolbar.
       rowControl:
-        readOnly || shownLayout === "list"
+        readOnly || layout === "list"
           ? undefined
           : (row, redraw) => buildTableRowDeleteButton(() => deleteRows([row], redraw)),
       openRow: rowCard ? (_row, index) => rowCard.open(index) : undefined,
@@ -574,7 +631,7 @@ export function createTableView(deps: TableViewDeps): TableView {
     });
     deps.editorTable.appendChild(drawn);
     selection.prune();
-    showSelection();
+    showToolbar();
   }
 
   // Design's "+" at the end of the header row.
@@ -620,6 +677,15 @@ export function createTableView(deps: TableViewDeps): TableView {
     return button;
   }
 
+  function showLayout(next: TableLayout): void {
+    layout = next;
+    // Cards tick nothing either.
+    if (next !== "list") selection.clear();
+    if (!activeTable) return;
+    renderActiveTablePane();
+    deps.onRendered();
+  }
+
   return {
     toolbar,
     isDesigning: () => designing,
@@ -633,14 +699,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       deps.onRendered();
     },
     getLayout: () => layout,
-    setLayout(next) {
-      layout = next;
-      // Cards tick nothing either.
-      if (next !== "list") selection.clear();
-      if (!activeTable) return;
-      renderActiveTablePane();
-      deps.onRendered();
-    },
+    setLayout: showLayout,
     render(file: TableFileResponse): void {
       const another = activeTable !== undefined && activeTable.file.path !== file.path;
       if (another) {
@@ -655,6 +714,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         columns: file.columns,
         rows: file.rows.map((row) => ({ values: { ...row.values } })),
         ...(file.card ? { card: file.card.map((tile) => ({ ...tile })) } : {}),
+        ...(file.smallCard ? { smallCard: file.smallCard.map((tile) => ({ ...tile })) } : {}),
       };
       renderActiveTablePane();
       rowCard?.refresh();
@@ -674,6 +734,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // Hosted outside this view, so nothing else would take it down with
       // the table it was about.
       folderPrompt?.close();
+      layoutFlyout?.close();
       rowCard?.close(false);
       selection.clear();
       activeTable = undefined;
@@ -756,13 +817,29 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     dialog: deps.dialog,
     openPath: deps.openPath,
   });
-  const view = createTableView({ ...deps, editorTable: element, openMedia: media.open, overlayHost: frame });
+  const view = createTableView({
+    ...deps,
+    editorTable: element,
+    openMedia: media.open,
+    overlayHost: frame,
+    pickLayout,
+  });
   const properties = deps.metadataProperties();
   // Find searches the values in every mode, never replacing them.
   const find = createPageFind({ root: element, values: valueCells });
 
   // The file the view holds, whose metadata the Properties tab edits.
   let shown: TableFileResponse | undefined;
+
+  // Drawn at once, since the view holds every row it needs; the pick is kept
+  // for the table's next open, from ⋮ › Layout and from Layout alike.
+  function pickLayout(id: string): void {
+    if (!shown || !isTableLayout(id) || id === view.getLayout()) return;
+    view.setLayout(id);
+    deps.saveLayout(shown.path, id).catch((error: unknown) => {
+      window.alert(error instanceof Error ? error.message : "Failed to change the layout.");
+    });
+  }
 
   // Shown on open and on a reading-view toggle, from the working copy: a
   // save's `modified` bump goes into the serialized file, not the working
@@ -820,15 +897,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     design: { isActive: () => view.isDesigning(), toggle: () => view.setDesigning(!view.isDesigning()) },
     layout: {
       current: () => view.getLayout(),
-      // Drawn at once, since the view holds every row it needs; the pick is
-      // kept for the table's next open.
-      set: (id) => {
-        if (!shown || !isTableLayout(id) || id === view.getLayout()) return;
-        view.setLayout(id);
-        deps.saveLayout(shown.path, id).catch((error: unknown) => {
-          window.alert(error instanceof Error ? error.message : "Failed to change the layout.");
-        });
-      },
+      set: pickLayout,
       available: () => TABLE_LAYOUTS,
     },
     dispose() {

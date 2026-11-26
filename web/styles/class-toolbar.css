@@ -15,7 +15,9 @@
   display: none;
 }
 
-.class-toolbar-button {
+/* A Table's Layout is a labeled button of the same kind. */
+.class-toolbar-button,
+.table-toolbar-button {
   gap: 4px;
   height: 28px;
   padding: 0 8px;

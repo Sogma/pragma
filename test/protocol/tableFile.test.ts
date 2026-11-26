@@ -222,6 +222,32 @@ describe(".table.html round-tripping", () => {
     expect(parseTableFile(serializeTableFile({ ...base, card: [] }))?.card).toEqual([]);
   });
 
+  it("round-trips a small card after the row card's block, its title tile included, and writes nothing without one", () => {
+    const base: TableFile = { version: "1.0", columns: [{ id: "shot", type: "text", label: "Shot" }], rows: [] };
+    expect(serializeTableFile(base)).not.toContain("small-card");
+    const smallCard = [{ field: "frame", columns: 4, rows: 5 }, { title: true as const }, { heading: "Camera" }];
+    const html = serializeTableFile({ ...base, card: [{ field: "shot" }], smallCard });
+    expect(html).toContain(
+      '  </ol>\n\n  <ol data-role="small-card">\n    <li data-field="frame" data-columns="4" data-rows="5"></li>\n    <li data-title></li>\n    <li data-heading="Camera"></li>\n  </ol>\n\n</body>',
+    );
+    const reparsed = parseTableFile(html);
+    expect(reparsed?.smallCard).toEqual(smallCard);
+    expect(reparsed?.card).toEqual([{ field: "shot" }]);
+    expect(serializeTableFile(reparsed as TableFile)).toBe(html);
+  });
+
+  // Its own role keeps it from any reader taking the first card block for
+  // the row card's.
+  it("never reads a small card as the row card, and reads a title's spans", () => {
+    const html = serializeTableFile({ version: "1.0", columns: [], rows: [] }).replace(
+      "</body>",
+      '<ol data-role="small-card"><li data-title data-columns="3" data-rows="0"></li><li data-field="lens" data-title></li></ol>\n</body>',
+    );
+    const read = parseTableFile(html);
+    expect(read?.card).toBeUndefined();
+    expect(read?.smallCard).toEqual([{ title: true, columns: 3 }, { field: "lens" }]);
+  });
+
   it("reads a card's spans only as whole numbers from 1, and skips an item naming nothing", () => {
     const html = serializeTableFile({ version: "1.0", columns: [], rows: [] }).replace(
       "</body>",

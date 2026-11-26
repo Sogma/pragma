@@ -68,6 +68,12 @@ describe("createTileGrid", () => {
     expect(tiles[0].querySelector(".tile-grid-grip")?.className).toBe("tile-grid-grip demo-tile-grip");
   });
 
+  it("holds a column count its caller fixes at any width, clamping each tile to it", () => {
+    const { grid: made, tiles } = grid({ columns: 4 });
+    expect(made.el.style.getPropertyValue("--app-columns")).toBe("4");
+    expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["4", "2", "2"]);
+  });
+
   it("moves a tile by Alt with the arrows on its handle, and sizes it with Shift too", () => {
     const { deps, tiles, handle, key } = grid();
     key(handle(tiles[1]), "ArrowRight", { altKey: true });

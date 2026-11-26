@@ -1,4 +1,4 @@
-import type { CardTile, FieldDefinition, MetadataEntry, TableColumn, TableFile } from "./types.ts";
+import type { CardTile, FieldDefinition, MetadataEntry, SmallCardTile, TableColumn, TableFile } from "./types.ts";
 
 // Pure string-building, no Node/DOM APIs — isomorphic on purpose, so the
 // server (scaffolding a new file) and the client (persisting an edit) share
@@ -57,10 +57,11 @@ export function fieldHeaderCell(column: TableColumn): string {
   return `        <th${fieldAttributes([["data-field", column.id]], column, true)}>${escapeHtml(column.label)}</th>\n`;
 }
 
-function cardItem(tile: CardTile): string {
+function cardItem(tile: SmallCardTile): string {
   if ("heading" in tile) return `    <li data-heading="${escapeHtml(tile.heading)}"></li>\n`;
   const columns = tile.columns ? ` data-columns="${tile.columns}"` : "";
   const rows = tile.rows ? ` data-rows="${tile.rows}"` : "";
+  if ("title" in tile) return `    <li data-title${columns}${rows}></li>\n`;
   return `    <li data-field="${escapeHtml(tile.field)}"${columns}${rows}></li>\n`;
 }
 
@@ -70,6 +71,13 @@ function cardItem(tile: CardTile): string {
 export function cardBlock(tiles: readonly CardTile[] | undefined): string {
   if (tiles === undefined) return "";
   return `\n  <ol data-role="card">\n${tiles.map(cardItem).join("")}  </ol>\n`;
+}
+
+/** The `<ol data-role="small-card">` a Table and a Class share, after the
+ * row card's block, written as that one is: only once arranged. */
+export function smallCardBlock(tiles: readonly SmallCardTile[] | undefined): string {
+  if (tiles === undefined) return "";
+  return `\n  <ol data-role="small-card">\n${tiles.map(cardItem).join("")}  </ol>\n`;
 }
 
 /** Serializes a TableFile back to `.table.html` text. Column/row order is
@@ -107,7 +115,7 @@ ${headerCells}      </tr>
     <tbody>
 ${bodyRows}    </tbody>
   </table>
-${cardBlock(file.card)}
+${cardBlock(file.card)}${smallCardBlock(file.smallCard)}
 </body>
 </html>
 `;

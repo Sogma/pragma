@@ -417,19 +417,50 @@ describe("classPane: changed where it shows", () => {
     input.dispatchEvent(new Event(event));
   };
 
-  it("puts Filter, Sort, Group, Fields and Links in the toolbar, and none of them while reading", async () => {
+  it("puts Filter, Sort, Group, Fields and Links in the toolbar, Layout after them in Design mode, and none while reading", async () => {
     const { pane } = await setup();
-    expect(texts(pane.toolbar as HTMLElement, ".class-toolbar-label")).toEqual([
-      "Filter",
-      "Sort",
-      "Group",
-      "Fields",
-      "Links",
-    ]);
+    const shown = () =>
+      [...(pane.toolbar as HTMLElement).querySelectorAll<HTMLElement>(".class-toolbar-label")]
+        .filter((label) => !(label.parentElement as HTMLElement).hidden)
+        .map((label) => label.textContent);
+    expect(shown()).toEqual(["Filter", "Sort", "Group", "Fields", "Links"]);
     expect(pane.toolbar?.hidden).toBe(false);
+    pane.design?.toggle();
+    expect(shown()).toEqual(["Filter", "Sort", "Group", "Fields", "Links", "Layout"]);
+    pane.design?.toggle();
+    expect(shown()).toEqual(["Filter", "Sort", "Group", "Fields", "Links"]);
 
     const reading = await setup(classFile(), rows, { reading: true });
     expect(reading.pane.toolbar?.hidden).toBe(true);
+  });
+
+  it("opens Layout in Design mode, puts the view in Cards, and writes the card once a tile leaves it", async () => {
+    const { pane, saved } = await setup();
+    pane.design?.toggle();
+    toolbarButton(pane, "Layout").click();
+    const panel = document.querySelector<HTMLElement>(".layout-panel");
+    if (!panel) throw new Error("no Layout panel");
+    const choice = (label: string) =>
+      [...panel.querySelectorAll<HTMLButtonElement>('[aria-label="Layout"] > button')].find(
+        (each) => each.textContent === label,
+      ) as HTMLButtonElement;
+    expect(choice("List").getAttribute("aria-pressed")).toBe("true");
+    expect(panel.querySelector(".small-card-tile")).toBeNull();
+
+    choice("Cards").click();
+    expect(saved()?.views[0].layout).toBe("cards");
+    expect(saved()?.smallCard).toBeUndefined();
+    // The card it starts from is the one the view composes: the title, the
+    // badge, then each other field.
+    const tiles = [...panel.querySelectorAll<HTMLElement>(".small-card-tile > .data-cards-tile")];
+    expect(tiles.map((tile) => tile.className.split(" ")[1])).toEqual([
+      "data-cards-title",
+      "data-cards-badge",
+      "data-cards-field",
+      "data-cards-field",
+    ]);
+    (panel.querySelectorAll(".tile-grid-remove")[3] as HTMLButtonElement).click();
+    expect(saved()?.smallCard).toEqual([{ title: true }, { field: "status" }, { field: "take" }]);
   });
 
   it("sorts the view from Sort, and saves the Class", async () => {
@@ -986,6 +1017,12 @@ describe("classPane: a pane too narrow for its toolbar", () => {
     expect(document.querySelector('.class-popover[aria-label="Fields"]')).not.toBeNull();
   });
 
+  it("folds Layout into ⋮ too, in Design mode", async () => {
+    const narrow = await paneOf(500);
+    narrow.design?.toggle();
+    expect(toolbarMenu(narrow)).toEqual(["Filter…", "Sort…", "Group…", "Fields…", "Links…", "Layout…"]);
+  });
+
   it("offers nothing from ⋮ while reading, when there are no buttons to fold", async () => {
     expect(toolbarMenu(await paneOf(500, { reading: true }))).toEqual([]);
   });
@@ -1169,6 +1206,24 @@ describe("classPane: screenplays and media as rows", () => {
     expect(pane.selectedFile?.()).toBeUndefined();
     expect(pane.inspector?.hidden).toBe(true);
     expect(deps.openPath).not.toHaveBeenCalled();
+  });
+
+  it("draws an arranged card with the row's title, only the tiles of fields the view shows", async () => {
+    const file = classFile({
+      views: [{ name: "Cards", layout: "cards", filter: [], fields: ["status", "take"] }],
+      smallCard: [{ title: true, columns: 2 }, { field: "tags" }, { field: "status" }, { field: "take", columns: 2 }],
+    });
+    const { pane } = await setup(file);
+    const card = pane.element.querySelector(".data-cards-card") as HTMLElement;
+    const tiles = [...card.querySelectorAll<HTMLElement>(".data-cards-tile")];
+    expect(tiles.map((tile) => tile.className.replace("data-cards-tile ", ""))).toEqual([
+      "data-cards-title",
+      "data-cards-badge",
+      "data-cards-field",
+    ]);
+    expect(tiles[0].querySelector(".class-row-title")?.textContent).toBe("Wide");
+    expect(tiles[0].querySelector(".row-open")).not.toBeNull();
+    expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["2", "1", "2"]);
   });
 
   it("pictures a media row with its own file among cards", async () => {

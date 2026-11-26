@@ -116,3 +116,91 @@
 .data-cards-card:focus-within .row-open {
   opacity: 1;
 }
+
+/* An arranged card (lib/smallCard.ts): its tiles on a grid four across, a
+   row one value tall. A tile keeps the part's class a composed card uses,
+   so its title, badge and lines look as they do there. */
+.data-cards-arranged {
+  position: relative;
+}
+
+.data-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: calc(var(--cell-line-height) + 10px);
+  grid-auto-flow: row;
+  gap: 6px 8px;
+}
+
+.data-cards-tile {
+  grid-column: span var(--tile-columns);
+  grid-row: span var(--tile-rows);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.data-cards-tile.data-cards-title,
+.data-cards-tile.data-cards-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-cards-tile.data-cards-title > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.data-cards-tile.data-cards-badge {
+  justify-content: flex-end;
+}
+
+/* A tile one row tall holds one line of a shown value, cut short with an
+   ellipsis rather than wrapped into a line the tile would clip in half. The
+   value's column may shrink below the text, or nothing would cut it. */
+.data-cards-tile > .data-cards-field-control {
+  min-width: 0;
+}
+
+.data-cards-tile:not(.is-tall) .data-table-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.data-cards-heading {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--small-font-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* An arranged picture fills its tiles, cropped to them, where a composed
+   card keeps the file's own shape. */
+.data-cards-tile.data-cards-picture .media-field {
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.data-cards-tile.data-cards-picture .media-field-thumb {
+  height: 100%;
+}
+
+.data-cards-tile.data-cards-picture .media-field-picture {
+  height: 100%;
+  object-fit: cover;
+}
+
+/* With no title on the card, its actions sit in its top corner. */
+.data-cards-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+}

@@ -42,4 +42,10 @@ describe("cardWithField and cardWithoutField", () => {
     ]);
     expect(cardWithoutField(undefined, "a")).toBeUndefined();
   });
+
+  it("does the same for a small card, keeping its title", () => {
+    const small = [{ title: true as const, columns: 3 }, { field: "a" }];
+    expect(cardWithField(small, "b")).toEqual([...small, { field: "b" }]);
+    expect(cardWithoutField(small, "a")).toEqual([{ title: true, columns: 3 }]);
+  });
 });

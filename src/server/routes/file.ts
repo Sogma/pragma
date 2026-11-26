@@ -473,6 +473,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
           layout: table.layout,
           ...(localLayout ? { localLayout } : {}),
           ...(table.card ? { card: table.card } : {}),
+          ...(table.smallCard ? { smallCard: table.smallCard } : {}),
           locked: lockFor(parsed),
           ...(bytes === undefined ? { missing: true as const } : {}),
         });

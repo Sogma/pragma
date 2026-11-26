@@ -472,8 +472,8 @@ export function registerEditorChromeCommands(deps: EditorChromeCommandDeps): voi
   // A pane that draws its rows more than one way lists the ways under one
   // heading, each checked while current. A second-level entry rather than
   // a toggle so a third layout is one more line, not a new control. Absent
-  // while designing, which is always the list, and while reading only the
-  // switch itself is offered, since nothing about it writes.
+  // while designing, where the pane's own Layout switches them, and while
+  // reading only the switch itself is offered, since nothing about it writes.
   function layoutSubmenu(context: CommandContext): MenuItem[] {
     const layout = context.pane?.layout;
     if (!layout || context.pane?.design?.isActive()) return [];

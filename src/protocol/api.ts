@@ -29,6 +29,7 @@ import type {
   FlowGraph,
   GenerateResult,
   MetadataEntry,
+  SmallCardTile,
   TableColumn,
   TableLayout,
   TableRow,
@@ -728,6 +729,8 @@ export interface TableFileResponse {
   localLayout?: TableLayout;
   // A row card's tiles; absent shows every column.
   card?: CardTile[];
+  // The tiles of the card a cards view draws; absent composes it.
+  smallCard?: SmallCardTile[];
   // Set only when a host must not save over this file.
   locked?: DocumentLock;
   // Nothing is at the path. It still reads as a new, empty Table; a caller

@@ -85,6 +85,7 @@ import {
   type SelectedReads,
   servedPreviewSources,
 } from "../../filePreview.ts";
+import { createLayoutPanel } from "../../layoutPanel.ts";
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
 import { openColorPicker } from "../../lib/colorPicker.ts";
 import {
@@ -106,6 +107,7 @@ import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
 import { type CellControls, createCell, createFieldValue } from "../../lib/fieldValue.ts";
 import { oneAtATime } from "../../lib/oneAtATime.ts";
 import { createRowSelection } from "../../lib/rowSelection.ts";
+import { createArrangedCard, resolveSmallCard } from "../../lib/smallCard.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
 import { installLinkPreview } from "../../notePreview.ts";
@@ -215,6 +217,7 @@ function registerClassMenu(menus: MenuRegistry): void {
       { label: "Group…", run: () => pane.openTool("group") },
       { label: "Fields…", run: () => pane.openTool("fields") },
       { label: "Links…", run: () => pane.openTool("links") },
+      ...(pane.design?.isActive() ? [{ label: "Layout…", run: () => pane.openTool("layout") }] : []),
     ];
   });
 }
@@ -410,8 +413,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
 
   function save(onWritten?: () => void): void {
     if (!open || open.file.locked) return;
-    const { version, name, metadata, filter, fields, views, links, card } = open.file;
-    const file: ClassFile = { version, name, metadata, filter, fields, views, links, card };
+    const { version, name, metadata, filter, fields, views, links, card, smallCard } = open.file;
+    const file: ClassFile = { version, name, metadata, filter, fields, views, links, card, smallCard };
     deps.scheduleSave(open.file.path, serializeClassFile(file), onWritten);
   }
 
@@ -486,8 +489,37 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   const toolbar = createClassToolbar({
     current: () => {
       const view = currentView();
-      return open && view ? { file: open.file, view, editable: editable() } : undefined;
+      return open && view ? { file: open.file, view, editable: editable(), designing } : undefined;
     },
+    layoutPanel: () =>
+      createLayoutPanel({
+        layout: () => currentView()?.layout ?? "list",
+        setLayout: (layout) =>
+          change((_file, view) => {
+            view.layout = layout;
+          }, "view"),
+        fields: () => open?.file.fields ?? [],
+        parts: () => {
+          const { picture, badge } = cardParts((open?.file.fields ?? []).map(fieldAsRead), true);
+          return { picture, badge };
+        },
+        ownTitle: true,
+        card: () => open?.file.smallCard,
+        arrange: (tiles) =>
+          change((file) => {
+            file.smallCard = tiles;
+          }, "view"),
+        count: () => displayed.length,
+        title: (index) => displayed[index]?.title ?? "",
+        content(tile, index) {
+          const row = displayed[index];
+          if (!row) return undefined;
+          if (tile.part === "title") return buildTitle(row);
+          if (tile.part === "picture") return cardPicture(row, tile.field, true);
+          return tile.field && buildCell(tile.field, row, tile.size.rows > 1, true);
+        },
+        contextMenu: deps.contextMenu,
+      }),
     keys: () => {
       const keys = new Map<string, boolean>();
       for (const row of open?.rows ?? []) {
@@ -947,6 +979,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         change((file) => {
           file.fields = file.fields.filter((each) => each.id !== field.id);
           file.card = cardWithoutField(file.card, field.id);
+          file.smallCard = cardWithoutField(file.smallCard, field.id);
           for (const view of file.views) {
             if (view.fields) view.fields = view.fields.filter((key) => key !== field.id);
           }
@@ -1171,25 +1204,47 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     });
   }
 
+  // A card's picture: a media file's own, beside the picture field's values
+  // or with none (no field's key is empty), else the picture field's value.
+  function cardPicture(row: ClassRow, picture: TableColumn | undefined, locked = false): HTMLElement | undefined {
+    if (row.kind === "image" || row.kind === "video" || row.kind === "pdf") return ownPicture(row, picture?.id ?? "");
+    return picture && buildCell(picture, row, false, locked);
+  }
+
   // A Table's card, with the row's title for its title. A badge or line
   // with no value is left out.
   function buildCards(fields: TableColumn[], rows: ClassRow[], folder: string | undefined): HTMLElement {
     const { picture, badge, lines } = cardParts(fields.map(fieldAsRead), true);
     const filled = (field: TableColumn, row: ClassRow) => cellValue(field, rowValue(row, field.id)).text.trim() !== "";
-    const isMedia = (row: ClassRow) => row.kind === "image" || row.kind === "video" || row.kind === "pdf";
+    const pictureOf = (row: ClassRow) => cardPicture(row, picture);
+    const arranged = open?.file.smallCard && resolveSmallCard(fields, open.file.smallCard, { picture, badge });
     const list = createCardList();
     const items = rows.map((row) => {
-      const card = createCard({
-        // Beside the picture field's values, or with none, the other files'
-        // own: no field's key is empty.
-        picture: isMedia(row) ? ownPicture(row, picture?.id ?? "") : picture && buildCell(picture, row),
-        title: buildTitle(row),
-        badge: badge && filled(badge, row) ? buildCell(badge, row) : undefined,
-        actions: [createRowOpenButton(() => openCard(row))],
-        lines: lines
-          .filter((field) => filled(field, row))
-          .map((field) => ({ label: field.label, control: buildCell(field, row) })),
-      });
+      const actions = [createRowOpenButton(() => openCard(row))];
+      const card = arranged
+        ? createArrangedCard(
+            arranged.map(({ part, size, label, field }) => ({
+              part,
+              size,
+              label,
+              control:
+                part === "title"
+                  ? buildTitle(row)
+                  : part === "picture"
+                    ? pictureOf(row)
+                    : field && buildCell(field, row),
+            })),
+            actions,
+          )
+        : createCard({
+            picture: pictureOf(row),
+            title: buildTitle(row),
+            badge: badge && filled(badge, row) ? buildCell(badge, row) : undefined,
+            actions,
+            lines: lines
+              .filter((field) => filled(field, row))
+              .map((field) => ({ label: field.label, control: buildCell(field, row) })),
+          });
       list.appendChild(card);
       return { element: card, row };
     });
@@ -1562,6 +1617,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       toggle() {
         designing = !designing;
         rowCard.refresh();
+        toolbar.update();
       },
     },
     openFind: () => find.open(),
