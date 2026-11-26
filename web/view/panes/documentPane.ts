@@ -1163,7 +1163,7 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
       const card = contextOf()?.card(data);
       const shown = card ? { ...data, pragma: "" } : data;
       properties.replaceChildren(
-        empty ? propertiesNote("No properties.") : renderFrontmatter(shown, current?.tab.path),
+        empty ? propertiesNote("No properties.") : renderFrontmatter(shown, current?.tab.path, model?.fields),
       );
       if (card) properties.append(card);
       paintTagPills(properties, deps.tags);
@@ -1214,6 +1214,7 @@ export function createDocumentPane(kind: DocumentPaneKind, deps: DocumentPaneDep
       tags: deps.tags,
       path: current?.tab.path,
       context: contextOf(),
+      fields: model.fields,
     });
   }
 

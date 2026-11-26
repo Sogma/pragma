@@ -3,6 +3,8 @@
 // values, text that wraps rather than a disabled control clipped at its own
 // width. One entry per type, so a type added without its controls fails to
 // compile.
+import { cellValue } from "../../src/protocol/class.ts";
+import { isListFrontmatterKey, PUBLICATION_DATE_KEY } from "../../src/protocol/frontmatter.ts";
 import type { FieldDefinition, FieldValueType, TableColumn } from "../../src/protocol/types.ts";
 import { normalizeHexColor, scoreOf } from "../../src/protocol/types.ts";
 import { createColorChip, paintColorChip } from "./colorChip.ts";
@@ -43,6 +45,11 @@ interface FieldControl {
   // in.
   show(el: HTMLElement, field: FieldDefinition, value: string): void;
   cell(column: TableColumn, value: string, context: CellContext): HTMLElement;
+  // Whether a note's properties draw a key of the type with these controls.
+  // Text keeps the Properties tab's own wrapping field, and a media or path
+  // value is read from its Class's folder, which a note's properties don't
+  // know.
+  property: boolean;
 }
 
 function showText(el: HTMLElement, _field: FieldDefinition, value: string): void {
@@ -84,6 +91,7 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
       input.addEventListener("change", () => onChange(input.checked ? "true" : "false"));
       return input;
     }),
+    property: true,
   },
   color: {
     show(el, field, value) {
@@ -109,19 +117,23 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
       });
       return button;
     }),
+    property: true,
   },
   integer: {
     show: showText,
     cell: lockable((_column, value, context) => textInput("number", value, context)),
+    property: true,
   },
   // A media or path value is always its slot, which takes the lock itself.
   media: {
     show: showText,
     cell: (column, value, { onChange, readOnly, controls }) => controls.media(column, value, readOnly, onChange),
+    property: false,
   },
   path: {
     show: showText,
     cell: (_column, value, { onChange, readOnly, controls }) => controls.path(value, readOnly, onChange),
+    property: false,
   },
   score: {
     show(el, field, value) {
@@ -131,6 +143,7 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
     cell: lockable((column, value, { onChange }) =>
       createScoreControl({ field: column, value, label: column.label, onChange }),
     ),
+    property: true,
   },
   select: {
     show: showText,
@@ -154,6 +167,7 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
       select.addEventListener("change", () => onChange(select.value));
       return select;
     }),
+    property: true,
   },
   text: {
     show: showText,
@@ -165,6 +179,7 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
       area.addEventListener(context.options.commit ?? "input", () => context.onChange(area.value));
       return area;
     }),
+    property: false,
   },
   timestamp: {
     show(el, _field, value) {
@@ -173,8 +188,26 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
       el.dataset.tooltip = label.title;
     },
     cell: lockable((_column, value, { onChange }) => createTimestampField({ value, onChange })),
+    property: true,
   },
 };
+
+/** The field a note's property is drawn with, of those the Classes holding
+ * the note give it: one whose type draws in properties, while the value is
+ * blank or one of its type's. Tags and the publication date keep their own
+ * controls. */
+export function propertyField(
+  fields: readonly TableColumn[] | undefined,
+  key: string,
+  value: unknown,
+): TableColumn | undefined {
+  if (isListFrontmatterKey(key) || key === PUBLICATION_DATE_KEY) return undefined;
+  const field = fields?.find((each) => each.id === key);
+  if (!field || !FIELD_CONTROLS[field.type].property) return undefined;
+  if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return field;
+  const read = cellValue(field, value);
+  return read.fits && !read.items ? field : undefined;
+}
 
 /** A value as content, for the modes that lock values. Media is the
  * caller's: its read-only field is already a display. */

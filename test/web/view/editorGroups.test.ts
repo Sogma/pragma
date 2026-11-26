@@ -33,6 +33,7 @@ const song: TextFileResponse = {
   content: "# Song\n\nfirst line\n",
   toolkits: [],
   classLinks: [],
+  fields: [],
 };
 
 // The other kind: a stand-in table pane, enough to prove a group can hold

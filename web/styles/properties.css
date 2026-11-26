@@ -137,6 +137,13 @@
   color: var(--text-faint);
 }
 
+/* A property a Class types wears its field type's glyph, grey as a value
+   type's is. */
+.property-icon[data-field-type] {
+  --property-glyph: var(--type-glyph);
+  color: var(--text-faint);
+}
+
 /* A removable row's icon is its menu button, inline to sit on the key's line
    as a plain icon does. The primitive's box is cut to the icon and 2px a
    side, and the negative margin gives those back, so the icon sits where a
@@ -276,6 +283,28 @@
 .property-editor-value .wrapping-field {
   flex: 1;
   min-width: 0;
+}
+
+/* A property a Class types wears its Table cell's control at the rows' own
+   size, centred on its key's line: the line plus a field's 2px padding and
+   1px border each side, as the key field is. */
+.property-editor-typed {
+  --cell-font-size: 1em;
+  min-height: calc(1lh + 6px);
+}
+
+.property-editor-typed > :is(.data-table-cell-text, .data-table-cell-select, .data-table-cell-timestamp) {
+  padding: 1px 4px;
+}
+
+/* Their marks start where a text value's first letter does, past a field's
+   border and padding. */
+.property-editor-typed > .data-table-cell-color {
+  padding: 0 4px;
+}
+
+.property-editor-typed > .score {
+  padding-inline: 5px;
 }
 
 /* A value Pragma sets itself, a fact rather than a field. The padding stands

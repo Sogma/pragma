@@ -219,6 +219,14 @@ describe("frontmatter in reading view", () => {
     const key = rows.querySelector<HTMLElement>(".meta-key");
     expect(key?.dataset.tooltipOverflow).toBe("");
   });
+
+  it("locks a value a Class types as its field shows it, and one that isn't the field's as written", () => {
+    const fields = [{ id: "rating", type: "score" as const, label: "Rating" }];
+    const rated = renderFrontmatter({ rating: 4 }, "notes/a.md", fields);
+    expect(rated.querySelectorAll(".meta-value .score-mark[data-lit]")).toHaveLength(4);
+    expect(rated.querySelector(".meta-value button")).toBeNull();
+    expect(renderFrontmatter({ rating: 9 }, "notes/a.md", fields).querySelector(".meta-text")?.textContent).toBe("9");
+  });
 });
 
 describe("the file lines reading view marks", () => {

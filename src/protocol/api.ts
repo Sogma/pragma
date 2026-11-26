@@ -702,6 +702,8 @@ export interface TextFileResponse {
   documentType: DocumentType;
   toolkits: TextToolkitInfo[];
   classLinks: ClassLinks[];
+  // The fields the Classes holding it give its properties, one per key.
+  fields: TableColumn[];
 }
 
 // Why a Table, Class or Flow opens read-only: `newer-format` names a format

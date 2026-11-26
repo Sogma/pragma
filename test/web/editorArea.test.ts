@@ -77,6 +77,7 @@ function noteFile(path: string, body: string): TextFileResponse {
     content: `# Title\n\n${body}\n`,
     toolkits: [],
     classLinks: [],
+    fields: [],
   };
 }
 

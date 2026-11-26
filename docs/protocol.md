@@ -397,10 +397,10 @@ A text document is plain prose with a selectable region, acted on in place. It c
 A host's file read returns, for a text document:
 
 ```json
-{ "kind": "text", "path": "...", "content": "...", "documentType": "note", "toolkits": [ ... ], "classLinks": [ ... ] }
+{ "kind": "text", "path": "...", "content": "...", "documentType": "note", "toolkits": [ ... ], "classLinks": [ ... ], "fields": [ ... ] }
 ```
 
-Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root.
+Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root. Each entry in `fields` is a [field](#class-fields) the Classes holding it define for one of its properties, so a host can draw that property as its type; a key two of them define differently, other than by label, has none.
 
 #### Text embeds
 

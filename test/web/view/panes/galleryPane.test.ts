@@ -104,7 +104,16 @@ function renderer(
 
 // A note as the document route sends it.
 function textFile(path: string, content: string): TextFileResponse {
-  return { kind: "text", path, revision: "r1", content, documentType: "note", toolkits: [], classLinks: [] };
+  return {
+    kind: "text",
+    path,
+    revision: "r1",
+    content,
+    documentType: "note",
+    toolkits: [],
+    classLinks: [],
+    fields: [],
+  };
 }
 
 // A ProRes clip's header, as the host reads it for a clip no browser here decodes.
@@ -1863,6 +1872,7 @@ describe("a previewed screenplay", () => {
           documentType: "screenplay",
           toolkits: [],
           classLinks: [],
+          fields: [],
         }),
       ),
     });

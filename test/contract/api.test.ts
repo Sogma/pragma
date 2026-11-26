@@ -4237,7 +4237,11 @@ describe("API contract — toolkits", () => {
       serializeClassFile({
         version: "1.0",
         filter: [{ property: "tags", test: "has", values: ["redo"] }],
-        fields: [],
+        fields: [
+          { id: "rating", type: "score", label: "Rating" },
+          { id: "status", type: "select", label: "Status", options: ["draft", "final"] },
+          { id: "file.modified", type: "timestamp", label: "Modified" },
+        ],
         views: [],
         links: ["tools/rewrite.flow.html", "tools/missing.flow.html"],
       }),
@@ -4267,7 +4271,10 @@ describe("API contract — toolkits", () => {
       serializeClassFile({
         version: "1.0",
         filter: [{ property: "file.folder", test: "is", values: ["*/lyrics"] }],
-        fields: [],
+        fields: [
+          { id: "rating", type: "score", label: "Stars" },
+          { id: "status", type: "select", label: "Status", options: ["final"] },
+        ],
         views: [],
         links: [
           "../../tools/polish.flow.html",
@@ -4411,6 +4418,20 @@ describe("API contract — toolkits", () => {
       { classPath: "songs/tools/lyrics.class.html", name: "lyrics", paths: ["songs/voice.md"] },
     ]);
     expect(await classLinks("songs/chico/notes/idea.md")).toEqual([]);
+  });
+
+  it("types a row's properties by the fields its Classes give them, and no key two define differently", async () => {
+    const fields = async (docPath: string) =>
+      (await (await fetch(`${testServer.baseUrl}/api/file?path=${encodeURIComponent(docPath)}`)).json()).fields;
+
+    expect(await fields("draft.md")).toEqual([
+      { id: "rating", type: "score", label: "Rating" },
+      { id: "status", type: "select", label: "Status", options: ["draft", "final"] },
+    ]);
+    // The lyrics Class scores it alike under another label, and offers
+    // other options.
+    expect(await fields("songs/chico/lyrics/sun.md")).toEqual([{ id: "rating", type: "score", label: "Rating" }]);
+    expect(await fields("songs/chico/notes/idea.md")).toEqual([]);
   });
 
   it("derives readCurrentDocument from a Current Document node, and nothing for Replace Selection", async () => {

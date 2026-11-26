@@ -22,6 +22,7 @@ function post(overrides: Partial<TextFileResponse> = {}): TextFileResponse {
     content: "---\ntags:\n  - a\n---\n\n# Post\n\nfirst line\n",
     toolkits: [],
     classLinks: [],
+    fields: [],
     ...overrides,
   };
 }

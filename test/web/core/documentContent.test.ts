@@ -13,7 +13,16 @@ import {
 } from "../../../web/core/documentContent.ts";
 
 function textFile(content: string, documentType: TextFileResponse["documentType"] = "note"): TextFileResponse {
-  return { kind: "text", path: "note.md", revision: "rev-1", content, documentType, toolkits: [], classLinks: [] };
+  return {
+    kind: "text",
+    path: "note.md",
+    revision: "rev-1",
+    content,
+    documentType,
+    toolkits: [],
+    classLinks: [],
+    fields: [],
+  };
 }
 
 describe("displayTitleOf", () => {

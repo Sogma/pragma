@@ -27,7 +27,16 @@ function areaAt(left: number, top: number, width: number, height: number): HTMLE
 }
 
 function textFile(path: string, content: string): TextFileResponse {
-  return { kind: "text", path, revision: "r1", content, documentType: "note", toolkits: [], classLinks: [] };
+  return {
+    kind: "text",
+    path,
+    revision: "r1",
+    content,
+    documentType: "note",
+    toolkits: [],
+    classLinks: [],
+    fields: [],
+  };
 }
 
 const settle = () => vi.advanceTimersByTimeAsync(0);

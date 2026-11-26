@@ -65,6 +65,7 @@ function setup(mode: ChatMode = "suggesting", overrides: Partial<ChatDeps> = {})
         documentType: "note",
         toolkits: [],
         classLinks: [],
+        fields: [],
       }),
     ),
     formats: createFormats(),

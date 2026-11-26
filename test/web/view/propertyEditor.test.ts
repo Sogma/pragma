@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TagDefinition } from "../../../src/protocol/tags.ts";
+import type { TableColumn } from "../../../src/protocol/types.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
 import type { ContextMenuService } from "../../../web/services/menus.ts";
 import { createPropertyEditor } from "../../../web/view/propertyEditor.ts";
@@ -632,5 +633,49 @@ describe("a context's pragma row", () => {
   it("leaves every other key as it was", () => {
     const { container } = contextSetup({ pragma: "", title: "Forbidden" });
     expect(container.querySelector('.property-editor-row[data-key="title"] .wrapping-field-input')).not.toBeNull();
+  });
+});
+
+describe("a key a Class types", () => {
+  const fields: TableColumn[] = [
+    { id: "rating", type: "score", label: "Rating", reject: true },
+    { id: "status", type: "select", label: "Status", options: ["draft", "final"] },
+    { id: "summary", type: "text", label: "Summary" },
+    { id: "tags", type: "select", label: "Tags", options: ["a"] },
+  ];
+
+  function typedSetup(data: Record<string, unknown>) {
+    const container = document.createElement("div");
+    const onChange = vi.fn();
+    createPropertyEditor(container, data, onChange, { contextMenu: fakeContextMenu(), fields }).render();
+    const row = (key: string) => container.querySelector(`.property-editor-row[data-key="${key}"]`) as HTMLElement;
+    return { row, onChange, data };
+  }
+
+  it("draws its value with the field's control, and its icon with the field's type", () => {
+    const { row } = typedSetup({ rating: 3, status: "final" });
+    expect(row("rating").querySelectorAll(".score-mark[data-lit]")).toHaveLength(3);
+    expect(row("rating").querySelector<HTMLElement>(".property-icon")?.dataset.fieldType).toBe("score");
+    expect(row("status").querySelector<HTMLSelectElement>("select")?.value).toBe("final");
+  });
+
+  it("saves a value as the field stores it, and a cleared one as blank, keeping its row", () => {
+    const { row, data, onChange } = typedSetup({ rating: "" });
+    const marks = row("rating").querySelectorAll<HTMLButtonElement>(".score-mark");
+    marks[3].click();
+    expect(data.rating).toBe(4);
+    marks[3].click();
+    expect(data.rating).toBe("");
+    row("rating").querySelector<HTMLButtonElement>(".score-reject")?.click();
+    expect(data.rating).toBe(-1);
+    expect(onChange).toHaveBeenCalledTimes(3);
+  });
+
+  it("draws by the value's shape a value that isn't the field's, text, and tags", () => {
+    const { row } = typedSetup({ rating: 9, summary: "Long.", tags: ["a"] });
+    expect(row("rating").querySelector(".score")).toBeNull();
+    expect(row("rating").querySelector<HTMLElement>(".property-icon")?.dataset.valueType).toBe("number");
+    expect(row("summary").querySelector(".wrapping-field-input")).not.toBeNull();
+    expect(row("tags").querySelector(".property-editor-tag-input")).not.toBeNull();
   });
 });

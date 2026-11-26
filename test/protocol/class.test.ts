@@ -19,6 +19,7 @@ import {
   isThisFolder,
   matchesRules,
   newNoteProperties,
+  noteFields,
   noteFolderOf,
   readsFolder,
   rowKindOf,
@@ -379,6 +380,24 @@ describe("cellValue", () => {
     expect(cellValue({ ...rating, max: 10 }, 7)).toEqual({ text: "7", fits: true });
     expect(cellValue(rating, 4.5)).toEqual({ text: "4.5", fits: false });
     expect(cellValue(rating, "4")).toEqual({ text: "4", fits: false });
+  });
+});
+
+describe("noteFields", () => {
+  const rating: TableColumn = { id: "rating", type: "score", label: "Rating" };
+
+  it("gives each key the field the Classes holding a note define for it, in their order", () => {
+    const status: TableColumn = { id: "status", type: "select", label: "Status", options: ["draft"] };
+    expect(noteFields([{ fields: [rating] }, { fields: [status, { ...rating, label: "Stars" }] }])).toEqual([
+      rating,
+      status,
+    ]);
+  });
+
+  it("gives none for a key two of them define differently, or for a file's own fact", () => {
+    const modified: TableColumn = { id: "file.modified", type: "timestamp", label: "Modified" };
+    expect(noteFields([{ fields: [rating, modified] }, { fields: [{ ...rating, max: 10 }] }])).toEqual([]);
+    expect(noteFields([{ fields: [rating] }, { fields: [{ ...rating, type: "integer" }] }])).toEqual([]);
   });
 });
 

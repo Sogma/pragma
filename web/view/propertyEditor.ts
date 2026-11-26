@@ -1,9 +1,13 @@
 // Properties as editable rows, one per key: a note's frontmatter or an HTML
 // kind's metadata block.
+import { frontmatterValue } from "../../src/protocol/class.ts";
 import { isListFrontmatterKey, PUBLICATION_DATE_KEY } from "../../src/protocol/frontmatter.ts";
 import { illegalTagNameReason, sameTag, tagNameOf, tagsOf } from "../../src/protocol/tags.ts";
+import type { TableColumn } from "../../src/protocol/types.ts";
 import { coerceScalarPropertyValue } from "../core/documentContent.ts";
+import { openColorPicker } from "../lib/colorPicker.ts";
 import { openDatePicker, parseDatePrefix } from "../lib/datePicker.ts";
+import { type CellControls, createCell, propertyField } from "../lib/fieldValue.ts";
 import { propertyIcon } from "../lib/propertyIcon.ts";
 import { createPill, createTagPill, paintTagPills } from "../lib/tagPill.ts";
 import { attachTagSuggestions, type TagSource } from "../lib/tagSuggestions.ts";
@@ -34,7 +38,18 @@ export interface PropertyEditorOptions {
   // settings are edited only there, so that row has no field of its own,
   // whose text would flatten the block into a string.
   context?: { card(data: Record<string, unknown>): HTMLElement | undefined; open(): void };
+  // The fields the Classes holding a note give its properties: a key one
+  // types is drawn with that type's control and saved as the type stores it.
+  fields?: readonly TableColumn[];
 }
+
+// What a typed property's controls need from above `lib/`: the color picker
+// alone, since a media or path field is never drawn here.
+const CELL_CONTROLS: CellControls = {
+  media: () => document.createElement("span"),
+  path: () => document.createElement("span"),
+  pickColor: (anchor, value, onPick) => openColorPicker({ anchor, value, onPick }),
+};
 
 // Generic key/value + tag-pill property editor, shared by a document's
 // properties section and an HTML kind's metadata block. It keeps no state
@@ -49,7 +64,7 @@ export function createPropertyEditor(
   container: HTMLElement,
   data: Record<string, unknown>,
   onChange: () => void,
-  { onStructuralChange, contextMenu, tags, path, textValues, readOnlyKeys, context }: PropertyEditorOptions,
+  { onStructuralChange, contextMenu, tags, path, textValues, readOnlyKeys, context, fields }: PropertyEditorOptions,
 ): { render: () => void; addProperty: () => HTMLElement | undefined } {
   // Set as a drag ends, for the click its release sends, which must not open
   // the icon's menu. It runs in the same task, before the timeout clears this.
@@ -81,7 +96,7 @@ export function createPropertyEditor(
   function refreshRowIcon(key: string): void {
     container
       .querySelector(`.property-editor-row[data-key="${CSS.escape(key)}"] .property-icon`)
-      ?.replaceWith(propertyIcon(key, data, path));
+      ?.replaceWith(propertyIcon(key, data, path, propertyField(fields, key, data[key])));
   }
 
   // A property's value cell, keyed off the value's *shape* — an array
@@ -170,6 +185,20 @@ export function createPropertyEditor(
       return cell;
     }
 
+    // Cleared, it keeps its row: blank, as a property just added is.
+    const typed = propertyField(fields, key, value);
+    if (typed) {
+      const text = value === null || value === undefined ? "" : String(value).trim();
+      const save = (next: string): void => {
+        data[key] = frontmatterValue(typed, next) ?? "";
+        onChange();
+        refreshRowIcon(key);
+      };
+      cell.classList.add("property-editor-typed");
+      cell.appendChild(createCell(typed, text, save, false, CELL_CONTROLS, { asHeld: true }));
+      return cell;
+    }
+
     const shown =
       value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
     if (key === PUBLICATION_DATE_KEY) {
@@ -203,7 +232,7 @@ export function createPropertyEditor(
   // since nothing undoes it. The icon is also what the property is dragged by,
   // and Alt+Up and Alt+Down move it, as Alt+arrows move an App mode tile.
   function buildIcon(key: string): HTMLElement {
-    const icon = propertyIcon(key, data, path);
+    const icon = propertyIcon(key, data, path, propertyField(fields, key, data[key]));
     if (readOnlyKeys?.includes(key)) return icon;
     const button = document.createElement("button");
     button.type = "button";

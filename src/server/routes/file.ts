@@ -28,6 +28,7 @@ import type {
   ThumbnailUsageResponse,
 } from "../../protocol/api.ts";
 import { contentHashFor, readAppletFile } from "../../protocol/appletFile.ts";
+import { noteFields } from "../../protocol/class.ts";
 import { parseClassFile } from "../../protocol/classFile.ts";
 import { flowActions } from "../../protocol/flowActions.ts";
 import { capabilityDigest, emptyFlowFile, parseFlowFile, readFlowFile } from "../../protocol/flowFile.ts";
@@ -64,7 +65,7 @@ import { parseByteRange } from "../rangeRequest.ts";
 import { resolveToolkits } from "../resolveToolkits.ts";
 import { formatWithinRoot, isSpaceTarget, resolveRootedPath } from "../rootedFiles.ts";
 import { saveDocument } from "../saveDocument.ts";
-import { classesLinking, classLinkedFiles } from "../spaceClasses.ts";
+import { classesHolding, classLinkedFiles } from "../spaceClasses.ts";
 import { readRevision, revisionOf, withFileLock } from "../spaceFiles.ts";
 import {
   checkThumbnail,
@@ -551,12 +552,13 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       // Toolkits come from the Classes holding the document as a row
       // (docs/protocol.md's Toolkit resolution). Every candidate is sent
       // down, in order, so the client can offer all of them. The other
-      // files those Classes link go to the Links tab.
+      // files those Classes link go to the Links tab, and their fields type
+      // the document's properties.
       //
       // Toolkits are space machinery: resolution reads the space's own
       // Classes, and a library document has none, nor any use for buttons
       // that would write to a root it can't write to.
-      const classes = inSpace ? await classesLinking(spaceRoot, { path: rooted.path, filePath }) : [];
+      const classes = inSpace ? await classesHolding(spaceRoot, { path: rooted.path, filePath }) : [];
       const toolkits = await Promise.all(
         resolveToolkits(spaceRoot, classes).map(async ({ classPath, path: flowPath }): Promise<TextToolkitInfo> => {
           const { name, graph } = await readFlowFile(path.join(spaceRoot, flowPath));
@@ -572,6 +574,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         documentType,
         toolkits,
         classLinks: classLinkedFiles(spaceRoot, classes, rooted.path),
+        fields: noteFields(classes),
       });
     }
 

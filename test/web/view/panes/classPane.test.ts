@@ -306,6 +306,7 @@ describe("classPane: a note's preview", () => {
       documentType: "note",
       toolkits: [],
       classLinks: [],
+      fields: [],
     });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     over(titled(pane, "Wide"));
@@ -334,6 +335,7 @@ describe("classPane: a note's preview", () => {
       documentType: "screenplay",
       toolkits: [],
       classLinks: [],
+      fields: [],
     });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     over(titled(pane, "Brick"));

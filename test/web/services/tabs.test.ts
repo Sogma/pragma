@@ -14,6 +14,7 @@ function noteFile(path: string): TextFileResponse {
     content: "# Song\n",
     toolkits: [],
     classLinks: [],
+    fields: [],
   };
 }
 

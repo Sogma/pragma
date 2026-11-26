@@ -14,7 +14,7 @@ import { asStyled } from "../support/styled.ts";
 polyfillRangeRects();
 
 function textFile(path: string, content: string, documentType: "note" | "screenplay" = "note"): TextFileResponse {
-  return { kind: "text", path, revision: "r1", content, documentType, toolkits: [], classLinks: [] };
+  return { kind: "text", path, revision: "r1", content, documentType, toolkits: [], classLinks: [], fields: [] };
 }
 
 const deck: TableFileResponse = {

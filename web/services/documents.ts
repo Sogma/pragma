@@ -19,7 +19,7 @@ import {
   sameKeyOrder,
 } from "../../src/protocol/frontmatter.ts";
 import { basenameOf } from "../../src/protocol/rootedPath.ts";
-import type { DocumentType } from "../../src/protocol/types.ts";
+import type { DocumentType, TableColumn } from "../../src/protocol/types.ts";
 import type {
   ActiveTitle,
   ClassLinks,
@@ -66,6 +66,8 @@ export interface DocumentModel {
   // The other files the Classes holding it link it to, for its Links tab;
   // refreshed by reload().
   readonly classLinks: readonly ClassLinks[];
+  // The fields those Classes give its properties; refreshed by reload().
+  readonly fields: readonly TableColumn[];
   // The text an editor shows: the file minus frontmatter and the lifted
   // `# Heading` (a note), or the whole file (screenplay).
   body(): string;
@@ -197,6 +199,7 @@ export function createDocuments(deps: DocumentsDeps): DocumentsService {
     let lineOffset = split.lineOffset;
     let toolkits: readonly TextToolkitInfo[] = file.toolkits;
     let classLinks: readonly ClassLinks[] = file.classLinks;
+    let fields: readonly TableColumn[] = file.fields;
     const listeners = new Set<(event: DocumentEvent) => void>();
 
     function emit(event: DocumentEvent): void {
@@ -332,6 +335,9 @@ export function createDocuments(deps: DocumentsDeps): DocumentsService {
       get classLinks() {
         return classLinks;
       },
+      get fields() {
+        return fields;
+      },
       body: () => bodyText.toString(),
       bodyText: () => bodyText,
       properties: () => properties,
@@ -374,6 +380,7 @@ export function createDocuments(deps: DocumentsDeps): DocumentsService {
         adopt(splitDocumentProperties(fresh));
         toolkits = fresh.toolkits;
         classLinks = fresh.classLinks;
+        fields = fresh.fields;
         emit({ kind: "reload" });
         return true;
       },

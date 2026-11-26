@@ -12,10 +12,12 @@ import { titleHeadingSpan } from "../src/protocol/markdownTitle.ts";
 import { mathSyntax, readMath } from "../src/protocol/mathSyntax.ts";
 import { hasPragmaScheme } from "../src/protocol/pragmaUrl.ts";
 import type { PathForm } from "../src/protocol/relativeReference.ts";
+import type { TableColumn } from "../src/protocol/types.ts";
 import { parseVideoEmbed, type VideoEmbed } from "../src/protocol/videoEmbed.ts";
 import { splitWikilinkLabel } from "../src/protocol/wikilink.ts";
 import { wikilinkLabel, wikilinkSyntax } from "../src/protocol/wikilinkSyntax.ts";
 import { markExternalLink } from "./lib/externalLinks.ts";
+import { createFieldValue, propertyField } from "./lib/fieldValue.ts";
 import { propertyIcon } from "./lib/propertyIcon.ts";
 import { createPill, createTagPill } from "./lib/tagPill.ts";
 import { typesetMath } from "./mathTypeset.ts";
@@ -739,8 +741,13 @@ function appendFrontmatterValue(container: Node, key: string, value: unknown): v
 
 // Parsed frontmatter as read-only key/value rows: a document's properties
 // section while reading view locks it. `path` is the document's, for the
-// `pragma` key's scope mark.
-export function renderFrontmatter(data: Record<string, unknown>, path?: string): HTMLElement {
+// `pragma` key's scope mark; `fields` are those the Classes holding it give
+// its properties, a typed key's value drawn as its type locks it.
+export function renderFrontmatter(
+  data: Record<string, unknown>,
+  path?: string,
+  fields?: readonly TableColumn[],
+): HTMLElement {
   const el = document.createElement("div");
   el.className = "meta-rows";
   for (const [key, value] of Object.entries(data)) {
@@ -749,10 +756,12 @@ export function renderFrontmatter(data: Record<string, unknown>, path?: string):
     const keyEl = document.createElement("span");
     keyEl.className = "meta-key";
     keyEl.dataset.tooltipOverflow = "";
-    keyEl.append(propertyIcon(key, data, path), key);
+    const field = propertyField(fields, key, value);
+    keyEl.append(propertyIcon(key, data, path, field), key);
     const valueEl = document.createElement("span");
     valueEl.className = "meta-value";
-    appendFrontmatterValue(valueEl, key, value);
+    if (field) valueEl.appendChild(createFieldValue(field, value === null || value === undefined ? "" : String(value)));
+    else appendFrontmatterValue(valueEl, key, value);
     row.append(keyEl, valueEl);
     el.appendChild(row);
   }

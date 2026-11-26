@@ -1,13 +1,14 @@
-// The space's Classes as a document's toolkit and Links tab read them: every
-// Class in the space but its templates, which are copies waiting to be made.
-// The document index finds and reads them, checking the space first.
+// The space's Classes as a document's toolkit, Links tab and properties read
+// them: every Class in the space but its templates, which are copies waiting
+// to be made. The document index finds and reads them, checking the space
+// first.
 import { lstatSync } from "node:fs";
 import type { ClassLinks } from "../protocol/api.ts";
-import { classLinkUse } from "../protocol/class.ts";
+import { classLinkUse, isFileField } from "../protocol/class.ts";
 import { compareSortValues } from "../protocol/folderSort.ts";
 import { resolveDeclaredPath } from "../protocol/relativeReference.ts";
 import { basenameOf, dirnameOf, formatRootedPath } from "../protocol/rootedPath.ts";
-import { splitDocumentName } from "../protocol/types.ts";
+import { splitDocumentName, type TableColumn } from "../protocol/types.ts";
 import { classRowOf } from "./classRows.ts";
 import { documentIndex } from "./documentIndex.ts";
 import { presetPaths, templatePaths } from "./presets.ts";
@@ -17,12 +18,13 @@ import { resolveHeldPath } from "./rootedFiles.ts";
 export interface HoldingClass extends ClassLinking {
   // Its title, else its file's name.
   name: string;
+  fields: TableColumn[];
 }
 
-/** The Classes that hold `doc` as a row and link it anything, in the order
- * of their paths, natural and ignoring case as names are, each with its
- * links as written. */
-export async function classesLinking(
+/** The Classes that hold `doc` as a row and link it anything or give its
+ * properties fields, in the order of their paths, natural and ignoring case
+ * as names are, each with its links as written. */
+export async function classesHolding(
   spaceRoot: string,
   doc: { path: string; filePath: string },
 ): Promise<HoldingClass[]> {
@@ -32,9 +34,10 @@ export async function classesLinking(
     .sort((a, b) => compareSortValues(a.path, b.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const holding: HoldingClass[] = [];
   for (const { path: classPath, definition } of classes) {
-    if (definition.links.length === 0 || !classRowOf(spaceRoot, classPath, definition, doc)) continue;
+    const gives = definition.links.length > 0 || definition.fields.some((field) => !isFileField(field.id));
+    if (!gives || !classRowOf(spaceRoot, classPath, definition, doc)) continue;
     const name = definition.name || splitDocumentName(basenameOf(classPath)).stem;
-    holding.push({ classPath, name, links: definition.links });
+    holding.push({ classPath, name, links: definition.links, fields: definition.fields });
   }
   return holding;
 }

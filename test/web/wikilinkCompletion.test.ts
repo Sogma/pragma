@@ -35,7 +35,16 @@ afterEach(() => {
 });
 
 function note(content: string): FileResponse {
-  return { kind: "text", path: "", revision: "", content, documentType: "note", toolkits: [], classLinks: [] };
+  return {
+    kind: "text",
+    path: "",
+    revision: "",
+    content,
+    documentType: "note",
+    toolkits: [],
+    classLinks: [],
+    fields: [],
+  };
 }
 
 interface Options {

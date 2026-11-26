@@ -44,6 +44,7 @@ function noteFile(overrides: Partial<TextFileResponse> = {}): TextFileResponse {
     content: "---\ntags:\n  - a\n---\n\n# Song\n\nfirst line\n",
     toolkits: [],
     classLinks: [],
+    fields: [],
     ...overrides,
   };
 }
@@ -340,7 +341,7 @@ describe("createDocuments", () => {
     const { documents, fetchFile } = setup();
     const model = documents.adopt(noteFile());
     fetchFile.mockResolvedValueOnce(
-      noteFile({ revision: "rev-2", content: "# New\n\nfrom disk\n", toolkits: [], classLinks: [] }),
+      noteFile({ revision: "rev-2", content: "# New\n\nfrom disk\n", toolkits: [], classLinks: [], fields: [] }),
     );
 
     expect(await model.reload()).toBe(true);

@@ -28,7 +28,8 @@
 
 /* A Table column's or Class field's type: the glyph names the field type, the
    colour the port type it becomes in a Flow, so an integer column matches
-   the number pin it wires into. */
+   the number pin it wires into. The glyph is set on anything carrying a
+   field type, so a property a Class types wears the same one. */
 .type-icon {
   flex-shrink: 0;
   width: 14px;
@@ -37,38 +38,38 @@
   mask: var(--type-glyph) center / contain no-repeat;
 }
 
-.type-icon[data-field-type="checkbox"] {
+[data-field-type="checkbox"] {
   --type-glyph: var(--icon-square-check);
 }
 
-.type-icon[data-field-type="color"] {
+[data-field-type="color"] {
   --type-glyph: var(--icon-droplet);
 }
 
-.type-icon[data-field-type="integer"] {
+[data-field-type="integer"] {
   --type-glyph: var(--icon-hash);
 }
 
-.type-icon[data-field-type="media"] {
+[data-field-type="media"] {
   --type-glyph: var(--icon-image);
 }
 
-.type-icon[data-field-type="path"] {
+[data-field-type="path"] {
   --type-glyph: var(--icon-link);
 }
 
-.type-icon[data-field-type="score"] {
+[data-field-type="score"] {
   --type-glyph: var(--icon-star);
 }
 
-.type-icon[data-field-type="select"] {
+[data-field-type="select"] {
   --type-glyph: var(--icon-dropdown);
 }
 
-.type-icon[data-field-type="text"] {
+[data-field-type="text"] {
   --type-glyph: var(--icon-text-lines);
 }
 
-.type-icon[data-field-type="timestamp"] {
+[data-field-type="timestamp"] {
   --type-glyph: var(--icon-calendar);
 }

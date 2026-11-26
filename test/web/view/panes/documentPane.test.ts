@@ -55,6 +55,7 @@ function noteFile(overrides: Partial<TextFileResponse> = {}): TextFileResponse {
     content: "---\ntags:\n  - a\n---\n\n# Song\n\nfirst line\n",
     toolkits: [],
     classLinks: [],
+    fields: [],
     ...overrides,
   };
 }

@@ -41,4 +41,10 @@ describe("propertyIcon", () => {
   it("is hidden from assistive tech: the key beside it names the row", () => {
     expect(propertyIcon("a", { a: "x" }).getAttribute("aria-hidden")).toBe("true");
   });
+
+  it("names the type of the field a Class gives a key, over its value's, but never over a known key", () => {
+    const rated = propertyIcon("rating", { rating: 4 }, undefined, { type: "score" }).dataset;
+    expect([rated.fieldType, rated.valueType]).toEqual(["score", undefined]);
+    expect(propertyIcon("tags", { tags: ["a"] }, undefined, { type: "select" }).dataset.knownKey).toBe("tags");
+  });
 });

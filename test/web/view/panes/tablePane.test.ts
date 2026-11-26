@@ -118,6 +118,7 @@ describe("tablePane", () => {
       documentType: "note",
       toolkits: [],
       classLinks: [],
+      fields: [],
     });
     await expect(pane.setInput({ kind: "table", path: "x.md" }, current)).rejects.toThrow(/not a table/);
   });

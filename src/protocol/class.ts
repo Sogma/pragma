@@ -489,6 +489,28 @@ export function cellValue(field: TableColumn, value: unknown): CellValue {
   return { text: String(value), fits: FIELD_TYPES[field.type].fits(value, field) };
 }
 
+/** The fields the Classes holding a note give its properties, from each
+ * one's fields in turn: one per key, and none for a key two of them define
+ * differently. A file's own facts are no property. */
+export function noteFields(classes: readonly { fields: readonly TableColumn[] }[]): TableColumn[] {
+  const found = new Map<string, { field: TableColumn; definition: string } | undefined>();
+  for (const { fields } of classes) {
+    for (const field of fields) {
+      if (isFileField(field.id)) continue;
+      const definition = definitionOf(field);
+      if (!found.has(field.id)) found.set(field.id, { field, definition });
+      else if (found.get(field.id)?.definition !== definition) found.set(field.id, undefined);
+    }
+  }
+  return [...found.values()].flatMap((each) => (each ? [each.field] : []));
+}
+
+// A field as two Classes are compared on it: all but its label.
+function definitionOf(field: TableColumn): string {
+  const { label: _label, ...definition } = field;
+  return JSON.stringify(definition, Object.keys(definition).sort());
+}
+
 /** A field's value as a note's frontmatter stores it, from the text its
  * editor gives: a checkbox's a boolean, an integer's a number, a color in
  * its canonical form, anything else the string. Blank text is undefined,
