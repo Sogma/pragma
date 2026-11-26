@@ -9,6 +9,7 @@ import {
   modelSettingValues,
   moveOnAfterRun,
   nodesLeftOut,
+  runCapabilities,
   stepInt,
   TEMPLATE_VARIABLES_MAX,
   wiredPathAccess,
@@ -534,5 +535,31 @@ describe("affixModeOf", () => {
       expect(definition.inputs.map((port) => port.id)).toContain(definition.affix.portId);
       expect(definition.configKeys).toContain("affixMode");
     }
+  });
+});
+
+describe("runCapabilities", () => {
+  it("is each node the run will start that asks for one, its capability resolved", () => {
+    const needs = runCapabilities(
+      graphOf([
+        node({ id: "img", type: "loadImage", config: { imagePath: "refs/kite.png" } }),
+        node({ id: "row", type: "loadRow", config: { tablePath: "shots.table.html" } }),
+        node({ id: "prompt", type: "prompt", config: { text: "a kite" } }),
+      ]),
+      "projects/story.flow.html",
+    );
+    expect(needs).toEqual([
+      { nodeId: "img", capability: { type: "readFile", path: "space:projects/refs/kite.png" } },
+      { nodeId: "row", capability: { type: "readFile", path: "space:projects/shots.table.html" } },
+    ]);
+  });
+
+  it("leaves out a node the run leaves out, and one it is given the outputs of", () => {
+    const graph = graphOf([
+      node({ id: "off", type: "loadImage", mode: "disabled", config: { imagePath: "a.png" } }),
+      node({ id: "known", type: "loadImage", config: { imagePath: "b.png" } }),
+      node({ id: "runs", type: "loadImage", config: { imagePath: "c.png" } }),
+    ]);
+    expect(runCapabilities(graph, "story.flow.html", new Set(["known"])).map((need) => need.nodeId)).toEqual(["runs"]);
   });
 });

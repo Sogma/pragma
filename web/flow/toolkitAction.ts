@@ -1,13 +1,13 @@
 // A Flow run from a toolkit button (docs/protocol.md, Flows → Actions): the
 // clicked action and what it depends on, bound to the document the button
 // was clicked in. The graph is read fresh at the click, as every Flow run
-// reads it, and a grant is asked for on first use through the toolkit
+// reads it, and its grants are asked for as it starts through the toolkit
 // runner's broker, as the canvas asks through its own.
 import type { FileResponse } from "../../src/protocol/api.ts";
 import { actionGraph, flowActions, runAction } from "../../src/protocol/flowActions.ts";
-import type { DocumentPort, PortValue } from "../../src/protocol/flowExecutors.ts";
+import { buttonStop, type DocumentPort, type PortValue } from "../../src/protocol/flowExecutors.ts";
 import { flowRunOutputs, nodeLabel } from "../../src/protocol/flowInputs.ts";
-import { FLOW_NODE_REGISTRY } from "../../src/protocol/flowNodes.ts";
+import { FLOW_NODE_REGISTRY, runCapabilities, wiredOutputs } from "../../src/protocol/flowNodes.ts";
 import type { RunResult } from "../../src/protocol/flowRuntime.ts";
 import { withSetupNeed } from "../../src/protocol/setupNeed.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
@@ -137,6 +137,10 @@ export async function runToolkitAction(
   if (at.readOnly && graph.nodes.some((node) => node.type === replaceSelection.type)) {
     throw new Error(`${replaceSelection.label} requires editing. Switch the document to editing mode.`);
   }
+  // A click about to stop asks for nothing, as the Button checks before any grant.
+  const clicked = graph.nodes.find((node) => node.id === actionId);
+  const stop = clicked && buttonStop(clicked, document, wiredOutputs(graph).get(actionId) ?? new Set());
+  if (clicked && stop) throw new Error(`${nodeLabel(clicked)}: ${stop}`);
   const granted = new Set(file.grantedCapabilities);
   const subject: BrokerSubject = {
     kind: "flow",
@@ -173,6 +177,10 @@ export async function runToolkitAction(
   });
   deps.broker.mount(subject);
   try {
+    // Asked for together, before the Button runs: a refusal leaves nothing
+    // spent or written.
+    const needs = runCapabilities(graph, file.path).map((need) => brokerCapability(need.capability, file.path));
+    if (!(await deps.broker.ensureAll(needs, subject)).allowed) throw new Error("Permission denied, so nothing ran.");
     const result = await runAction(graph, actionId, context);
     const failure = rootFailure(graph, result);
     if (failure) throw failure;

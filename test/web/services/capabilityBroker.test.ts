@@ -472,3 +472,80 @@ describe("dispatchFrameRequests", () => {
     expect(onNotice).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ensureAll", () => {
+  it("asks nothing when every grant is held, and a lone missing one in the first-use prompt", async () => {
+    const { broker, host } = setup();
+    broker.mount(subjectOf({ grantedCapabilities: new Set(["generateText"]) }), host);
+    await expect(broker.ensureAll([{ key: "generateText", type: "generateText" }])).resolves.toEqual({
+      allowed: true,
+      asked: [],
+    });
+    expect(panel()).toBeNull();
+
+    const pending = broker.ensureAll([
+      { key: "generateText", type: "generateText" },
+      { key: "readFile:n.md", type: "readFile", path: "n.md" },
+    ]);
+    await tick();
+    expect(message()).toBe("Grant permission to read:\nn.md");
+    buttonNamed(panel() as HTMLElement, "Allow").click();
+    await expect(pending).resolves.toEqual({ allowed: true, asked: ["readFile:n.md"] });
+  });
+
+  it("lists several in one dialog, each path first and its permission at the row's end, each note once", async () => {
+    const { broker, deps, host } = setup();
+    const subject = subjectOf();
+    broker.mount(subject, host);
+    const pending = broker.ensureAll([
+      { key: "readFile:space:refs/kite-01.png", type: "readFile", path: "space:refs/kite-01.png" },
+      { key: "generateVideo:space:renders", type: "generateVideo", path: "space:renders" },
+      { key: "generateImage:space:stills", type: "generateImage", path: "space:stills" },
+      { key: "generateText", type: "generateText" },
+      { key: "readFile:space:refs/kite-01.png", type: "readFile", path: "space:refs/kite-01.png" },
+    ]);
+    await tick();
+
+    expect(document.querySelectorAll(".dialog-panel")).toHaveLength(1);
+    expect(panel()?.querySelector(".dialog-title")?.textContent).toBe("Hello needs permission");
+    const rows = [...(panel()?.querySelectorAll(".run-permission-row") ?? [])].map((row) => [
+      row.querySelector(".run-permission-target")?.textContent,
+      row.querySelector(".run-permission-action")?.textContent,
+    ]);
+    expect(rows).toEqual([
+      ["refs/kite-01.png", "Read"],
+      ["renders", "Generate Video"],
+      ["stills", "Generate Image"],
+      ["Generate with AI", ""],
+    ]);
+    const paragraphs = [...(panel()?.querySelectorAll(".dialog-message") ?? [])].map((p) => p.textContent ?? "");
+    expect(paragraphs[0]).toBe("Grant permission for this run:");
+    expect(paragraphs.filter((text) => text.startsWith("Each generation consumes AI credits"))).toHaveLength(1);
+    expect(buttonNamed(panel() as HTMLElement, "Allow").classList.contains("danger")).toBe(true);
+
+    buttonNamed(panel() as HTMLElement, "Allow").click();
+    const keys = [
+      "readFile:space:refs/kite-01.png",
+      "generateVideo:space:renders",
+      "generateImage:space:stills",
+      "generateText",
+    ];
+    await expect(pending).resolves.toEqual({ allowed: true, asked: keys });
+    for (const key of keys) expect(deps.grant).toHaveBeenCalledWith("flow", "a.flow.html", key);
+    expect([...subject.grantedCapabilities]).toEqual(keys);
+    expect(panel()).toBeNull();
+  });
+
+  it("grants none of them on Deny", async () => {
+    const { broker, deps, host } = setup();
+    broker.mount(subjectOf(), host);
+    const pending = broker.ensureAll([
+      { key: "readFile:n.md", type: "readFile", path: "n.md" },
+      { key: "generateText", type: "generateText" },
+    ]);
+    await tick();
+    buttonNamed(panel() as HTMLElement, "Deny").click();
+    await expect(pending).resolves.toEqual({ allowed: false, asked: ["readFile:n.md", "generateText"] });
+    expect(deps.grant).not.toHaveBeenCalled();
+  });
+});

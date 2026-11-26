@@ -9,6 +9,7 @@ import {
 } from "../../../web/core/apiClient.ts";
 import { type CanvasRunDeps, type CanvasRunInfo, createCanvasRun } from "../../../web/flow/canvasRun.ts";
 import { sweep } from "../../../web/lib/sweep.ts";
+import type { RunAsk } from "../../../web/services/capabilityBroker.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // Runs side by side on the canvas: each on the Flow as it was saved when it
@@ -121,6 +122,7 @@ function setUp(graph: FlowGraph, path = "flows/a.flow.html") {
     remountNodes: vi.fn(),
     pickedImages: new Map(),
     ensureCapability: vi.fn(async () => true),
+    ensureCapabilities: vi.fn(async (): Promise<RunAsk> => ({ allowed: true, asked: [] })),
     openToSide: vi.fn(async () => {}),
   } satisfies CanvasRunDeps;
   const canvasRun = createCanvasRun(deps);
@@ -450,5 +452,38 @@ describe("canvasRun Cancel", () => {
     answers[1]("job-2");
     await late;
     expect(cancelJob).toHaveBeenCalledWith("job-2");
+  });
+});
+
+describe("canvasRun permissions", () => {
+  it("asks for every grant the run will use together, before any node starts", async () => {
+    const { replies, instructions } = heldReplies();
+    const { canvasRun, deps } = setUp(promptToText("a kite"));
+
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(instructions()).toHaveLength(1));
+
+    expect(deps.ensureCapabilities).toHaveBeenCalledTimes(1);
+    expect(deps.ensureCapabilities).toHaveBeenCalledWith([{ type: "generateText" }]);
+    expect(deps.ensureCapabilities.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sandboxGenerate).mock.invocationCallOrder[0],
+    );
+    replies[0]("a kite, flying");
+    await running;
+  });
+
+  it("runs nothing when they're refused, and marks each node whose grant was refused", async () => {
+    heldReplies();
+    const { canvasRun, deps } = setUp(promptToText("a kite"));
+    deps.ensureCapabilities.mockResolvedValueOnce({ allowed: false, asked: ["generateText"] });
+
+    await canvasRun.run();
+
+    expect(sandboxGenerate).not.toHaveBeenCalled();
+    const [outcome, ids] = deps.cards.showRunResult.mock.calls.at(-1) ?? [];
+    expect(ids).toEqual(["generate-2"]);
+    expect((outcome as { errors: Map<string, string> }).errors).toEqual(
+      new Map([["generate-2", "Permission denied, so nothing ran."]]),
+    );
   });
 });

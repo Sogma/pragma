@@ -1,7 +1,7 @@
-// The sandbox broker's client half: the first-use permission prompt, the
-// one-at-a-time chain for a surface's broker dialogs, the Permissions panel
-// that revokes, and the dispatcher that routes a frame's requests and posts
-// each reply.
+// The sandbox broker's client half: the permission prompts, one grant's or a
+// run's list, the one-at-a-time chain for a surface's broker dialogs, the
+// Permissions panel that revokes, and the dispatcher that routes a frame's
+// requests and posts each reply.
 //
 // One instance per surface — a flow view, the toolkit runner — so its chain
 // and open dialog belong to that surface, never to a global active document.
@@ -114,6 +114,17 @@ const ROW_ACTIONS: Record<string, string> = {
   generateVideo: "Generate videos into",
 };
 
+// A run's list of grants puts the path first and the permission at the
+// row's end, so these words take no preposition, unlike ROW_ACTIONS'. A kind
+// with no path keeps its ROW_ACTIONS words, alone on the row.
+const LIST_ACTIONS: Record<string, string> = {
+  readFile: "Read",
+  writeDocument: "Write",
+  searchContext: "Send to AI",
+  generateImage: "Generate Image",
+  generateVideo: "Generate Video",
+};
+
 // A read of a library's file is named as one, not left to the path: a prompt
 // is the one moment a person decides whether reaching outside the space is
 // meant.
@@ -127,6 +138,13 @@ function subjectIcon(subject: Pick<BrokerSubject, "path">): EntryIcon | undefine
   return entry.glyph ? entry : undefined;
 }
 
+// A capability's path as every prompt draws it: a root by its title, any
+// other path as a path label, the declaration's description after it.
+function drawnPath(capability: BrokerCapability, path: string): (string | Node)[] {
+  const description = capability.description ? ` (${capability.description})` : "";
+  return [rootTitle(capability.path) ?? createPathLabel(path, pathNames), description];
+}
+
 /** A grant's prompt: the subject asking in the title, after its icon. Then
  * the sentence, any path on a line of its own drawn as every path in running
  * text is, and any note as a paragraph of its own. */
@@ -137,24 +155,58 @@ export function capabilityPrompt(
   const action = readsLibrary(capability)
     ? "read from a library"
     : (PROMPT_ACTIONS[capability.type] ?? capability.type);
-  const description = capability.description ? ` (${capability.description})` : "";
   const message = document.createElement("span");
   const path = shown(capability.path);
-  if (path === undefined) message.append(`Grant permission to ${action}${description}.`);
-  else {
-    message.append(
-      `Grant permission to ${action}:`,
-      document.createElement("br"),
-      rootTitle(capability.path) ?? createPathLabel(path, pathNames),
-      description,
-    );
-  }
+  if (path === undefined) {
+    const description = capability.description ? ` (${capability.description})` : "";
+    message.append(`Grant permission to ${action}${description}.`);
+  } else message.append(`Grant permission to ${action}:`, document.createElement("br"), ...drawnPath(capability, path));
   const note = PROMPT_NOTES[capability.type];
   return {
     title: `${subjectName(subject)} needs permission`,
     icon: subjectIcon(subject),
     message: note ? [message, note] : [message],
   };
+}
+
+/** A run's prompt for several grants at once: the title a single grant's
+ * prompt has, a row per grant with its path first and the permission at the
+ * row's end, and each note its kinds carry, once. */
+export function capabilityListPrompt(
+  subject: Pick<BrokerSubject, "name" | "path">,
+  capabilities: readonly BrokerCapability[],
+): { title: string; icon?: EntryIcon; message: [string, HTMLElement, ...string[]] } {
+  // Spans, though they lay out as rows: the dialog puts each part of a
+  // message in a paragraph, which holds no block.
+  const list = el("span", "run-permission-list");
+  for (const capability of capabilities) {
+    const path = shown(capability.path);
+    const target = el("span", "run-permission-target");
+    const action = el("span", "run-permission-action");
+    if (path === undefined) target.append(ROW_ACTIONS[capability.type] ?? capability.type);
+    else {
+      target.append(...drawnPath(capability, path));
+      action.textContent = readsLibrary(capability)
+        ? "Read from a library"
+        : (LIST_ACTIONS[capability.type] ?? capability.type);
+    }
+    const row = el("span", "run-permission-row");
+    row.append(target, action);
+    list.append(row);
+  }
+  const notes = [...new Set(capabilities.flatMap((capability) => PROMPT_NOTES[capability.type] ?? []))];
+  return {
+    title: `${subjectName(subject)} needs permission`,
+    icon: subjectIcon(subject),
+    message: ["Grant permission for this run:", list, ...notes],
+  };
+}
+
+/** What a run's ask came to: whether the run may start, and the keys the
+ * person was asked for, empty when the run held every grant already. */
+export interface RunAsk {
+  allowed: boolean;
+  asked: readonly string[];
 }
 
 // The consent half of the sandbox client (apiClient.ts), kind-first.
@@ -185,6 +237,10 @@ export interface CapabilityBroker {
   // canvas — docs/protocol.md, Permission model); it still writes a normal,
   // revocable grant.
   ensure(capability: BrokerCapability, subject?: BrokerSubject, consented?: boolean): Promise<boolean>;
+  // A run's grants, asked for together before it starts: every capability
+  // not yet held, in one dialog, or in the first-use prompt when only one is
+  // missing. Settles as `ensure` does, at once when nothing is missing.
+  ensureAll(capabilities: readonly BrokerCapability[], subject?: BrokerSubject): Promise<RunAsk>;
   // Any other dialog of the surface, on the same chain, so no two ever
   // show at once. The shown dialog should be passed to `track`.
   queue<T>(show: () => Promise<T>): Promise<T>;
@@ -232,8 +288,9 @@ export function createCapabilityBroker(deps: CapabilityBrokerDeps): CapabilityBr
     target.grantedCapabilities.add(capability.key);
   }
 
-  // Grants are lazy and first-use, never bulk or install-time: this is only
-  // reached the moment a document tries to use a capability it doesn't hold.
+  // Asked only for what is about to be used, never install-time: a run asks
+  // for what it will use as it starts (ensureAll), and anything it names as
+  // it goes, such as a wired path, the moment it uses it.
   function ensure(
     capability: BrokerCapability,
     target: BrokerSubject | undefined = subject,
@@ -267,6 +324,39 @@ export function createCapabilityBroker(deps: CapabilityBrokerDeps): CapabilityBr
         onOpen: track,
         action: () => record(target, capability),
       });
+    });
+  }
+
+  function ensureAll(
+    capabilities: readonly BrokerCapability[],
+    target: BrokerSubject | undefined = subject,
+  ): Promise<RunAsk> {
+    const missing = [...new Map(capabilities.map((capability) => [capability.key, capability])).values()].filter(
+      (capability) => !target?.grantedCapabilities.has(capability.key),
+    );
+    const asked = missing.map((capability) => capability.key);
+    if (!target || missing.length === 0) return Promise.resolve({ allowed: target !== undefined, asked });
+    if (missing.length === 1) return ensure(missing[0], target).then((allowed) => ({ allowed, asked }));
+    return queue(async () => {
+      await panelClosed;
+      if (subject !== target) return { allowed: false, asked };
+      // Some granted while this waited its turn, by a prompt queued before it.
+      const still = missing.filter((capability) => !target.grantedCapabilities.has(capability.key));
+      if (still.length === 0) return { allowed: true, asked };
+      closeDialogs();
+      const allowed = await deps.dialog.confirm({
+        host,
+        ...(still.length === 1 ? capabilityPrompt(target, still[0]) : capabilityListPrompt(target, still)),
+        confirmLabel: "Allow",
+        cancelLabel: "Deny",
+        danger: true,
+        failureMessage: "Failed to grant capability.",
+        onOpen: track,
+        action: async () => {
+          for (const capability of still) await record(target, capability);
+        },
+      });
+      return { allowed, asked };
     });
   }
 
@@ -439,6 +529,7 @@ export function createCapabilityBroker(deps: CapabilityBrokerDeps): CapabilityBr
     },
     current: () => subject,
     ensure,
+    ensureAll,
     queue,
     track,
     closeDialogs,

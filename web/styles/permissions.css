@@ -33,3 +33,33 @@
   align-items: center;
   gap: 6px;
 }
+
+/* A run's prompt for several grants: a row each, the path first and the
+   permission at the row's end, a hairline between rows to carry the eye
+   across the gap. Its spans lay out as rows because the dialog's message is
+   a paragraph, which holds no block. */
+.run-permission-list {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.run-permission-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-muted);
+}
+
+.run-permission-target {
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.run-permission-action {
+  flex-shrink: 0;
+  white-space: nowrap;
+}

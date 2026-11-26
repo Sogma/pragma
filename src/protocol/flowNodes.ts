@@ -1543,21 +1543,33 @@ export function closesLoop(graph: FlowGraph, source: string, target: string): bo
  * asks for nothing either. */
 export function computeFlowCapabilities(graph: FlowGraph, flowPath: string): FlowCapabilityDeclaration[] {
   const byKey = new Map<string, FlowCapabilityDeclaration>();
+  for (const { capability } of runCapabilities(graph, flowPath)) byKey.set(flowCapabilityKey(capability), capability);
+  return Array.from(byKey.values());
+}
+
+/** Each node a run of `graph` will start that asks for a capability, with
+ * it resolved: what the run asks for, all at once, before any node starts.
+ * A node in `skip` is answered from what the run is given, so it asks for
+ * nothing, as a node the run leaves out doesn't. */
+export function runCapabilities(
+  graph: FlowGraph,
+  flowPath: string,
+  skip?: { has(nodeId: string): boolean },
+): { nodeId: string; capability: FlowCapabilityDeclaration }[] {
+  const needs: { nodeId: string; capability: FlowCapabilityDeclaration }[] = [];
   const leftOut = nodesLeftOut(graph);
   const wired = wiredOutputs(graph);
   for (const node of graph.nodes) {
-    if (leftOut.has(node.id)) continue;
+    if (leftOut.has(node.id) || skip?.has(node.id)) continue;
     const declared = FLOW_NODE_REGISTRY[node.type]?.capabilityFor?.(node.config, wired.get(node.id) ?? new Set());
     if (!declared) continue;
-    let capability: FlowCapabilityDeclaration;
     try {
-      capability = resolveFlowCapability(declared, flowPath);
+      needs.push({ nodeId: node.id, capability: resolveFlowCapability(declared, flowPath) });
     } catch {
-      continue;
+      // A path that names nothing asks for nothing; its node says why when it runs.
     }
-    byKey.set(flowCapabilityKey(capability), capability);
   }
-  return Array.from(byKey.values());
+  return needs;
 }
 
 /** What the graph's wired path pins may ask for: a read, a write, a

@@ -6,12 +6,24 @@
 //
 // A cancelled run shows nothing more, and cancels the async jobs it started.
 import { upstreamGraph } from "../../src/protocol/flowActions.ts";
-import { FLOW_NODE_REGISTRY, moveOnAfterRun, nodesLeftOut, writeTake } from "../../src/protocol/flowNodes.ts";
-import { type RunHooks, runFlow } from "../../src/protocol/flowRuntime.ts";
-import type { FlowCapabilityDeclaration, FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
+import {
+  FLOW_NODE_REGISTRY,
+  moveOnAfterRun,
+  nodesLeftOut,
+  runCapabilities,
+  writeTake,
+} from "../../src/protocol/flowNodes.ts";
+import { type RunHooks, type RunResult, runFlow } from "../../src/protocol/flowRuntime.ts";
+import {
+  type FlowCapabilityDeclaration,
+  type FlowGraph,
+  type FlowNodeInstance,
+  flowCapabilityKey,
+} from "../../src/protocol/types.ts";
 import { cancelJob, type FlowFileResponse } from "../core/apiClient.ts";
 import { formatVersionPhrase } from "../lib/dom.ts";
 import { sweep } from "../lib/sweep.ts";
+import type { RunAsk } from "../services/capabilityBroker.ts";
 import type { AppMode } from "./appMode.ts";
 import { createFlowContext } from "./browserEnvironment.ts";
 import type { FlowHistory } from "./flowHistory.ts";
@@ -53,6 +65,8 @@ export interface CanvasRunDeps
   remountNodes(nodeIds: readonly string[]): void;
   pickedImages: Map<string, { mediaType: string; data: string; name: string }>;
   ensureCapability(capability: FlowCapabilityDeclaration): Promise<boolean>;
+  // A run's grants, asked for together before any node starts.
+  ensureCapabilities(needs: readonly FlowCapabilityDeclaration[]): Promise<RunAsk>;
   // A file a run opens to the side, in the group beside the Flow's.
   openToSide(path: string): Promise<void>;
 }
@@ -256,6 +270,25 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
       const target = regenerated ? upstreamGraph(graph, regenerated.id) : graph;
       const memory = runMemory(flow.file.path, regenerated?.id);
       const known = regenerated ? memory.known() : undefined;
+      // Asked for together, before any node starts: a refusal leaves nothing
+      // spent or written, where a prompt partway through leaves half a run.
+      const needs = runCapabilities(target, flow.file.path, known);
+      const ask = await deps.ensureCapabilities(needs.map((need) => need.capability));
+      if (state.cancelled || deps.flow() !== flow) return;
+      if (!ask.allowed) {
+        const refused = new Set(ask.asked);
+        const ids = needs.filter((need) => refused.has(flowCapabilityKey(need.capability))).map((need) => need.nodeId);
+        const denied: RunResult = {
+          outputs: new Map(),
+          errors: new Map(ids.map((id) => [id, "Permission denied, so nothing ran."])),
+          needs: new Map(),
+          fingerprints: new Map(),
+          skipped: new Map(),
+        };
+        deps.cards.showRunResult({ ...denied, reports }, ids);
+        deps.appMode.showResults(denied, ids);
+        return;
+      }
       // Success gets no display of its own: a node's inline fields, a
       // showText/showObject textbox, or a downstream node is the way to
       // inspect a value. A card's result box only surfaces failures.

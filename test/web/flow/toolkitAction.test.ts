@@ -7,7 +7,7 @@ import { setupNeedOf } from "../../../src/protocol/setupNeed.ts";
 import type { FlowGraph, FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { acceptAll, editProposal, pendingChanges } from "../../../web/editProposal.ts";
 import { runToolkitAction } from "../../../web/flow/toolkitAction.ts";
-import type { CapabilityBroker } from "../../../web/services/capabilityBroker.ts";
+import type { BrokerCapability, CapabilityBroker } from "../../../web/services/capabilityBroker.ts";
 import { createDocumentAccess } from "../../../web/services/documentAccess.ts";
 import { polyfillRangeRects } from "../support/codemirrorJsdom.ts";
 
@@ -42,7 +42,7 @@ const graph: FlowGraph = {
   ],
 };
 
-function setup(options: { granted?: boolean; isPrivate?: boolean; reading?: boolean } = {}) {
+function setup(options: { granted?: boolean; refused?: boolean; isPrivate?: boolean; reading?: boolean } = {}) {
   const view = new EditorView({
     state: EditorState.create({
       doc: "one two three",
@@ -73,6 +73,11 @@ function setup(options: { granted?: boolean; isPrivate?: boolean; reading?: bool
     mount: vi.fn(),
     unmount: vi.fn(),
     ensure: vi.fn(async () => options.granted ?? true),
+    // A run's ask up front; a node's own ask during the run is `ensure`.
+    ensureAll: vi.fn(async (needs: readonly BrokerCapability[]) => ({
+      allowed: !options.refused,
+      asked: needs.map((need) => need.key),
+    })),
   } as unknown as CapabilityBroker;
   const deps = {
     broker,
@@ -142,6 +147,26 @@ describe("runToolkitAction", () => {
     await run("btn-a");
     acceptAll(view);
     expect(view.state.doc.toString()).toBe("one A: two three");
+  });
+
+  it("asks for the click's grants together, before the Button runs", async () => {
+    const { broker, run } = setup();
+    await run("btn-b");
+    expect(broker.ensureAll).toHaveBeenCalledWith(
+      [{ key: "readCurrentDocument", type: "readCurrentDocument" }],
+      expect.objectContaining({ kind: "flow", path: "tools/prefix.flow.html" }),
+    );
+    expect(vi.mocked(broker.ensureAll).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(broker.ensure).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("runs nothing when the click's grants are refused", async () => {
+    const { view, broker, run } = setup({ refused: true });
+    await expect(run("btn-a")).rejects.toThrow("Permission denied, so nothing ran.");
+    expect(broker.ensure).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe("one two three");
+    expect(broker.unmount).toHaveBeenCalled();
   });
 
   it("names the node that failed, not everything downstream of it", async () => {
@@ -394,6 +419,7 @@ describe("runToolkitAction", () => {
       await expect(run("rhyme")).rejects.toThrow("Rhyme match: Select some text first");
       expect(fetchMock).not.toHaveBeenCalled();
       expect(broker.ensure).not.toHaveBeenCalled();
+      expect(broker.ensureAll).not.toHaveBeenCalled();
       expect(pendingChanges(view.state)).toEqual([]);
     } finally {
       vi.unstubAllGlobals();

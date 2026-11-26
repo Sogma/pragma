@@ -478,6 +478,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     remountNodes,
     pickedImages,
     ensureCapability: (capability) => ensureFlowCapability(capability),
+    ensureCapabilities: (needs) => broker.ensureAll(needs.map((need) => brokerCapability(need, flowPath()))),
   });
 
   function remountNodes(nodeIds: readonly string[]): void {

@@ -1275,15 +1275,26 @@ const showResult: NodeExecutor = async (_node, inputs, context) => {
   return { text: { type: "text", value: lines.join("\n\n") } };
 };
 
+/** Why a Button's click stops before it asks for anything, or undefined. The
+ * Button checks it first, and a click checks it before asking for its run's
+ * grants: a click about to stop shouldn't ask. Nothing wired is refused, not
+ * run as a no-op, which would look as if it had worked. */
+export function buttonStop(
+  node: FlowNodeInstance,
+  document: DocumentPort,
+  wired: ReadonlySet<string> | undefined,
+): string | undefined {
+  if (wired?.size === 0) return "Nothing is wired from it, so a click would run nothing";
+  if (configBoolean(node, "requireSelection") && !document.hasSelection) return "Select some text first";
+  return undefined;
+}
+
 // The document is read only when a wire takes its selection or text, so a
-// Button that hands on just its path asks for nothing. The selection check
-// comes before any grant: a click about to stop shouldn't ask.
+// Button that hands on just its path asks for nothing.
 const button: NodeExecutor = async (node, _inputs, context, wired) => {
   const document = boundDocument(context);
-  // Refused rather than run as a no-op: a click that runs nothing would look
-  // as if it had worked.
-  if (wired?.size === 0) throw new Error("Nothing is wired from it, so a click would run nothing");
-  if (configBoolean(node, "requireSelection") && !document.hasSelection) throw new Error("Select some text first");
+  const stop = buttonStop(node, document, wired);
+  if (stop) throw new Error(stop);
   const outputs: Record<string, PortValue> = {
     path: { type: "text", value: formatRootPath(parseRootedPath(document.path)) },
   };
