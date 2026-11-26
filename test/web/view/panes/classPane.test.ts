@@ -421,7 +421,6 @@ describe("classPane: changed where it shows", () => {
       "Group",
       "Fields",
       "Links",
-      "New note",
     ]);
     expect(pane.toolbar?.hidden).toBe(false);
 
@@ -964,14 +963,14 @@ describe("classPane: a pane too narrow for its toolbar", () => {
     return menus.resolve("editor.toolbar", { tab, pane }).map((item) => item.label);
   }
 
-  it("folds Filter, Sort, Group, Fields, Links and New note into ⋮ where they'd crowd the title", async () => {
+  it("folds Filter, Sort, Group, Fields and Links into ⋮ where they'd crowd the title", async () => {
     const wide = await paneOf(1000);
     expect(wide.toolbar?.classList.contains("is-folded")).toBe(false);
     expect(toolbarMenu(wide)).toEqual([]);
 
     const narrow = await paneOf(500);
     expect(narrow.toolbar?.classList.contains("is-folded")).toBe(true);
-    expect(toolbarMenu(narrow)).toEqual(["Filter…", "Sort…", "Group…", "Fields…", "Links…", "New note…"]);
+    expect(toolbarMenu(narrow)).toEqual(["Filter…", "Sort…", "Group…", "Fields…", "Links…"]);
   });
 
   it("opens each one from ⋮ as its button would", async () => {
@@ -981,8 +980,6 @@ describe("classPane: a pane too narrow for its toolbar", () => {
     pane.openTool("fields");
     expect(document.querySelector('.class-popover[aria-label="Sort"]')).toBeNull();
     expect(document.querySelector('.class-popover[aria-label="Fields"]')).not.toBeNull();
-    pane.openTool("new-note");
-    expect(document.activeElement?.classList.contains("class-new-note-input")).toBe(true);
   });
 
   it("offers nothing from ⋮ while reading, when there are no buttons to fold", async () => {

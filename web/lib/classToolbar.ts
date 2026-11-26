@@ -44,9 +44,6 @@ export interface ClassToolbarDeps {
   // A tree's folder row dropped on the popover, as the Folder value naming
   // it, or why it can't be one. Undefined for a drop that isn't a tree row's.
   droppedFolder(event: DragEvent): { folder: string } | { refused: string } | undefined;
-  // Whether a note can be added now, and adding one.
-  canAddNote(): boolean;
-  newNote(): void;
   // Offers the files a Class can link at `anchor`, handing the one picked
   // to `pick` written from the Class's folder.
   pickFile(anchor: HTMLElement, pick: (link: string) => void): void;
@@ -214,14 +211,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
   linksCount.append(linksDigits);
   linksCount.hidden = true;
   linksButton.appendChild(linksCount);
-  const newNoteButton = el("button", "flat-button class-toolbar-button");
-  newNoteButton.type = "button";
-  newNoteButton.appendChild(el("span", "class-toolbar-label", "New note"));
-  newNoteButton.addEventListener("click", () => {
-    close();
-    deps.newNote();
-  });
-  element.append(filterButton, sortButton, groupButton, fieldsButton, linksButton, newNoteButton);
+  element.append(filterButton, sortButton, groupButton, fieldsButton, linksButton);
 
   let flyout: Flyout | undefined;
   let openedFrom: HTMLButtonElement | undefined;
@@ -794,7 +784,6 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
       element.hidden = !state?.editable;
       if (!state?.editable) close();
       if (!state) return;
-      newNoteButton.hidden = !deps.canAddNote();
       const count = state.view.filter.length + state.file.filter.length;
       filterCount.hidden = count === 0;
       filterDigits.textContent = String(count);

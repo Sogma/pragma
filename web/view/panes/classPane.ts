@@ -193,10 +193,8 @@ export type ClassPaneWiring = Pick<
 /** A Class's pane, with what its group's ⋮ menu offers while the toolbar is
  * too narrow for the Class's own buttons. */
 export interface ClassPane extends EditorPane {
-  // Undefined while the buttons show in the toolbar; New note is offered
-  // only where a note can be made.
-  foldedTools(): { canAddNote: boolean } | undefined;
-  openTool(tool: ClassTool | "new-note"): void;
+  toolsFolded(): boolean;
+  openTool(tool: ClassTool): void;
 }
 
 function isClassPane(pane: EditorPane): pane is ClassPane {
@@ -208,15 +206,13 @@ function isClassPane(pane: EditorPane): pane is ClassPane {
 function registerClassMenu(menus: MenuRegistry): void {
   menus.register("editor.toolbar", (context) => {
     const pane = context.pane && isClassPane(context.pane) ? context.pane : undefined;
-    const folded = pane?.foldedTools();
-    if (!pane || !folded) return [];
+    if (!pane?.toolsFolded()) return [];
     return [
       { label: "Filter…", run: () => pane.openTool("filter") },
       { label: "Sort…", run: () => pane.openTool("sort") },
       { label: "Group…", run: () => pane.openTool("group") },
       { label: "Fields…", run: () => pane.openTool("fields") },
       { label: "Links…", run: () => pane.openTool("links") },
-      ...(folded.canAddNote ? [{ label: "New note…", run: () => pane.openTool("new-note") }] : []),
     ];
   });
 }
@@ -500,8 +496,6 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       }
       return { folder: folderValueOf(scope, formatRootedPath(dragged)) };
     },
-    canAddNote: () => noteFolder() !== undefined,
-    newNote: () => startNote(undefined),
     pickFile: (anchor, pick) => {
       const written = (path: string) => writePathFrom(classDir(), parseRootedPath(path)) ?? path;
       pickFile(deps.contextMenu, {
@@ -1463,8 +1457,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         form.appendChild(buildRows(view, viewFields(file.fields, view), shown));
       }
       // A grouped view has a New note under each group, save groups of a
-      // file's own facts. One started from the toolbar is under none of them,
-      // so its title goes after them all.
+      // file's own facts. A draft begun under no group, before the view was
+      // grouped or while it was empty, keeps its title after them all.
       const groupedByFact = view.groupBy !== undefined && isFileField(view.groupBy);
       const draftedAlone = open.drafting !== undefined && open.drafting.group === undefined;
       if (!view.groupBy || groupedByFact || shown.length === 0 || draftedAlone) {
@@ -1548,11 +1542,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       },
     },
     openFind: () => find.open(),
-    foldedTools: () => (toolbar.isFolded() ? { canAddNote: noteFolder() !== undefined } : undefined),
-    openTool(tool) {
-      if (tool === "new-note") startNote(undefined);
-      else toolbar.openTool(tool);
-    },
+    toolsFolded: () => toolbar.isFolded(),
+    openTool: (tool) => toolbar.openTool(tool),
     dispose() {
       resizing?.disconnect();
       stopHearingSorts();
