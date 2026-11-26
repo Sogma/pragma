@@ -3,10 +3,32 @@
 // (docs/protocol.md's Metadata section). Pure, so the server and the browser
 // read it alike; the block's reader and writer sit with the Table's.
 import { isListFrontmatterKey } from "./frontmatter.ts";
-import { isClassFile, isFlowFile, isTableFile, type MetadataEntry } from "./types.ts";
+import {
+  FIELD_VALUE_TYPE_OPTIONS,
+  type FieldValueType,
+  isClassFile,
+  isFlowFile,
+  isTableFile,
+  type MetadataEntry,
+  type TableColumn,
+} from "./types.ts";
 
 export function hasMetadataBlock(filePath: string): boolean {
   return isTableFile(filePath) || isFlowFile(filePath) || isClassFile(filePath);
+}
+
+/** Whether a key may take `type`: a column's but `media` and `path`, whose
+ * paths a move would leave behind in the block. */
+export function isMetadataType(type: FieldValueType): boolean {
+  return type !== "media" && type !== "path";
+}
+
+/** The types a key's menu offers, in a column's order. */
+export const METADATA_TYPE_OPTIONS = FIELD_VALUE_TYPE_OPTIONS.filter(({ value }) => isMetadataType(value));
+
+/** The types the block gives its keys, each as a field keyed by its key. */
+export function metadataFields(metadata: readonly MetadataEntry[] | undefined): TableColumn[] {
+  return (metadata ?? []).flatMap(({ key, field }) => (field ? [{ ...field, id: key, label: key }] : []));
 }
 
 /** A key's text: its first value, or undefined when it has none. */
@@ -25,10 +47,9 @@ export function stampTableDates(metadata: readonly MetadataEntry[] | undefined, 
 }
 
 function withText(metadata: readonly MetadataEntry[], key: string, text: string): MetadataEntry[] {
-  const entry = { key, values: [text] };
   return metadata.some((each) => each.key === key)
-    ? metadata.map((each) => (each.key === key ? entry : each))
-    : [...metadata, entry];
+    ? metadata.map((each) => (each.key === key ? { ...each, values: [text] } : each))
+    : [...metadata, { key, values: [text] }];
 }
 
 /** Whether the block marks its file private (docs/architecture.md's Privacy
@@ -49,9 +70,17 @@ export function metadataProperties(metadata: readonly MetadataEntry[] | undefine
 }
 
 /** A property editor's data as the block, in the editor's order, which keeps
- * a renamed key in its place. */
-export function metadataFromProperties(properties: Record<string, unknown>): MetadataEntry[] {
-  return Object.entries(properties).map(([key, value]) => ({ key, values: metadataValues(value) }));
+ * a renamed key in its place, each key with the type `fields` gives it. */
+export function metadataFromProperties(
+  properties: Record<string, unknown>,
+  fields: readonly TableColumn[] = [],
+): MetadataEntry[] {
+  return Object.entries(properties).map(([key, value]) => {
+    const found = fields.find((each) => each.id === key);
+    if (!found) return { key, values: metadataValues(value) };
+    const { id: _id, label: _label, ...field } = found;
+    return { key, values: metadataValues(value), field };
+  });
 }
 
 // A value is text: a list's items are its values, and an empty one is none.

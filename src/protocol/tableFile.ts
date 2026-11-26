@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { type HTMLElement, parse } from "node-html-parser";
-import type { CardTile, MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
+import { isMetadataType } from "./metadata.ts";
+import type { CardTile, FieldDefinition, MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
 import { emptyTable, isScoreMax, parseFieldValueType, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, same convention as every other file reader in
@@ -62,7 +63,8 @@ export function readMetadataBlock(root: HTMLElement): MetadataEntry[] {
     if (child.tagName === "DT") {
       if (!named) names = [];
       named = true;
-      const entry: MetadataEntry = { key: child.textContent.trim(), values: [] };
+      const field = readKeyType(child);
+      const entry: MetadataEntry = { key: child.textContent.trim(), values: [], ...(field ? { field } : {}) };
       // A repeat still joins the run, so its values land nowhere.
       if (entry.key && !entries.some((each) => each.key === entry.key)) entries.push(entry);
       names.push(entry);
@@ -98,47 +100,64 @@ export function readCardBlock(list: HTMLElement | null | undefined): CardTile[] 
   });
 }
 
-// What a header says whatever its column's type.
-const READ_ATTRIBUTES = ["data-field", "data-type", "data-options", "data-media-folder"];
+// What a type's attributes say whatever the type.
+const READ_ATTRIBUTES = ["data-type", "data-options", "data-media-folder"];
+
+// A type and its settings, as a column's `<th>` or a key's `<dt>` says them,
+// and the attributes this build doesn't read but those in `own`, which the
+// element's reader takes itself.
+function readFieldDefinition(el: HTMLElement, own: readonly string[]): FieldDefinition {
+  const written = el.getAttribute("data-type");
+  const optionsAttr = el.getAttribute("data-options");
+  const field: FieldDefinition = { type: parseFieldValueType(written) };
+  if (written && written !== field.type) field.unknownType = written;
+  if (optionsAttr) field.options = optionsAttr.split(",").map((option) => option.trim());
+  const mediaFolder = el.getAttribute("data-media-folder");
+  if (mediaFolder) field.mediaFolder = mediaFolder;
+  const read = new Set([...own, ...READ_ATTRIBUTES]);
+  if (field.type === "media" && el.hasAttribute("data-show-name")) {
+    field.showName = true;
+    read.add("data-show-name");
+  }
+  if (field.type === "timestamp" && el.getAttribute("data-default") === "now") {
+    field.default = "now";
+    read.add("data-default");
+  }
+  const max = Number(el.getAttribute("data-max") ?? "");
+  if (field.type === "score" && isScoreMax(max)) {
+    field.max = max;
+    read.add("data-max");
+  }
+  if (field.type === "score" && el.hasAttribute("data-reject")) {
+    field.reject = true;
+    read.add("data-reject");
+  }
+  const unknown = Object.entries(el.attributes).filter(([name]) => !read.has(name.toLowerCase()));
+  if (unknown.length > 0) field.unknownAttributes = unknown;
+  return field;
+}
 
 /** A `<thead>`'s columns, the field definitions a Table and a Class
  * share, so the two kinds read them alike. */
 export function readFieldColumns(thead: HTMLElement | null): TableColumn[] {
   if (!thead) return [];
   return thead.querySelectorAll("th").map((th) => {
-    const written = th.getAttribute("data-type");
-    const optionsAttr = th.getAttribute("data-options");
-    const column: TableColumn = {
-      id: th.getAttribute("data-field") || "",
-      type: parseFieldValueType(written),
-      label: th.textContent.trim(),
-    };
-    if (written && written !== column.type) column.unknownType = written;
-    if (optionsAttr) column.options = optionsAttr.split(",").map((option) => option.trim());
-    const mediaFolder = th.getAttribute("data-media-folder");
-    if (mediaFolder) column.mediaFolder = mediaFolder;
-    const read = new Set(READ_ATTRIBUTES);
-    if (column.type === "media" && th.hasAttribute("data-show-name")) {
-      column.showName = true;
-      read.add("data-show-name");
-    }
-    if (column.type === "timestamp" && th.getAttribute("data-default") === "now") {
-      column.default = "now";
-      read.add("data-default");
-    }
-    const max = Number(th.getAttribute("data-max") ?? "");
-    if (column.type === "score" && isScoreMax(max)) {
-      column.max = max;
-      read.add("data-max");
-    }
-    if (column.type === "score" && th.hasAttribute("data-reject")) {
-      column.reject = true;
-      read.add("data-reject");
-    }
-    const unknown = Object.entries(th.attributes).filter(([name]) => !read.has(name.toLowerCase()));
-    if (unknown.length > 0) column.unknownAttributes = unknown;
-    return column;
+    const field = readFieldDefinition(th, ["data-field"]);
+    return { id: th.getAttribute("data-field") || "", label: th.textContent.trim(), ...field };
   });
+}
+
+// A key's type, from its `<dt>`: none for one that says nothing beyond text,
+// so a plain key stays plain. `media` and `path` are no key's type, so one
+// reads as text and is kept as written, as a type this build doesn't know is.
+function readKeyType(dt: HTMLElement): FieldDefinition | undefined {
+  const field = readFieldDefinition(dt, []);
+  if (!isMetadataType(field.type)) {
+    field.unknownType ??= field.type;
+    field.type = "text";
+  }
+  const { type, ...rest } = field;
+  return type === "text" && Object.keys(rest).length === 0 ? undefined : field;
 }
 
 function readRows(tbody: HTMLElement | null, columns: TableColumn[]): TableRow[] {

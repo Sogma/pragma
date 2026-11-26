@@ -20,7 +20,9 @@ export interface FieldSettingHooks {
   // The settings a pane asks for in a dialog of its own. A pane leaves out
   // one it doesn't offer, and the menu leaves out its item.
   options?(): void;
-  mediaFolder(): void;
+  mediaFolder?(): void;
+  // A metadata block has no rows, so no setting fills new ones.
+  noRows?: true;
 }
 
 // A max of 5 is left out of the file, as other defaults are.
@@ -75,7 +77,7 @@ const SETTINGS: {
         else delete each.showName;
       },
     ),
-    { label: "Media folder…", run: () => hooks.mediaFolder() },
+    ...(hooks.mediaFolder ? [{ label: "Media folder…", run: () => hooks.mediaFolder?.() }] : []),
   ],
   path: none,
   score: (field, hooks) => [
@@ -93,18 +95,21 @@ const SETTINGS: {
   ],
   select: (_field, hooks) => (hooks.options ? [{ label: "Options…", run: () => hooks.options?.() }] : []),
   text: none,
-  timestamp: (field, hooks) => [
-    toggle(
-      "Fill new rows with the time added",
-      field,
-      hooks,
-      (each) => each.default === "now",
-      (each, on) => {
-        if (on) each.default = "now";
-        else delete each.default;
-      },
-    ),
-  ],
+  timestamp: (field, hooks) =>
+    hooks.noRows
+      ? []
+      : [
+          toggle(
+            "Fill new rows with the time added",
+            field,
+            hooks,
+            (each) => each.default === "now",
+            (each, on) => {
+              if (on) each.default = "now";
+              else delete each.default;
+            },
+          ),
+        ],
 };
 
 /** The menu items for what only `field`'s type has. */

@@ -306,4 +306,34 @@ describe("the metadata block", () => {
     expect(metadataBlock([])).toBe('  <dl data-role="metadata">\n  </dl>');
     expect(metadataBlock(undefined)).toBe('  <dl data-role="metadata">\n  </dl>');
   });
+
+  // A key's type rides on its <dt>, read and written as a column's header.
+  it("reads a key's type and settings from its <dt>, and none for a plain key", () => {
+    const root = parse(`<body><dl data-role="metadata">
+      <dt data-type="score" data-max="10" data-reject>rating</dt><dd>7</dd>
+      <dt data-type="select" data-options="draft,final">status</dt><dd>draft</dd>
+      <dt>description</dt><dd>Plain.</dd>
+      <dt data-type="text">note</dt><dd>Text is no type.</dd>
+    </dl></body>`);
+    expect(readMetadataBlock(root)).toEqual([
+      { key: "rating", values: ["7"], field: { type: "score", max: 10, reject: true } },
+      { key: "status", values: ["draft"], field: { type: "select", options: ["draft", "final"] } },
+      { key: "description", values: ["Plain."] },
+      { key: "note", values: ["Text is no type."] },
+    ]);
+  });
+
+  it("writes a key's type back as read, keeping a type no key takes and attributes it doesn't read", () => {
+    const block =
+      '  <dl data-role="metadata">\n' +
+      '    <dt data-type="score" data-reject>rating</dt><dd>-1</dd>\n' +
+      '    <dt data-type="media" data-hint="x">cover</dt><dd>a.png</dd>\n' +
+      '    <dt data-type="stars">mood</dt><dd>4</dd>\n' +
+      "    <dt>description</dt><dd>Plain.</dd>\n" +
+      "  </dl>";
+    const read = readMetadataBlock(parse(`<body>${block}</body>`));
+    expect(read[1].field).toEqual({ type: "text", unknownType: "media", unknownAttributes: [["data-hint", "x"]] });
+    expect(read[2].field).toEqual({ type: "text", unknownType: "stars" });
+    expect(metadataBlock(read)).toBe(block);
+  });
 });

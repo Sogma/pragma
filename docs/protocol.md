@@ -381,11 +381,13 @@ A Table, Class or Flow says what it is about in a `<dl data-role="metadata">` bl
 <dl data-role="metadata">
   <dt>description</dt><dd>Image-generation models to pick from.</dd>
   <dt>tags</dt><dd>studio</dd><dd>reference</dd>
+  <dt data-type="score">rating</dt><dd>4</dd>
 </dl>
 ```
 
 - **A `<dt>` is a key, and the `<dd>`s after it are its values**, grouped as HTML groups a description list: a run of `<dt>`s shares the `<dd>`s that follow it. A value is its element's text, trimmed, and an empty one is no value. A key with one value is text and with several a list, `tags` is a list whatever it holds, and a key with no value is still kept. A key written twice keeps its first group.
 - **Any key may appear.** A host acts only on the keys it names: `description` ([Descriptions](#descriptions)), `tags` ([Tags](#tags)), `visibility` (`architecture.md`'s Privacy section), and a Table's `created` and `modified`, the days it was first and last saved.
+- **A `<dt>` may type its key** with a [Table column](#table-columns)'s attributes, read and written back as a column header's are. Its values stay text, as a cell of that type holds them. No key is typed `media` or `path`: one so written reads as text and is kept. A key typed `text` is written with no type.
 - **A writer keeps every entry**, in order, each with its values in order, and writes the block even when it is empty, so a file's shape never depends on its metadata.
 
 ### Text documents

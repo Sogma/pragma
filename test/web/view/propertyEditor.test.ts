@@ -679,3 +679,41 @@ describe("a key a Class types", () => {
     expect(row("tags").querySelector(".property-editor-tag-input")).not.toBeNull();
   });
 });
+
+describe("a key a block types", () => {
+  const fields: TableColumn[] = [{ id: "rating", type: "score", label: "rating" }];
+
+  it("draws any text with the field's control, keeping one that isn't its type's, and saves text", () => {
+    const container = document.createElement("div");
+    const data: Record<string, unknown> = { rating: "7" };
+    createPropertyEditor(container, data, vi.fn(), {
+      contextMenu: fakeContextMenu(),
+      fields,
+      textValues: true,
+    }).render();
+    const score = container.querySelector('.property-editor-row[data-key="rating"] .score') as HTMLElement;
+    expect(score.querySelector(".score-held")?.textContent).toBe("7");
+    score.querySelectorAll<HTMLButtonElement>(".score-mark")[2].click();
+    expect(data.rating).toBe("3");
+  });
+
+  it("puts the caller's items before Remove, and reports a rename or removal before the change", () => {
+    const container = document.createElement("div");
+    const contextMenu = fakeContextMenu();
+    const heard: string[] = [];
+    createPropertyEditor(container, { a: "1" }, () => heard.push("change"), {
+      contextMenu,
+      keyItems: (key) => [{ label: `Type of ${key}` }],
+      onKeyRenamed: (from, to) => heard.push(`renamed ${from} ${to}`),
+      onKeyRemoved: (key) => heard.push(`removed ${key}`),
+    }).render();
+    menuButton(container, "a").click();
+    expect(contextMenu.open.mock.calls[0][0].items?.map((item) => item.label)).toEqual(["Type of a", "Remove"]);
+    const key = container.querySelector<HTMLInputElement>(".property-editor-key") as HTMLInputElement;
+    key.value = "b";
+    key.dispatchEvent(new Event("blur"));
+    menuButton(container, "b").click();
+    pickRemove(contextMenu);
+    expect(heard).toEqual(["renamed a b", "change", "removed b", "change"]);
+  });
+});

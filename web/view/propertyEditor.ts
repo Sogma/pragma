@@ -12,7 +12,7 @@ import { propertyIcon } from "../lib/propertyIcon.ts";
 import { createPill, createTagPill, paintTagPills } from "../lib/tagPill.ts";
 import { attachTagSuggestions, type TagSource } from "../lib/tagSuggestions.ts";
 import { createWrappingField } from "../lib/wrappingField.ts";
-import type { ContextMenuService } from "../services/menus.ts";
+import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 
 // How far a press on a row's icon travels before it drags the property
 // rather than clicking to open its menu.
@@ -38,9 +38,16 @@ export interface PropertyEditorOptions {
   // settings are edited only there, so that row has no field of its own,
   // whose text would flatten the block into a string.
   context?: { card(data: Record<string, unknown>): HTMLElement | undefined; open(): void };
-  // The fields the Classes holding a note give its properties: a key one
-  // types is drawn with that type's control and saved as the type stores it.
+  // The fields the Classes holding a note, or a block itself, give its
+  // properties: a key one types is drawn with that type's control and saved
+  // as the type stores it, in a block as text.
   fields?: readonly TableColumn[];
+  // A key's menu items before Remove, such as the type a block gives it.
+  keyItems?(key: string): MenuItem[];
+  // Hear a key renamed or removed, for a caller keeping something by key;
+  // each runs before the change is reported.
+  onKeyRenamed?(from: string, to: string): void;
+  onKeyRemoved?(key: string): void;
 }
 
 // What a typed property's controls need from above `lib/`: the color picker
@@ -64,7 +71,19 @@ export function createPropertyEditor(
   container: HTMLElement,
   data: Record<string, unknown>,
   onChange: () => void,
-  { onStructuralChange, contextMenu, tags, path, textValues, readOnlyKeys, context, fields }: PropertyEditorOptions,
+  {
+    onStructuralChange,
+    contextMenu,
+    tags,
+    path,
+    textValues,
+    readOnlyKeys,
+    context,
+    fields,
+    keyItems,
+    onKeyRenamed,
+    onKeyRemoved,
+  }: PropertyEditorOptions,
 ): { render: () => void; addProperty: () => HTMLElement | undefined } {
   // Set as a drag ends, for the click its release sends, which must not open
   // the icon's menu. It runs in the same task, before the timeout clears this.
@@ -96,7 +115,7 @@ export function createPropertyEditor(
   function refreshRowIcon(key: string): void {
     container
       .querySelector(`.property-editor-row[data-key="${CSS.escape(key)}"] .property-icon`)
-      ?.replaceWith(propertyIcon(key, data, path, propertyField(fields, key, data[key])));
+      ?.replaceWith(propertyIcon(key, data, path, propertyField(fields, key, data[key], textValues)));
   }
 
   // A property's value cell, keyed off the value's *shape* — an array
@@ -186,11 +205,11 @@ export function createPropertyEditor(
     }
 
     // Cleared, it keeps its row: blank, as a property just added is.
-    const typed = propertyField(fields, key, value);
+    const typed = propertyField(fields, key, value, textValues);
     if (typed) {
       const text = value === null || value === undefined ? "" : String(value).trim();
       const save = (next: string): void => {
-        data[key] = frontmatterValue(typed, next) ?? "";
+        data[key] = textValues ? next : (frontmatterValue(typed, next) ?? "");
         onChange();
         refreshRowIcon(key);
       };
@@ -232,7 +251,7 @@ export function createPropertyEditor(
   // since nothing undoes it. The icon is also what the property is dragged by,
   // and Alt+Up and Alt+Down move it, as Alt+arrows move an App mode tile.
   function buildIcon(key: string): HTMLElement {
-    const icon = propertyIcon(key, data, path, propertyField(fields, key, data[key]));
+    const icon = propertyIcon(key, data, path, propertyField(fields, key, data[key], textValues));
     if (readOnlyKeys?.includes(key)) return icon;
     const button = document.createElement("button");
     button.type = "button";
@@ -250,7 +269,7 @@ export function createPropertyEditor(
         items:
           key === "pragma" && context
             ? [{ label: "Context…", group: "context", run: () => context.open() }, remove]
-            : [remove],
+            : [...(keyItems?.(key) ?? []), remove],
       });
     button.addEventListener("click", () => {
       if (swallowClick) return;
@@ -428,6 +447,7 @@ export function createPropertyEditor(
   function removeProperty(key: string): void {
     const index = Object.keys(data).indexOf(key);
     delete data[key];
+    onKeyRemoved?.(key);
     onChange();
     onStructuralChange?.();
     render();
@@ -503,6 +523,7 @@ export function createPropertyEditor(
         // Rebuilt rather than delete-then-set, which would move the renamed
         // property to the end.
         refill(Object.entries(data).map(([each, value]) => [each === key ? nextKey : each, value]));
+        onKeyRenamed?.(key, nextKey);
         onChange();
         render();
       });

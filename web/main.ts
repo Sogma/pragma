@@ -678,7 +678,8 @@ async function main(): Promise<void> {
     noteRevision: saveQueue.noteRevision,
     scheduleSave: saveQueue.schedule,
     tabs: () => tabs,
-    metadataProperties: () => createMetadataProperties({ createPropertyEditor, contextMenu, tags: tagVocabulary }),
+    metadataProperties: () =>
+      createMetadataProperties({ createPropertyEditor, contextMenu, dialog, tags: tagVocabulary }),
   };
   editorPanes.register(tablePane(dataPaneDeps));
   editorPanes.register(classPane({ ...dataPaneDeps, menus, editProperties: documents.editProperties }));

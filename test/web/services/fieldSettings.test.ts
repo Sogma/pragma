@@ -39,6 +39,8 @@ describe("fieldSettingItems", () => {
   it("leaves out a setting the pane doesn't offer", () => {
     const field: TableColumn = { id: "s", type: "select", label: "S", options: ["a"] };
     expect(fieldSettingItems(field, hooks(field).given)).toEqual([]);
+    const still: TableColumn = { id: "m", type: "media", label: "M" };
+    expect(labels(fieldSettingItems(still, { ...hooks(still).given, mediaFolder: undefined }))).toEqual(["Show name"]);
   });
 
   it("turns a setting on and off through the pane", () => {
@@ -65,5 +67,12 @@ describe("fieldSettingItems", () => {
     await vi.waitFor(() => expect(field.max).toBe(10));
     item(fieldSettingItems(field, hooks(field, false, "5").given), "Max…").run?.(context, undefined);
     await vi.waitFor(() => expect(field).not.toHaveProperty("max"));
+  });
+});
+
+describe("a field with no rows", () => {
+  it("offers no setting that fills new rows", () => {
+    const field: TableColumn = { id: "due", type: "timestamp", label: "Due" };
+    expect(fieldSettingItems(field, { ...hooks(field).given, noRows: true })).toEqual([]);
   });
 });

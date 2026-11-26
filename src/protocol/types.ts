@@ -90,6 +90,9 @@ export interface FindContextResult {
 export interface MetadataEntry {
   key: string;
   values: string[];
+  // The type its `<dt>` gives it, with that type's settings, as a column's
+  // header gives a column one. Absent, the key is text.
+  field?: FieldDefinition;
 }
 
 /** The typed-value vocabulary shared by a Table's columns and a Class's fields —

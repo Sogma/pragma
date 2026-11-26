@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   hasMetadataBlock,
   isPrivateMetadata,
+  METADATA_TYPE_OPTIONS,
+  metadataFields,
   metadataFromProperties,
   metadataProperties,
   metadataText,
@@ -75,6 +77,37 @@ describe("metadata as properties", () => {
 
   it("round-trips a block through the editor's data", () => {
     expect(metadataFromProperties(metadataProperties(block))).toEqual(block);
+  });
+
+  it("carries a key's type through the editor, as a field keyed by the key", () => {
+    const typed: MetadataEntry[] = [
+      { key: "rating", values: ["4"], field: { type: "score", reject: true } },
+      { key: "description", values: ["d"] },
+    ];
+    const fields = metadataFields(typed);
+    expect(fields).toEqual([{ id: "rating", label: "rating", type: "score", reject: true }]);
+    expect(metadataFromProperties(metadataProperties(typed), fields)).toEqual(typed);
+  });
+
+  it("offers a key every column type but media and path", () => {
+    expect(METADATA_TYPE_OPTIONS.map((option) => option.value)).toEqual([
+      "checkbox",
+      "color",
+      "integer",
+      "score",
+      "select",
+      "text",
+      "timestamp",
+    ]);
+  });
+
+  it("keeps a typed date's type when a save stamps it", () => {
+    const saved = stampTableDates([{ key: "modified", values: ["2026-09-01"], field: { type: "text" } }], "2026-10-19");
+    expect(saved.find((entry) => entry.key === "modified")).toEqual({
+      key: "modified",
+      values: ["2026-10-19"],
+      field: { type: "text" },
+    });
   });
 });
 

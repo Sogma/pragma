@@ -192,19 +192,24 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
   },
 };
 
-/** The field a note's property is drawn with, of those the Classes holding
- * the note give it: one whose type draws in properties, while the value is
- * blank or one of its type's. Tags and the publication date keep their own
- * controls. */
+/** The field a property is drawn with, of those its document's Classes or
+ * its own block give it: one whose type draws in properties, while the
+ * value is blank or one of its type's. Tags and the publication date keep
+ * their own controls.
+ *
+ * A block's `textValues` are drawn as a Table cell's are: any text takes the
+ * control, which keeps a value that isn't its type's, and a list never does. */
 export function propertyField(
   fields: readonly TableColumn[] | undefined,
   key: string,
   value: unknown,
+  textValues = false,
 ): TableColumn | undefined {
   if (isListFrontmatterKey(key) || key === PUBLICATION_DATE_KEY) return undefined;
   const field = fields?.find((each) => each.id === key);
   if (!field || !FIELD_CONTROLS[field.type].property) return undefined;
   if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return field;
+  if (textValues) return typeof value === "string" ? field : undefined;
   const read = cellValue(field, value);
   return read.fits && !read.items ? field : undefined;
 }

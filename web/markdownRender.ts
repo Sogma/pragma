@@ -741,12 +741,14 @@ function appendFrontmatterValue(container: Node, key: string, value: unknown): v
 
 // Parsed frontmatter as read-only key/value rows: a document's properties
 // section while reading view locks it. `path` is the document's, for the
-// `pragma` key's scope mark; `fields` are those the Classes holding it give
-// its properties, a typed key's value drawn as its type locks it.
+// `pragma` key's scope mark; `fields` are those its Classes or its own block
+// give its properties, a typed key's value drawn as its type locks it, and
+// `textValues` says the values are a block's text.
 export function renderFrontmatter(
   data: Record<string, unknown>,
   path?: string,
   fields?: readonly TableColumn[],
+  textValues = false,
 ): HTMLElement {
   const el = document.createElement("div");
   el.className = "meta-rows";
@@ -756,7 +758,7 @@ export function renderFrontmatter(
     const keyEl = document.createElement("span");
     keyEl.className = "meta-key";
     keyEl.dataset.tooltipOverflow = "";
-    const field = propertyField(fields, key, value);
+    const field = propertyField(fields, key, value, textValues);
     keyEl.append(propertyIcon(key, data, path, field), key);
     const valueEl = document.createElement("span");
     valueEl.className = "meta-value";

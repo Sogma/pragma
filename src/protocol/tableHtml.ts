@@ -1,4 +1,4 @@
-import type { CardTile, MetadataEntry, TableColumn, TableFile } from "./types.ts";
+import type { CardTile, FieldDefinition, MetadataEntry, TableColumn, TableFile } from "./types.ts";
 
 // Pure string-building, no Node/DOM APIs — isomorphic on purpose, so the
 // server (scaffolding a new file) and the client (persisting an edit) share
@@ -11,9 +11,9 @@ export function escapeHtml(value: string): string {
 
 // One line per key, so a git diff stays one key wide. A key with no value
 // still gets its `<dd>`: a `<dt>` with none is not a valid HTML group.
-function metadataRow({ key, values }: MetadataEntry): string {
+function metadataRow({ key, values, field }: MetadataEntry): string {
   const cells = (values.length ? values : [""]).map((value) => `<dd>${escapeHtml(value)}</dd>`).join("");
-  return `    <dt>${escapeHtml(key)}</dt>${cells}\n`;
+  return `    <dt${field ? fieldAttributes([], field, false) : ""}>${escapeHtml(key)}</dt>${cells}\n`;
 }
 
 /** The `<dl data-role="metadata">` block a Flow and Class share
@@ -27,29 +27,34 @@ export function metadataBlock(metadata: readonly MetadataEntry[] | undefined): s
 // would break the markup around it.
 const ATTRIBUTE_NAME = /^[^\s"'<>/=]+$/;
 
+// A type's attributes after `leading`, then those this build didn't read,
+// unless one of that name is written already. A text type is written only
+// where `typeAlways` asks for it: a key is text with none.
+function fieldAttributes(leading: readonly [string, string][], field: FieldDefinition, typeAlways: boolean): string {
+  // An undefined value is written bare, as a boolean attribute.
+  const attributes: [string, string | undefined][] = [...leading];
+  const type = field.unknownType ?? field.type;
+  if (typeAlways || type !== "text") attributes.push(["data-type", type]);
+  if (field.options?.length) attributes.push(["data-options", field.options.join(",")]);
+  if (field.mediaFolder) attributes.push(["data-media-folder", field.mediaFolder]);
+  if (field.showName) attributes.push(["data-show-name", undefined]);
+  if (field.default) attributes.push(["data-default", field.default]);
+  if (field.max !== undefined) attributes.push(["data-max", String(field.max)]);
+  if (field.reject) attributes.push(["data-reject", undefined]);
+  const written = new Set(attributes.map(([name]) => name));
+  for (const [name, value] of field.unknownAttributes ?? []) {
+    if (ATTRIBUTE_NAME.test(name) && !written.has(name.toLowerCase())) attributes.push([name, value || undefined]);
+  }
+  return attributes
+    .map(([name, value]) => (value === undefined ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`))
+    .join("");
+}
+
 /** One `<th>` of a `<thead>` of field definitions, which a Class's
  * fields share with a Table's columns. An attribute this build didn't read
  * follows the ones it writes, unless it writes one of that name. */
 export function fieldHeaderCell(column: TableColumn): string {
-  // An undefined value is written bare, as a boolean attribute.
-  const attributes: [string, string | undefined][] = [
-    ["data-field", column.id],
-    ["data-type", column.unknownType ?? column.type],
-  ];
-  if (column.options?.length) attributes.push(["data-options", column.options.join(",")]);
-  if (column.mediaFolder) attributes.push(["data-media-folder", column.mediaFolder]);
-  if (column.showName) attributes.push(["data-show-name", undefined]);
-  if (column.default) attributes.push(["data-default", column.default]);
-  if (column.max !== undefined) attributes.push(["data-max", String(column.max)]);
-  if (column.reject) attributes.push(["data-reject", undefined]);
-  const written = new Set(attributes.map(([name]) => name));
-  for (const [name, value] of column.unknownAttributes ?? []) {
-    if (ATTRIBUTE_NAME.test(name) && !written.has(name.toLowerCase())) attributes.push([name, value || undefined]);
-  }
-  const text = attributes
-    .map(([name, value]) => (value === undefined ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`))
-    .join("");
-  return `        <th${text}>${escapeHtml(column.label)}</th>\n`;
+  return `        <th${fieldAttributes([["data-field", column.id]], column, true)}>${escapeHtml(column.label)}</th>\n`;
 }
 
 function cardItem(tile: CardTile): string {
