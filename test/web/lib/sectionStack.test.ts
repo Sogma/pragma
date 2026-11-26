@@ -156,6 +156,16 @@ describe("section stack", () => {
     expect(trash.open.set).toHaveBeenCalledTimes(2);
   });
 
+  it("lays each header frosted over its body, inside the clip that ends the section", () => {
+    const tags = spec("Tags", true);
+    const { parts } = setup([tags]);
+    const [{ section }] = parts;
+    expect(section.header.classList.contains("frost-header")).toBe(true);
+    expect(section.header.nextElementSibling).toBe(tags.body);
+    expect(section.header.parentElement?.classList.contains("stack-section-clip")).toBe(true);
+    expect(tags.body.classList.contains("frost-header-scroller")).toBe(true);
+  });
+
   it("makes a header action from a label and a glyph", () => {
     const run = vi.fn();
     const action = createSectionAction("Empty Trash", "trash", run);

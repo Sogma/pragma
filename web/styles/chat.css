@@ -3,7 +3,6 @@
 #assistant-chat {
   --chat-header-height: 32px;
   --chat-header-gap: 8px;
-  position: relative;
   isolation: isolate;
   flex: 1;
   min-height: var(--assistant-chat-min-height);
@@ -12,11 +11,13 @@
 }
 
 /* The top padding clears the header, which lies over the transcript, by the
-   gap whose scroll the header's lift waits out (chat-header.css). */
+   gap whose scroll the header's lift waits out (chat-header.css). The scroll
+   padding clears the header alone, so a message brought into view shows. */
 #chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: calc(var(--chat-header-height) + var(--chat-header-gap)) 8px 8px;
+  scroll-padding-top: var(--chat-header-height);
   display: flex;
   flex-direction: column;
   gap: 8px;

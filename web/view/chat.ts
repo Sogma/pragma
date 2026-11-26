@@ -23,6 +23,7 @@ import { folderTitle, joinSpacePath, linkedEntry } from "../core/paths.ts";
 import { entryIconAt, pathNames, readingResolvers, readingResolversIn } from "../core/spaceTree.ts";
 import type { ProposalOutcome } from "../editProposal.ts";
 import { addCodeBlockCopyButtons, countText, must, setEntryIcon } from "../lib/dom.ts";
+import { createFrostHeader } from "../lib/frostHeader.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import { settingLinks } from "../lib/settingLink.ts";
@@ -130,8 +131,7 @@ export function wireChat(deps: ChatDeps): Chat {
   const input = must<HTMLTextAreaElement>("#chat-input");
   const sendButton = must<HTMLButtonElement>("#chat-send");
 
-  const header = document.createElement("div");
-  header.className = "chat-header";
+  const header = createFrostHeader(messages, "chat-header");
   const scopeLabel = document.createElement("span");
   scopeLabel.className = "chat-scope";
   const scopeIcon = document.createElement("span");
@@ -156,7 +156,6 @@ export function wireChat(deps: ChatDeps): Chat {
   newChatIcon.setAttribute("aria-hidden", "true");
   newChatButton.append(newChatIcon);
   header.append(scopeLabel, switchButton, newChatButton);
-  messages.before(header);
 
   // Until the screen is first read, the space's own chat.
   const threads = new Map<string, Thread>();

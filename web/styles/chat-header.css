@@ -1,31 +1,14 @@
 /* Whose chat shows: its scope, the focused tab's scope as a switch while
-   that is another, and New chat. It lies over the transcript, which scrolls
-   on under it and shows through frosted; its parts sit above the frost. */
+   that is another, and New chat. It lies frosted over the transcript
+   (frost-header.css), its lift waiting out the gap above the first message
+   (chat.css). */
 .chat-header {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 1;
+  --frost-header-gap: var(--chat-header-gap);
   display: flex;
   align-items: center;
   gap: 4px;
   min-height: var(--chat-header-height);
   padding: 0 6px 0 8px;
-}
-
-.chat-header > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* The frost spans the scrollbar too. With nothing under the header it
-   shows nothing, so it needs no scroll to hide it. */
-.chat-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
-  backdrop-filter: blur(7px) saturate(150%);
-  pointer-events: none;
 }
 
 /* The scope's own margin, not New chat's, takes the free space, so the
@@ -82,56 +65,4 @@
   height: 16px;
   background-color: currentColor;
   mask: var(--icon-plus) center / contain no-repeat;
-}
-
-/* The header lifts off the transcript once a message reaches it, past the
-   gap above the first one: over the next 24px of scroll the frost fades in
-   and a shadow under it. The header reads the transcript's scroll through a
-   named timeline, being outside the scroller. animation-timeline must follow
-   the shorthand, which resets it.
-
-   Both rest at opacity 0: a chat too short to scroll has an inactive
-   timeline, which leaves the animation no effect at all.
-
-   Without scroll-driven animations the shadow would lie there for good, so
-   such a browser gets none. */
-@supports (animation-timeline: scroll()) and (timeline-scope: none) {
-  #assistant-chat {
-    timeline-scope: --chat-scroll;
-  }
-
-  #chat-messages {
-    scroll-timeline: --chat-scroll y;
-  }
-
-  .chat-header::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    height: 29px;
-    background: linear-gradient(
-      rgb(0 0 0 / var(--chat-header-shadow)),
-      rgb(0 0 0 / calc(var(--chat-header-shadow) * 0.5625)) 25%,
-      rgb(0 0 0 / calc(var(--chat-header-shadow) * 0.25)) 50%,
-      rgb(0 0 0 / calc(var(--chat-header-shadow) * 0.0625)) 75%,
-      transparent
-    );
-    pointer-events: none;
-  }
-
-  .chat-header::before,
-  .chat-header::after {
-    opacity: 0;
-    animation: chat-header-lift linear both;
-    animation-timeline: --chat-scroll;
-    animation-range: var(--chat-header-gap) calc(var(--chat-header-gap) + 24px);
-  }
-}
-
-@keyframes chat-header-lift {
-  to {
-    opacity: 1;
-  }
 }

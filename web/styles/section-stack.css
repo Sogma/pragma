@@ -1,8 +1,14 @@
 /* Sections pinned under a panel's scroller (web/lib/sectionStack.ts). Full
    bleed: the negative margins give back the sidebar's left and bottom
    padding, so the dividing lines run edge to edge and the last header sits
-   on the panel's foot. Its own rows indent from 0, as the tree's do. */
+   on the panel's foot. Its own rows indent from 0, as the tree's do.
+
+   One stacking context round every section, so the headers' z-index stays
+   inside the stack, under the rail the sidebar slides behind (sidebar.css).
+   Not one per section: each would paint its header before the next one's
+   rows, which would leave the page's layer (frost-header.css). */
 .section-stack {
+  isolation: isolate;
   flex: 0 1 auto;
   min-height: 0;
   display: flex;
@@ -45,13 +51,13 @@
   --section-reveal: 1;
 }
 
-/* Above the scroller or section it straddles into. */
+/* Above the scroller or section it straddles into, and above its own
+   section's header, which lies under the strip's lower part. */
 .stack-section > .resize-handle {
-  z-index: 1;
+  z-index: 2;
 }
 
 .stack-section-header {
-  flex: none;
   display: flex;
   align-items: center;
   height: var(--section-header-height);
@@ -134,14 +140,11 @@
    title and count. A shut one keeps the label's grey. The actions stay icon
    buttons, and the glyph class they also wear is why the first selector
    names the toggle. */
-.stack-section.open
-  > .stack-section-header
-  > .stack-section-toggle
-  > :is(.stack-section-chevron, .stack-section-glyph) {
+.stack-section.open .stack-section-toggle > :is(.stack-section-chevron, .stack-section-glyph) {
   background-color: var(--text-primary);
 }
 
-.stack-section.open > .stack-section-header :is(.stack-section-title, .stack-section-count) {
+.stack-section.open .stack-section-header :is(.stack-section-title, .stack-section-count) {
   color: var(--text-primary);
 }
 
@@ -180,8 +183,10 @@
   height: 22px;
 }
 
-/* As much of the body as the section has room for. The clip, not the
-   section, so the edge's handle can still reach above it. */
+/* As much of the section as it has room for: its header, lying over its
+   body. The clip, not the section, so the edge's handle can still reach
+   above it, and so the header's shadow ends at the section's foot while it
+   slides shut. */
 .stack-section-clip {
   flex: 1;
   min-height: 0;
@@ -190,11 +195,14 @@
   overflow: clip;
 }
 
+/* Its padding and its scroll padding both clear the header lying over it,
+   so a row brought into view lands below the header. */
 .stack-section-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 4px;
+  padding: var(--section-header-height) 8px 4px;
+  scroll-padding-top: var(--section-header-height);
 }
 
 /* Shutting, the body stays drawn until the slide ends. */
@@ -202,12 +210,13 @@
   transition: display var(--panel-slide-duration) allow-discrete;
 }
 
-/* Mid-slide the body keeps its open height, so its rows and scrollbar hold
-   still while the clip grows or shrinks around them. */
+/* Mid-slide the body keeps its open height, the section's less the line
+   above it, so its rows and scrollbar hold still while the clip grows or
+   shrinks around them. */
 @container stack-section not style(--section-reveal: 1) {
   .stack-section-body {
     flex: none;
-    height: calc(var(--section-height, 200px) - var(--section-closed));
+    height: calc(var(--section-height, 200px) - 1px);
   }
 }
 

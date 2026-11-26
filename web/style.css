@@ -122,6 +122,7 @@
 @import "./styles/date-picker.css" layer(primitives);
 @import "./styles/canvas-stat.css" layer(primitives);
 @import "./styles/corner-grip.css" layer(primitives);
+@import "./styles/frost-header.css" layer(primitives);
 @import "./styles/disclosure.css" layer(primitives);
 @import "./styles/more-icon.css" layer(primitives);
 @import "./styles/match-mark.css" layer(primitives);

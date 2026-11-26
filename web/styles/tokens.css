@@ -254,9 +254,9 @@
   /* The opposite of --shadow-button: a text field sits pressed into the
      surface, so it never reads as a button beside it. */
   --shadow-input: inset 0 4px 7px rgba(0, 0, 0, 0.08);
-  /* The chat header's shadow, as an opacity: deeper in the dark theme, where
-     a light one is lost. */
-  --chat-header-shadow: 0.12;
+  /* A frosted header's shadow, as an opacity: deeper in the dark theme,
+     where a light one is lost. */
+  --frost-header-shadow: 0.06;
   /* The inner ring that keeps a colour value's fill from vanishing into a
      surface of nearly its colour: a colour chip in a Table, a swatch in the
      colour picker. */
@@ -344,7 +344,7 @@ html[data-theme="dark"] {
      highlight is what reads as "raised" here. */
   --shadow-button: 0 1px 1px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   --shadow-input: inset 0 4px 7px rgba(0, 0, 0, 0.42);
-  --chat-header-shadow: 0.5;
+  --frost-header-shadow: 0.25;
   --color-chip-ring: rgba(255, 255, 255, 0.18);
   --swatch-ring: rgba(255, 255, 255, 0.16);
   color-scheme: dark;

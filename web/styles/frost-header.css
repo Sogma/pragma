@@ -1,0 +1,82 @@
+/* A header lying over the top of a scroller, which scrolls on under it and
+   shows through frosted; web/lib/frostHeader.ts makes the pair.
+
+   The parent holding both is no stacking context of this file's making: one
+   would paint its header before whatever follows the parent, and rows there
+   that meet the header's layer would each get a layer of their own, costing
+   their text its subpixel smoothing. Frames stacked one under another share
+   one round them all instead (section-stack.css). */
+:has(> .frost-header) {
+  position: relative;
+}
+
+.frost-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+}
+
+/* Under the header's own parts, which stay sharp. It spans the scroller's
+   bar too. With nothing under the header it shows nothing, so it needs no
+   scroll to hide it. */
+.frost-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
+  backdrop-filter: blur(7px) saturate(150%);
+  pointer-events: none;
+}
+
+/* The header lifts off the scroller once its rows reach it, past
+   --frost-header-gap, the room above the first: over the next 24px of scroll
+   the frost fades in and a shadow under it. The header reads the scroll
+   through a named timeline, being outside the scroller. animation-timeline
+   must follow the shorthand, which resets it.
+
+   Both rest at opacity 0: a scroller too short to scroll has an inactive
+   timeline, which leaves the animation no effect at all.
+
+   Without scroll-driven animations the shadow would lie there for good, so
+   such a browser gets none. */
+@supports (animation-timeline: scroll()) and (timeline-scope: none) {
+  :has(> .frost-header) {
+    timeline-scope: --frost-header-scroll;
+  }
+
+  .frost-header-scroller {
+    scroll-timeline: --frost-header-scroll y;
+  }
+
+  .frost-header::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 29px;
+    background: linear-gradient(
+      rgb(0 0 0 / var(--frost-header-shadow)),
+      rgb(0 0 0 / calc(var(--frost-header-shadow) * 0.5625)) 25%,
+      rgb(0 0 0 / calc(var(--frost-header-shadow) * 0.25)) 50%,
+      rgb(0 0 0 / calc(var(--frost-header-shadow) * 0.0625)) 75%,
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  .frost-header::before,
+  .frost-header::after {
+    opacity: 0;
+    animation: frost-header-lift linear both;
+    animation-timeline: --frost-header-scroll;
+    animation-range: var(--frost-header-gap, 0px) calc(var(--frost-header-gap, 0px) + 24px);
+  }
+}
+
+@keyframes frost-header-lift {
+  to {
+    opacity: 1;
+  }
+}

@@ -912,12 +912,14 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     }, 0);
   }
 
-  // How far below the viewport's top a row must sit to clear the pins: a row
-  // per folder above it, as many as pin. A row brought there leaves only its
-  // own folders pinned, all above it.
-  function pinnedOver(index: number, view: Viewport): number {
-    if (!ctx?.pinsFolders) return 0;
-    return Math.min(slots[index]?.depth ?? 0, pinLimit(view.bottom - view.top, pitch())) * pitch();
+  // How far below the viewport's top a row must sit to clear what lies over
+  // it: a header lying over the scroller, which the scroller's scroll padding
+  // clears (frost-header.css), and a row per folder above it, as many as pin.
+  // A row brought there leaves only its own folders pinned, all above it.
+  function coveredTop(index: number, view: Viewport): number {
+    const header = scroller ? Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0 : 0;
+    if (!ctx?.pinsFolders) return header;
+    return header + Math.min(slots[index]?.depth ?? 0, pinLimit(view.bottom - view.top, pitch())) * pitch();
   }
 
   // Brings the slot at `index` fully into view, scrolling no further than that.
@@ -925,7 +927,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     const view = viewport();
     if (!scroller || !view) return;
     const top = index * pitch();
-    const clear = view.top + pinnedOver(index, view);
+    const clear = view.top + coveredTop(index, view);
     if (top < clear) scroller.scrollTop -= clear - top;
     else if (top + pitch() > view.bottom) scroller.scrollTop += top + pitch() - view.bottom;
   }
@@ -936,9 +938,10 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     const view = viewport();
     if (!scroller || !view) return;
     const top = index * pitch();
-    const clear = pinnedOver(index, view);
+    const clear = coveredTop(index, view);
     if (top >= view.top + clear && top + pitch() <= view.bottom) return;
-    // Clear of the pins still, in a viewport too short for the middle to be.
+    // Clear of what lies over it still, in a viewport too short for the
+    // middle to be.
     scroller.scrollTop += top - view.top - Math.max(clear, (view.bottom - view.top - pitch()) / 2);
   }
 
@@ -950,7 +953,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     if (!scroller || !view) return;
     for (const [item, index] of onPage) {
       if (!item.contains(input)) continue;
-      const clear = view.top + pinnedOver(index, view);
+      const clear = view.top + coveredTop(index, view);
       if (index * pitch() < clear) scroller.scrollTop -= clear - index * pitch();
       return;
     }

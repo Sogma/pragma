@@ -7,6 +7,7 @@
 // the line between two open sections leaves the scroller where it was.
 import { type Disposable, DisposableStore, listen } from "./disposable.ts";
 import { el } from "./dom.ts";
+import { createFrostHeader } from "./frostHeader.ts";
 import { pixelToken, wirePanelResize } from "./panelResize.ts";
 
 export interface Stored<T> {
@@ -64,7 +65,12 @@ export function createSectionStack(scroller: HTMLElement, specs: readonly StackS
   const parts = specs.map((spec) => {
     const section = el("section", "stack-section");
     const handle = el("div", "resize-handle ns");
-    const header = el("div", "stack-section-header");
+    spec.body.classList.add("stack-section-body");
+    spec.body.setAttribute("role", "region");
+    spec.body.setAttribute("aria-label", spec.title);
+    const clip = el("div", "stack-section-clip");
+    clip.append(spec.body);
+    const header = createFrostHeader(spec.body, "stack-section-header");
     const toggle = el("button", "stack-section-toggle");
     toggle.type = "button";
     const glyph = el("span", "stack-section-glyph");
@@ -81,12 +87,7 @@ export function createSectionStack(scroller: HTMLElement, specs: readonly StackS
     const count = el("span", "stack-section-count");
     count.setAttribute("aria-hidden", "true");
     header.append(toggle, actions, count);
-    spec.body.classList.add("stack-section-body");
-    spec.body.setAttribute("role", "region");
-    spec.body.setAttribute("aria-label", spec.title);
-    const clip = el("div", "stack-section-clip");
-    clip.append(spec.body);
-    section.append(handle, header, clip);
+    section.append(handle, clip);
     element.append(section);
 
     const setHeight = (px: number) => section.style.setProperty("--section-height", `${px}px`);

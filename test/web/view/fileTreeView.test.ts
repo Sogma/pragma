@@ -1120,6 +1120,22 @@ describe("createTreeView — only the rows near the viewport are drawn", () => {
     view.remove();
   });
 
+  it("brings the cursor's row out from under a header lying over the scroller", () => {
+    const tree = createTreeView("", { active: activeAt("f100.md") });
+    const view = inScroller(tree, 10 * PITCH);
+    tree.render(files(1000), baseCtx());
+    const scroller = tree.element.parentElement as HTMLElement;
+    scroller.style.scrollPaddingTop = `${PITCH}px`;
+    view.scrollTo(99 * PITCH);
+
+    tree.element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(scroller.scrollTop).toBe(99 * PITCH);
+    tree.element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    expect(tree.element.querySelector<HTMLElement>(".node-label.cursor")?.dataset.path).toBe("f99.md");
+    expect(scroller.scrollTop).toBe(98 * PITCH);
+    view.remove();
+  });
+
   it("reveals an off-screen row in the middle of the view, and leaves one in view where it is", () => {
     const tree = createTreeView("");
     const view = inScroller(tree, 10 * PITCH);
