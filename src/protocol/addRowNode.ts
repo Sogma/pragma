@@ -88,7 +88,8 @@ export function addRowPorts(config: Record<string, unknown>): { inputs: FlowPort
         type: "text",
         label: ADD_ROW_PATH_PORT,
         required: false,
-        description: "Another Table with the same column ids.",
+        description:
+          "The path of the Table to add the row to, in place of the dragged one. It needs the dragged Table's columns, since those set this node's pins.",
       },
       ...addRowNodeConfig(config).columns.map((column) => ({
         id: column.id,
