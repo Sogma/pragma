@@ -37,10 +37,11 @@ import {
   valueCells,
   wireRowSelection,
 } from "../../lib/dataGrid.ts";
-import { buildTableRowDeleteButton } from "../../lib/dom.ts";
+import { buildTableRowDeleteButton, el, iconButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type CellOptions, createCell } from "../../lib/fieldValue.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
+import { createRowSelection } from "../../lib/rowSelection.ts";
 import { uniqueSlug } from "../../lib/slug.ts";
 import { createPageFind } from "../../pageFind.ts";
 import { createRowCard } from "../../rowCard.ts";
@@ -131,11 +132,16 @@ function rowName(columns: TableColumn[], row: TableRow): string {
   return text.length > ROW_NAME_LENGTH ? `${text.slice(0, ROW_NAME_LENGTH).trimEnd()}…` : text;
 }
 
-function confirmDeleteRow(dialog: DialogService, name: string, onConfirm: () => void): void {
+// One entry is named in its confirm, several counted.
+function confirmDeleteRows(dialog: DialogService, names: readonly string[], onConfirm: () => void): void {
+  const [name] = names;
+  const one = names.length === 1;
   void dialog
     .confirm({
-      title: name ? `Delete "${name}" entry?` : "Delete this entry?",
-      message: "This permanently deletes the entry and its data. This cannot be undone.",
+      title: !one ? `Delete ${names.length} entries?` : name ? `Delete "${name}" entry?` : "Delete this entry?",
+      message: one
+        ? "This permanently deletes the entry and its data. This cannot be undone."
+        : "This permanently deletes the entries and their data. This cannot be undone.",
       confirmLabel: "Delete",
       danger: true,
     })
@@ -168,9 +174,14 @@ export interface TableViewDeps {
   // The pane's box, which a row's card lies over; without one, rows have
   // no card.
   overlayHost?: HTMLElement;
+  // The status bar's line of the pane's own: how many rows are ticked.
+  reportReadout?: (text: string) => void;
 }
 
 export interface TableView {
+  // The view's own controls for the floating toolbar: Delete, for the
+  // ticked rows.
+  readonly toolbar: HTMLElement;
   // Design mode: the column tools shown, over the same grid locked. Off
   // again when the view lets its table go or draws a different one: the view
   // outlives its tab, so a mode entered for one table would otherwise reach
@@ -293,35 +304,44 @@ export function createTableView(deps: TableViewDeps): TableView {
     renderActiveTablePane();
   }
 
-  // A row's delete, behind its confirm, from its delete button, its card's
-  // ⋮ or its right-click; `redraw` updates the view once the row is gone.
-  // Matched by identity in the working copy, so a reload while the confirm
-  // is up deletes nothing.
-  function deleteRow(row: TableRow, redraw: () => void): void {
-    confirmDeleteRow(deps.dialog, rowName(activeTable?.columns ?? [], row), () => {
-      const index = activeTable?.rows.indexOf(row) ?? -1;
-      if (!activeTable || index === -1) return;
-      activeTable.rows.splice(index, 1);
+  // Rows deleted behind their confirm: from a card's delete button, a card's
+  // ⋮, a right-click, or the toolbar for the ticked rows; `redraw` updates
+  // the view once they are gone. Matched by identity in the working copy, so
+  // a reload while the confirm is up deletes nothing.
+  function deleteRows(rows: readonly TableRow[], redraw: () => void): void {
+    if (rows.length === 0) return;
+    const names = rows.map((row) => rowName(activeTable?.columns ?? [], row));
+    confirmDeleteRows(deps.dialog, names, () => {
+      if (!activeTable) return;
+      const gone = new Set(rows);
+      const kept = activeTable.rows.filter((row) => !gone.has(row));
+      if (kept.length === activeTable.rows.length) return;
+      // In place: a card list redraws from the array it was drawn with.
+      activeTable.rows.splice(0, activeTable.rows.length, ...kept);
       persistActiveTable();
       redraw();
     });
   }
 
-  // A row's Delete entry, on its card's ⋮ and its right-click, offered
-  // where its delete button shows. From the card, the card closes onto the
-  // row that takes its place.
+  // After a delete: from the card, the card closes onto the row that takes
+  // its place.
+  function redrawAfterDelete(): void {
+    if (rowCard?.isOpen()) {
+      rowCard.close();
+      return;
+    }
+    renderActiveTablePane();
+    deps.onRendered();
+  }
+
+  // A row's Delete entry, on its card's ⋮ and its right-click, offered in
+  // Edit mode alone, as the toolbar's Delete is.
   function rowMenu(index: number): RowMenu {
     const row = activeTable?.rows[index];
     if (!row || valuesLocked()) return {};
-    const redraw = () => {
-      if (rowCard?.isOpen()) {
-        rowCard.close();
-        return;
-      }
-      renderActiveTablePane();
-      deps.onRendered();
+    return {
+      items: [{ label: "Delete entry", group: "trash", danger: true, run: () => deleteRows([row], redrawAfterDelete) }],
     };
-    return { items: [{ label: "Delete entry", group: "trash", danger: true, run: () => deleteRow(row, redraw) }] };
   }
 
   // Governs where the next drop lands, never what's already linked: no
@@ -383,6 +403,31 @@ export function createTableView(deps: TableViewDeps): TableView {
   const arrangeable = (): boolean =>
     designing && !deps.isReadingView() && activeTable !== undefined && !activeTable.file.locked;
 
+  // The rows ticked in the list, known by the row itself, so a fresh read
+  // of the file starts with none.
+  const selection = createRowSelection<TableRow>({
+    rows: () => activeTable?.rows ?? [],
+    key: (row) => row,
+    changed: showSelection,
+    root: deps.editorTable,
+  });
+  const deleteButton = iconButton("table-delete-selected", "Delete entry");
+  deleteButton.append(el("span", "table-delete-selected-icon"));
+  deleteButton.addEventListener("click", () => deleteRows(selection.selected(), redrawAfterDelete));
+  const toolbar = el("div", "table-toolbar");
+  toolbar.hidden = true;
+  toolbar.append(deleteButton);
+
+  // Delete for the ticked rows is offered where rows can change: Edit mode,
+  // on the list. Its label, which its tooltip shows, counts them.
+  function showSelection(): void {
+    const count = selection.count();
+    const total = activeTable?.rows.length ?? 0;
+    toolbar.hidden = count === 0 || valuesLocked() || layout !== "list";
+    deleteButton.setAttribute("aria-label", count === 1 ? "Delete entry" : `Delete ${count} entries`);
+    deps.reportReadout?.(count === 0 ? "" : `${count} of ${total} ${total === 1 ? "entry" : "entries"} selected`);
+  }
+
   // A row's full card over the pane, its values the grid's own.
   const rowCard = deps.overlayHost
     ? createRowCard({
@@ -409,13 +454,13 @@ export function createTableView(deps: TableViewDeps): TableView {
         closed(index) {
           renderActiveTablePane();
           deps.onRendered();
-          focusRowAt(deps.editorTable, index);
+          focusRowAt(deps.editorTable, index, selection);
         },
         menuOf: rowMenu,
         contextMenu: deps.contextMenu,
       })
     : undefined;
-  wireRowSelection(deps.editorTable, rowMenu);
+  wireRowSelection(deps.editorTable, { menuOf: rowMenu, selection, locked: valuesLocked });
 
   // The column's ⋮ menu — the only way to Rename or Delete it. Its rows act
   // on this column directly; the shared component draws it.
@@ -462,10 +507,10 @@ export function createTableView(deps: TableViewDeps): TableView {
     return menuButton;
   }
 
-  // Draws editorTable from the working copy, in editing mode (inputs, delete
-  // buttons, "+ Add"), design mode (the column tools over a locked grid) or
-  // reading mode (the same grid, locked) — the table's half of the
-  // reading-view toggle text documents follow too.
+  // Draws editorTable from the working copy, in editing mode (inputs, "+ Add"),
+  // design mode (the column tools over a locked grid) or reading mode (the
+  // same grid, locked) — the table's half of the reading-view toggle text
+  // documents follow too.
   function renderActiveTablePane(): void {
     if (!activeTable) return;
     const { file, columns, rows } = activeTable;
@@ -487,15 +532,17 @@ export function createTableView(deps: TableViewDeps): TableView {
     if (columns.length === 0) after = editable ? addFirstColumnButton() : undefined;
     else if (!readOnly) after = addRowButton();
 
+    // Design is always the list: its tools are column-shaped and live in a
+    // header a card has none of.
+    const shownLayout = designing ? "list" : layout;
+
     // Only what the last draw drew: the group's title bar shares this
     // element, and a redraw not followed by onRendered would leave none.
     drawn?.remove();
     drawn = createTableForm({
       columns,
       rows,
-      // Design is always the list: its tools are column-shaped and live in a
-      // header a card has none of.
-      layout: designing ? "list" : layout,
+      layout: shownLayout,
       locked: file.locked,
       version: file.version,
       editable,
@@ -514,11 +561,20 @@ export function createTableView(deps: TableViewDeps): TableView {
       lastHeader: schemaTools
         ? { header: addColumnHeader(columns), headerClass: "data-table-add-column-cell" }
         : undefined,
-      rowControl: readOnly ? undefined : (row, redraw) => buildTableRowDeleteButton(() => deleteRow(row, redraw)),
+      // A card deletes from its own head; a list row is ticked and deleted
+      // from the toolbar.
+      rowControl:
+        readOnly || shownLayout === "list"
+          ? undefined
+          : (row, redraw) => buildTableRowDeleteButton(() => deleteRows([row], redraw)),
       openRow: rowCard ? (_row, index) => rowCard.open(index) : undefined,
+      // Design's grid ticks nothing: its tools are the columns'.
+      selection: designing ? undefined : selection,
       after,
     });
     deps.editorTable.appendChild(drawn);
+    selection.prune();
+    showSelection();
   }
 
   // Design's "+" at the end of the header row.
@@ -565,9 +621,12 @@ export function createTableView(deps: TableViewDeps): TableView {
   }
 
   return {
+    toolbar,
     isDesigning: () => designing,
     setDesigning(on) {
       designing = on;
+      // Design's grid ticks nothing, so ticks kept through it would act unseen.
+      if (on) selection.clear();
       if (!activeTable) return;
       renderActiveTablePane();
       rowCard?.refresh();
@@ -576,6 +635,8 @@ export function createTableView(deps: TableViewDeps): TableView {
     getLayout: () => layout,
     setLayout(next) {
       layout = next;
+      // Cards tick nothing either.
+      if (next !== "list") selection.clear();
       if (!activeTable) return;
       renderActiveTablePane();
       deps.onRendered();
@@ -586,6 +647,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         designing = false;
         folderPrompt?.close();
         rowCard?.close(false);
+        selection.clear();
       }
       if (activeTable === undefined || another) layout = file.localLayout ?? file.layout ?? "list";
       activeTable = {
@@ -613,6 +675,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // the table it was about.
       folderPrompt?.close();
       rowCard?.close(false);
+      selection.clear();
       activeTable = undefined;
       designing = false;
     },
@@ -648,7 +711,7 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
 // the opens it makes through the tabs.
 export type TablePaneWiring = Omit<
   TablePaneDeps,
-  "isReadingView" | "onRendered" | "dialogHost" | "saveLayout" | "previewSources" | "openPath"
+  "isReadingView" | "onRendered" | "dialogHost" | "saveLayout" | "previewSources" | "openPath" | "reportReadout"
 > & { tabs: () => Pick<Tabs, "openSpacePath"> };
 
 export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescriptor {
@@ -664,6 +727,7 @@ export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescrip
         isReadingView: () => group.isReadingView(),
         onRendered: () => group.rendered(),
         dialogHost: group.element,
+        reportReadout: (text) => group.reportReadout(text),
       }),
   };
 }
@@ -715,6 +779,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     kind: "table",
     element: frame,
     inspector: selected.section,
+    toolbar: view.toolbar,
     toolbarAside: find.host,
     properties: properties.section,
     async setInput(tab, ctx, prefetched) {

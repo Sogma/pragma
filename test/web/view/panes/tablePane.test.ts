@@ -654,7 +654,7 @@ describe("a row's card", () => {
     expect(rows[1].classList.contains("is-selected")).toBe(true);
   });
 
-  it("offers Delete entry only where the row's delete button shows: never in Design mode or reading view", async () => {
+  it("offers Delete entry only in Edit mode, as the toolbar's Delete: never in Design mode or reading view", async () => {
     const { pane, setReadingView } = setup(three());
     await pane.setInput({ kind: "table", path: "models.table.html" }, current);
     open(pane, 0);

@@ -97,6 +97,7 @@ import {
   focusRowAt,
   type RowMenu,
   rowGutterColumn,
+  rowSelectColumn,
   startLabelRename,
   valueCells,
   wireRowSelection,
@@ -104,6 +105,7 @@ import {
 import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
 import { type CellControls, createCell, createFieldValue } from "../../lib/fieldValue.ts";
 import { oneAtATime } from "../../lib/oneAtATime.ts";
+import { createRowSelection } from "../../lib/rowSelection.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
 import { installLinkPreview } from "../../notePreview.ts";
@@ -349,12 +351,24 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     },
     closed(index) {
       render();
-      focusRowAt(element, index);
+      focusRowAt(element, index, selection);
     },
     menuOf: rowMenu,
     contextMenu: deps.contextMenu,
   });
-  wireRowSelection(element, rowMenu);
+  // The rows ticked in the list, known by their file's path, so a fresh read
+  // of the rows keeps them.
+  const selection = createRowSelection<ClassRow>({
+    rows: () => displayed,
+    key: (row) => row.path,
+    root: element,
+    changed() {
+      const count = selection.count();
+      const total = displayed.length;
+      deps.reportReadout(count === 0 ? "" : `${count} of ${countText(total, "item")} selected`);
+    },
+  });
+  wireRowSelection(element, { menuOf: rowMenu, selection, locked: () => !editable() });
 
   function openCard(row: ClassRow): void {
     const index = displayed.indexOf(row);
@@ -1122,11 +1136,15 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   // ---- Rows ----
 
   function buildList(fields: TableColumn[], rows: ClassRow[], folder: string | undefined): HTMLElement {
-    const grid = createGridTable<ClassRow>([
-      rowGutterColumn<ClassRow>(openCard),
-      { header: createColumnHeader("Title", undefined).element, cell: buildTitle },
-      ...fields.map((field) => ({ header: buildHeader(field), cell: (row: ClassRow) => buildCell(field, row) })),
-    ]);
+    const grid = createGridTable<ClassRow>(
+      [
+        rowGutterColumn<ClassRow>(openCard),
+        { header: createColumnHeader("Title", undefined).element, cell: buildTitle },
+        ...fields.map((field) => ({ header: buildHeader(field), cell: (row: ClassRow) => buildCell(field, row) })),
+        rowSelectColumn(selection),
+      ],
+      (tr, row) => selection.bind(tr, row),
+    );
     grid.setRows(rows);
     if (folder !== undefined) {
       const items = [...grid.table.tBodies[0].rows].map((element, index) => ({ element, row: rows[index] }));
@@ -1404,7 +1422,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     const again = displayed.findIndex((each) => each.path === row.path);
     if (again === -1) {
       rowCard.close(false);
-      focusRowAt(element, at);
+      focusRowAt(element, at, selection);
       return;
     }
     rowCard.moved(again);
@@ -1466,6 +1484,9 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         if (add) form.appendChild(add);
       }
     }
+    // Cards tick nothing, so ticks left in a list would act unseen.
+    if (currentView()?.layout === "cards") selection.clear();
+    else selection.prune();
     paintTagPills(element, deps.tags);
     if (cardRow && carded !== undefined) followCard(cardRow, carded);
     deps.onRendered();
@@ -1499,6 +1520,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         linkPreview.close();
         media.close(false);
         rowCard.close(false);
+        selection.clear();
         designing = false;
       }
       open = { file, rows, view: another ? 0 : (open?.view ?? 0) };
@@ -1512,6 +1534,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       linkPreview.close();
       media.close(false);
       rowCard.close(false);
+      selection.clear();
       designing = false;
       find.show(undefined);
       open = undefined;

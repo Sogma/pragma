@@ -12,6 +12,7 @@ import {
   type TableFormSpec,
   wireRowSelection,
 } from "../../../web/lib/dataGrid.ts";
+import { createRowSelection } from "../../../web/lib/rowSelection.ts";
 import { installTextMenu } from "../../../web/lib/textMenu.ts";
 import type { MenuOpenOptions } from "../../../web/services/menus.ts";
 
@@ -288,7 +289,7 @@ describe("a row's card from the grid", () => {
     undo();
   });
 
-  it("goes back on Enter into the field Escape left, its caret at the end, and ends the selection", () => {
+  it("goes back on Enter into the field Escape left, its caret at the end, the row still selected", () => {
     const list = form({ openRow: vi.fn() });
     wireRowSelection(list);
     const field = list.querySelectorAll("tbody > tr")[2].querySelectorAll("input")[1];
@@ -297,10 +298,10 @@ describe("a row's card from the grid", () => {
     key(document.activeElement as Element, "Enter");
     expect(document.activeElement).toBe(field);
     expect([field.selectionStart, field.selectionEnd]).toEqual([4, 4]);
-    expect(selected(list)).toBe(-1);
+    expect(selected(list)).toBe(2);
   });
 
-  it("ends the selection once any field takes focus", () => {
+  it("keeps the selection while a field takes focus", () => {
     const list = form({ openRow: vi.fn() });
     wireRowSelection(list);
     const [first, second] = list.querySelectorAll("tbody > tr");
@@ -308,7 +309,7 @@ describe("a row's card from the grid", () => {
     field.focus();
     key(field, "Escape");
     (second.querySelector("input") as HTMLInputElement).focus();
-    expect(selected(list)).toBe(-1);
+    expect(selected(list)).toBe(0);
   });
 
   it("leaves Escape to a field in a row that opens no card", () => {
@@ -363,14 +364,14 @@ describe("a row's card from the grid", () => {
       target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
     const list = form({ openRow: vi.fn() });
-    wireRowSelection(list, menuOf);
+    wireRowSelection(list, { menuOf });
     rightClick(list.querySelectorAll("tbody td.row-gutter")[1]);
     expect(menuOf).toHaveBeenLastCalledWith(1);
     expect(opened.at(-1)).toEqual(expect.objectContaining({ menu: ROW_MENU, arg: { file: "shots/1.md" } }));
     expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["Open card", "Delete entry"]);
 
     const cards = form({ openRow: vi.fn(), layout: "cards" });
-    wireRowSelection(cards, menuOf);
+    wireRowSelection(cards, { menuOf });
     rightClick(cards.querySelectorAll(".data-cards-card")[2]);
     expect(menuOf).toHaveBeenLastCalledWith(2);
   });
@@ -403,5 +404,181 @@ describe("a row's card from the grid", () => {
     const cards = form({ openRow: vi.fn(), layout: "cards" });
     focusRowAt(cards, 3);
     expect(document.activeElement).toBe(cards.querySelectorAll(".row-open")[2]);
+  });
+});
+
+describe("a listing's selection", () => {
+  const columns = () => [column("take", "text"), column("note", "text")];
+  // Values as content, as a locked grid draws them, or fields, as Edit does.
+  const listing = (locked: boolean) => {
+    const rows: TableRow[] = [
+      { values: { take: "wide", note: "soft" } },
+      { values: { take: "close", note: "" } },
+      { values: { take: "insert", note: "bell" } },
+      { values: { take: "cutaway", note: "gulls" } },
+    ];
+    const selection = createRowSelection<TableRow>({ rows: () => rows, key: (row) => row });
+    const openRow = vi.fn();
+    const drawn = createTableForm({
+      columns: columns(),
+      rows,
+      layout: "list",
+      version: "1.0",
+      editable: !locked,
+      readOnly: locked,
+      cell: (each, row) =>
+        locked
+          ? Object.assign(document.createElement("span"), {
+              className: "data-table-value",
+              textContent: row.values[each.id],
+            })
+          : Object.assign(document.createElement("input"), { value: row.values[each.id] ?? "" }),
+      openRow,
+      selection,
+    });
+    document.body.append(drawn);
+    const undo = wireRowSelection(drawn, { selection, locked: () => locked });
+    onTestFinished(() => {
+      undo();
+      drawn.remove();
+    });
+    const tr = (index: number) => drawn.querySelectorAll<HTMLTableRowElement>("tbody > tr")[index];
+    const ticked = () =>
+      [...drawn.querySelectorAll("tbody > tr")].flatMap((each, index) =>
+        each.classList.contains("is-selected") ? [index] : [],
+      );
+    const click = (target: Element, init: MouseEventInit = {}) => {
+      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, ...init }));
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...init }));
+    };
+    return { drawn, rows, selection, openRow, tr, ticked, click };
+  };
+  const key = (target: Element, name: string, init: KeyboardEventInit = {}) =>
+    target.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init }));
+
+  it("ends each row, and the header, with a checkbox outside the cells", () => {
+    const { drawn } = listing(true);
+    const row = drawn.querySelector("tbody > tr") as HTMLTableRowElement;
+    expect(row.lastElementChild?.className).toBe("row-select");
+    expect(row.lastElementChild?.querySelector(".row-select-box")?.getAttribute("aria-label")).toBe("Select row");
+    expect(drawn.querySelector("thead th:last-child .row-select-box")?.getAttribute("aria-label")).toBe(
+      "Select all rows",
+    );
+  });
+
+  it("selects a row alone on a click while values are locked, a run on Shift, and one more on Ctrl", () => {
+    const { tr, ticked, click } = listing(true);
+    click(tr(1).cells[1]);
+    expect(ticked()).toEqual([1]);
+    expect(document.activeElement).toBe(tr(1));
+    click(tr(3).cells[2], { shiftKey: true });
+    expect(ticked()).toEqual([1, 2, 3]);
+    click(tr(0).cells[1], { ctrlKey: true });
+    expect(ticked()).toEqual([0, 1, 2, 3]);
+    click(tr(2).cells[1], { ctrlKey: true });
+    expect(ticked()).toEqual([0, 1, 3]);
+    // The run starts from the row last picked, and the rows picked apart
+    // from it stay.
+    click(tr(3).cells[1], { shiftKey: true });
+    expect(ticked()).toEqual([0, 1, 2, 3]);
+    click(tr(2).cells[1]);
+    expect(ticked()).toEqual([2]);
+  });
+
+  it("leaves a click to the fields while values can be typed in", () => {
+    const { tr, ticked, click } = listing(false);
+    click(tr(1).cells[1]);
+    expect(ticked()).toEqual([]);
+  });
+
+  it("ticks nothing for a press that travelled, as a text selection is made", () => {
+    const { tr, ticked } = listing(true);
+    const cell = tr(1).cells[1];
+    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 10, clientY: 10 }));
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 40, clientY: 12 }));
+    expect(ticked()).toEqual([]);
+  });
+
+  it("adds or removes a row from its checkbox in any mode, Shift ticking the run", () => {
+    const { drawn, ticked } = listing(false);
+    const boxes = drawn.querySelectorAll<HTMLInputElement>("tbody .row-select-box");
+    boxes[0].click();
+    boxes[2].click();
+    expect(ticked()).toEqual([0, 2]);
+    expect([...boxes].map((box) => box.checked)).toEqual([true, false, true, false]);
+    boxes[2].click();
+    expect(ticked()).toEqual([0]);
+    // The run starts at the row last picked, unticked or not, as the file
+    // tree's does.
+    boxes[3].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true }));
+    expect(ticked()).toEqual([0, 2, 3]);
+  });
+
+  it("ticks every row from the header's checkbox, a dash for some, and none once all are", () => {
+    const { drawn, ticked } = listing(true);
+    const all = drawn.querySelector("thead .row-select-box") as HTMLInputElement;
+    const boxes = drawn.querySelectorAll<HTMLInputElement>("tbody .row-select-box");
+    boxes[1].click();
+    expect([all.checked, all.indeterminate]).toEqual([false, true]);
+    all.click();
+    expect(ticked()).toEqual([0, 1, 2, 3]);
+    expect([all.checked, all.indeterminate]).toEqual([true, false]);
+    all.click();
+    expect(ticked()).toEqual([]);
+    expect([all.checked, all.indeterminate]).toEqual([false, false]);
+  });
+
+  it("moves the selection with Up and Down, extends it with Shift, and clears it on Escape", () => {
+    const { tr, ticked, click } = listing(true);
+    click(tr(1).cells[1]);
+    key(tr(1), "ArrowDown");
+    expect(ticked()).toEqual([2]);
+    key(tr(2), "ArrowDown", { shiftKey: true });
+    expect(ticked()).toEqual([2, 3]);
+    key(tr(3), "ArrowUp", { shiftKey: true });
+    key(tr(2), "ArrowUp", { shiftKey: true });
+    expect(ticked()).toEqual([1, 2]);
+    const escaped = key(tr(1), "Escape");
+    expect(escaped).toBe(false);
+    expect(ticked()).toEqual([]);
+  });
+
+  it("selects a field's row alone on Escape, as the list's selection", () => {
+    const { tr, ticked, drawn } = listing(false);
+    drawn.querySelectorAll<HTMLInputElement>("tbody .row-select-box")[0].click();
+    const field = tr(2).querySelector("input:not(.row-select-box)") as HTMLInputElement;
+    field.focus();
+    key(field, "Escape");
+    expect(ticked()).toEqual([2]);
+    expect(document.activeElement).toBe(tr(2));
+  });
+
+  it("opens a row's card on a double-click while values are locked", () => {
+    const { tr, openRow } = listing(true);
+    tr(2).cells[1].dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    expect(openRow).toHaveBeenCalledWith(expect.anything(), 2);
+  });
+
+  it("selects a row alone on its right-click, so its menu acts on that row", () => {
+    const installed = installTextMenu({ open: () => undefined });
+    onTestFinished(() => installed.dispose());
+    const { tr, ticked, click } = listing(true);
+    click(tr(0).cells[1]);
+    click(tr(2).cells[1], { shiftKey: true });
+    tr(3).cells[1].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(ticked()).toEqual([3]);
+  });
+
+  it("lands back on a row from its card: one ticked row follows it, several stay", () => {
+    const { drawn, selection, rows, tr, ticked, click } = listing(true);
+    click(tr(0).cells[1]);
+    focusRowAt(drawn, 2, selection);
+    expect(ticked()).toEqual([2]);
+    expect(document.activeElement).toBe(tr(2));
+    click(tr(3).cells[1], { shiftKey: true });
+    focusRowAt(drawn, 0, selection);
+    expect(ticked()).toEqual([2, 3]);
+    expect(document.activeElement).toBe(tr(0));
+    expect(selection.selected()).toEqual([rows[2], rows[3]]);
   });
 });

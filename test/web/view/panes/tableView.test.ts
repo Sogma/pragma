@@ -35,6 +35,7 @@ function setup(readingView = false, designing = true) {
   const editorTable = document.createElement("div");
   const scheduleSave = vi.fn();
   const onRendered = vi.fn();
+  const reportReadout = vi.fn();
   const tableView = createTableView({
     editorTable,
     dialog: createDialogService(),
@@ -45,10 +46,15 @@ function setup(readingView = false, designing = true) {
     openPath: vi.fn(),
     openMedia: vi.fn(),
     dialogHost: document.body,
+    reportReadout,
   });
   tableView.setDesigning(designing);
-  return { tableView, editorTable, scheduleSave, onRendered };
+  return { tableView, editorTable, scheduleSave, onRendered, reportReadout };
 }
+
+// A list row's checkbox, at its end.
+const rowBox = (editorTable: HTMLElement, index: number) =>
+  editorTable.querySelectorAll<HTMLInputElement>("tbody td.row-select .row-select-box")[index];
 
 describe("render / clear / isActive / getFileName", () => {
   it("is inactive with no file name before any render", () => {
@@ -121,10 +127,22 @@ describe("row add/delete", () => {
     expect(scheduleSave).toHaveBeenCalledTimes(1);
   });
 
-  it("the delete button, an entry's in either layout, asks first, naming it, and removes it once confirmed", async () => {
+  it("draws no delete button on a list row: its checkbox ends it instead", () => {
+    const { tableView, editorTable } = setup(false, false);
+    tableView.render(sampleFile());
+    expect(editorTable.querySelector("tbody .data-table-row-delete")).toBeNull();
+    const cells = editorTable.querySelector("tbody tr")?.children ?? [];
+    expect(cells[cells.length - 1]?.className).toBe("row-select");
+    expect(editorTable.querySelector("thead th:last-child")?.className).toBe("row-select");
+  });
+
+  it("the toolbar's Delete, for the selected row, asks first, naming it, and removes it once confirmed", async () => {
     const { tableView, editorTable, scheduleSave } = setup(false, false);
     tableView.render(sampleFile());
-    const button = editorTable.querySelector(".data-table-row-delete") as HTMLButtonElement;
+    expect(tableView.toolbar.hidden).toBe(true);
+    rowBox(editorTable, 0).click();
+    expect(tableView.toolbar.hidden).toBe(false);
+    const button = tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement;
     expect(button.getAttribute("aria-label")).toBe("Delete entry");
     button.click();
     const overlay = document.querySelector(".dialog-panel") as HTMLElement;
@@ -137,17 +155,20 @@ describe("row add/delete", () => {
     expect(document.querySelector(".dialog-panel")).toBeNull();
     expect(editorTable.querySelectorAll("tbody tr")).toHaveLength(0);
     expect(scheduleSave).toHaveBeenCalledTimes(1);
+    expect(tableView.toolbar.hidden).toBe(true);
   });
 
-  it("Cancel keeps the row", async () => {
+  it("Cancel keeps the row, still selected", async () => {
     const { tableView, editorTable, scheduleSave } = setup(false, false);
     tableView.render(sampleFile());
-    (editorTable.querySelector(".data-table-row-delete") as HTMLButtonElement).click();
+    rowBox(editorTable, 0).click();
+    (tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement).click();
     const [cancel] = document.querySelectorAll<HTMLButtonElement>(".dialog-panel .dialog-actions button");
     cancel.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(document.querySelector(".dialog-panel")).toBeNull();
     expect(editorTable.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(true);
     expect(scheduleSave).not.toHaveBeenCalled();
   });
 
@@ -162,13 +183,88 @@ describe("row add/delete", () => {
       }),
     );
     const titleFor = (index: number) => {
-      editorTable.querySelectorAll<HTMLButtonElement>(".data-table-row-delete")[index].click();
+      rowBox(editorTable, index).click();
+      (tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement).click();
       const title = document.querySelector(".dialog-panel .dialog-title")?.textContent;
       document.querySelectorAll<HTMLButtonElement>(".dialog-panel .dialog-actions button")[0].click();
+      rowBox(editorTable, index).click();
       return title;
     };
     expect(titleFor(0)).toBe('Delete "A take that runs on well past the length…" entry?');
     expect(titleFor(1)).toBe("Delete this entry?");
+  });
+
+  it("counts several selected rows in its label and its confirm, and deletes them all", async () => {
+    const { tableView, editorTable, scheduleSave, reportReadout } = setup(false, false);
+    tableView.render(
+      sampleFile({
+        rows: [
+          { values: { name: "One", done: "false" } },
+          { values: { name: "Two", done: "false" } },
+          { values: { name: "Three", done: "false" } },
+        ],
+      }),
+    );
+    rowBox(editorTable, 0).click();
+    rowBox(editorTable, 2).click();
+    expect(reportReadout).toHaveBeenLastCalledWith("2 of 3 entries selected");
+    const button = tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement;
+    expect(button.getAttribute("aria-label")).toBe("Delete 2 entries");
+    button.click();
+    const overlay = document.querySelector(".dialog-panel") as HTMLElement;
+    expect(overlay.querySelector(".dialog-title")?.textContent).toBe("Delete 2 entries?");
+    (overlay.querySelector(".dialog-primary") as HTMLButtonElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      [...editorTable.querySelectorAll("tbody .data-table-cell-text")].map(
+        (input) => (input as HTMLInputElement).value,
+      ),
+    ).toEqual(["Two"]);
+    expect(scheduleSave).toHaveBeenCalledTimes(1);
+    expect(reportReadout).toHaveBeenLastCalledWith("");
+  });
+
+  it("offers Delete in Edit mode alone, on the list, while rows stay selectable in reading view", () => {
+    const reading = setup(true, false);
+    reading.tableView.render(sampleFile());
+    reading.editorTable.querySelector<HTMLElement>("tbody .data-table-value")?.click();
+    expect(reading.editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(true);
+    expect(reading.reportReadout).toHaveBeenLastCalledWith("1 of 1 entry selected");
+    expect(reading.tableView.toolbar.hidden).toBe(true);
+
+    const designing = setup(false, true);
+    designing.tableView.render(sampleFile());
+    expect(designing.editorTable.querySelector(".row-select")).toBeNull();
+
+    // Design and Cards tick nothing, so the list's ticks go with a switch to
+    // either, and the status bar stops counting them.
+    const editing = setup(false, false);
+    editing.tableView.render(sampleFile());
+    rowBox(editing.editorTable, 0).click();
+    expect(editing.tableView.toolbar.hidden).toBe(false);
+    editing.tableView.setDesigning(true);
+    expect(editing.tableView.toolbar.hidden).toBe(true);
+    expect(editing.reportReadout).toHaveBeenLastCalledWith("");
+    editing.tableView.setDesigning(false);
+    expect(editing.tableView.toolbar.hidden).toBe(true);
+    rowBox(editing.editorTable, 0).click();
+    editing.tableView.setLayout("cards");
+    expect(editing.tableView.toolbar.hidden).toBe(true);
+    expect(editing.reportReadout).toHaveBeenLastCalledWith("");
+    editing.tableView.setLayout("list");
+    expect(editing.editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(false);
+  });
+
+  it("keeps the selection across a redraw of the same rows, and drops it for a fresh read", () => {
+    const { tableView, editorTable } = setup(false, false);
+    tableView.render(sampleFile());
+    rowBox(editorTable, 0).click();
+    tableView.refresh();
+    expect(editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(true);
+    expect(rowBox(editorTable, 0).checked).toBe(true);
+    tableView.render(sampleFile());
+    expect(editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(false);
+    expect(tableView.toolbar.hidden).toBe(true);
   });
 });
 
@@ -454,7 +550,10 @@ describe("a locked file", () => {
     const { tableView, editorTable, scheduleSave } = setup(false, false);
     tableView.render(sampleFile({ version: "99.0", locked: "newer-format" }));
     expect(editorTable.querySelector(".document-locked-notice")?.textContent).toContain("99.0");
-    expect(editorTable.querySelectorAll("tbody input, tbody select, tbody button")).toHaveLength(0);
+    // A row's checkbox selects it; it edits nothing.
+    expect(
+      editorTable.querySelectorAll("tbody input:not(.row-select-box), tbody select, tbody button:not(.row-open)"),
+    ).toHaveLength(0);
     expect(editorTable.querySelector("tbody .data-table-value")?.textContent).toBe("Widget");
     expect(editorTable.querySelector(".data-table-add-row")).toBeNull();
     expect(scheduleSave).not.toHaveBeenCalled();
@@ -489,7 +588,7 @@ describe("design mode", () => {
     expect(editorTable.querySelector(".data-table-column-menu")).toBeNull();
     expect(editorTable.querySelector(".data-table-add-column")).toBeNull();
     expect(editorTable.querySelector(".data-table-add-row")).not.toBeNull();
-    expect(editorTable.querySelector(".data-table-row-delete")).not.toBeNull();
+    expect(editorTable.querySelector("tbody .row-select-box")).not.toBeNull();
     expect((editorTable.querySelector(".data-table-cell-text") as HTMLInputElement).readOnly).toBe(false);
     expect(editorTable.querySelectorAll("thead .type-icon")).toHaveLength(2);
 

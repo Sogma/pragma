@@ -190,9 +190,9 @@ describe("classPane", () => {
   it("lists each note under its title, then its fields, with a value that doesn't fit shown as written", async () => {
     const { pane, deps } = await setup(classFile(), rows, { reading: true });
 
-    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Status", "Take", "Tags"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter, .row-select)")).toEqual(["Title", "Status", "Take", "Tags"]);
     const body = [...pane.element.querySelectorAll("tbody tr")].map((tr) =>
-      [...tr.querySelectorAll("td:not(.row-gutter)")].map((td) => td.textContent?.trim()),
+      [...tr.querySelectorAll("td:not(.row-gutter, .row-select)")].map((td) => td.textContent?.trim()),
     );
     expect(body).toEqual([
       ["Wide", "approved", "2", "night"],
@@ -219,7 +219,7 @@ describe("classPane", () => {
     const pills = (row: number, column: number) => [
       ...pane.element
         .querySelectorAll("tbody tr")
-        [row].querySelectorAll("td:not(.row-gutter)")
+        [row].querySelectorAll("td:not(.row-gutter, .row-select)")
         [column].querySelectorAll<HTMLElement>(".pill"),
     ];
     const shown = (pill: HTMLElement) => [pill.textContent, pill.dataset.tag, pill.classList.contains("has-tag-color")];
@@ -275,7 +275,7 @@ describe("classPane", () => {
     const view = { name: "Board", layout: "list" as const, groupBy: "status", fields: ["take"], filter: [] };
     const { pane } = await setup(classFile({ views: [view] }));
     expect(texts(pane.element, ".class-group-heading")).toEqual(["approved1", "wip1", "No Status1"]);
-    expect(texts(pane.element, "thead th:not(.row-gutter)").slice(0, 2)).toEqual(["Title", "Take"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter, .row-select)").slice(0, 2)).toEqual(["Title", "Take"]);
   });
 
   it("shows only the fields a view lists, in its order", async () => {
@@ -284,8 +284,12 @@ describe("classPane", () => {
       rows,
       { reading: true },
     );
-    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Take", "Status"]);
-    expect(texts(pane.element, "tbody tr:first-child td:not(.row-gutter)")).toEqual(["Wide", "2", "approved"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter, .row-select)")).toEqual(["Title", "Take", "Status"]);
+    expect(texts(pane.element, "tbody tr:first-child td:not(.row-gutter, .row-select)")).toEqual([
+      "Wide",
+      "2",
+      "approved",
+    ]);
   });
 
   it("shows a Class with no views as one, and says when nothing is in it", async () => {
@@ -663,7 +667,7 @@ describe("classPane: changed where it shows", () => {
     menuItem("Hide in this view").click();
 
     expect(saved()?.views[0].fields).toEqual(["status", "tags"]);
-    expect(texts(pane.element, "thead th:not(.row-gutter)")).toEqual(["Title", "Status", "Tags"]);
+    expect(texts(pane.element, "thead th:not(.row-gutter, .row-select)")).toEqual(["Title", "Status", "Tags"]);
   });
 
   it("deletes a field from the Class alone, and from every view's list", async () => {
@@ -746,7 +750,7 @@ describe("classPane: its Properties-tab section", () => {
 
 describe("classPane: values and new notes", () => {
   const cellOf = (pane: EditorPane, row: number, column: number) =>
-    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter)")[column];
+    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter, .row-select)")[column];
 
   it("writes one key of one note as its field types it, and says which note", async () => {
     const { pane, deps, edited } = await setup();
@@ -829,7 +833,7 @@ describe("classPane: values and new notes", () => {
   it("offers no new note, and sets no value, while reading", async () => {
     const { pane } = await setup(classFile(), rows, { reading: true });
     expect(pane.element.querySelector(".data-table-add-row")).toBeNull();
-    expect(pane.element.querySelector("tbody select, tbody input")).toBeNull();
+    expect(pane.element.querySelector("tbody select, tbody input:not(.row-select-box)")).toBeNull();
   });
 });
 
@@ -1113,7 +1117,7 @@ describe("classPane: its links", () => {
 
 describe("classPane: screenplays and media as rows", () => {
   const cellOf = (pane: EditorPane, row: number, column: number) =>
-    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter)")[column];
+    pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter, .row-select)")[column];
   const kinds: ClassRow[] = [
     note("look.md", "Look", { status: "draft" }),
     { ...note("draft.fountain", "Brick", { title: "Brick", status: "approved" }), kind: "screenplay" },
@@ -1487,5 +1491,53 @@ describe("classPane: writes and a row's menu", () => {
       );
     }
     expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["Open card"]);
+  });
+});
+
+describe("classPane: selected rows", () => {
+  const ticked = (pane: { element: HTMLElement }) =>
+    [...pane.element.querySelectorAll("tbody tr")].flatMap((tr, index) =>
+      tr.classList.contains("is-selected") ? [index] : [],
+    );
+
+  it("selects a row from a click while reading, says how many in the status bar, and keeps it by path across a fresh read", async () => {
+    const { pane, deps, wrote, tell } = await setup(classFile(), rows, { reading: true });
+    const cell = pane.element.querySelectorAll("tbody tr")[1].querySelectorAll("td")[3];
+    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(ticked(pane)).toEqual([1]);
+    expect(deps.reportReadout).toHaveBeenLastCalledWith("1 of 3 items selected");
+
+    wrote();
+    tell("shots/close.md");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(ticked(pane)).toEqual([1]));
+  });
+
+  it("ticks rows from their checkboxes while editing, the click on a value left to its field", async () => {
+    const { pane, deps } = await setup(classFile(), rows);
+    const boxes = pane.element.querySelectorAll<HTMLInputElement>("tbody .row-select-box");
+    boxes[0].click();
+    boxes[2].click();
+    expect(ticked(pane)).toEqual([0, 2]);
+    expect(deps.reportReadout).toHaveBeenLastCalledWith("2 of 3 items selected");
+    const value = pane.element.querySelectorAll("tbody tr")[1].querySelectorAll("td")[3];
+    value.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(ticked(pane)).toEqual([0, 2]);
+  });
+
+  it("drops the selection for another Class", async () => {
+    const { pane, deps } = await setup(classFile(), rows);
+    pane.element.querySelectorAll<HTMLInputElement>("tbody .row-select-box")[0].click();
+    await pane.setInput(
+      { kind: "class", path: "other/shots.class.html" },
+      { isCurrent: () => true },
+      {
+        ...classFile(),
+        path: "other/shots.class.html",
+      },
+    );
+    expect(ticked(pane)).toEqual([]);
+    expect(deps.reportReadout).toHaveBeenLastCalledWith("");
   });
 });

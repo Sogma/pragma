@@ -308,11 +308,12 @@
   mask: var(--icon-plus) center / contain no-repeat;
 }
 
-/* A row's gutter, before its values: where the button opening its full card
-   lies, drawn with no cell of its own, so it reads as margin. */
-.data-table th.row-gutter,
-.data-table td.row-gutter {
-  width: 28px;
+/* A row's margins, drawn with no cell of their own: its gutter, before its
+   values, where the button opening its full card lies, and the column
+   ending it, the row's checkbox, which the header's checks every row. A
+   pane's side padding is as wide, and they hang in it (panes.css). */
+.data-table :is(th, td):is(.row-gutter, .row-select) {
+  width: var(--row-margin, 28px);
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -333,16 +334,43 @@
 }
 
 .data-table tbody tr:hover .row-open,
-.data-table tbody tr.is-selected .row-open,
 .data-table tbody tr:focus-within .row-open,
 .row-open:focus-visible {
   opacity: 1;
 }
 
-/* A hovered row lies in one very muted band, from its gutter across its
-   cells. Its fields keep their outline but not their fill, so the band
-   shows through; the field being typed in keeps its own. */
-.data-table tbody tr:hover > td {
+.row-select-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+/* A row read from its top line keeps its box on that line. */
+.data-table-form.is-read-only .row-select-slot {
+  height: calc(var(--cell-line-height) + 10px);
+}
+
+/* Shown on the hovered row, on a selected one, and on every row while any
+   row of the listing is selected. */
+.row-select-box {
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.data-table tbody tr:is(:hover, .is-selected) .row-select-box,
+.data-table thead tr:hover .row-select-box,
+.data-table-form:has(tbody tr.is-selected) .row-select-box,
+.row-select-box:focus-visible {
+  opacity: 1;
+}
+
+/* A hovered row lies in one very muted band across its cells, the margins
+   either side left clear. Its fields keep their outline but not their
+   fill, so the band shows through; the field being typed in keeps its own. */
+.data-table tbody tr:hover > td:not(.row-gutter, .row-select) {
   background: var(--bg-secondary);
 }
 
@@ -350,12 +378,16 @@
   background: transparent;
 }
 
-/* A row selected by Escape in one of its fields has no fill of its own,
-   only an accent edge. */
+/* A selected row wears the file tree's selected fill across its cells, and
+   keeps it under the pointer. */
 .data-table tbody tr.is-selected {
   outline: none;
 }
 
-.data-table tbody tr.is-selected > td.row-gutter + td {
-  box-shadow: inset 3px 0 0 var(--color-accent);
+.data-table tbody tr.is-selected > td:not(.row-gutter, .row-select) {
+  background: var(--bg-selected);
+}
+
+.data-table tbody tr.is-selected .form-input-quiet:not(:focus) {
+  background: transparent;
 }

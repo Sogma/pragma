@@ -3,9 +3,11 @@
 // only build the controls and hand each edit back.
 import type { DocumentLock } from "../../src/protocol/api.ts";
 import type { FieldValueType, TableColumn, TableLayout, TableRow } from "../../src/protocol/types.ts";
+import { currentPlatform } from "../services/keybindings.ts";
 import type { MenuItem } from "../services/menus.ts";
 import { buildLockNotice } from "./dom.ts";
 import { fieldTypeIcon } from "./fieldTypeIcon.ts";
+import type { RowPick, RowSelection } from "./rowSelection.ts";
 import { leadTextMenu } from "./textMenu.ts";
 
 /** A column's header: its type's icon, when given, then its label, which is
@@ -97,7 +99,32 @@ export function rowGutterColumn<Row>(open: (row: Row, index: number) => void): G
   };
 }
 
-const FIELDS = "input, select, textarea, [contenteditable='true']";
+// The column ending each row, drawn as margin as the gutter is: the row's
+// checkbox, and in the header the one for every row.
+const ROW_SELECT = "row-select";
+
+function selectSlot(box: HTMLInputElement): HTMLElement {
+  const slot = document.createElement("span");
+  slot.className = "row-select-slot";
+  slot.append(box);
+  return slot;
+}
+
+export function rowSelectColumn<Row>(selection: RowSelection<Row>): GridColumn<Row> {
+  return {
+    header: selectSlot(selection.headerBox()),
+    headerClass: ROW_SELECT,
+    cell: (row) => selectSlot(selection.box(row)),
+    cellClass: ROW_SELECT,
+  };
+}
+
+// A row's checkbox is a control, never a field to type in or go back to.
+const FIELDS = "input:not(.row-select-box), select, textarea, [contenteditable='true']";
+// What keeps its own click on a row: a click anywhere else ticks the row.
+const CONTROLS = `button, a, label, input, ${FIELDS}`;
+// A press that travels this far drags or selects text, and ticks nothing.
+const TRAVEL = 4;
 
 /** The registered menu under Open card on a row's right-click, reading the
  * row's argument. */
@@ -117,33 +144,87 @@ function openableRows(root: HTMLElement): HTMLTableRowElement[] {
   return [...root.querySelectorAll<HTMLTableRowElement>("tbody > tr")].filter((tr) => tr.querySelector(GUTTER_OPEN));
 }
 
-/** Back on the row at `index` of those shown, or on the last once no row is
- * there, as after the row is deleted: the row selected in a list, its open
- * button focused on a card. */
-export function focusRowAt(root: HTMLElement, index: number): void {
-  const rows = openableRows(root);
-  const opens = root.querySelectorAll<HTMLElement>(".row-open");
-  if (rows.length > 0) selectRow(root, rows[Math.min(index, rows.length - 1)]);
-  else opens[Math.min(index, opens.length - 1)]?.focus();
-}
-
-/** Marks `tr` as the selected row and gives it focus, so its keys follow. */
-export function selectRow(root: HTMLElement, tr: HTMLTableRowElement): void {
-  for (const each of root.querySelectorAll("tbody > tr.is-selected")) each.classList.remove("is-selected");
-  tr.classList.add("is-selected");
+function focusRow(tr: HTMLTableRowElement): void {
   tr.tabIndex = -1;
   tr.focus({ preventScroll: false });
 }
 
-/** Keys on the rows under `root` that open a card: Escape in a field selects
- * its row; on a selected row, Up and Down move the selection, Space opens
- * the row's card and Enter goes back into the field left, the caret at its
- * end. A field taking focus ends the selection. Returns its undoing.
+/** Back on the row at `index` of those shown, or on the last once no row is
+ * there, as after the row is deleted: the row focused and selected in a
+ * list, its open button focused on a card. Several ticked rows stay ticked;
+ * one or none follows the row landed on. */
+export function focusRowAt<Row>(root: HTMLElement, index: number, selection?: RowSelection<Row>): void {
+  const rows = openableRows(root);
+  const opens = root.querySelectorAll<HTMLElement>(".row-open");
+  if (rows.length === 0) {
+    opens[Math.min(index, opens.length - 1)]?.focus();
+    return;
+  }
+  const tr = rows[Math.min(index, rows.length - 1)];
+  const row = selection?.rowOf(tr);
+  if (!selection || row === undefined) {
+    selectRow(root, tr);
+    return;
+  }
+  if (selection.count() <= 1) selection.pick(row);
+  focusRow(tr);
+}
+
+/** Marks `tr` as the selected row and gives it focus, so its keys follow:
+ * the one row, in a listing that ticks none. */
+export function selectRow(root: HTMLElement, tr: HTMLTableRowElement): void {
+  for (const each of root.querySelectorAll("tbody > tr.is-selected")) each.classList.remove("is-selected");
+  tr.classList.add("is-selected");
+  focusRow(tr);
+}
+
+/** What a listing's rows answer besides their own fields. */
+export interface RowGestures<Row> {
+  /** What a row's right-click and its card's ⋮ offer, by the row's place. */
+  menuOf?(index: number): RowMenu;
+  /** The rows ticked, in a listing that ticks any. */
+  selection?: RowSelection<Row>;
+  /** While values show as content (reading view, a locked file), a click on
+   * a row is free to tick it; otherwise it belongs to the row's fields. */
+  locked?(): boolean;
+}
+
+/** Keys and clicks on the rows under `root` that open a card. Escape in a
+ * field selects its row. On a selected row, Up and Down move the selection,
+ * Shift extending it, Escape clears it, Space opens the row's card and Enter
+ * goes back into the field left, the caret at its end.
+ *
+ * While values are locked, a click selects a row as the file tree selects a
+ * file, Shift for a range and Ctrl or Cmd to add or remove one, and a
+ * double-click opens its card. Returns its undoing.
  *
  * A right-click on a row or a card, outside its fields, offers Open card,
  * then what `menuOf` gives for the row at that place. */
-export function wireRowSelection(root: HTMLElement, menuOf?: (index: number) => RowMenu): () => void {
+export function wireRowSelection<Row>(root: HTMLElement, gestures: RowGestures<Row> = {}): () => void {
+  const { menuOf, selection, locked } = gestures;
   let left: { tr: HTMLTableRowElement; cell: number } | undefined;
+  let press: { x: number; y: number } | undefined;
+
+  const land = (tr: HTMLTableRowElement, how?: RowPick) => {
+    const row = selection?.rowOf(tr);
+    if (!selection || row === undefined) {
+      selectRow(root, tr);
+      return;
+    }
+    selection.pick(row, how);
+    focusRow(tr);
+  };
+
+  // A row a click may tick: values locked, and the press on the row itself,
+  // not on a control or a field of it.
+  const freeRow = (event: MouseEvent): HTMLTableRowElement | undefined => {
+    const target = event.target;
+    if (!selection || !locked?.() || event.button !== 0 || !(target instanceof Element)) return undefined;
+    if (target.closest(CONTROLS)) return undefined;
+    const tr = target.closest<HTMLTableRowElement>("tbody > tr");
+    return tr && root.contains(tr) && selection.rowOf(tr) !== undefined ? tr : undefined;
+  };
+
   const onKey = (event: KeyboardEvent) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -155,44 +236,69 @@ export function wireRowSelection(root: HTMLElement, menuOf?: (index: number) => 
       event.stopPropagation();
       left = { tr, cell: target.closest("td")?.cellIndex ?? -1 };
       target.blur();
-      selectRow(root, tr);
+      land(tr);
       return;
     }
-    if (event.shiftKey) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const rows = openableRows(root);
-      const at = rows.indexOf(tr) + (event.key === "ArrowUp" ? -1 : 1);
-      if (rows[at]) selectRow(root, rows[at]);
-    } else if (event.key === " ") {
+      const next = rows[rows.indexOf(tr) + (event.key === "ArrowUp" ? -1 : 1)];
+      if (next) land(next, { range: event.shiftKey });
+      return;
+    }
+    if (event.shiftKey) return;
+    if (event.key === " ") {
       event.preventDefault();
       tr.querySelector<HTMLButtonElement>(GUTTER_OPEN)?.click();
     } else if (event.key === "Enter") {
       event.preventDefault();
       const cell = left?.tr === tr ? tr.cells[left.cell] : undefined;
       const field = (cell ?? tr).querySelector<HTMLElement>(FIELDS);
-      tr.classList.remove("is-selected");
       field?.focus();
       if (field instanceof HTMLInputElement && field.type === "text")
         field.setSelectionRange(field.value.length, field.value.length);
+    } else if (event.key === "Escape" && selection && selection.count() > 0) {
+      // Before anything the pane closes on Escape: the nearer thing to undo.
+      event.preventDefault();
+      event.stopPropagation();
+      selection.clear();
     }
   };
-  const onFocus = (event: FocusEvent) => {
-    if (event.target instanceof HTMLElement && event.target.matches(FIELDS)) {
-      for (const each of root.querySelectorAll("tbody > tr.is-selected")) each.classList.remove("is-selected");
-    }
+
+  // Shift extends a text selection, unless the press ticks a row.
+  const onPress = (event: MouseEvent) => {
+    press = { x: event.clientX, y: event.clientY };
+    if (event.shiftKey && freeRow(event)) event.preventDefault();
   };
+
+  const onClick = (event: MouseEvent) => {
+    const tr = freeRow(event);
+    if (!tr || event.defaultPrevented) return;
+    const travelled = press !== undefined && Math.hypot(event.clientX - press.x, event.clientY - press.y) >= TRAVEL;
+    if (travelled || document.getSelection()?.isCollapsed === false) return;
+    const toggle = currentPlatform() === "mac" ? event.metaKey : event.ctrlKey;
+    land(tr, { range: event.shiftKey, toggle });
+  };
+
+  const onDouble = (event: MouseEvent) => {
+    const tr = freeRow(event);
+    if (!tr) return;
+    document.getSelection()?.removeAllRanges();
+    tr.querySelector<HTMLButtonElement>(GUTTER_OPEN)?.click();
+  };
+
   // A field keeps the text menu alone, the browser's spelling included, and
   // a right-click something nearer took (a picture's menu) is left to it.
   // Elsewhere the row's item leads the text menu, so a value read there
-  // still copies; a list's row is selected first, to show what it acts on.
+  // still copies; a list's row is selected alone first, to show what the
+  // menu acts on.
   const onMenu = (event: MouseEvent) => {
     const target = event.target;
     if (event.defaultPrevented || !(target instanceof Element) || target.closest(FIELDS)) return;
     const holder = target.closest<HTMLElement>("tbody > tr, .data-cards-card");
     const open = holder && root.contains(holder) ? holder.querySelector<HTMLButtonElement>(".row-open") : null;
     if (!holder || !open) return;
-    if (holder instanceof HTMLTableRowElement) selectRow(root, holder);
+    if (holder instanceof HTMLTableRowElement) land(holder);
     const row = menuOf?.([...root.querySelectorAll(".row-open")].indexOf(open));
     leadTextMenu(event, {
       items: [{ label: "Open card", run: () => open.click() }, ...(row?.items ?? [])],
@@ -201,18 +307,27 @@ export function wireRowSelection(root: HTMLElement, menuOf?: (index: number) => 
       ariaLabel: "Row",
     });
   };
+
   root.addEventListener("keydown", onKey);
-  root.addEventListener("focusin", onFocus);
+  root.addEventListener("mousedown", onPress);
+  root.addEventListener("click", onClick);
+  root.addEventListener("dblclick", onDouble);
   root.addEventListener("contextmenu", onMenu);
   return () => {
     root.removeEventListener("keydown", onKey);
-    root.removeEventListener("focusin", onFocus);
+    root.removeEventListener("mousedown", onPress);
+    root.removeEventListener("click", onClick);
+    root.removeEventListener("dblclick", onDouble);
     root.removeEventListener("contextmenu", onMenu);
   };
 }
 
-/** A grid of rows, whose body redraws alone from `setRows`. */
-export function createGridTable<Row>(columns: readonly GridColumn<Row>[]): {
+/** A grid of rows, whose body redraws alone from `setRows`; `bind` hears of
+ * each row it draws. */
+export function createGridTable<Row>(
+  columns: readonly GridColumn<Row>[],
+  bind?: (element: HTMLTableRowElement, row: Row) => void,
+): {
   table: HTMLTableElement;
   setRows: (rows: readonly Row[]) => void;
 } {
@@ -244,6 +359,7 @@ export function createGridTable<Row>(columns: readonly GridColumn<Row>[]): {
           td.appendChild(column.cell(row, index));
           tr.appendChild(td);
         }
+        bind?.(tr, row);
         tbody.appendChild(tr);
       });
     },
@@ -372,6 +488,8 @@ export interface TableFormSpec {
   /** Opens the row's full card: from its gutter in the list, from its
    * head in a card. */
   openRow?(row: TableRow, index: number): void;
+  /** The rows ticked: each list row ends in its checkbox. A card has none. */
+  selection?: RowSelection<TableRow>;
   /** Below the rows, or below an empty Table's notice. */
   after?: HTMLElement;
 }
@@ -431,10 +549,11 @@ function tableGrid(spec: TableFormSpec): HTMLElement {
     })),
   ];
   if (spec.lastHeader) columns.push(spec.lastHeader);
-  const { rowControl } = spec;
+  const { rowControl, selection } = spec;
   const draw = () => grid.setRows(spec.rows);
   if (rowControl) columns.push({ cell: (row) => rowControl(row, draw) });
-  const grid = createGridTable(columns);
+  if (selection) columns.push(rowSelectColumn(selection));
+  const grid = createGridTable(columns, selection && ((element, row) => selection.bind(element, row)));
   draw();
   return grid.table;
 }
