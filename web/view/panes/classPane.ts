@@ -47,9 +47,10 @@ import { scopeOf } from "../../../src/protocol/scopes.ts";
 import {
   type ClassFile,
   type ClassView,
-  FIELD_VALUE_TYPE_OPTIONS,
+  FIELD_TYPES,
   isFlowFile,
   type MetadataEntry,
+  retypeField,
   TABLE_LAYOUTS,
   type TableColumn,
 } from "../../../src/protocol/types.ts";
@@ -86,11 +87,9 @@ import {
 import { type ChangeScope, type ClassTool, createClassToolbar, describeRule } from "../../lib/classToolbar.ts";
 import { openColorPicker } from "../../lib/colorPicker.ts";
 import {
-  type CellControls,
   cardParts,
   createCard,
   createCardList,
-  createCell,
   createColumnHeader,
   createGridTable,
   createRowOpenButton,
@@ -101,7 +100,7 @@ import {
   wireRowSelection,
 } from "../../lib/dataGrid.ts";
 import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
-import { createFieldValue } from "../../lib/fieldValue.ts";
+import { type CellControls, createCell, createFieldValue } from "../../lib/fieldValue.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
 import { installLinkPreview } from "../../notePreview.ts";
@@ -109,6 +108,7 @@ import { createPageFind } from "../../pageFind.ts";
 import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
+import { fieldSettingItems } from "../../services/fieldSettings.ts";
 import { pickFile } from "../../services/filePicker.ts";
 import { onFolderSortChanged, setOwnArrangement } from "../../services/folderSorts.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
@@ -260,18 +260,6 @@ const CLASS_ROW_TYPE = "application/x-pragma-class-row";
 // or one below a folder whose subfolders it reads.
 function readsOrderOf(file: ClassFile, place: ClassPlace, folder: string): boolean {
   return classFolders(place, file.filter).some((read) => readsFolder(read, folder));
-}
-
-// What only one type means is dropped when a field changes type, so the
-// file never carries options on a checkbox or a drop folder on a text field.
-function retype(field: TableColumn, type: TableColumn["type"]): void {
-  field.type = type;
-  if (type !== "select") delete field.options;
-  if (type !== "media") {
-    delete field.mediaFolder;
-    delete field.showName;
-  }
-  if (type !== "timestamp") delete field.default;
 }
 
 export function createClassPane(deps: ClassPaneDeps): ClassPane {
@@ -592,8 +580,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "class-unfit";
-    const type = FIELD_VALUE_TYPE_OPTIONS.find((option) => option.value === field.type)?.label.toLowerCase();
-    button.append(text, Object.assign(document.createElement("span"), { textContent: ` · not ${type ?? field.type}` }));
+    const type = FIELD_TYPES[field.type].label.toLowerCase();
+    button.append(text, Object.assign(document.createElement("span"), { textContent: ` · not ${type}` }));
     button.dataset.tooltip = `Set ${field.label} to replace it`;
     button.addEventListener("click", () => {
       const editor = createCell(field, "", (next) => setValue(row, field, next), false, cellControls, {
@@ -645,7 +633,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
         contextMenu: deps.contextMenu,
       });
     }
-    if (!canSet) return createFieldValue(value.fits ? field.type : "text", value.text);
+    if (!canSet) return createFieldValue(value.fits ? field : { type: "text" }, value.text);
     if (!value.fits && field.type !== "select") return unfitCell(field, row, value.text, multiline);
     return createCell(field, value.text, (next) => setValue(row, field, next), false, cellControls, {
       commit: "change",
@@ -970,42 +958,19 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
           run: () =>
             change((file) => {
               const target = findField(file, field.id);
-              if (target && target.type !== value) retype(target, value);
+              if (target && target.type !== value) retypeField(target, value);
             }, "view"),
         })),
       },
-      ...(field.type === "select" ? [{ label: "Options…", run: () => editOptions(field) }] : []),
-      ...(field.type === "media"
-        ? [
-            {
-              label: "Show name",
-              checked: () => field.showName === true,
-              run: () =>
-                change((file) => {
-                  const target = findField(file, field.id);
-                  if (!target) return;
-                  if (target.showName) delete target.showName;
-                  else target.showName = true;
-                }, "view"),
-            },
-            { label: "Media folder…", run: () => editMediaFolder(field) },
-          ]
-        : []),
-      ...(field.type === "timestamp"
-        ? [
-            {
-              label: "Fill new rows with the time added",
-              checked: () => field.default === "now",
-              run: () =>
-                change((file) => {
-                  const target = findField(file, field.id);
-                  if (!target) return;
-                  if (target.default) delete target.default;
-                  else target.default = "now";
-                }, "view"),
-            },
-          ]
-        : []),
+      ...fieldSettingItems(field, {
+        change: (edit) =>
+          change((file) => {
+            const target = findField(file, field.id);
+            if (target) edit(target);
+          }, "view"),
+        options: () => editOptions(field),
+        mediaFolder: () => editMediaFolder(field),
+      }),
     ];
   }
 

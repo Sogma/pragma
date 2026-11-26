@@ -43,7 +43,6 @@ import {
   type FlowNodeInstance,
   type FlowPort,
   type FlowPortType,
-  holdsPath,
   noFileAt,
   type TableColumn,
 } from "../../src/protocol/types.ts";
@@ -997,38 +996,48 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       deps.persistGraph();
     };
 
-    if (holdsPath(column.type)) return undefined;
-    if (column.type === "timestamp") {
-      if (column.default !== "now") return undefined;
-      const hint = document.createElement("span");
-      hint.className = "flow-port-hint";
-      hint.textContent = "time added";
-      return hint;
+    switch (column.type) {
+      case "media":
+      case "path":
+        return undefined;
+      case "timestamp": {
+        if (column.default !== "now") return undefined;
+        const hint = document.createElement("span");
+        hint.className = "flow-port-hint";
+        hint.textContent = "time added";
+        return hint;
+      }
+      case "checkbox": {
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "nodrag";
+        input.checked = stored === "true";
+        input.addEventListener("change", () => save(input.checked ? "true" : "false"));
+        return input;
+      }
+      case "select": {
+        const options = column.options ?? [];
+        return createSelectControl(
+          stored ?? options[0] ?? "",
+          options.map((option) => ({ value: option, label: option })),
+          save,
+        );
+      }
+      case "color":
+      case "integer":
+      case "text": {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "form-input nodrag";
+        if (column.type === "integer") input.inputMode = "numeric";
+        input.value = stored ?? "";
+        input.addEventListener("input", () => save(input.value));
+        if (column.type === "text") attachPlaceholderSuggestions(input, () => dateChoices(new Date()));
+        return input;
+      }
+      default:
+        return column.type satisfies never;
     }
-    if (column.type === "checkbox") {
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.className = "nodrag";
-      input.checked = stored === "true";
-      input.addEventListener("change", () => save(input.checked ? "true" : "false"));
-      return input;
-    }
-    if (column.type === "select") {
-      const options = column.options ?? [];
-      return createSelectControl(
-        stored ?? options[0] ?? "",
-        options.map((option) => ({ value: option, label: option })),
-        save,
-      );
-    }
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "form-input nodrag";
-    if (column.type === "integer") input.inputMode = "numeric";
-    input.value = stored ?? "";
-    input.addEventListener("input", () => save(input.value));
-    if (column.type === "text") attachPlaceholderSuggestions(input, () => dateChoices(new Date()));
-    return input;
   }
 
   // An Add Row node's Table. Read again on every build, so the pins follow

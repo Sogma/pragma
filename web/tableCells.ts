@@ -3,7 +3,7 @@
 // column's folder, strip and names, a path cell read from the Table's folder.
 import { dirnameOf } from "../src/protocol/rootedPath.ts";
 import { openColorPicker } from "./lib/colorPicker.ts";
-import type { CellControls } from "./lib/dataGrid.ts";
+import type { CellControls } from "./lib/fieldValue.ts";
 import type { DialogService } from "./services/dialog.ts";
 import { createMediaField, mediaImportFor } from "./services/mediaField.ts";
 import type { ContextMenuService } from "./services/menus.ts";

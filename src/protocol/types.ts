@@ -119,29 +119,127 @@ export function parseFieldValueType(raw: string | null | undefined): FieldValueT
   return raw && known.includes(raw) ? (raw as FieldValueType) : "text";
 }
 
-/** The port a field takes in a Flow: a checkbox a boolean, an integer a
- * number, and every other type text. A media or path field's text is a path
- * as a Flow names one, such as Generate Image's `path`. */
-export function fieldPortType(type: FieldValueType): FlowPortType {
-  if (type === "checkbox") return "boolean";
-  if (type === "integer") return "number";
-  return "text";
+/** A column's or field's type and the settings only some types have:
+ * everything its values' rules read. */
+export type FieldDefinition = Omit<TableColumn, "id" | "label">;
+
+/** The settings one type owns, which a change of type drops. */
+const FIELD_SETTINGS = ["options", "mediaFolder", "showName", "default"] as const;
+type FieldSetting = (typeof FIELD_SETTINGS)[number];
+
+/** What a field type means wherever a column or field has it. */
+interface FieldTypeRules {
+  // Its name in the type pickers.
+  label: string;
+  // The port a field of the type takes in a Flow. A media or path field's
+  // text is a path as a Flow names one, such as Generate Image's `path`.
+  port: FlowPortType;
+  // Whether its value is a path the document holds, read from the
+  // document's folder and rewritten by a move.
+  path: boolean;
+  settings: readonly FieldSetting[];
+  // Its value before anything is put in it.
+  empty(field: FieldDefinition): string;
+  // Whether a lone frontmatter value is one of the type's.
+  fits(value: string | number | boolean, field: FieldDefinition): boolean;
+  // Its value as frontmatter stores it, from its editor's trimmed text;
+  // undefined clears the key.
+  stored(text: string, field: FieldDefinition): unknown;
 }
 
-/** The same vocabulary with display labels, for the "Add column"/"Add field"
- * type pickers — alphabetical by label, as FIELD_VALUE_TYPES is, so a new
- * type has an obvious slot. Lives here rather than in either pane because
- * both pickers offer exactly this list; a new type is one edit, not three. */
-export const FIELD_VALUE_TYPE_OPTIONS: { value: FieldValueType; label: string }[] = [
-  { value: "checkbox", label: "Checkbox" },
-  { value: "color", label: "Color" },
-  { value: "integer", label: "Integer" },
-  { value: "media", label: "Media" },
-  { value: "path", label: "Path" },
-  { value: "select", label: "Select" },
-  { value: "text", label: "Text" },
-  { value: "timestamp", label: "Timestamp" },
-];
+const isText = (value: unknown): boolean => typeof value === "string";
+const textOrNone = (text: string): string | undefined => (text === "" ? undefined : text);
+
+/** Every type's rules, keyed by the vocabulary, so a type added to it
+ * without them fails to compile. */
+export const FIELD_TYPES: { readonly [Type in FieldValueType]: FieldTypeRules } = {
+  checkbox: {
+    label: "Checkbox",
+    port: "boolean",
+    path: false,
+    settings: [],
+    empty: () => "false",
+    fits: (value) => typeof value === "boolean",
+    // Always true or false, never cleared.
+    stored: (text) => text === "true",
+  },
+  color: {
+    label: "Color",
+    port: "text",
+    path: false,
+    settings: [],
+    empty: () => "",
+    fits: (value) => typeof value === "string" && normalizeHexColor(value) !== "",
+    stored: (text) => (text === "" ? undefined : normalizeHexColor(text) || text),
+  },
+  integer: {
+    label: "Integer",
+    port: "number",
+    path: false,
+    settings: [],
+    empty: () => "",
+    fits: (value) => typeof value === "number" && Number.isInteger(value),
+    stored: (text) => (/^[-+]?\d+$/.test(text) ? Number(text) : textOrNone(text)),
+  },
+  media: {
+    label: "Media",
+    port: "text",
+    path: true,
+    settings: ["mediaFolder", "showName"],
+    empty: () => "",
+    fits: isText,
+    stored: textOrNone,
+  },
+  path: { label: "Path", port: "text", path: true, settings: [], empty: () => "", fits: isText, stored: textOrNone },
+  select: {
+    label: "Select",
+    port: "text",
+    path: false,
+    settings: ["options"],
+    empty: (field) => field.options?.[0] ?? "",
+    fits: (value, field) => (field.options ?? []).includes(String(value)),
+    stored: textOrNone,
+  },
+  text: {
+    label: "Text",
+    port: "text",
+    path: false,
+    settings: [],
+    empty: () => "",
+    fits: () => true,
+    stored: textOrNone,
+  },
+  timestamp: {
+    label: "Timestamp",
+    port: "text",
+    path: false,
+    settings: ["default"],
+    empty: () => "",
+    fits: (value) => typeof value === "string" && parseTimestamp(value) !== undefined,
+    stored: textOrNone,
+  },
+};
+
+/** The port a field takes in a Flow. */
+export function fieldPortType(type: FieldValueType): FlowPortType {
+  return FIELD_TYPES[type].port;
+}
+
+/** The vocabulary with display labels, for the "Add column"/"Add field"
+ * type pickers, alphabetical by label as FIELD_VALUE_TYPES is, so a new type
+ * has an obvious slot. */
+export const FIELD_VALUE_TYPE_OPTIONS: { value: FieldValueType; label: string }[] = FIELD_VALUE_TYPES.map((value) => ({
+  value,
+  label: FIELD_TYPES[value].label,
+}));
+
+/** Changes a field's type, dropping the settings only its old type had, so
+ * the file never carries options on a checkbox or a drop folder on text. */
+export function retypeField(field: TableColumn, type: FieldValueType): void {
+  field.type = type;
+  const kept: readonly FieldSetting[] = FIELD_TYPES[type].settings;
+  for (const setting of FIELD_SETTINGS) if (!kept.includes(setting)) delete field[setting];
+}
 
 export interface TableColumn {
   id: string;
@@ -194,7 +292,7 @@ export function isTableLayout(value: unknown): value is TableLayout {
  * show, or a `path` file or folder to name. Either is read from the
  * document's folder and rewritten by a move. */
 export function holdsPath(type: FieldValueType): boolean {
-  return type === "media" || type === "path";
+  return FIELD_TYPES[type].path;
 }
 
 /** The parsed shape of a `.table.html` file — see docs/protocol.md's
@@ -270,10 +368,8 @@ export function formatTimestamp(date: Date): string {
 /** A field's value before anything is put in it: a select's first option, an
  * unticked checkbox, otherwise blank. What a column added to a Table gives
  * the rows already there. */
-export function emptyFieldValue(field: { type: FieldValueType; options?: string[] }): string {
-  if (field.type === "select") return field.options?.[0] ?? "";
-  if (field.type === "checkbox") return "false";
-  return "";
+export function emptyFieldValue(field: FieldDefinition): string {
+  return FIELD_TYPES[field.type].empty(field);
 }
 
 /** What a new row holds for `column`, however the row is added. A timestamp

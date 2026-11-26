@@ -28,9 +28,7 @@ import {
   servedPreviewSources,
 } from "../../filePreview.ts";
 import {
-  type CellOptions,
   cardParts,
-  createCell,
   createColumnHeader,
   createTableForm,
   focusRowAt,
@@ -40,12 +38,14 @@ import {
 } from "../../lib/dataGrid.ts";
 import { buildTableRowDeleteButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
+import { type CellOptions, createCell } from "../../lib/fieldValue.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
 import { uniqueSlug } from "../../lib/slug.ts";
 import { createPageFind } from "../../pageFind.ts";
 import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
+import { fieldSettingItems } from "../../services/fieldSettings.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
 import { promptMediaFolder } from "../../services/mediaField.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
@@ -262,19 +262,10 @@ export function createTableView(deps: TableViewDeps): TableView {
     renderActiveTablePane();
   }
 
-  // The column menu's switch for a timestamp: whether new rows get the time
-  // they're added. Rows already there keep what they have either way.
-  function toggleTimestampDefault(column: TableColumn): void {
-    if (column.default) delete column.default;
-    else column.default = "now";
-    persistActiveTable();
-  }
-
-  // The column menu's switch for media: whether each file's name shows
-  // beside its picture. Redrawn, so every cell takes it at once.
-  function toggleShowName(column: TableColumn): void {
-    if (column.showName) delete column.showName;
-    else column.showName = true;
+  // A setting from the column menu, such as a media column's Show name.
+  // Redrawn, so every cell takes it at once; rows keep their values.
+  function changeColumn(column: TableColumn, edit: (column: TableColumn) => void): void {
+    edit(column);
     persistActiveTable();
     renderActiveTablePane();
   }
@@ -430,21 +421,10 @@ export function createTableView(deps: TableViewDeps): TableView {
                 persistActiveTable();
               }),
           },
-          ...(column.type === "media"
-            ? [
-                { label: "Show name", checked: () => column.showName === true, run: () => toggleShowName(column) },
-                { label: "Media folder…", run: () => editMediaFolder(column) },
-              ]
-            : []),
-          ...(column.type === "timestamp"
-            ? [
-                {
-                  label: "Fill new rows with the time added",
-                  checked: () => column.default === "now",
-                  run: () => toggleTimestampDefault(column),
-                },
-              ]
-            : []),
+          ...fieldSettingItems(column, {
+            change: (edit) => changeColumn(column, edit),
+            mediaFolder: () => editMediaFolder(column),
+          }),
           {
             label: "Delete column",
             danger: true,

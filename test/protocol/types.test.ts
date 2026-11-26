@@ -22,7 +22,9 @@ import {
   pdfMediaTypeForPath,
   rasterImageMediaTypeForPath,
   rawFileTypeForPath,
+  retypeField,
   splitDocumentName,
+  type TableColumn,
   thumbnailKindForPath,
   VIDEO_EXTENSIONS,
   vectorImageMediaTypeForPath,
@@ -280,6 +282,17 @@ describe("a field's starting value", () => {
     expect(newRowValue({ id: "a", label: "A", type: "timestamp" }, now)).toBe("");
     expect(newRowValue({ id: "a", label: "A", type: "text", default: "now" }, now)).toBe("");
     expect(newRowValue({ id: "a", label: "A", type: "select", options: ["Open"] }, now)).toBe("Open");
+  });
+});
+
+describe("retypeField", () => {
+  it("drops what only the old type had, keeping what the new one has", () => {
+    const field: TableColumn = { id: "cover", type: "media", label: "Cover", mediaFolder: "covers", showName: true };
+    retypeField(field, "select");
+    expect(field).toEqual({ id: "cover", type: "select", label: "Cover" });
+    const status: TableColumn = { id: "s", type: "select", label: "S", options: ["a"] };
+    retypeField(status, "select");
+    expect(status.options).toEqual(["a"]);
   });
 });
 

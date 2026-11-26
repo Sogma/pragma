@@ -20,9 +20,10 @@ import {
 } from "./core/documentContent.ts";
 import { OPEN_IN_NEW_TAB, type PageKind, pageKind, tableContentsLabel } from "./core/paths.ts";
 import type { readingResolvers } from "./core/spaceTree.ts";
-import { createCell, createTableForm } from "./lib/dataGrid.ts";
+import { createTableForm } from "./lib/dataGrid.ts";
 import { type Disposable, DisposableStore, listen } from "./lib/disposable.ts";
 import { addCodeBlockCopyButtons, createTitleBar } from "./lib/dom.ts";
+import { createCell } from "./lib/fieldValue.ts";
 import { createInlineError } from "./lib/inlineError.ts";
 import { renderMarkdown } from "./markdownRender.ts";
 import type { DialogService } from "./services/dialog.ts";

@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it, type Mock, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { TableColumn, TableRow } from "../../../src/protocol/types.ts";
 import {
-  type CellControls,
   cardParts,
   createCard,
-  createCell,
   createGridTable,
   createTableForm,
   focusRowAt,
@@ -22,18 +20,6 @@ const column = (id: string, type: TableColumn["type"], options?: string[]): Tabl
   label: id,
   ...(options ? { options } : {}),
 });
-
-function controls(): {
-  media: Mock<CellControls["media"]>;
-  path: Mock<CellControls["path"]>;
-  pickColor: Mock<CellControls["pickColor"]>;
-} {
-  return {
-    media: vi.fn<CellControls["media"]>(() => document.createElement("figure")),
-    path: vi.fn<CellControls["path"]>(() => document.createElement("a")),
-    pickColor: vi.fn<CellControls["pickColor"]>(),
-  };
-}
 
 describe("cardParts", () => {
   it("claims the picture before the title, then the first select as the badge", () => {
@@ -99,44 +85,6 @@ describe("createGridTable", () => {
     );
     expect(grid.table.querySelector("thead tr")?.classList.contains("form-input-row")).toBe(false);
     expect(createCard({ lines: [] }).classList.contains("form-input-row")).toBe(true);
-  });
-});
-
-describe("createCell", () => {
-  it("shows a locked value as content, but a media or path value always as its slot", () => {
-    const given = controls();
-    expect(createCell(column("n", "integer"), "3", vi.fn(), true, given).textContent).toBe("3");
-    const onChange = vi.fn();
-    createCell(column("frame", "media"), "a.png", onChange, true, given);
-    expect(given.media).toHaveBeenCalledWith(expect.objectContaining({ id: "frame" }), "a.png", true, onChange);
-    createCell(column("ref", "path"), "notes/", onChange, true, given);
-    expect(given.path).toHaveBeenCalledWith("notes/", true, onChange);
-  });
-
-  it("hands back each editor's value as text", () => {
-    const onChange = vi.fn();
-    const select = createCell(column("s", "select", ["a", "b"]), "a", onChange, false, controls()) as HTMLSelectElement;
-    select.value = "b";
-    select.dispatchEvent(new Event("change"));
-    const box = createCell(column("c", "checkbox"), "false", onChange, false, controls()) as HTMLInputElement;
-    box.checked = true;
-    box.dispatchEvent(new Event("change"));
-    const text = createCell(column("t", "integer"), "1", onChange, false, controls()) as HTMLInputElement;
-    expect(text.type).toBe("number");
-    text.value = "2";
-    text.dispatchEvent(new Event("input"));
-    expect(onChange.mock.calls).toEqual([["b"], ["true"], ["2"]]);
-  });
-
-  it("picks a color from the value it holds now, not the one it was drawn with", () => {
-    const given = controls();
-    const onChange = vi.fn();
-    const button = createCell(column("hue", "color"), "#112233", onChange, false, given);
-    button.click();
-    given.pickColor.mock.calls[0][2]("#445566");
-    button.click();
-    expect(given.pickColor.mock.calls[1][1]).toBe("#445566");
-    expect(onChange).toHaveBeenCalledWith("#445566");
   });
 });
 

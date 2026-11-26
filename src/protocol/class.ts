@@ -10,13 +10,13 @@ import {
   type ClassFile,
   type ClassRule,
   type ClassView,
+  FIELD_TYPES,
   FIELD_VALUE_TYPE_OPTIONS,
   type FieldValueType,
   fileKindForPath,
   isFlowFile,
   isMarkdownFile,
   newRowValue,
-  normalizeHexColor,
   parseTimestamp,
   splitDocumentName,
   type TableColumn,
@@ -486,24 +486,7 @@ export function cellValue(field: TableColumn, value: unknown): CellValue {
     return { text: items.join(", "), fits: false, items };
   }
   if (!isScalar(value)) return { text: JSON.stringify(value), fits: false };
-  const text = String(value);
-  switch (field.type) {
-    case "checkbox":
-      return { text, fits: typeof value === "boolean" };
-    case "integer":
-      return { text, fits: typeof value === "number" && Number.isInteger(value) };
-    case "select":
-      return { text, fits: (field.options ?? []).includes(text) };
-    case "color":
-      return { text, fits: typeof value === "string" && normalizeHexColor(value) !== "" };
-    case "timestamp":
-      return { text, fits: typeof value === "string" && parseTimestamp(value) !== undefined };
-    case "media":
-    case "path":
-      return { text, fits: typeof value === "string" };
-    default:
-      return { text, fits: true };
-  }
+  return { text: String(value), fits: FIELD_TYPES[field.type].fits(value, field) };
 }
 
 /** A field's value as a note's frontmatter stores it, from the text its
@@ -511,12 +494,7 @@ export function cellValue(field: TableColumn, value: unknown): CellValue {
  * its canonical form, anything else the string. Blank text is undefined,
  * which clears the key. */
 export function frontmatterValue(field: TableColumn, text: string): unknown {
-  const trimmed = text.trim();
-  if (field.type === "checkbox") return trimmed === "true";
-  if (trimmed === "") return undefined;
-  if (field.type === "integer") return /^[-+]?\d+$/.test(trimmed) ? Number(trimmed) : trimmed;
-  if (field.type === "color") return normalizeHexColor(trimmed) || trimmed;
-  return trimmed;
+  return FIELD_TYPES[field.type].stored(text.trim(), field);
 }
 
 /** What a new note holds so it lands in the view it was added from, over
