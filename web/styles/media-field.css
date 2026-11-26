@@ -1,7 +1,6 @@
-/* A media cell or field: a thumbnail the file itself provides, its name,
-   and in Edit a clear button; the whole thing is a drop target. The
-   picture is a fixed box so a grid of them lines up whatever each file's
-   own shape is. */
+/* A media cell or field: a thumbnail the file itself provides and its
+   name; the whole thing is a drop target. The picture is a fixed box so a
+   grid of them lines up whatever each file's own shape is. */
 .media-field {
   display: inline-flex;
   align-items: center;
@@ -122,23 +121,4 @@
     font-size: 15px;
     line-height: 20px;
   }
-}
-
-.media-field-clear {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-}
-
-.media-field-clear::before {
-  content: "";
-  display: block;
-  width: 12px;
-  height: 12px;
-  background-color: currentColor;
-  mask: var(--icon-x) left top / contain no-repeat;
-}
-
-.media-field.is-empty .media-field-clear {
-  display: none;
 }

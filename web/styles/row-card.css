@@ -112,29 +112,10 @@
 /* A picture fills its tile in its own shape, never cropped, as a card in a
    listing shows it. */
 .row-card-value[data-type="media"] > .media-field {
-  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-}
-
-/* The clear button lies on the picture's top-right corner, on a dark disc in
-   the hover bars' colours, as a card in a listing shows it. */
-.row-card-value[data-type="media"] .media-field-clear {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  border-radius: 50%;
-  background: var(--media-hud-bg);
-  color: var(--media-hud-fg);
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.row-card-value[data-type="media"] .media-field:hover .media-field-clear,
-.row-card-value[data-type="media"] .media-field:has(:focus-visible) .media-field-clear {
-  opacity: 1;
 }
 
 .row-card-value[data-type="media"] .media-field-thumb {

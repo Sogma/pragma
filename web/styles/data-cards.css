@@ -20,39 +20,11 @@
 }
 
 /* The picture takes the whole width, its name beneath it when the column
-   shows names. The clear button lies on the picture's top-right corner, so
-   a card whose names are hidden ends at the picture. */
+   shows names. */
 .data-cards-picture .media-field {
-  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
-}
-
-/* On a dark disc in the hover bars' colours, so it reads over any picture,
-   and shown while the field is hovered or holds keyboard focus. */
-.data-cards-picture .media-field-clear {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  border-radius: 50%;
-  background: var(--media-hud-bg);
-  color: var(--media-hud-fg);
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.data-cards-picture .media-field:hover .media-field-clear {
-  opacity: 1;
-}
-
-.data-cards-picture .media-field:has(:focus-visible) .media-field-clear {
-  opacity: 1;
-}
-
-/* The top hover bar leaves the corner to the clear button. */
-.data-cards-picture .media-field:has(> .media-field-clear) .thumbnail-hud-bar.is-top {
-  padding-right: 32px;
 }
 
 /* The file's own shape, never a crop: a portrait still stands tall and the

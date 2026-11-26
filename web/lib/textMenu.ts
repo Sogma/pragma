@@ -51,9 +51,14 @@ const leads = new WeakMap<Event, TextMenuLead>();
 
 /** Puts `lead` above the items of the menu this right-click opens, even
  * where the text doesn't select. The event must stay uncancelled: a
- * cancelled right-click opens nothing here. */
+ * cancelled right-click opens nothing here.
+ *
+ * Something nearer the pointer hears the right-click first, so the items a
+ * lead already brought (a picture's, inside a row) stay above this one's,
+ * and its menu, argument and label give way to this one's. */
 export function leadTextMenu(event: Event, lead: TextMenuLead): void {
-  leads.set(event, lead);
+  const nearer = leads.get(event);
+  leads.set(event, nearer ? { ...lead, items: [...(nearer.items ?? []), ...(lead.items ?? [])] } : lead);
 }
 
 // Anywhere else the browser's own menu shows only under `pragma dev`, for

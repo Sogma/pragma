@@ -178,6 +178,18 @@ describe("text menu", () => {
     expect(labels()).toEqual(["Open card"]);
   });
 
+  it("keeps a nearer lead's items above a row's, the row naming the menu", () => {
+    html('<div id="row"><span id="picture">cover.png</span></div>');
+    const picture = document.querySelector("#picture") as Element;
+    const clear: TextMenuLead = { items: [{ label: "Clear image", group: "media", run: vi.fn() }], ariaLabel: "Media" };
+    const row: TextMenuLead = { items: [{ label: "Open card", run: vi.fn() }], menu: "row", arg: 2, ariaLabel: "Row" };
+    picture.addEventListener("contextmenu", (event) => leadTextMenu(event, clear));
+    document.querySelector("#row")?.addEventListener("contextmenu", (event) => leadTextMenu(event, row));
+    rightClick(picture);
+    expect(opened[0]).toMatchObject({ menu: "row", arg: 2, ariaLabel: "Row" });
+    expect(labels()).toEqual(["Clear image", "Open card"]);
+  });
+
   it("opens a link's menu where its text doesn't select, and over a browser's checked text", () => {
     html('<div><a href="#">Rename…</a></div>');
     const link = document.querySelector("a") as Element;

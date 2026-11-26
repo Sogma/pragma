@@ -1,6 +1,7 @@
 // A `media` field's control: the thumbnail, name and state of the file a
-// Table or Class cell points at, and the drop that sets it. One module
-// for both panes, since a view may not import another view.
+// Table or Class cell points at, the drop that sets it and the right-click
+// that clears it. One module for both panes, since a view may not import
+// another view.
 //
 // The value is a path as a note writes one — relative to the document's
 // folder, or a `lib:` path — not a capability-style path, so a table and the
@@ -25,12 +26,13 @@ import {
   rawFilePath,
   rawFileUrl,
 } from "../core/apiClient.ts";
-import { DRAGGED_ENTRY_TYPE, readDraggedPath, wireEntryDrag } from "../core/paths.ts";
+import { DRAGGED_ENTRY_TYPE, fileTypeClass, fileTypeLabel, readDraggedPath, wireEntryDrag } from "../core/paths.ts";
 import { listedAsGone, writePathFrom } from "../core/spaceTree.ts";
 import { formatFileSize } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import { type ThumbnailFacts, type ThumbnailHud, thumbnailHud } from "../lib/mediaHud.ts";
 import { describeLoaded, readSvgStandInSize } from "../lib/svgSize.ts";
+import { leadTextMenu } from "../lib/textMenu.ts";
 import type { DialogHandle, DialogService } from "./dialog.ts";
 import { type DroppedImportResult, describeImportProblems, importDroppedFiles } from "./mediaImport.ts";
 
@@ -320,6 +322,17 @@ export function focusMediaField(field: HTMLElement): void {
   field.querySelector<HTMLElement>(".media-field-thumb")?.focus();
 }
 
+// Clear names the kind of file it unlinks, as the tree names it. Only the
+// kinds a field draws are named, since their names lower cleanly where PDF
+// or Flow wouldn't; any other file is a file, and a value naming none is a
+// path.
+function clearLabel(target: string | undefined): string {
+  if (target === undefined) return "Clear path";
+  const type = fileTypeClass(target);
+  const kind = type === "image" || type === "vector-image" || type === "video" ? fileTypeLabel(type) : undefined;
+  return `Clear ${kind?.toLowerCase() ?? "file"}`;
+}
+
 // A media field's hover bars, for the file it shows.
 interface Bars {
   target: string;
@@ -493,12 +506,14 @@ export function createMediaField(spec: MediaFieldSpec): HTMLElement {
   }
 
   if (!spec.readOnly) {
-    const clear = document.createElement("button");
-    clear.type = "button";
-    clear.className = "icon-button media-field-clear";
-    clear.setAttribute("aria-label", "Clear");
-    clear.addEventListener("click", () => set(""));
-    root.append(clear);
+    // Clear leads the right-click's menu, above a row's or card's own items.
+    // It never sits on the picture, where a click meant to open the file
+    // would empty the field instead.
+    root.addEventListener("contextmenu", (event) => {
+      if (!value.trim()) return;
+      const label = clearLabel(resolveMediaValue(spec.docDir, value));
+      leadTextMenu(event, { items: [{ label, group: "media", run: () => set("") }], ariaLabel: "Media" });
+    });
 
     // A drop from a tree carries the row's rooted path as text; a drop from
     // the desktop carries files, which are copied into the media folder

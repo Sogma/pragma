@@ -3,14 +3,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DRAGGED_ENTRY_TYPE } from "../../../web/core/paths.ts";
 import { writePathFrom } from "../../../web/core/spaceTree.ts";
 import { formatFileSize } from "../../../web/lib/dom.ts";
+import { installTextMenu } from "../../../web/lib/textMenu.ts";
+import type { CommandContext } from "../../../web/services/commands.ts";
 import { createDialogService } from "../../../web/services/dialog.ts";
 import { createMediaField, resolveMediaFolder, resolveMediaValue } from "../../../web/services/mediaField.ts";
 import type { DroppedImportResult } from "../../../web/services/mediaImport.ts";
+import type { MenuItem, MenuOpenOptions } from "../../../web/services/menus.ts";
 import { fireDrag } from "../support/drag.ts";
 
 beforeEach(() => {
   document.body.replaceChildren();
 });
+
+const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
+
+// The items the app's menu shows for a right-click on `target`: none when
+// it opens no menu.
+function rightClickItems(target: Element): MenuItem[] {
+  const opened: MenuOpenOptions[] = [];
+  const installed = installTextMenu({ open: (options) => void opened.push(options) });
+  try {
+    target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  } finally {
+    installed.dispose();
+  }
+  return opened.at(-1)?.items ?? [];
+}
 
 // The stored form is a note's: relative from the document's folder, or a
 // rooted library path. Resolution and formatting are two halves of one rule.
@@ -248,16 +266,41 @@ describe("createMediaField", () => {
     }
   });
 
-  it("clears on the clear button", () => {
+  it("clears from the right-click's menu, with no button on the picture", () => {
     const { element, spec } = field("cover.png");
-    (element.querySelector(".media-field-clear") as HTMLButtonElement).click();
+    expect(element.querySelector("button:not(.media-field-thumb)")).toBeNull();
+    const items = rightClickItems(element.querySelector(".media-field-thumb") as Element);
+    expect(items.map((item) => item.label)).toEqual(["Clear image"]);
+    void items[0].run?.(context, undefined);
     expect(spec.onChange).toHaveBeenCalledWith("");
     expect(element.classList.contains("is-empty")).toBe(true);
+    expect(rightClickItems(element.querySelector(".media-field-name") as Element)).toEqual([]);
+  });
+
+  // A file that has gone is still named by its own kind: a broken link is
+  // what most needs clearing.
+  it("names what Clear unlinks by the file's kind, any other file as a file, and a path naming none", () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+    try {
+      const labelsOn = (element: HTMLElement) =>
+        rightClickItems(element.querySelector(".media-field-name") as Element).map((item) => item.label);
+      const labelFor = (value: string) => labelsOn(field(value).element);
+      const gone = field("gone.png").element;
+      gone.querySelector("img")?.dispatchEvent(new Event("error"));
+      expect(gone.classList.contains("is-missing")).toBe(true);
+      expect(labelsOn(gone)).toEqual(["Clear image"]);
+      expect(labelFor("take.mp4")).toEqual(["Clear video"]);
+      expect(labelFor("logo.svg")).toEqual(["Clear vector image"]);
+      expect(labelFor("paper.pdf")).toEqual(["Clear file"]);
+      expect(labelFor("ftp:nope/a.png")).toEqual(["Clear path"]);
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("offers neither clear nor drop when read-only, but still opens", () => {
     const { element, spec } = field("cover.png", { readOnly: true });
-    expect(element.querySelector(".media-field-clear")).toBeNull();
+    expect(rightClickItems(element.querySelector(".media-field-thumb") as Element)).toEqual([]);
     drop(element, { text: "projects/stills/a.png" });
     expect(spec.onChange).not.toHaveBeenCalled();
     (element.querySelector(".media-field-thumb") as HTMLButtonElement).click();
