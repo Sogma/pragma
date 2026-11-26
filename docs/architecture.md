@@ -161,7 +161,7 @@ Reads return opaque byte-derived revisions; editor saves echo them. Mismatches r
 
 Open copies check revisions alongside tree versions. With no pending edit, changed files reload and deleted files clear their tabs; pending edits face save conflicts. Text reloads map selections, folds and history through the change; other panes remount.
 
-Every server write to a space document preserves replaced text and the write source through `src/server/history.ts`. Class values edit row notes through shared models. Tag and bookmark changes apply one entry to the file as it stands; unparseable files are reported, never overwritten.
+Every server write to a space document preserves replaced text and the write source through `src/server/history.ts`. A save the person didn't type names its writer (the copilot, a Flow, a restore), so History never credits them with another's change. Class values edit row notes through shared models. Tag and bookmark changes apply one entry to the file as it stands; unparseable files are reported, never overwritten.
 
 ### Moves and references
 
