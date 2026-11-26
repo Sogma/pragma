@@ -34,11 +34,13 @@ import { CHIP_MENU, CLEAR_CHIP, chipClearOf } from "./flow/flowMenus.ts";
 import type { FlowView } from "./flow/xyflowAdapter.ts";
 import { GRAPH_NODE_MENU } from "./graph/graphView.ts";
 import { copyPathItem } from "./lib/copyPath.ts";
+import { ROW_MENU } from "./lib/dataGrid.ts";
 import { DisposableStore, listen } from "./lib/disposable.ts";
 import { flash } from "./lib/flash.ts";
 import { createPlaceholder, createTitle, type NamingSurface } from "./lib/inlineEdit.ts";
 import { pixelToken, wirePanelResize } from "./lib/panelResize.ts";
 import { PREVIEW_OPEN_MENU } from "./notePreview.ts";
+import { ROW_CARD_MENU } from "./rowCard.ts";
 import { createScrollSync } from "./scrollSync.ts";
 import type { CommandContext, CommandRegistry } from "./services/commands.ts";
 import type { DialogService } from "./services/dialog.ts";
@@ -893,6 +895,25 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     focusedDocumentPane()?.view.focus();
     if (document.activeElement === pill) pill.blur();
   };
+  // A file's trash as its tree row's menu offers it: on its tab's menu, and
+  // on a Class row's card and right-click, whose argument names the row's file.
+  const removalOf = (path: string): MenuItem => {
+    const entry = { name: basenameOf(path), path, type: "file" } as const;
+    const row = treeRowMenu(entry, renameDialog(entry));
+    return {
+      command: row.menu === "tree" ? "tree.delete" : "libraryTree.delete",
+      arg: row.arg,
+      group: "trash",
+      label: () => removalLabel(deps.moveToTrash.get()),
+      danger: true,
+    };
+  };
+  const rowFileItems = (_: CommandContext, arg: unknown): MenuItem[] => {
+    const file = fileOf(arg);
+    return file === undefined ? [] : [removalOf(file)];
+  };
+  deps.menus.register(ROW_CARD_MENU, rowFileItems);
+  deps.menus.register(ROW_MENU, rowFileItems);
   // The tab's file or folder: its name, its bookmark, where it sits and its
   // path, then its trash. Both views' Reveal get it, each offering itself
   // only for what its own view lists. A folder's tab never offers the
@@ -912,17 +933,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       { command: "file.showInFolder", arg: entry, group: "file" },
       // The space's own top has no path to copy.
       ...(tab.path ? [copyPathItem({ group: "file", arg: entry })] : []),
-      ...(row?.type === "file"
-        ? [
-            {
-              command: tree ? "tree.delete" : "libraryTree.delete",
-              arg: row.arg,
-              group: "trash",
-              label: () => removalLabel(deps.moveToTrash.get()),
-              danger: true,
-            },
-          ]
-        : []),
+      ...(row?.type === "file" ? [removalOf(tab.path)] : []),
     ];
   };
   // What the tab menu and the ⋮ share, in that order, for the tab `target`

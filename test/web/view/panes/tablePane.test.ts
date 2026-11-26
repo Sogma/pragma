@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { metadataText } from "../../../../src/protocol/metadata.ts";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
 import type { TableLayout, TableRow } from "../../../../src/protocol/types.ts";
@@ -46,7 +46,10 @@ function setup(loaded: FileResponse = file(), held = memoryViews()) {
   const scheduleSave = vi.fn<(path: string, content: string) => void>();
   const saveLayout = vi.fn<(path: string, layout: TableLayout) => Promise<void>>(async () => {});
   const openPath = vi.fn<(path: string) => void>();
+  // Its right-click listener goes with the test, so none left by an earlier
+  // test answers a later one's right-click.
   const contextMenu = testContextMenu();
+  onTestFinished(() => contextMenu.dispose());
   let reading = false;
   const pane = createTablePane({
     loadFile,
@@ -607,6 +610,81 @@ describe("a row's card", () => {
     open(pane, 1);
     await pane.setInput({ kind: "table", path: "models.table.html" }, current, takes([{ values: { take: "wide" } }]));
     expect(pane.hasTransient?.()).toBe(false);
+  });
+
+  const three = () =>
+    takes([
+      { values: { take: "wide", status: "draft" } },
+      { values: { take: "close", status: "approved" } },
+      { values: { take: "insert", status: "draft" } },
+    ]);
+  const menuItem = (label: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>(".context-menu button")].find(
+      (button) => button.textContent?.trim() === label,
+    );
+  const closeMenu = () => window.dispatchEvent(new MouseEvent("mousedown", { detail: 1 }));
+  const more = (pane: EditorPane) => (pane.element.querySelector(".row-card-more") as HTMLButtonElement).click();
+  const confirm = () => document.querySelector<HTMLButtonElement>(".dialog-panel .dialog-primary")?.click();
+
+  it("deletes its row from its ⋮ behind the row's own confirm, closing onto the row in its place", async () => {
+    const { pane, scheduleSave } = setup(three());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 1);
+    more(pane);
+    menuItem("Delete entry")?.click();
+    expect(document.querySelector(".dialog-panel")?.textContent).toContain('Delete "close" entry?');
+    confirm();
+    await vi.waitFor(() => expect(pane.hasTransient?.()).toBe(false));
+    expect(savedLast(scheduleSave).rows.map((row) => row.values.take)).toEqual(["wide", "insert"]);
+    const row = pane.element.querySelectorAll(".editor-table tbody > tr")[1];
+    expect(row.classList.contains("is-selected")).toBe(true);
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("lands on the row above once the last row is deleted from its card", async () => {
+    const { pane } = setup(three());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 2);
+    more(pane);
+    menuItem("Delete entry")?.click();
+    confirm();
+    await vi.waitFor(() => expect(pane.hasTransient?.()).toBe(false));
+    const rows = pane.element.querySelectorAll(".editor-table tbody > tr");
+    expect(rows).toHaveLength(2);
+    expect(rows[1].classList.contains("is-selected")).toBe(true);
+  });
+
+  it("offers Delete entry only where the row's delete button shows: never in Design mode or reading view", async () => {
+    const { pane, setReadingView } = setup(three());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    open(pane, 0);
+    const offered = () => {
+      more(pane);
+      const found = menuItem("Delete entry") !== undefined;
+      closeMenu();
+      return found;
+    };
+    expect(offered()).toBe(true);
+    pane.design?.toggle();
+    expect(offered()).toBe(false);
+    pane.design?.toggle();
+    setReadingView(true);
+    expect(offered()).toBe(false);
+  });
+
+  it("deletes a row from its right-click, behind the same confirm", async () => {
+    const { pane, scheduleSave } = setup(three());
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    const gutter = pane.element.querySelectorAll(".editor-table tbody td.row-gutter")[2];
+    gutter.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(menuItem("Open card")).toBeDefined();
+    menuItem("Delete entry")?.click();
+    expect(document.querySelector(".dialog-panel")?.textContent).toContain('Delete "insert" entry?');
+    confirm();
+    await vi.waitFor(() =>
+      expect(savedLast(scheduleSave).rows.map((row) => row.values.take)).toEqual(["wide", "close"]),
+    );
+    expect(pane.element.querySelectorAll(".editor-table tbody > tr")).toHaveLength(2);
   });
 
   it("lays out the tiles the file arranges, its headings among them", async () => {

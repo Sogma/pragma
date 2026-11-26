@@ -76,6 +76,7 @@ import {
 } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
 import { tagVocabulary } from "../../core/tagVocabulary.ts";
+import { onWritten, writesNotified } from "../../core/written.ts";
 import {
   createMediaPreview,
   createSelectedSection,
@@ -94,6 +95,7 @@ import {
   createGridTable,
   createRowOpenButton,
   focusRowAt,
+  type RowMenu,
   rowGutterColumn,
   startLabelRename,
   valueCells,
@@ -101,6 +103,7 @@ import {
 } from "../../lib/dataGrid.ts";
 import { buildLockNotice, countText, onLinkClick } from "../../lib/dom.ts";
 import { type CellControls, createCell, createFieldValue } from "../../lib/fieldValue.ts";
+import { oneAtATime } from "../../lib/oneAtATime.ts";
 import { createPill, createTagPill, paintTagPills } from "../../lib/tagPill.ts";
 import type { TagSource } from "../../lib/tagSuggestions.ts";
 import { installLinkPreview } from "../../notePreview.ts";
@@ -151,6 +154,10 @@ export interface ClassPaneDeps {
   arrange: (folder: string, names: string[]) => Promise<void>;
   // Hears which folder's order changed, from anywhere; returns the unsubscribe.
   onFolderSorted: (listener: (folder: string) => void) => () => void;
+  // Hears the paths each write the page makes leaves, with the count of
+  // writes told by then, which a read started at that count holds.
+  onWritten: (listener: (paths: readonly string[], through: number) => void) => () => void;
+  writesNotified: () => number;
   // Every file the Class can link, by path.
   files: () => string[];
   // A copy of the template at `template` in `folder`, titled `title`, as
@@ -233,6 +240,8 @@ export function classPane({ menus, tabs, ...deps }: ClassPaneWiring): EditorPane
         arrangement: manualArrangement,
         arrange: setOwnArrangement,
         onFolderSorted: onFolderSortChanged,
+        onWritten,
+        writesNotified,
         files: classLinkFiles,
         createFromTemplate: postCreateFromTemplate,
         isReadingView: () => group.isReadingView(),
@@ -346,13 +355,21 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       render();
       focusRowAt(element, index);
     },
+    menuOf: rowMenu,
     contextMenu: deps.contextMenu,
   });
-  wireRowSelection(element);
+  wireRowSelection(element, rowMenu);
 
   function openCard(row: ClassRow): void {
     const index = displayed.indexOf(row);
     if (index !== -1) rowCard.open(index);
+  }
+
+  // A row's file, named to its card's ⋮ and its right-click, whose
+  // registered items offer its trash as its tab's menu does.
+  function rowMenu(index: number): RowMenu {
+    const row = displayed[index];
+    return row ? { arg: { file: row.path } } : {};
   }
 
   function editable(): boolean {
@@ -396,18 +413,27 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     save();
   }
 
+  // The count of writes told when a read of the rows last started: that
+  // read holds them all, landed or still going.
+  let readThrough = 0;
+  // Reads started, so one that lands after a newer one draws nothing: a
+  // write's notice can start a read before the write's last save lands.
+  let reads = 0;
+
   // Rows come from the host, which reads the Class's own filter from the
   // file on disk, so they are read again once a change to it is written.
   async function reloadRows(): Promise<void> {
     const target = open;
     if (!target) return;
+    const read = ++reads;
+    readThrough = deps.writesNotified();
     try {
       const rows = await deps.loadRows(target.file.path);
-      if (open !== target) return;
+      if (open !== target || read !== reads) return;
       target.rows = rows;
       delete target.notice;
     } catch (error) {
-      if (open !== target) return;
+      if (open !== target || read !== reads) return;
       target.notice = `Couldn't refresh this Class: ${error instanceof Error ? error.message : String(error)}`;
     }
     render();
@@ -417,6 +443,17 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   // rows a view with no sort shows in its order.
   const stopHearingSorts = deps.onFolderSorted((folder) => {
     if (open && readsOrderOf(open.file, place(), folder)) void reloadRows();
+  });
+
+  // A write this page makes in a folder the Class reads, such as a row's
+  // note moved to the Trash, shows in its rows at once, unless a read
+  // started since holds it. A folder named as written into counts too.
+  const rereadRows = oneAtATime(reloadRows);
+  const stopHearingWrites = deps.onWritten((paths, through) => {
+    if (!open || readThrough >= through) return;
+    const reads = classFolders(place(), open.file.filter);
+    const lists = (path: string) => reads.some((read) => readsFolder(read, dirnameOf(path)) || readsFolder(read, path));
+    if (paths.some(lists)) rereadRows();
   });
 
   // Every change to the Class goes through here. One with no views
@@ -1455,6 +1492,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
       if (tab.kind !== "class") throw new Error(`the Class pane can't show a "${tab.kind}" tab`);
       const file = prefetched ?? (await deps.loadFile(tab.path));
       if (file.kind !== "class") throw new Error(`${tab.path} is not a Class`);
+      readThrough = deps.writesNotified();
       const rows = file.locked === "unreadable" ? [] : await deps.loadRows(file.path);
       if (!ctx.isCurrent()) return;
       deps.noteRevision(file.path, file.revision);
@@ -1518,6 +1556,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     dispose() {
       resizing?.disconnect();
       stopHearingSorts();
+      stopHearingWrites();
       toolbar.close();
       folderPrompt?.close();
       linkPreview.dispose();

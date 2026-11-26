@@ -263,6 +263,19 @@ describe("createRowCard", () => {
     expect(menu.close).toHaveBeenCalled();
   });
 
+  it("offers on its ⋮ what the pane gives for the row shown now, after the card's own items", () => {
+    const items = [{ label: "Delete entry" }];
+    const menuOf = vi.fn((index: number) => ({ items, arg: { file: `shots/${index}.md` } }));
+    const { menu, rowCard } = card({ menuOf });
+    rowCard.open(0);
+    rowCard.moved(2);
+    (document.querySelector(".row-card-more") as HTMLButtonElement).click();
+    expect(menuOf).toHaveBeenLastCalledWith(2);
+    expect(menu.open).toHaveBeenCalledWith(
+      expect.objectContaining({ menu: ROW_CARD_MENU, arg: { file: "shots/2.md" }, itemsAfter: items }),
+    );
+  });
+
   it("follows its row to a new place without drawing it again, and hands that place back", () => {
     const { host, deps, rowCard } = card();
     rowCard.open(0);

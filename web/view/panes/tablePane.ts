@@ -32,6 +32,7 @@ import {
   createColumnHeader,
   createTableForm,
   focusRowAt,
+  type RowMenu,
   startLabelRename,
   valueCells,
   wireRowSelection,
@@ -292,19 +293,35 @@ export function createTableView(deps: TableViewDeps): TableView {
     renderActiveTablePane();
   }
 
-  // A row's or card's delete button, behind its confirm; `redraw` is the
-  // layout's own update once the row is gone. Matched by identity in the
-  // working copy, so a reload while the confirm is up deletes nothing.
-  function rowDeleteButton(columns: TableColumn[], row: TableRow, redraw: () => void): HTMLButtonElement {
-    return buildTableRowDeleteButton(() =>
-      confirmDeleteRow(deps.dialog, rowName(columns, row), () => {
-        const index = activeTable?.rows.indexOf(row) ?? -1;
-        if (!activeTable || index === -1) return;
-        activeTable.rows.splice(index, 1);
-        persistActiveTable();
-        redraw();
-      }),
-    );
+  // A row's delete, behind its confirm, from its delete button, its card's
+  // ⋮ or its right-click; `redraw` updates the view once the row is gone.
+  // Matched by identity in the working copy, so a reload while the confirm
+  // is up deletes nothing.
+  function deleteRow(row: TableRow, redraw: () => void): void {
+    confirmDeleteRow(deps.dialog, rowName(activeTable?.columns ?? [], row), () => {
+      const index = activeTable?.rows.indexOf(row) ?? -1;
+      if (!activeTable || index === -1) return;
+      activeTable.rows.splice(index, 1);
+      persistActiveTable();
+      redraw();
+    });
+  }
+
+  // A row's Delete entry, on its card's ⋮ and its right-click, offered
+  // where its delete button shows. From the card, the card closes onto the
+  // row that takes its place.
+  function rowMenu(index: number): RowMenu {
+    const row = activeTable?.rows[index];
+    if (!row || valuesLocked()) return {};
+    const redraw = () => {
+      if (rowCard?.isOpen()) {
+        rowCard.close();
+        return;
+      }
+      renderActiveTablePane();
+      deps.onRendered();
+    };
+    return { items: [{ label: "Delete entry", group: "trash", danger: true, run: () => deleteRow(row, redraw) }] };
   }
 
   // Governs where the next drop lands, never what's already linked: no
@@ -394,10 +411,11 @@ export function createTableView(deps: TableViewDeps): TableView {
           deps.onRendered();
           focusRowAt(deps.editorTable, index);
         },
+        menuOf: rowMenu,
         contextMenu: deps.contextMenu,
       })
     : undefined;
-  wireRowSelection(deps.editorTable);
+  wireRowSelection(deps.editorTable, rowMenu);
 
   // The column's ⋮ menu — the only way to Rename or Delete it. Its rows act
   // on this column directly; the shared component draws it.
@@ -496,7 +514,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       lastHeader: schemaTools
         ? { header: addColumnHeader(columns), headerClass: "data-table-add-column-cell" }
         : undefined,
-      rowControl: readOnly ? undefined : (row, redraw) => rowDeleteButton(columns, row, redraw),
+      rowControl: readOnly ? undefined : (row, redraw) => buildTableRowDeleteButton(() => deleteRow(row, redraw)),
       openRow: rowCard ? (_row, index) => rowCard.open(index) : undefined,
       after,
     });

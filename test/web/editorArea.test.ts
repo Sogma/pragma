@@ -9,8 +9,10 @@ import type { FileResponse, Tab, TextFileResponse } from "../../web/core/apiClie
 import { PREVIEW_PAGE_MENU } from "../../web/filePreview.ts";
 import { CHIP_MENU, CLEAR_CHIP } from "../../web/flow/flowMenus.ts";
 import { COPY_PATH, COPY_PRAGMA_URL, COPY_SYSTEM_PATH, installCopyPath } from "../../web/lib/copyPath.ts";
+import { ROW_MENU } from "../../web/lib/dataGrid.ts";
 import type { NamingSurface } from "../../web/lib/inlineEdit.ts";
 import { PREVIEW_OPEN_MENU } from "../../web/notePreview.ts";
+import { ROW_CARD_MENU } from "../../web/rowCard.ts";
 import type { CommandContext } from "../../web/services/commands.ts";
 import type { DialogService } from "../../web/services/dialog.ts";
 import { COMMAND_PALETTE, type ResolvedMenuItem } from "../../web/services/menus.ts";
@@ -485,6 +487,23 @@ describe("editor area", () => {
     expect(shared.at(-1)?.danger).toBe(true);
     // A tab alone in its group has no others to close.
     expect(pillMenu(harness, 0).map((item) => item.label)).not.toContain("Close all");
+  });
+
+  it("offers a Class row's file its trash on the row's card and right-click, as its tab's menu does", async () => {
+    const harness = await setup();
+    registerFileCommands(harness);
+    await harness.tabs.openEntry("a.md");
+    const context = { tab: harness.workspace.activeTab(), pane: harness.area.focusedPane() };
+    const trash = (menu: string, arg?: unknown) =>
+      harness.menus
+        .resolve(menu, context, arg)
+        .filter((item) => item.group === "trash")
+        .map((item) => [item.label, item.command, item.arg, item.danger]);
+    const row = expect.objectContaining({ node: expect.objectContaining({ path: "shots/one.md", type: "file" }) });
+    expect(trash(ROW_CARD_MENU, { file: "shots/one.md" })).toEqual([["Move to Trash", "tree.delete", row, true]]);
+    expect(trash(ROW_MENU, { file: "shots/one.md" })).toEqual([["Move to Trash", "tree.delete", row, true]]);
+    // A Table's row is no file.
+    expect(trash(ROW_CARD_MENU)).toEqual([]);
   });
 
   // The flyout's rows read the menu's own argument, which names the tab, so

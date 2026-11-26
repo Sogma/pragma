@@ -7,15 +7,16 @@
 import { cardTiles } from "../src/protocol/card.ts";
 import type { CardTile, FieldValueType, TableColumn } from "../src/protocol/types.ts";
 import { OPEN_IN_NEW_TAB } from "./core/paths.ts";
-import { startLabelRename } from "./lib/dataGrid.ts";
+import { type RowMenu, startLabelRename } from "./lib/dataGrid.ts";
 import { fieldTypeIcon } from "./lib/fieldTypeIcon.ts";
 import { type MoreOptionsButton, moreOptionsButton } from "./lib/moreOptionsButton.ts";
 import { createPaneOverlay, swallowRest } from "./lib/paneOverlay.ts";
 import { createTileGrid, FULL_ROW, type TileGrid, type TileSize } from "./lib/tileGrid.ts";
 import type { ContextMenuService } from "./services/menus.ts";
 
-/** The menu of the ⋮ along a card's foot. The card's backdrop covers the
- * pane's own ⋮, so what a card needs from that menu is registered here too. */
+/** The menu of the ⋮ along a card's foot, its argument naming the row's file
+ * where the row is one. The card's backdrop covers the pane's own ⋮, so
+ * what a card needs from that menu is registered here too. */
 export const ROW_CARD_MENU = "rowCard.more";
 
 export interface RowCardDeps {
@@ -43,6 +44,9 @@ export interface RowCardDeps {
   arrange(tiles: CardTile[]): void;
   /** The card closed on the row at `index`, for the pane to show again. */
   closed(index: number): void;
+  /** What the ⋮ offers for the row at `index` after the card's own items,
+   * as the row's right-click does. */
+  menuOf?(index: number): RowMenu;
   contextMenu: Pick<ContextMenuService, "open" | "close" | "isOpen">;
 }
 
@@ -325,8 +329,20 @@ export function createRowCard(deps: RowCardDeps): RowCard {
     place.className = "row-card-facts-text";
     place.textContent = factsText(index);
     more = moreOptionsButton("row-card-more", (anchor) => {
-      if (deps.contextMenu.isOpen(anchor)) deps.contextMenu.close();
-      else deps.contextMenu.open({ menu: ROW_CARD_MENU, anchor, align: "end", ariaLabel: "More options" });
+      if (deps.contextMenu.isOpen(anchor)) {
+        deps.contextMenu.close();
+        return;
+      }
+      // The row shown now: a sort may have moved it since it was drawn.
+      const row = deps.menuOf?.(overlay.shownIndex() ?? index);
+      deps.contextMenu.open({
+        menu: ROW_CARD_MENU,
+        arg: row?.arg,
+        itemsAfter: row?.items,
+        anchor,
+        align: "end",
+        ariaLabel: "More options",
+      });
     });
     facts.append(place, more.element);
 

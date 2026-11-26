@@ -6,10 +6,13 @@ import { metadataText } from "../../../../src/protocol/metadata.ts";
 import type { TagDefinition } from "../../../../src/protocol/tags.ts";
 import { ApiError, type ClassFileResponse, type FileResponse } from "../../../../web/core/apiClient.ts";
 import { setPresets } from "../../../../web/core/presets.ts";
+import { ROW_MENU } from "../../../../web/lib/dataGrid.ts";
+import { installTextMenu } from "../../../../web/lib/textMenu.ts";
+import { ROW_CARD_MENU } from "../../../../web/rowCard.ts";
 import { createCommands } from "../../../../web/services/commands.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
-import { createMenus } from "../../../../web/services/menus.ts";
+import { createMenus, type MenuOpenOptions } from "../../../../web/services/menus.ts";
 import { classPane, createClassPane } from "../../../../web/view/panes/classPane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
 import { testFormats } from "../../support/formats.ts";
@@ -99,6 +102,13 @@ async function setup(
   { reading = false, arrangement }: { reading?: boolean; arrangement?: string[] } = {},
 ) {
   let hearSort: ((folder: string) => void) | undefined;
+  // Its right-click listener goes with the test, so none left by an earlier
+  // test answers a later one's right-click.
+  const contextMenu = testContextMenu();
+  onTestFinished(() => contextMenu.dispose());
+  // The page's writes: counted as each response lands, told after.
+  let writes = 0;
+  const hearWrites = new Set<(paths: readonly string[], through: number) => void>();
   // None are known until the pane reads them.
   let knownTags: readonly TagDefinition[] = [];
   const deps = {
@@ -110,7 +120,7 @@ async function setup(
     openBeside: vi.fn(),
     previewSources: testPreviewSources(),
     dialog: createDialogService(),
-    contextMenu: testContextMenu(),
+    contextMenu,
     noteRevision: vi.fn(),
     scheduleSave: vi.fn<(path: string, content: string, onWritten?: () => void) => void>(),
     isReadingView: () => reading,
@@ -134,6 +144,11 @@ async function setup(
         hearSort = undefined;
       };
     }),
+    onWritten: (listener: (paths: readonly string[], through: number) => void) => {
+      hearWrites.add(listener);
+      return () => hearWrites.delete(listener);
+    },
+    writesNotified: () => writes,
     files: vi.fn(() => ["tools/lyrics.flow.html", "tools/polish.flow.html", "shots/guide.md"]),
     createFromTemplate: vi.fn(async (_template: string, folder: string, title: string) => ({
       path: `${folder}/${title}.md`,
@@ -158,7 +173,12 @@ async function setup(
     const call = deps.scheduleSave.mock.calls.at(-1);
     return call ? parseClassFile(call[1]) : undefined;
   };
-  return { pane, deps, saved, edited, sorted: (folder: string) => hearSort?.(folder) };
+  // A write's response landing, and the paths it named told after.
+  const wrote = () => ++writes;
+  const tell = (...paths: string[]) => {
+    for (const listener of hearWrites) listener(paths, writes);
+  };
+  return { pane, deps, saved, edited, sorted: (folder: string) => hearSort?.(folder), wrote, tell };
 }
 
 const DESCRIPTION = { key: "description", values: ["Every shot."] };
@@ -1366,6 +1386,23 @@ describe("classPane: a row's card", () => {
     );
   });
 
+  it("names its note to its ⋮, and closes onto the row in its place once a write takes the note away", async () => {
+    const { pane, deps, wrote, tell } = await setup();
+    const opens = vi.spyOn(deps.contextMenu, "open");
+    open(pane, 1);
+    (pane.element.querySelector(".row-card-more") as HTMLButtonElement).click();
+    expect(opens).toHaveBeenLastCalledWith(
+      expect.objectContaining({ menu: ROW_CARD_MENU, arg: { file: "shots/close.md" } }),
+    );
+
+    deps.loadRows.mockImplementation(async () => structuredClone([rows[0], rows[2]]));
+    wrote();
+    tell("shots/close.md", ".trash/close.md");
+    await vi.waitFor(() => expect(pane.hasTransient?.()).toBe(false));
+    const selected = pane.element.querySelector("tbody > tr.is-selected .class-row-title");
+    expect(selected?.textContent).toBe("Insert");
+  });
+
   it("closes when the pane shows another Class, or nothing", async () => {
     const { pane } = await setup();
     open(pane, 0);
@@ -1381,5 +1418,77 @@ describe("classPane: a row's card", () => {
     open(pane, 0);
     pane.clearInput();
     expect(pane.hasTransient?.()).toBe(false);
+  });
+});
+
+describe("classPane: writes and a row's menu", () => {
+  it("reads its rows again for a write in a folder it reads, never another's or one a read since holds", async () => {
+    const { deps, wrote, tell, sorted } = await setup(classFile(), rows, {
+      arrangement: ["wide.md", "close.md", "insert.md"],
+    });
+    expect(deps.loadRows).toHaveBeenCalledTimes(1);
+    wrote();
+    tell("notes/elsewhere.md");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(deps.loadRows).toHaveBeenCalledTimes(1);
+
+    // A read started once a write landed holds it, so its notice reads nothing more.
+    wrote();
+    sorted("shots");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(2));
+    tell("shots/new.md");
+    expect(deps.loadRows).toHaveBeenCalledTimes(2);
+
+    wrote();
+    tell("shots/newer.md");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(3));
+    wrote();
+    tell("shots");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(4));
+  });
+
+  it("draws nothing from a read that lands after a newer one", async () => {
+    const { pane, deps, wrote, tell, sorted } = await setup(classFile(), rows, {
+      arrangement: ["wide.md", "close.md", "insert.md"],
+    });
+    const titles = () => texts(pane.element, ".class-row-title");
+    let land: (read: ClassRow[]) => void = () => undefined;
+    deps.loadRows.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)));
+    wrote();
+    tell("shots/new.md");
+    await vi.waitFor(() => expect(deps.loadRows).toHaveBeenCalledTimes(2));
+    deps.loadRows.mockImplementationOnce(async () => structuredClone([rows[0]]));
+    sorted("shots");
+    await vi.waitFor(() => expect(titles()).toEqual(["Wide"]));
+    land(structuredClone(rows));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(titles()).toEqual(["Wide"]);
+  });
+
+  it("names a row's note under Open card on its right-click, by its place among the rows shown", async () => {
+    const opened: MenuOpenOptions[] = [];
+    const installed = installTextMenu({ open: (options) => void opened.push(options) });
+    onTestFinished(() => installed.dispose());
+    const takes = [
+      note("one.md", "One", { status: "draft", take: 1 }),
+      note("two.md", "Two", { status: "approved", take: 2 }),
+      note("three.md", "Three", { status: "draft", take: 3 }),
+    ];
+    const board = classFile({
+      views: [
+        { name: "Board", layout: "cards", groupBy: "status", sort: { property: "take", order: "desc" }, filter: [] },
+      ],
+    });
+    const { pane } = await setup(board, takes);
+    for (const title of ["One", "Two", "Three"]) {
+      const card = [...pane.element.querySelectorAll(".data-cards-card")].find(
+        (each) => each.querySelector(".class-row-title")?.textContent === title,
+      );
+      card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(opened.at(-1)).toEqual(
+        expect.objectContaining({ menu: ROW_MENU, arg: { file: `shots/${title.toLowerCase()}.md` } }),
+      );
+    }
+    expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["Open card"]);
   });
 });

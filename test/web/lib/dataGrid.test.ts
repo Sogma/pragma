@@ -7,6 +7,7 @@ import {
   createGridTable,
   createTableForm,
   focusRowAt,
+  ROW_MENU,
   startLabelRename,
   type TableFormSpec,
   wireRowSelection,
@@ -350,6 +351,30 @@ describe("a row's card from the grid", () => {
     expect(openRow).toHaveBeenLastCalledWith(expect.anything(), 1);
   });
 
+  it("puts what the pane gives for the row under Open card, and names the row to the registered menu", () => {
+    const opened: MenuOpenOptions[] = [];
+    const installed = installTextMenu({ open: (options) => void opened.push(options) });
+    onTestFinished(() => installed.dispose());
+    const menuOf = vi.fn((index: number) => ({
+      items: [{ label: "Delete entry", group: "trash", run: vi.fn() }],
+      arg: { file: `shots/${index}.md` },
+    }));
+    const rightClick = (target: Element) =>
+      target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+
+    const list = form({ openRow: vi.fn() });
+    wireRowSelection(list, menuOf);
+    rightClick(list.querySelectorAll("tbody td.row-gutter")[1]);
+    expect(menuOf).toHaveBeenLastCalledWith(1);
+    expect(opened.at(-1)).toEqual(expect.objectContaining({ menu: ROW_MENU, arg: { file: "shots/1.md" } }));
+    expect(opened.at(-1)?.items?.map((item) => item.label)).toEqual(["Open card", "Delete entry"]);
+
+    const cards = form({ openRow: vi.fn(), layout: "cards" });
+    wireRowSelection(cards, menuOf);
+    rightClick(cards.querySelectorAll(".data-cards-card")[2]);
+    expect(menuOf).toHaveBeenLastCalledWith(2);
+  });
+
   it("leaves a right-click something nearer took to it", () => {
     const list = form({ openRow: vi.fn() });
     wireRowSelection(list);
@@ -368,5 +393,15 @@ describe("a row's card from the grid", () => {
     const cards = form({ openRow: vi.fn(), layout: "cards" });
     focusRowAt(cards, 1);
     expect(document.activeElement).toBe(cards.querySelectorAll(".row-open")[1]);
+  });
+
+  it("lands on the last row once none is at the place, as after the last row is deleted", () => {
+    const list = form({ openRow: vi.fn() });
+    focusRowAt(list, 3);
+    expect(selected(list)).toBe(2);
+
+    const cards = form({ openRow: vi.fn(), layout: "cards" });
+    focusRowAt(cards, 3);
+    expect(document.activeElement).toBe(cards.querySelectorAll(".row-open")[2]);
   });
 });

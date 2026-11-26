@@ -3,6 +3,7 @@
 // only build the controls and hand each edit back.
 import type { DocumentLock } from "../../src/protocol/api.ts";
 import type { FieldValueType, TableColumn, TableLayout, TableRow } from "../../src/protocol/types.ts";
+import type { MenuItem } from "../services/menus.ts";
 import { buildLockNotice } from "./dom.ts";
 import { fieldTypeIcon } from "./fieldTypeIcon.ts";
 import { leadTextMenu } from "./textMenu.ts";
@@ -98,18 +99,32 @@ export function rowGutterColumn<Row>(open: (row: Row, index: number) => void): G
 
 const FIELDS = "input, select, textarea, [contenteditable='true']";
 
+/** The registered menu under Open card on a row's right-click, reading the
+ * row's argument. */
+export const ROW_MENU = "row";
+
+/** What a row's right-click and its card's ⋮ offer for it: the pane's own
+ * items, and the argument their registered menus read, naming the row's
+ * file where it is one. */
+export interface RowMenu {
+  items?: MenuItem[];
+  arg?: unknown;
+}
+
 // The rows under `root` that open a card, in the order shown, across every
 // grid it holds.
 function openableRows(root: HTMLElement): HTMLTableRowElement[] {
   return [...root.querySelectorAll<HTMLTableRowElement>("tbody > tr")].filter((tr) => tr.querySelector(GUTTER_OPEN));
 }
 
-/** Back on the row at `index` of those shown, once its card closes: the row
- * selected in a list, its open button focused on a card. */
+/** Back on the row at `index` of those shown, or on the last once no row is
+ * there, as after the row is deleted: the row selected in a list, its open
+ * button focused on a card. */
 export function focusRowAt(root: HTMLElement, index: number): void {
-  const tr = openableRows(root)[index];
-  if (tr) selectRow(root, tr);
-  else root.querySelectorAll<HTMLElement>(".row-open")[index]?.focus();
+  const rows = openableRows(root);
+  const opens = root.querySelectorAll<HTMLElement>(".row-open");
+  if (rows.length > 0) selectRow(root, rows[Math.min(index, rows.length - 1)]);
+  else opens[Math.min(index, opens.length - 1)]?.focus();
 }
 
 /** Marks `tr` as the selected row and gives it focus, so its keys follow. */
@@ -123,9 +138,11 @@ export function selectRow(root: HTMLElement, tr: HTMLTableRowElement): void {
 /** Keys on the rows under `root` that open a card: Escape in a field selects
  * its row; on a selected row, Up and Down move the selection, Space opens
  * the row's card and Enter goes back into the field left, the caret at its
- * end. A field taking focus ends the selection. A right-click on a row or a
- * card, outside its fields, offers Open card. Returns its undoing. */
-export function wireRowSelection(root: HTMLElement): () => void {
+ * end. A field taking focus ends the selection. Returns its undoing.
+ *
+ * A right-click on a row or a card, outside its fields, offers Open card,
+ * then what `menuOf` gives for the row at that place. */
+export function wireRowSelection(root: HTMLElement, menuOf?: (index: number) => RowMenu): () => void {
   let left: { tr: HTMLTableRowElement; cell: number } | undefined;
   const onKey = (event: KeyboardEvent) => {
     const target = event.target;
@@ -176,7 +193,13 @@ export function wireRowSelection(root: HTMLElement): () => void {
     const open = holder && root.contains(holder) ? holder.querySelector<HTMLButtonElement>(".row-open") : null;
     if (!holder || !open) return;
     if (holder instanceof HTMLTableRowElement) selectRow(root, holder);
-    leadTextMenu(event, { items: [{ label: "Open card", run: () => open.click() }], ariaLabel: "Row" });
+    const row = menuOf?.([...root.querySelectorAll(".row-open")].indexOf(open));
+    leadTextMenu(event, {
+      items: [{ label: "Open card", run: () => open.click() }, ...(row?.items ?? [])],
+      menu: ROW_MENU,
+      arg: row?.arg,
+      ariaLabel: "Row",
+    });
   };
   root.addEventListener("keydown", onKey);
   root.addEventListener("focusin", onFocus);
