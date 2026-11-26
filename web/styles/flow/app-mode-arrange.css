@@ -36,15 +36,27 @@
   box-shadow: var(--shadow-menu), var(--tile-edge, 0 0 transparent);
 }
 
-/* The corner grip, on hover, in the tile's own text colour so it shows on
-   Run's fill too. */
-.flow-app-grid > :hover > .flow-app-tile-grip {
-  opacity: 0.5;
+/* A tile clips its content, so the grip stays inside the border, rounded to
+   its inner corner. Run has no border: its grip rounds to the tile's own. */
+.flow-app-tile-grip {
+  --tile-grip-radius: calc(var(--panel-radius) - 1px);
 }
 
-.flow-app-tile-grip:hover,
-.flow-app-grid > .resizing > .flow-app-tile-grip {
-  opacity: 1;
+.flow-app-run-item > .flow-app-tile-grip {
+  --tile-grip-radius: var(--panel-radius);
+}
+
+/* In Design mode a hovered tile shows its edge as the guides' dashed line,
+   the grip inside it its corner: a card's border turns dashed, and Run, with
+   no border, takes the line against its fill. Gone while a tile moves or
+   resizes; Run's focus ring, later, wins the tie. */
+:where(.flow-app-board.is-arrangeable:not(.moving, .resizing)) > .flow-app-grid > .flow-app-node:hover {
+  border-style: dashed;
+  border-color: var(--border-input);
+}
+
+:where(.flow-app-board.is-arrangeable:not(.moving, .resizing)) > .flow-app-grid > .flow-app-run-item:hover {
+  outline: 1px dashed var(--border-input);
 }
 
 .flow-app-grid > .resizing {

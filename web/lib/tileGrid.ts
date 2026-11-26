@@ -192,7 +192,7 @@ export function createTileGrid(options: TileGridOptions): TileGrid {
       applySpan(tile, size);
       keyStop(tile);
       const grip = document.createElement("span");
-      grip.className = `corner-grip tile-grid-grip ${prefix}-tile-grip`;
+      grip.className = `tile-grid-grip ${prefix}-tile-grip`;
       tile.appendChild(grip);
       const { removal } = options;
       if (removal) {

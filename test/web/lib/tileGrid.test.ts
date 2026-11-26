@@ -65,7 +65,7 @@ describe("createTileGrid", () => {
     ]);
     expect(made.tiles()).toEqual(tiles);
     expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["6", "2", "2"]);
-    expect(tiles[0].querySelector(".corner-grip")?.className).toBe("corner-grip tile-grid-grip demo-tile-grip");
+    expect(tiles[0].querySelector(".tile-grid-grip")?.className).toBe("tile-grid-grip demo-tile-grip");
   });
 
   it("moves a tile by Alt with the arrows on its handle, and sizes it with Shift too", () => {
