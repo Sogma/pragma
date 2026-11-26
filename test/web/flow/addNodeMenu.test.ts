@@ -41,4 +41,9 @@ describe("addNodeMenu", () => {
       expect(leaf.tooltip).toBe(FLOW_NODE_REGISTRY[leaf.data?.nodeType ?? ""].description);
     }
   });
+
+  it('finds every node that reads or writes a Table when searching "table"', () => {
+    const found = (openMenu().search?.filter("table") ?? []).map((leaf) => leaf.data?.nodeType);
+    expect(found).toEqual(expect.arrayContaining(["loadRow", "loadRandomRow", "loadTableRows", "addRow"]));
+  });
 });
