@@ -27,11 +27,10 @@ export function applyNodeColor(cardEl: HTMLElement, color: string | undefined): 
 // A category's color, drawn for a node with none of its own and never saved.
 // The color picker's first swatch resets to it, so such a node can't go
 // plain. Image and Video have none: a colored frame changes how the colors of
-// the picture or clip inside it read.
+// the picture or clip inside it read. Applets have none: a green card for
+// every Applet pulls the eye from the rest of the Flow.
 const CATEGORY_COLORS: Partial<Record<FlowNodeCategory, string>> = {
   AI: "#7c3aed", // violet, the de facto "AI" color
-  // The Applet kind's theme token, not a hex, so the card matches the file's icon in both themes.
-  Applets: "var(--kind-applet)",
 };
 
 /** The color a node of `type` shows with none of its own, if any. */

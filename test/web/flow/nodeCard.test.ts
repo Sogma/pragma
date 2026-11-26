@@ -1935,13 +1935,16 @@ describe("a node's color", () => {
     document.body.replaceChildren();
   });
 
-  it("is its category's with none of its own: AI's violet, Applets' kind color, none for the rest", () => {
+  it("is its category's with none of its own: AI's violet, none for the rest", () => {
     const { cards } = setup();
     expect(color(cards.build(node("generateImage", { outputFolderPath: "art" })))).toBe("#7c3aed");
-    const applet = cards.build(node("applet"));
-    expect(color(applet)).toBe("var(--kind-applet)");
-    expect(applet.classList.contains("tinted")).toBe(true);
-    for (const plain of [node("loadImage"), node("loadFolderImage"), node("loadVideo"), node("prompt", { text: "" })]) {
+    for (const plain of [
+      node("loadImage"),
+      node("loadFolderImage"),
+      node("loadVideo"),
+      node("applet"),
+      node("prompt", { text: "" }),
+    ]) {
       const el = cards.build(plain);
       expect(color(el)).toBe("");
       expect(el.classList.contains("tinted")).toBe(false);
