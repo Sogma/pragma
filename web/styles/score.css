@@ -1,0 +1,77 @@
+/* A score's marks: the reject mark where the field has one, then a star per
+   step, lit up to the value. Each mark paints its glyph in a ::before, so a
+   pressable mark's focus ring isn't masked away with the glyph. */
+.score {
+  --score-mark-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.score-mark,
+.score-reject {
+  flex: none;
+  width: var(--score-mark-size);
+  height: var(--score-mark-size);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+}
+
+.score-mark::before,
+.score-reject::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: currentColor;
+  mask: var(--icon-star-filled) center / contain no-repeat;
+}
+
+.score-reject {
+  margin-inline-end: 2px;
+}
+
+.score-reject::before {
+  mask-image: var(--icon-ban);
+}
+
+.score-mark[data-lit] {
+  color: var(--color-accent);
+}
+
+.score[data-rejected] > .score-reject {
+  color: var(--color-danger);
+}
+
+button.score-mark,
+button.score-reject {
+  border-radius: var(--control-radius);
+  cursor: pointer;
+}
+
+/* The pointer previews what a click picks: the stars up to the one under
+   it, or the reject mark alone. */
+@media (hover: hover) {
+  .score:has(> button.score-mark:hover) > .score-mark {
+    color: var(--color-accent);
+  }
+
+  .score > button.score-mark:hover ~ .score-mark,
+  .score:has(> button.score-mark:hover) > .score-reject,
+  .score:has(> button.score-reject:hover) > .score-mark {
+    color: var(--text-faint);
+  }
+
+  .score > button.score-reject:hover {
+    color: var(--color-danger);
+  }
+}
+
+/* A value that is no score, kept as written until a mark is picked. */
+.score-held {
+  margin-inline-start: 6px;
+  color: var(--text-muted);
+}

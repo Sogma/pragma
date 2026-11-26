@@ -69,6 +69,7 @@ const DEFAULT_SIZES: Record<FieldValueType, TileSize> = {
   text: { columns: 3, rows: 1 },
   path: { columns: 3, rows: 1 },
   select: { columns: 2, rows: 1 },
+  score: { columns: 2, rows: 1 },
   timestamp: { columns: 2, rows: 1 },
   integer: { columns: 1, rows: 1 },
   checkbox: { columns: 1, rows: 1 },

@@ -140,6 +140,35 @@ describe(".table.html round-tripping", () => {
     expect(parseTableFile(onText)?.columns[0].showName).toBeUndefined();
   });
 
+  // A max of 5 is the default the UI leaves out; one written by hand stays.
+  it("round-trips a score's data-max and data-reject, and reads them on no other type", () => {
+    const file: TableFile = {
+      version: "1.0",
+      columns: [
+        { id: "rating", type: "score", label: "Rating", reject: true },
+        { id: "craft", type: "score", label: "Craft", max: 10 },
+      ],
+      rows: [{ values: { rating: "-1", craft: "7" } }],
+    };
+    const html = serializeTableFile(file);
+    expect(html).toContain('<th data-field="rating" data-type="score" data-reject>Rating</th>');
+    expect(html).toContain('<th data-field="craft" data-type="score" data-max="10">Craft</th>');
+    const reparsed = parseTableFile(html);
+    expect(reparsed?.columns.map(({ max, reject }) => ({ max, reject }))).toEqual([
+      { max: undefined, reject: true },
+      { max: 10, reject: undefined },
+    ]);
+    expect(reparsed && serializeTableFile(reparsed)).toBe(html);
+
+    const onInteger = parseTableFile(
+      html.replace('data-type="score" data-max="10"', 'data-type="integer" data-max="10"'),
+    );
+    expect(onInteger?.columns[1].max).toBeUndefined();
+    const tooHigh = parseTableFile(html.replace('data-max="10"', 'data-max="12"'));
+    expect(tooHigh?.columns[1].max).toBeUndefined();
+    expect(tooHigh && serializeTableFile(tooHigh)).toContain('data-type="score" data-max="12"');
+  });
+
   // A later version's column survives this one's save: its type reads as
   // text meanwhile, and what its header says that this build doesn't read
   // is written back after what it does.

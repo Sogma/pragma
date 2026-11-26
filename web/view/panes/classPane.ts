@@ -968,6 +968,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
             const target = findField(file, field.id);
             if (target) edit(target);
           }, "view"),
+        dialog: deps.dialog,
         options: () => editOptions(field),
         mediaFolder: () => editMediaFolder(field),
       }),

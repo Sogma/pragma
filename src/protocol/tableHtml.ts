@@ -40,6 +40,8 @@ export function fieldHeaderCell(column: TableColumn): string {
   if (column.mediaFolder) attributes.push(["data-media-folder", column.mediaFolder]);
   if (column.showName) attributes.push(["data-show-name", undefined]);
   if (column.default) attributes.push(["data-default", column.default]);
+  if (column.max !== undefined) attributes.push(["data-max", String(column.max)]);
+  if (column.reject) attributes.push(["data-reject", undefined]);
   const written = new Set(attributes.map(([name]) => name));
   for (const [name, value] of column.unknownAttributes ?? []) {
     if (ATTRIBUTE_NAME.test(name) && !written.has(name.toLowerCase())) attributes.push([name, value || undefined]);

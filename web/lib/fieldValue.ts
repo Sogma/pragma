@@ -4,8 +4,9 @@
 // width. One entry per type, so a type added without its controls fails to
 // compile.
 import type { FieldDefinition, FieldValueType, TableColumn } from "../../src/protocol/types.ts";
-import { normalizeHexColor } from "../../src/protocol/types.ts";
+import { normalizeHexColor, scoreOf } from "../../src/protocol/types.ts";
 import { createColorChip, paintColorChip } from "./colorChip.ts";
+import { createScoreControl } from "./scoreControl.ts";
 import { createTimestampField, timestampLabel } from "./timestampField.ts";
 
 /** The cell controls that live above `lib/`, which a pane hands in: a
@@ -121,6 +122,15 @@ const FIELD_CONTROLS: { readonly [Type in FieldValueType]: FieldControl } = {
   path: {
     show: showText,
     cell: (_column, value, { onChange, readOnly, controls }) => controls.path(value, readOnly, onChange),
+  },
+  score: {
+    show(el, field, value) {
+      if (scoreOf(value, field) === undefined) showText(el, field, value);
+      else el.appendChild(createScoreControl({ field, value }));
+    },
+    cell: lockable((column, value, { onChange }) =>
+      createScoreControl({ field: column, value, label: column.label, onChange }),
+    ),
   },
   select: {
     show: showText,

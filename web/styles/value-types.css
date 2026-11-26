@@ -57,6 +57,10 @@
   --type-glyph: var(--icon-link);
 }
 
+.type-icon[data-field-type="score"] {
+  --type-glyph: var(--icon-star);
+}
+
 .type-icon[data-field-type="select"] {
   --type-glyph: var(--icon-dropdown);
 }

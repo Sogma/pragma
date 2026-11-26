@@ -65,6 +65,7 @@ describe("an Add Row node's ports", () => {
   it("maps a column type to its port type", () => {
     expect(fieldPortType("checkbox")).toBe("boolean");
     expect(fieldPortType("integer")).toBe("number");
+    expect(fieldPortType("score")).toBe("number");
     for (const type of ["text", "select", "color", "media", "timestamp"] as const)
       expect(fieldPortType(type)).toBe("text");
   });
@@ -101,6 +102,20 @@ describe("what an Add Row node keeps of a Table's columns", () => {
       values: { a: "kept", b: 3 },
     });
     expect(config).toEqual({ tablePath: "", columns: [{ id: "a", label: "A", type: "text" }], values: { a: "kept" } });
+  });
+
+  it("keeps a score's scale and reject mark, which draw its control", () => {
+    const scores: TableColumn[] = [
+      { id: "rating", label: "Rating", type: "score", max: 10, reject: true },
+      { id: "wild", label: "Wild", type: "score", max: 40 },
+      { id: "n", label: "N", type: "integer", max: 10, reject: true },
+    ];
+    expect(addRowColumns(scores)).toEqual([
+      { id: "rating", label: "Rating", type: "score", max: 10, reject: true },
+      { id: "wild", label: "Wild", type: "score" },
+      { id: "n", label: "N", type: "integer" },
+    ]);
+    expect(addRowNodeConfig({ columns: addRowColumns(scores) }).columns[0]).toEqual(scores[0]);
   });
 
   // An editor that reads the Table rewrites columns that differ, taking the

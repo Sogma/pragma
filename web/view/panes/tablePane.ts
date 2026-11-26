@@ -74,7 +74,7 @@ function openAddColumnPopover(
     nameLabel: "Column name",
     typeLabel: "Column type",
     types: FIELD_VALUE_TYPE_OPTIONS,
-    onSubmit: ({ label, type, options, default: fill }) => {
+    onSubmit: ({ label, type, options, default: fill, max, reject }) => {
       // No id field: the id keys every row's value, but the label already
       // implies a fair one, so typing it by hand isn't worth the friction.
       const column: TableColumn = {
@@ -84,6 +84,8 @@ function openAddColumnPopover(
       };
       if (options) column.options = options;
       if (fill) column.default = fill;
+      if (max !== undefined) column.max = max;
+      if (reject) column.reject = reject;
       onAdd(column);
       closeAddColumnPopover();
     },
@@ -262,10 +264,14 @@ export function createTableView(deps: TableViewDeps): TableView {
     renderActiveTablePane();
   }
 
-  // A setting from the column menu, such as a media column's Show name.
-  // Redrawn, so every cell takes it at once; rows keep their values.
-  function changeColumn(column: TableColumn, edit: (column: TableColumn) => void): void {
-    edit(column);
+  // A setting from the column menu, such as a media column's Show name,
+  // applied by column id to the Table it was asked on, if still open: a
+  // prompt can outlive a reload. Redrawn, so every cell takes it at once;
+  // rows keep their values.
+  function changeColumn(path: string, id: string, edit: (column: TableColumn) => void): void {
+    const target = activeTable?.file.path === path ? activeTable.columns.find((each) => each.id === id) : undefined;
+    if (!target) return;
+    edit(target);
     persistActiveTable();
     renderActiveTablePane();
   }
@@ -409,6 +415,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         deps.contextMenu.close();
         return;
       }
+      const path = activeTable?.file.path ?? "";
       deps.contextMenu.open({
         anchor: menuButton,
         ariaLabel: "Column options",
@@ -422,7 +429,8 @@ export function createTableView(deps: TableViewDeps): TableView {
               }),
           },
           ...fieldSettingItems(column, {
-            change: (edit) => changeColumn(column, edit),
+            change: (edit) => changeColumn(path, column.id, edit),
+            dialog: deps.dialog,
             mediaFolder: () => editMediaFolder(column),
           }),
           {

@@ -61,6 +61,7 @@ import { type Disposable, toDisposable } from "../lib/disposable.ts";
 import { buildCopyButton } from "../lib/dom.ts";
 import { createInlineError } from "../lib/inlineError.ts";
 import type { ModelKind } from "../lib/modelPicker.ts";
+import { createScoreControl } from "../lib/scoreControl.ts";
 import { selectedTextMark } from "../lib/selection.ts";
 import { checkSpelling } from "../lib/spellcheck.ts";
 import { createWrappingField } from "../lib/wrappingField.ts";
@@ -1022,6 +1023,11 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
           options.map((option) => ({ value: option, label: option })),
           save,
         );
+      }
+      case "score": {
+        const marks = createScoreControl({ field: column, value: stored ?? "", label: column.label, onChange: save });
+        marks.classList.add("nodrag");
+        return marks;
       }
       case "color":
       case "integer":

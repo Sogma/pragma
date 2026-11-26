@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { type HTMLElement, parse } from "node-html-parser";
 import type { CardTile, MetadataEntry, TableColumn, TableFile, TableRow } from "./types.ts";
-import { emptyTable, parseFieldValueType, parseTableLayout } from "./types.ts";
+import { emptyTable, isScoreMax, parseFieldValueType, parseTableLayout } from "./types.ts";
 
 /** Graceful-fallback reader, same convention as every other file reader in
  * this codebase: a missing, empty, or malformed `.table.html` file never
@@ -125,6 +125,15 @@ export function readFieldColumns(thead: HTMLElement | null): TableColumn[] {
     if (column.type === "timestamp" && th.getAttribute("data-default") === "now") {
       column.default = "now";
       read.add("data-default");
+    }
+    const max = Number(th.getAttribute("data-max") ?? "");
+    if (column.type === "score" && isScoreMax(max)) {
+      column.max = max;
+      read.add("data-max");
+    }
+    if (column.type === "score" && th.hasAttribute("data-reject")) {
+      column.reject = true;
+      read.add("data-reject");
     }
     const unknown = Object.entries(th.attributes).filter(([name]) => !read.has(name.toLowerCase()));
     if (unknown.length > 0) column.unknownAttributes = unknown;

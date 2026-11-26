@@ -3,6 +3,7 @@ import {
   DOCUMENT_FORMAT_MAJOR,
   emptyFieldValue,
   extensionForMediaType,
+  FIELD_TYPES,
   FIELD_VALUE_TYPES,
   fileKindForPath,
   formatTimestamp,
@@ -13,6 +14,7 @@ import {
   isLutFile,
   isMarkdownFile,
   isNewerFormatVersion,
+  isScoreMax,
   isTableFile,
   mediaTypeForPath,
   newRowValue,
@@ -23,6 +25,8 @@ import {
   rasterImageMediaTypeForPath,
   rawFileTypeForPath,
   retypeField,
+  scoreMax,
+  scoreOf,
   splitDocumentName,
   type TableColumn,
   thumbnailKindForPath,
@@ -285,6 +289,37 @@ describe("a field's starting value", () => {
   });
 });
 
+describe("scores", () => {
+  it("reads marks up to the field's max, 5 where it names none, and blank or 0 as none", () => {
+    expect(scoreMax({ type: "score" })).toBe(5);
+    expect(scoreMax({ type: "score", max: 10 })).toBe(10);
+    expect(scoreOf("3", { type: "score" })).toBe(3);
+    expect(scoreOf(" 5 ", { type: "score" })).toBe(5);
+    expect(scoreOf("", { type: "score" })).toBe(0);
+    expect(scoreOf("0", { type: "score" })).toBe(0);
+    expect(scoreOf("6", { type: "score" })).toBeUndefined();
+    expect(scoreOf("6", { type: "score", max: 10 })).toBe(6);
+  });
+
+  it("reads -1 as rejected only where the field allows it, and anything else as no score", () => {
+    expect(scoreOf("-1", { type: "score", reject: true })).toBe(-1);
+    expect(scoreOf("-1", { type: "score" })).toBeUndefined();
+    expect(scoreOf("-2", { type: "score", reject: true })).toBeUndefined();
+    expect(scoreOf("4.5", { type: "score" })).toBeUndefined();
+    expect(scoreOf("good", { type: "score" })).toBeUndefined();
+  });
+
+  it("takes a max that is a whole number from 1 to 10", () => {
+    expect([1, 5, 10].every(isScoreMax)).toBe(true);
+    expect([0, 11, 2.5, Number.NaN].some(isScoreMax)).toBe(false);
+  });
+
+  it("is a number in a Flow, blank in a new row", () => {
+    expect(FIELD_TYPES.score.port).toBe("number");
+    expect(emptyFieldValue({ type: "score" })).toBe("");
+  });
+});
+
 describe("retypeField", () => {
   it("drops what only the old type had, keeping what the new one has", () => {
     const field: TableColumn = { id: "cover", type: "media", label: "Cover", mediaFolder: "covers", showName: true };
@@ -305,6 +340,14 @@ describe("retypeField", () => {
     };
     retypeField(field, "integer");
     expect(field).toEqual({ id: "a", type: "integer", label: "A" });
+  });
+
+  it("keeps a score's max and reject only while it is a score", () => {
+    const field: TableColumn = { id: "r", type: "score", label: "R", max: 10, reject: true };
+    retypeField(field, "score");
+    expect(field).toMatchObject({ max: 10, reject: true });
+    retypeField(field, "integer");
+    expect(field).toEqual({ id: "r", type: "integer", label: "R" });
   });
 });
 

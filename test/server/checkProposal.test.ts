@@ -39,7 +39,7 @@ const APPLET = `<!DOCTYPE html>
 </html>
 `;
 const HELPER = "export const tone = 2;\n";
-const TYPES = "checkbox, color, integer, media, path, select, text, timestamp";
+const TYPES = "checkbox, color, integer, media, path, score, select, text, timestamp";
 
 beforeEach(() => {
   space = tempDir("pragma-proposal-");

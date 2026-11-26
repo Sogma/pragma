@@ -368,6 +368,18 @@ describe("cellValue", () => {
     expect(cellValue(field("text"), ["a", "b"])).toEqual({ text: "a, b", fits: false, items: ["a", "b"] });
     expect(cellValue(field("text"), { a: 1 })).toEqual({ text: '{"a":1}', fits: false });
   });
+
+  it("reads a score as a whole number on its scale, -1 only where it can be rejected", () => {
+    const rating: TableColumn = { id: "rating", type: "score", label: "Rating", reject: true };
+    expect(cellValue(rating, 4)).toEqual({ text: "4", fits: true });
+    expect(cellValue(rating, 0)).toEqual({ text: "0", fits: true });
+    expect(cellValue(rating, -1)).toEqual({ text: "-1", fits: true });
+    expect(cellValue(field("score"), -1)).toEqual({ text: "-1", fits: false });
+    expect(cellValue(rating, 7)).toEqual({ text: "7", fits: false });
+    expect(cellValue({ ...rating, max: 10 }, 7)).toEqual({ text: "7", fits: true });
+    expect(cellValue(rating, 4.5)).toEqual({ text: "4.5", fits: false });
+    expect(cellValue(rating, "4")).toEqual({ text: "4", fits: false });
+  });
 });
 
 describe("frontmatterValue", () => {
@@ -383,6 +395,10 @@ describe("frontmatterValue", () => {
     expect(frontmatterValue(field("text"), " A prompt ")).toBe("A prompt");
     expect(frontmatterValue(field("select"), "")).toBeUndefined();
     expect(frontmatterValue(field("media"), "  ")).toBeUndefined();
+    expect(frontmatterValue(field("score"), "4")).toBe(4);
+    expect(frontmatterValue(field("score"), "-1")).toBe(-1);
+    expect(frontmatterValue(field("score"), "")).toBeUndefined();
+    expect(frontmatterValue(field("score"), "good")).toBe("good");
   });
 });
 

@@ -464,11 +464,13 @@ Each `<th>` in `<thead>` defines one column. Its text is the label. Renaming a c
 | Attribute | Meaning and default |
 |---|---|
 | `data-field` | The column id. |
-| `data-type` | `text`, `select`, `checkbox`, `color`, `integer`, `media`, `path`, or `timestamp`. Any other value reads as `text`. |
+| `data-type` | `text`, `select`, `checkbox`, `color`, `integer`, `score`, `media`, `path`, or `timestamp`. Any other value reads as `text`. |
 | `data-options` | A `select` column's options, comma-separated. |
 | `data-media-folder` | For `media`, the destination for a desktop drop, written as its values are. Absent means the Table's folder. Values are not limited to that folder. |
 | `data-show-name` | For `media`, shows the file's name beside its picture. When absent, only the picture is shown. |
 | `data-default` | For `timestamp`, `"now"` gives a new row the instant it is added. Absent means blank. No other value is defined, and the attribute has no meaning on another type. |
+| `data-max` | For `score`, the top of its scale, a whole number from 1 to 10. Absent means 5. |
+| `data-reject` | For `score`, a value may be `-1`, rejected. |
 
 A writer keeps a `data-type` it doesn't know, and any attribute of a `<th>` it doesn't read, writing them back as found.
 
@@ -482,6 +484,7 @@ Each `<tbody><tr>` is a row. Cells correspond to columns by position, and each `
 | `checkbox` | The literal text `"true"` or `"false"`. |
 | `color` | CSS hex `#rgb` or `#rrggbb`, in any case on read; canonical form is lowercase `#rrggbb`. An unmatched value, including a color name or an empty cell, displays no color and is preserved verbatim. |
 | `integer` | Plain cell text edited through a numeric input. It is neither parsed nor canonicalized. |
+| `score` | A whole number from 1 to its `data-max`; `0` or an empty cell is no score, and with `data-reject`, `-1` is rejected. Any other value displays as text and is preserved. |
 | `timestamp` | An instant under the timestamp rules below. |
 | `media` | A file reference read as an image embed in a note: relative to the Table's folder, or an explicit `lib:<id>/…` address. A Table inside a library names only files in that library. Empty means no file; a missing file displays as missing and its value is preserved. |
 | `path` | A file or folder reference under the same rules as `media`, with a trailing `/` for a folder. It names an entry to open or pass to a Flow, and a host offers a picker. |
@@ -611,7 +614,7 @@ A **Class** defines a group of files, the fields they share, and the views and t
 
 #### Class fields
 
-**The `<thead>` of `<table data-role="fields">` defines a Class's fields as a Table's defines its columns** (see [Table columns](#table-columns)): `data-field`, `data-type`, `data-options`, `data-media-folder`, `data-show-name` and `data-default`, with the `<th>` text as the label, mean what they mean there, except:
+**The `<thead>` of `<table data-role="fields">` defines a Class's fields as a Table's defines its columns** (see [Table columns](#table-columns)): each attribute, with the `<th>` text as the label, means what it means there, except:
 
 - **`data-field` is a key**: one of a row's [values](#class-values), or one of a file's own facts. It holds no comma, since a view lists keys comma-separated.
 - **A field on a file's own fact keeps that fact's type** whatever its `<th>` says. Only its label is the Class's.
@@ -624,7 +627,7 @@ A field's type decides how a note's frontmatter stores its value, as plain YAML 
 |---|---|
 | `text`, `select` | a string |
 | `checkbox` | `true` or `false` |
-| `integer` | a whole number |
+| `integer`, `score` | a whole number |
 | `color` | a string, a Table's canonical `#rrggbb` |
 | `timestamp` | a string, a Table's canonical UTC form |
 | `media` | a string, a path read and written as an image embed in that note is |

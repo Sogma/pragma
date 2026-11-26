@@ -1,7 +1,7 @@
 // A Flow's Add Row node: what its config holds, the ports a Table's columns
 // give it, and the cell text a wired value becomes.
 import type { PortValue } from "./flowExecutors.ts";
-import { type FlowPort, fieldPortType, parseFieldValueType, type TableColumn } from "./types.ts";
+import { type FlowPort, fieldPortType, isScoreMax, parseFieldValueType, type TableColumn } from "./types.ts";
 
 export const ADD_ROW_NODE_TYPE = "addRow";
 
@@ -30,7 +30,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function addRowColumns(columns: readonly TableColumn[]): TableColumn[] {
   const seen = new Set<string>([ADD_ROW_PATH_PORT]);
   const kept: TableColumn[] = [];
-  for (const { id, type, label, options, default: fill } of columns) {
+  for (const { id, type, label, options, default: fill, max, reject } of columns) {
     if (id === "" || seen.has(id)) continue;
     seen.add(id);
     kept.push({
@@ -39,6 +39,8 @@ export function addRowColumns(columns: readonly TableColumn[]): TableColumn[] {
       label: label || id,
       ...(type === "select" && options?.length ? { options } : {}),
       ...(type === "timestamp" && fill ? { default: fill } : {}),
+      ...(type === "score" && max !== undefined && isScoreMax(max) ? { max } : {}),
+      ...(type === "score" && reject ? { reject } : {}),
     });
   }
   return kept;
@@ -57,6 +59,8 @@ function readSavedColumns(value: unknown): TableColumn[] {
         ? { options: raw.options.filter((option): option is string => typeof option === "string") }
         : {}),
       ...(raw.default === "now" ? { default: "now" as const } : {}),
+      ...(typeof raw.max === "number" ? { max: raw.max } : {}),
+      ...(raw.reject === true ? { reject: true as const } : {}),
     })),
   );
 }

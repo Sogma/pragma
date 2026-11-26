@@ -106,6 +106,11 @@
   flex: none;
 }
 
+/* A score column's marks, at the node's density. */
+.flow-port-row.has-widget .score {
+  --score-mark-size: 12px;
+}
+
 /* Template Variables' per-slot name field: unboxed, unlike .has-widget's
    fallback control, since this text identifies which {{name}} placeholder the
    pin feeds rather than standing in for its value. A focus underline is the

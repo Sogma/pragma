@@ -76,6 +76,7 @@
 @import "./styles/data-table.css" layer(components);
 @import "./styles/media-field.css" layer(components);
 @import "./styles/color-chip.css" layer(components);
+@import "./styles/score.css" layer(components);
 @import "./styles/data-cards.css" layer(components);
 @import "./styles/class.css" layer(components);
 @import "./styles/class-toolbar.css" layer(components);

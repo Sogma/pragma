@@ -1,19 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TableColumn } from "../../../src/protocol/types.ts";
 import type { CommandContext } from "../../../web/services/commands.ts";
+import type { DialogService, PromptOptions } from "../../../web/services/dialog.ts";
 import { type FieldSettingHooks, fieldSettingItems } from "../../../web/services/fieldSettings.ts";
 import type { MenuItem } from "../../../web/services/menus.ts";
 
 const context = {} as CommandContext;
 
-// The pane's side: a change lands on the field as the file holds it.
-function hooks(field: TableColumn, offersOptions = false) {
+// The pane's side: a change lands on the field as the file holds it, and a
+// prompt answers `answer`.
+function hooks(field: TableColumn, offersOptions = false, answer: string | null = null) {
+  const prompt = vi.fn((_options: PromptOptions) => Promise.resolve(answer));
   const given: FieldSettingHooks = {
     change: (edit) => edit(field),
+    dialog: { prompt } as unknown as DialogService,
     mediaFolder: vi.fn(),
     ...(offersOptions ? { options: vi.fn() } : {}),
   };
-  return { given };
+  return { given, prompt };
 }
 
 const labels = (items: MenuItem[]) => items.map((item) => item.label);
@@ -28,6 +32,7 @@ describe("fieldSettingItems", () => {
     expect(of("media")).toEqual(["Show name", "Media folder…"]);
     expect(of("select")).toEqual(["Options…"]);
     expect(of("timestamp")).toEqual(["Fill new rows with the time added"]);
+    expect(of("score")).toEqual(["Max…", "Can be rejected"]);
     for (const type of ["checkbox", "color", "integer", "path", "text"] as const) expect(of(type)).toEqual([]);
   });
 
@@ -45,5 +50,20 @@ describe("fieldSettingItems", () => {
     expect(showName.checked?.(context, undefined)).toBe(true);
     showName.run?.(context, undefined);
     expect(field).not.toHaveProperty("showName");
+  });
+
+  it("lets a score be rejected, and asks for its max, leaving out the default", async () => {
+    const field: TableColumn = { id: "r", type: "score", label: "Rating" };
+    item(fieldSettingItems(field, hooks(field).given), "Can be rejected").run?.(context, undefined);
+    expect(field.reject).toBe(true);
+    const ten = hooks(field, false, "10");
+    item(fieldSettingItems(field, ten.given), "Max…").run?.(context, undefined);
+    const options = ten.prompt.mock.calls[0][0];
+    expect(options.value).toBe("5");
+    expect(options.validate?.("11")).toBe("Enter a whole number from 1 to 10.");
+    expect(options.validate?.("7")).toBeUndefined();
+    await vi.waitFor(() => expect(field.max).toBe(10));
+    item(fieldSettingItems(field, hooks(field, false, "5").given), "Max…").run?.(context, undefined);
+    await vi.waitFor(() => expect(field).not.toHaveProperty("max"));
   });
 });

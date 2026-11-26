@@ -4,13 +4,13 @@
 // the only validity feedback, on purpose: no separate message.
 //
 // A `timestamp` also gets the choice of filling new rows with the time they
-// are added.
+// are added, and a `score` its max and whether a value can be rejected.
 //
 // The opener owns everything around the form — appending it, placing it
 // beside its anchor, dismissing it on an outside click, and turning the
 // submitted values into its own record — so this module knows nothing about
 // Tables or Classes.
-import { parseFieldValueType } from "../../src/protocol/types.ts";
+import { isScoreMax, parseFieldValueType, SCORE_MAX, SCORE_MAX_LIMIT } from "../../src/protocol/types.ts";
 import { fieldTypeIcon, setFieldTypeIcon } from "./fieldTypeIcon.ts";
 
 export interface FieldPopoverSpec {
@@ -25,7 +25,8 @@ export interface FieldPopoverSpec {
   suggestions?: readonly string[];
   acceptsName?: (name: string) => boolean;
   // `options` is present only for a `select` type, and then never empty;
-  // `default` only for a `timestamp`.
+  // `default` only for a `timestamp`; `max` and `reject` only for a `score`,
+  // `max` left out at its default.
   onSubmit: (values: FieldPopoverValues) => void;
   onCancel: () => void;
 }
@@ -35,6 +36,8 @@ export interface FieldPopoverValues {
   type: string;
   options?: string[];
   default?: "now";
+  max?: number;
+  reject?: true;
 }
 
 export interface FieldPopover {
@@ -98,6 +101,24 @@ export function createFieldPopover(spec: FieldPopoverSpec): FieldPopover {
   nowField.hidden = true;
   nowField.append(nowInput, "Fill new rows with the time added");
 
+  const maxInput = document.createElement("input");
+  maxInput.type = "number";
+  maxInput.min = "1";
+  maxInput.max = String(SCORE_MAX_LIMIT);
+  maxInput.step = "1";
+  maxInput.value = String(SCORE_MAX);
+  maxInput.className = "form-input popover-input";
+  const maxField = document.createElement("label");
+  maxField.className = "popover-number";
+  maxField.hidden = true;
+  maxField.append("Max", maxInput);
+  const rejectInput = document.createElement("input");
+  rejectInput.type = "checkbox";
+  const rejectField = document.createElement("label");
+  rejectField.className = "popover-checkbox";
+  rejectField.hidden = true;
+  rejectField.append(rejectInput, "Can be rejected");
+
   const submit = document.createElement("button");
   submit.type = "button";
   submit.className = "action-button";
@@ -107,15 +128,19 @@ export function createFieldPopover(spec: FieldPopoverSpec): FieldPopover {
   // submitting is blocked until it has at least one.
   const syncValidity = (): void => {
     const hasOptions = typeSelect.value !== "select" || optionsInput.value.split(",").some((o) => o.trim());
+    const hasMax = typeSelect.value !== "score" || isScoreMax(Number(maxInput.value));
     const name = labelInput.value.trim();
-    submit.disabled = !name || !hasOptions || !(spec.acceptsName?.(name) ?? true);
+    submit.disabled = !name || !hasOptions || !hasMax || !(spec.acceptsName?.(name) ?? true);
   };
   labelInput.addEventListener("input", syncValidity);
   optionsInput.addEventListener("input", syncValidity);
+  maxInput.addEventListener("input", syncValidity);
   typeSelect.addEventListener("change", () => {
     setFieldTypeIcon(typeIcon, parseFieldValueType(typeSelect.value));
     optionsField.hidden = typeSelect.value !== "select";
     nowField.hidden = typeSelect.value !== "timestamp";
+    maxField.hidden = typeSelect.value !== "score";
+    rejectField.hidden = typeSelect.value !== "score";
     syncValidity();
   });
   syncValidity();
@@ -131,6 +156,9 @@ export function createFieldPopover(spec: FieldPopoverSpec): FieldPopover {
         .filter(Boolean);
     }
     if (type === "timestamp" && nowInput.checked) values.default = "now";
+    const max = Number(maxInput.value);
+    if (type === "score" && max !== SCORE_MAX) values.max = max;
+    if (type === "score" && rejectInput.checked) values.reject = true;
     spec.onSubmit(values);
   };
   submit.addEventListener("click", commit);
@@ -144,6 +172,6 @@ export function createFieldPopover(spec: FieldPopoverSpec): FieldPopover {
     }
   });
 
-  popover.append(labelInput, suggestions, typeField, optionsField, nowField, submit);
+  popover.append(labelInput, suggestions, typeField, optionsField, nowField, maxField, rejectField, submit);
   return { element: popover, focus: () => labelInput.focus() };
 }

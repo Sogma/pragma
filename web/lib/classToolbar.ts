@@ -746,10 +746,12 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
         .map((each) => each.key)
         .filter((key) => !taken.has(key)),
       acceptsName: (name) => canBeFieldKey(name) && !taken.has(name),
-      onSubmit: ({ label: key, type, options, default: fill }) => {
+      onSubmit: ({ label: key, type, options, default: fill, max, reject }) => {
         const field: TableColumn = { id: key, type: type as TableColumn["type"], label: fieldLabel(key) };
         if (options) field.options = options;
         if (fill) field.default = fill;
+        if (max !== undefined) field.max = max;
+        if (reject) field.reject = reject;
         deps.change((file, view) => {
           file.fields.push(field);
           file.card = cardWithField(file.card, key);

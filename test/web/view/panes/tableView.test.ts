@@ -187,6 +187,7 @@ describe("column add", () => {
       "Integer",
       "Media",
       "Path",
+      "Score",
       "Select",
       "Text",
       "Timestamp",

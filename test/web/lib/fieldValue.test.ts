@@ -68,6 +68,15 @@ describe("createFieldValue", () => {
     expect(unreadable.dataset.tooltip).toBe("Not a time Pragma can read, kept as written");
     expect(createFieldValue({ type: "timestamp" }, "").textContent).toBe("");
   });
+
+  it("draws a score as its marks, and a value that isn't one as the text it is", () => {
+    const score = createFieldValue({ type: "score" }, "3");
+    expect(score.querySelectorAll(".score-mark[data-lit]")).toHaveLength(3);
+    expect(score.querySelector("button")).toBeNull();
+    const unreadable = createFieldValue({ type: "score" }, "7");
+    expect(unreadable.querySelector(".score")).toBeNull();
+    expect(unreadable.textContent).toBe("7");
+  });
 });
 
 describe("createCell", () => {
@@ -105,5 +114,15 @@ describe("createCell", () => {
     button.click();
     expect(given.pickColor.mock.calls[1][1]).toBe("#445566");
     expect(onChange).toHaveBeenCalledWith("#445566");
+  });
+
+  it("edits a score with its marks, scaled by its column", () => {
+    const onChange = vi.fn();
+    const cell = createCell({ ...column("craft", "score"), max: 10 }, "", onChange, false, controls());
+    expect(cell.getAttribute("aria-label")).toBe("craft");
+    const marks = cell.querySelectorAll<HTMLButtonElement>(".score-mark");
+    expect(marks).toHaveLength(10);
+    marks[6].click();
+    expect(onChange).toHaveBeenCalledWith("7");
   });
 });

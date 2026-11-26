@@ -103,6 +103,7 @@ export const FIELD_VALUE_TYPES = [
   "integer",
   "media",
   "path",
+  "score",
   "select",
   "text",
   "timestamp",
@@ -124,8 +125,34 @@ export function parseFieldValueType(raw: string | null | undefined): FieldValueT
 export type FieldDefinition = Omit<TableColumn, "id" | "label">;
 
 /** The settings one type owns, which a change of type drops. */
-const FIELD_SETTINGS = ["options", "mediaFolder", "showName", "default"] as const;
+const FIELD_SETTINGS = ["options", "mediaFolder", "showName", "default", "max", "reject"] as const;
 type FieldSetting = (typeof FIELD_SETTINGS)[number];
+
+/** A score field's scale where it names none, and the most it may name. */
+export const SCORE_MAX = 5;
+export const SCORE_MAX_LIMIT = 10;
+
+/** The top of a score field's scale. */
+export function scoreMax(field: FieldDefinition): number {
+  return field.max ?? SCORE_MAX;
+}
+
+/** Whether `max` can top a score field's scale. */
+export function isScoreMax(max: number): boolean {
+  return Number.isInteger(max) && max >= 1 && max <= SCORE_MAX_LIMIT;
+}
+
+/** A score value: its number of marks, 0 for none (blank or `0`), or -1 for
+ * rejected where the field allows it. Undefined for anything else, which a
+ * host shows as written and keeps. */
+export function scoreOf(text: string, field: FieldDefinition): number | undefined {
+  const written = text.trim();
+  if (written === "") return 0;
+  if (!/^-?\d+$/.test(written)) return undefined;
+  const score = Number(written);
+  if (score === -1) return field.reject ? -1 : undefined;
+  return score >= 0 && score <= scoreMax(field) ? score : undefined;
+}
 
 /** What a field type means wherever a column or field has it. */
 interface FieldTypeRules {
@@ -191,6 +218,15 @@ export const FIELD_TYPES: { readonly [Type in FieldValueType]: FieldTypeRules } 
     stored: textOrNone,
   },
   path: { label: "Path", port: "text", path: true, settings: [], empty: () => "", fits: isText, stored: textOrNone },
+  score: {
+    label: "Score",
+    port: "number",
+    path: false,
+    settings: ["max", "reject"],
+    empty: () => "",
+    fits: (value, field) => typeof value === "number" && scoreOf(String(value), field) !== undefined,
+    stored: (text) => (/^-?\d+$/.test(text) ? Number(text) : textOrNone(text)),
+  },
   select: {
     label: "Select",
     port: "text",
@@ -261,6 +297,11 @@ export interface TableColumn {
   // Only meaningful when type is "timestamp": "now" fills a new row's cell
   // with the moment the row is added. Absent leaves it blank.
   default?: "now";
+  // Only meaningful when type is "score": the top of its scale, a whole
+  // number from 1 to SCORE_MAX_LIMIT, absent meaning SCORE_MAX; and whether
+  // a value may be -1, rejected.
+  max?: number;
+  reject?: true;
   // A `data-type` this build doesn't know, which the column reads as text,
   // and the header's attributes it doesn't read, in file order: both written
   // back as found, so a later version's column survives this one's save.
