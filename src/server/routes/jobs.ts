@@ -1,4 +1,4 @@
-// The open document's paid jobs, for its Tools tab and the runs waiting on
+// The open document's async jobs, for its Tools tab and the runs waiting on
 // them: what is still going, and what ended since a window last showed it.
 // Polled while a job is going, as the Console's feed is, since pragma has no
 // server-to-browser channel. A poll names the jobs a run there waits on; a

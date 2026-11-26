@@ -1,4 +1,4 @@
-// The open Flow's runs and paid jobs in the assistant's Tools tab: Running,
+// The open Flow's runs and async jobs in the assistant's Tools tab: Running,
 // this window's runs and any other job still going, and Finished, the jobs
 // that ended while this window watched or since it last looked. The jobs
 // come from the window's jobs feed, which the waiting runs share.

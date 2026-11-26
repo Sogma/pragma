@@ -586,7 +586,7 @@ export async function fetchActivity(since?: number): Promise<ActivityResponse> {
   return request<ActivityResponse>(`/api/activity${query}`, { fallback: "Failed to load activity" });
 }
 
-/** The open document's paid jobs: those still going, and those ended since a
+/** The open document's async jobs: those still going, and those ended since a
  * window last showed them (src/server/routes/jobs.ts). `waiting` names the
  * jobs a run in this window waits on. */
 export async function fetchJobs(path: string, waiting: readonly string[] = []): Promise<JobsResponse> {
@@ -604,7 +604,7 @@ export async function markJobsShown(ids: readonly string[], taken: readonly stri
   });
 }
 
-/** Cancels a paid job: the host never saves its result. */
+/** Cancels an async job: the host never saves its result. */
 export async function cancelJob(id: string): Promise<void> {
   await requestVoid("/api/jobs/cancel", {
     method: "POST",

@@ -1957,7 +1957,7 @@ export interface VideoReferencePayload {
   digest: string;
 }
 
-// A generation that may start a paid job, sent with an id of the caller's
+// A generation that may start an async job, sent with an id of the caller's
 // own for the start. The job carries it from the moment it is recorded, so
 // the caller can tell its job from others' before the start answers.
 export interface JobStartRequestBody {
@@ -2079,7 +2079,7 @@ export interface JobSettings {
   duration?: number;
 }
 
-/** One paid job of the open document, for its Tools tab and the runs that
+/** One async job of the open document, for its Tools tab and the runs that
  * wait on it: still going, or ended and not yet shown. `file` is the saved
  * clip's path as a tab names it and `result` as the node hands it on;
  * `problem` is what keeps a live job from finishing, `delivered` an outcome

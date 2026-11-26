@@ -116,7 +116,7 @@ async function savedJob(
   return { ...job, result: job.result };
 }
 
-/** Called as a paid job's start is sent, with the id the start goes with,
+/** Called as an async job's start is sent, with the id the start goes with,
  * which the job carries from the moment it is recorded; the function it
  * returns hears the job's id once the host answers, or nothing when no job
  * started. */

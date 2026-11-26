@@ -9,7 +9,7 @@ import type { ResolvedVideoModel } from "../../src/server/mediaModels.ts";
 import { tempDir } from "../support/isolation.ts";
 import { memoryJobStore } from "../support/memoryJobStore.ts";
 
-// The host's half of a paid job: checking it on its own schedule, saving its
+// The host's half of an async job: checking it on its own schedule, saving its
 // clip with or without a run waiting, picking unfinished jobs up at startup,
 // and keeping a job through what goes wrong. A clock the runner's sleeps move
 // forward stands in for the hours a job can take.

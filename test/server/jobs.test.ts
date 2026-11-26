@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createFileJobStore, type JobRecord } from "../../src/server/jobs.ts";
 import { tempDir } from "../support/isolation.ts";
 
-// The paid jobs a host started, one file each beside config.json until the
+// The async jobs a host started, one file each beside config.json until the
 // result is saved and shown.
 
 let dir: string;

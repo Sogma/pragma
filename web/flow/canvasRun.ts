@@ -4,7 +4,7 @@
 // unless a newer run has reached the node, and moves on a node's value once
 // the node has run (docs/protocol.md, Execution).
 //
-// A cancelled run shows nothing more, and cancels the paid jobs it started.
+// A cancelled run shows nothing more, and cancels the async jobs it started.
 import { upstreamGraph } from "../../src/protocol/flowActions.ts";
 import { FLOW_NODE_REGISTRY, moveOnAfterRun, nodesLeftOut, writeTake } from "../../src/protocol/flowNodes.ts";
 import { type RunHooks, runFlow } from "../../src/protocol/flowRuntime.ts";
@@ -27,7 +27,7 @@ export interface CanvasRunInfo {
   number: number;
   flowPath: string;
   startedAt: number;
-  // The paid jobs it started, the id each of its starts went with, whether
+  // The async jobs it started, the id each of its starts went with, whether
   // one is starting, and the nodes running in it now, by label.
   jobs: readonly string[];
   starts: readonly string[];

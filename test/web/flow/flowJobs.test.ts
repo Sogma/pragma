@@ -8,7 +8,7 @@ import type { ConfirmOptions } from "../../../web/services/dialog.ts";
 import type { ModelLists } from "../../../web/services/modelLists.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
-// The open Flow's paid jobs in the Tools tab: Running and Finished, a notice
+// The open Flow's async jobs in the Tools tab: Running and Finished, a notice
 // for a clip saved with nobody waiting, and the ended jobs said shown.
 
 const live = (id: string, fields: Partial<JobView> = {}): JobView => ({

@@ -50,7 +50,7 @@ export interface EditorPane {
   // can keep none, so the tab says so; `data-empty` while it keeps none,
   // which dims the tab. Absent for a kind that never does.
   readonly properties?: HTMLElement;
-  // The open document's paid jobs, mounted in the assistant's Tools tab
+  // The open document's async jobs, mounted in the assistant's Tools tab
   // while the pane is, like the above. Carries `data-empty` while it has
   // none, which dims the tab unless the tab's own parts show something.
   // Absent for a kind that starts none.

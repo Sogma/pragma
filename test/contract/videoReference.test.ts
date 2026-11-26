@@ -11,7 +11,7 @@ import { type HiggsfieldStandIn, startHiggsfieldStandIn } from "../support/higgs
 import { startTestServer, type TestServer } from "../support/testServer.ts";
 
 // The generate-video route rebuilds a request field by field, so a field it
-// doesn't read never reaches the server half, and a paid job runs without
+// doesn't read never reaches the server half, and an async job runs without
 // it. A request shaped as the browser sends one shows which clip reaches the
 // provider, and how.
 //

@@ -1,5 +1,5 @@
 // A note's toolkit runs in the Tools tab, under its buttons: Running, each
-// run with the paid job it waits on and Cancel, and Finished, the jobs those
+// run with the async job it waits on and Cancel, and Finished, the jobs those
 // runs started that ended. A job is listed by the Flow that ran it, so this
 // follows each such Flow's jobs feed while a run of it, or a job one left,
 // goes on, and says shown only the jobs it listed.
@@ -52,7 +52,7 @@ export interface ToolkitRunStart {
 export interface ToolkitRuns {
   /** The list, `data-empty` while it has nothing to show. */
   readonly element: HTMLElement;
-  /** Lists a run from its click: the hook that hears of its paid jobs, what
+  /** Lists a run from its click: the hook that hears of its async jobs, what
    * to call once it ends, and whether the person cancelled it. */
   add(run: ToolkitRunStart): { jobStarting: JobStarting; ended(): void; cancelled(): boolean };
   show(document: string | undefined): void;

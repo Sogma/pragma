@@ -6,7 +6,7 @@ import { createToolkitRuns, type ToolkitRuns } from "../../../web/flow/toolkitRu
 import type { ConfirmOptions } from "../../../web/services/dialog.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
-// A note's toolkit runs under its buttons: each with the paid job it waits
+// A note's toolkit runs under its buttons: each with the async job it waits
 // on, Cancel, the job under Finished once it ends, and a stopped run's job
 // listed until it ends.
 

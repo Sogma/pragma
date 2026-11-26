@@ -1,4 +1,4 @@
-// The host's half of a paid job: it waits on every recorded job and saves
+// The host's half of an async job: it waits on every recorded job and saves
 // the result whether or not a run still waits, unless the person cancels the
 // job, and a host's startup picks up the unfinished ones (docs/architecture.md,
 // Space identity and state ownership).

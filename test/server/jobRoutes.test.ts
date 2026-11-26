@@ -6,7 +6,7 @@ import { createFileJobStore, installJobStore, type JobRecord, type JobStore } fr
 import { createSpaceApiRoutes, type SpaceApp } from "../../src/server/routes.ts";
 import { isolateConfig, tempSpace } from "../support/isolation.ts";
 
-// /api/jobs: the open document's paid jobs for its Tools tab, and the ended
+// /api/jobs: the open document's async jobs for its Tools tab, and the ended
 // ones a window has shown, which the host then forgets.
 
 let space: string;

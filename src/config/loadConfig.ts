@@ -812,7 +812,7 @@ export function globalHistoryDir(spaceId: string): string {
   return path.join(globalConfigDir(), "history", encodeURIComponent(spaceId));
 }
 
-/** Where the paid jobs this install started are kept until their results
+/** Where the async jobs this install started are kept until their results
  * land: host state, never a cache, since losing one loses work paid for. */
 export function globalJobsDir(): string {
   return path.join(globalConfigDir(), "jobs");

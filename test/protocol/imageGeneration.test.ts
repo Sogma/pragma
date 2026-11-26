@@ -35,7 +35,7 @@ describe("callImageModel", () => {
     expect(calls[0].files).toEqual([expect.objectContaining({ type: "file", mediaType: "image/png" })]);
   });
 
-  it("never retries, since every attempt is a paid job", async () => {
+  it("never retries, since every attempt may be charged", async () => {
     let attempts = 0;
     const model = new MockImageModelV4({
       doGenerate: async () => {

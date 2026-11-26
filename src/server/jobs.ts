@@ -1,4 +1,4 @@
-// The paid jobs a host started at a provider, kept as host state until each
+// The async jobs a host started at a provider, kept as host state until each
 // result is saved and shown (docs/architecture.md, Space identity and state
 // ownership). One file per job, named by the job's own id, so two processes
 // sharing the config directory never rewrite each other's records.
@@ -16,7 +16,7 @@ const JOB_STAGES = ["starting", "running", "saved", "failed", "cancelled"] as co
 export type JobStage = (typeof JOB_STAGES)[number];
 export type JobKind = "video" | "image";
 
-/** One paid job, shaped as a row: flat fields, and what the provider said
+/** One async job, shaped as a row: flat fields, and what the provider said
  * in one nested field. */
 export interface JobRecord {
   id: string;

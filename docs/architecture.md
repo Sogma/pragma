@@ -141,7 +141,7 @@ Derived data is rebuildable host cache outside every root. The browser decodes t
 
 Each root's index trusts content only while modification time, size and inode match. Queries check one file, or refresh and check the whole root for root-wide queries. Links resolve against that listing. A host with other storage installs its own index before anything asks.
 
-Paid jobs are recorded at submission and resume at startup without resubmission. Unless canceled, results save into the approved folder even after the initiating run ends.
+Async jobs are recorded at submission and resume at startup without resubmission. Unless canceled, results save into the approved folder even after the initiating run ends.
 
 ## Document writes and reference integrity
 
