@@ -1,11 +1,13 @@
 import type { Context, Hono } from "hono";
 import type {
   AddRowResponse,
+  GenerateImageRequestBody,
   GenerateImageRouteResponse,
   GenerateOptionsRequestBody,
   GenerateOptionsResponse,
   GenerateRequestBody,
   GenerateResponse,
+  GenerateVideoRequestBody,
   GenerateVideoRouteResponse,
   ReferenceImagePayload,
   SandboxAddRowRequestBody,
@@ -19,7 +21,7 @@ import type {
   SandboxWriteRequestBody,
   VideoReferencePayload,
 } from "../../protocol/api.ts";
-import { VIDEO_REFERENCES_MAX } from "../../protocol/flowNodes.ts";
+import { modelSettingValues, VIDEO_REFERENCES_MAX } from "../../protocol/flowNodes.ts";
 import { localDay, parseLocalDay } from "../../protocol/localDay.ts";
 import { grantCapability, revokeCapability, setUnattended } from "../grants.ts";
 import { jobRunner } from "../jobRunner.ts";
@@ -38,7 +40,7 @@ import {
   startSandboxGenerateImage,
   startSandboxGenerateVideo,
 } from "../sandbox.ts";
-import { type Incoming, type RouteContext, sendDispatchError, sendTextError } from "./shared.ts";
+import { type EveryField, type Incoming, type RouteContext, sendDispatchError, sendTextError } from "./shared.ts";
 
 // Every /api/sandbox/* body as it arrives: the union of every route's fields,
 // each validated by its handler, since a body is whatever the client sent.
@@ -244,7 +246,7 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
         prefix: typeof request.prefix === "string" ? request.prefix : undefined,
         prefixTyped: typeof request.prefixTyped === "string" ? request.prefixTyped : undefined,
         startId: readStartId(request.startId),
-      },
+      } satisfies EveryField<GenerateImageRequestBody>,
       c.req.raw.signal,
     );
     if ("found" in started) return c.json<GenerateImageRouteResponse>(started.found);
@@ -281,8 +283,9 @@ export function mountSandboxRoutes(app: Hono, { spaceRoot }: RouteContext): void
       newTake: request.newTake === true || undefined,
       prefix: optional(request.prefix),
       prefixTyped: optional(request.prefixTyped),
+      modelSettings: modelSettingValues(request.modelSettings),
       startId: readStartId(request.startId),
-    });
+    } satisfies EveryField<GenerateVideoRequestBody>);
     if ("found" in started) return c.json<GenerateVideoRouteResponse>(started.found);
     await jobRunner().watched([started.job.id]);
     return c.json<GenerateVideoRouteResponse>({ job: started.job.id, take: started.take, resumed: started.resumed });

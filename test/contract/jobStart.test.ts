@@ -10,14 +10,15 @@ import { grantCapability } from "../../src/server/grants.ts";
 import { type HiggsfieldStandIn, startHiggsfieldStandIn } from "../support/higgsfieldStandIn.ts";
 import { startTestServer, type TestServer } from "../support/testServer.ts";
 
-// The generation routes rebuild a request field by field, so a start id they
-// don't read never reaches the job, and the Tools tab lists a job that is
-// starting beside its own run. Requests shaped as the browser sends them
-// show the id coming back on each kind of job.
+// The generation routes rebuild a request field by field, so a field they
+// don't read never reaches the job: without its start id the Tools tab lists
+// a starting job beside its own run, and without the model's own settings
+// the provider makes the clip on its defaults. Requests shaped as the
+// browser sends them show each arriving.
 //
 // As in the video reference contract, the configured server is the
 // adapter's own host, and this process's requests to it go to the stand-in.
-describe("API contract: a job's start id", () => {
+describe("API contract: what a job's start carries", () => {
   const FLOW = "start.flow.html";
   const HOSTED = "https://mcp.higgsfield.ai/mcp";
   let testServer: TestServer;
@@ -112,5 +113,16 @@ describe("API contract: a job's start id", () => {
     });
     expect(job).toBeDefined();
     expect(job).not.toHaveProperty("startId");
+  });
+
+  // Audio is on by default in the recorded catalog, so a node stores it off.
+  it("hands a clip's model settings to the provider", async () => {
+    const prompt = "Rain on a tin roof";
+    await start("generate-video", {
+      prompt,
+      model: "higgsfield/seedance_2_5",
+      modelSettings: { generate_audio: false },
+    });
+    expect(standIn.generateCalls.find((call) => call.prompt === prompt)).toMatchObject({ generate_audio: false });
   });
 });

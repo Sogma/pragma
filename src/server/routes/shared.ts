@@ -83,3 +83,8 @@ export function answerError(error: unknown, c: Context): Response {
 // A request body as it arrives, for a handler that validates before it
 // trusts: the contract's field names, each `unknown` until narrowed.
 export type Incoming<T> = { [K in keyof T]?: unknown };
+
+// A body as a handler hands it on, naming every field of the contract: one
+// added to the contract fails to compile until the handler reads it, rather
+// than being dropped from every request without a sound.
+export type EveryField<T> = { [K in keyof Required<T>]: T[K] };
