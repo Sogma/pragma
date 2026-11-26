@@ -140,6 +140,36 @@ describe(".table.html round-tripping", () => {
     expect(parseTableFile(onText)?.columns[0].showName).toBeUndefined();
   });
 
+  // A later version's column survives this one's save: its type reads as
+  // text meanwhile, and what its header says that this build doesn't read
+  // is written back after what it does.
+  it("keeps a type and attributes it doesn't read, and writes them back as found", () => {
+    const blank = serializeTableFile({ version: "1.0", columns: [{ id: "a", type: "text", label: "A" }], rows: [] });
+    const html = blank.replace(
+      '<th data-field="a" data-type="text">A</th>',
+      '<th data-field="a" data-type="stars" data-min="0" data-show-name data-note="a &amp; b">A</th>',
+    );
+    const read = parseTableFile(html);
+    expect(read?.columns[0]).toMatchObject({ type: "text", unknownType: "stars" });
+    expect(read?.columns[0].showName).toBeUndefined();
+    expect(read && serializeTableFile(read)).toBe(html);
+  });
+
+  it("writes an attribute it reads once, over one of that name it didn't", () => {
+    const blank = serializeTableFile({
+      version: "1.0",
+      columns: [{ id: "due", type: "timestamp", label: "Due" }],
+      rows: [],
+    });
+    const read = parseTableFile(blank.replace('data-type="timestamp"', 'data-type="timestamp" data-default="later"'));
+    expect(read?.columns[0].default).toBeUndefined();
+    if (!read) throw new Error("unreadable");
+    read.columns[0].default = "now";
+    expect(serializeTableFile(read)).toContain(
+      '<th data-field="due" data-type="timestamp" data-default="now">Due</th>',
+    );
+  });
+
   // Written only once arranged, so a Table that never had a card saves
   // byte-identical; an emptied card stays an empty block, not none.
   it("round-trips a card block, and writes nothing without one", () => {

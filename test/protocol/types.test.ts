@@ -294,6 +294,18 @@ describe("retypeField", () => {
     retypeField(status, "select");
     expect(status.options).toEqual(["a"]);
   });
+
+  it("drops a type and attributes this build couldn't read", () => {
+    const field: TableColumn = {
+      id: "a",
+      type: "text",
+      label: "A",
+      unknownType: "stars",
+      unknownAttributes: [["data-min", "0"]],
+    };
+    retypeField(field, "integer");
+    expect(field).toEqual({ id: "a", type: "integer", label: "A" });
+  });
 });
 
 // docs/protocol.md's Versioning rule: majors only, and lenient about

@@ -23,14 +23,31 @@ export function metadataBlock(metadata: readonly MetadataEntry[] | undefined): s
   return `  <dl data-role="metadata">\n${(metadata ?? []).map(metadataRow).join("")}  </dl>`;
 }
 
+// A name an attribute can be written with: one holding a quote, `>` or `=`
+// would break the markup around it.
+const ATTRIBUTE_NAME = /^[^\s"'<>/=]+$/;
+
 /** One `<th>` of a `<thead>` of field definitions, which a Class's
- * fields share with a Table's columns. */
+ * fields share with a Table's columns. An attribute this build didn't read
+ * follows the ones it writes, unless it writes one of that name. */
 export function fieldHeaderCell(column: TableColumn): string {
-  const options = column.options?.length ? ` data-options="${escapeHtml(column.options.join(","))}"` : "";
-  const mediaFolder = column.mediaFolder ? ` data-media-folder="${escapeHtml(column.mediaFolder)}"` : "";
-  const showName = column.showName ? " data-show-name" : "";
-  const defaultValue = column.default ? ` data-default="${escapeHtml(column.default)}"` : "";
-  return `        <th data-field="${escapeHtml(column.id)}" data-type="${escapeHtml(column.type)}"${options}${mediaFolder}${showName}${defaultValue}>${escapeHtml(column.label)}</th>\n`;
+  // An undefined value is written bare, as a boolean attribute.
+  const attributes: [string, string | undefined][] = [
+    ["data-field", column.id],
+    ["data-type", column.unknownType ?? column.type],
+  ];
+  if (column.options?.length) attributes.push(["data-options", column.options.join(",")]);
+  if (column.mediaFolder) attributes.push(["data-media-folder", column.mediaFolder]);
+  if (column.showName) attributes.push(["data-show-name", undefined]);
+  if (column.default) attributes.push(["data-default", column.default]);
+  const written = new Set(attributes.map(([name]) => name));
+  for (const [name, value] of column.unknownAttributes ?? []) {
+    if (ATTRIBUTE_NAME.test(name) && !written.has(name.toLowerCase())) attributes.push([name, value || undefined]);
+  }
+  const text = attributes
+    .map(([name, value]) => (value === undefined ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`))
+    .join("");
+  return `        <th${text}>${escapeHtml(column.label)}</th>\n`;
 }
 
 function cardItem(tile: CardTile): string {

@@ -98,23 +98,36 @@ export function readCardBlock(list: HTMLElement | null | undefined): CardTile[] 
   });
 }
 
+// What a header says whatever its column's type.
+const READ_ATTRIBUTES = ["data-field", "data-type", "data-options", "data-media-folder"];
+
 /** A `<thead>`'s columns, the field definitions a Table and a Class
  * share, so the two kinds read them alike. */
 export function readFieldColumns(thead: HTMLElement | null): TableColumn[] {
   if (!thead) return [];
   return thead.querySelectorAll("th").map((th) => {
-    const type = th.getAttribute("data-type");
+    const written = th.getAttribute("data-type");
     const optionsAttr = th.getAttribute("data-options");
     const column: TableColumn = {
       id: th.getAttribute("data-field") || "",
-      type: parseFieldValueType(type),
+      type: parseFieldValueType(written),
       label: th.textContent.trim(),
     };
+    if (written && written !== column.type) column.unknownType = written;
     if (optionsAttr) column.options = optionsAttr.split(",").map((option) => option.trim());
     const mediaFolder = th.getAttribute("data-media-folder");
     if (mediaFolder) column.mediaFolder = mediaFolder;
-    if (column.type === "media" && th.hasAttribute("data-show-name")) column.showName = true;
-    if (column.type === "timestamp" && th.getAttribute("data-default") === "now") column.default = "now";
+    const read = new Set(READ_ATTRIBUTES);
+    if (column.type === "media" && th.hasAttribute("data-show-name")) {
+      column.showName = true;
+      read.add("data-show-name");
+    }
+    if (column.type === "timestamp" && th.getAttribute("data-default") === "now") {
+      column.default = "now";
+      read.add("data-default");
+    }
+    const unknown = Object.entries(th.attributes).filter(([name]) => !read.has(name.toLowerCase()));
+    if (unknown.length > 0) column.unknownAttributes = unknown;
     return column;
   });
 }

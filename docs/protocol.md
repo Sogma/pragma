@@ -470,6 +470,8 @@ Each `<th>` in `<thead>` defines one column. Its text is the label. Renaming a c
 | `data-show-name` | For `media`, shows the file's name beside its picture. When absent, only the picture is shown. |
 | `data-default` | For `timestamp`, `"now"` gives a new row the instant it is added. Absent means blank. No other value is defined, and the attribute has no meaning on another type. |
 
+A writer keeps a `data-type` it doesn't know, and any attribute of a `<th>` it doesn't read, writing them back as found.
+
 #### Table rows
 
 Each `<tbody><tr>` is a row. Cells correspond to columns by position, and each `<td>`'s text is its value. Rows have no independent id; a Table needing one can declare an ordinary column for it.

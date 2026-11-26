@@ -234,11 +234,14 @@ export const FIELD_VALUE_TYPE_OPTIONS: { value: FieldValueType; label: string }[
 }));
 
 /** Changes a field's type, dropping the settings only its old type had, so
- * the file never carries options on a checkbox or a drop folder on text. */
+ * the file never carries options on a checkbox or a drop folder on text.
+ * What this build couldn't read went with the old type too. */
 export function retypeField(field: TableColumn, type: FieldValueType): void {
   field.type = type;
   const kept: readonly FieldSetting[] = FIELD_TYPES[type].settings;
   for (const setting of FIELD_SETTINGS) if (!kept.includes(setting)) delete field[setting];
+  delete field.unknownType;
+  delete field.unknownAttributes;
 }
 
 export interface TableColumn {
@@ -258,6 +261,11 @@ export interface TableColumn {
   // Only meaningful when type is "timestamp": "now" fills a new row's cell
   // with the moment the row is added. Absent leaves it blank.
   default?: "now";
+  // A `data-type` this build doesn't know, which the column reads as text,
+  // and the header's attributes it doesn't read, in file order: both written
+  // back as found, so a later version's column survives this one's save.
+  unknownType?: string;
+  unknownAttributes?: [name: string, value: string][];
 }
 
 /** One record, `<tr>` in the file. `values` are always strings — a
