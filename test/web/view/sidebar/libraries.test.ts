@@ -1191,11 +1191,31 @@ describe("a writable library's tree", () => {
     expect(readOnly.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node: rootedFolder });
   });
 
-  it("picks one row at a time and takes no Delete key", async () => {
+  it("picks several rows and takes the Delete key where it writes, one at a time where it can't", async () => {
+    const writable = writableDeps();
+    await expanded(writable);
+    expect(contextOf(writable).selectsMany).toBe(true);
+    expect(contextOf(writable).onDelete).toBeTypeOf("function");
+
+    const readOnly = deps();
+    await expanded(readOnly);
+    expect(contextOf(readOnly).selectsMany).toBe(false);
+    expect(contextOf(readOnly).onDelete).toBeUndefined();
+  });
+
+  it("opens the menu of a right-clicked selection with every row rooted", async () => {
     const d = writableDeps();
     await expanded(d);
-    expect(contextOf(d).selectsMany).toBe(false);
-    expect(contextOf(d).onDelete).toBeUndefined();
+    const other = { name: "b.md", path: "b.md", type: "file" } as SpaceTreeNode;
+    contextOf(d).onContextMenu(new MouseEvent("contextmenu"), node, [node, other]);
+    expect(d.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), {
+      root: one,
+      node: { ...node, path: "lib:one/notes/a.md" },
+      selection: [
+        { ...node, path: "lib:one/notes/a.md" },
+        { ...other, path: "lib:one/b.md" },
+      ],
+    });
   });
 
   // The gesture the feature exists for: a take dragged off the desktop

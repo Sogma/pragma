@@ -236,13 +236,12 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
       onOpenDirectory: (rootedPath) => void deps.tabs().openFolder(rootedPath),
       // A read-only library's file rows offer nothing, so only its folders
       // open a menu — the one that opens them as a gallery.
-      onContextMenu: (event, node) => {
-        if (writable || node.type === "directory") deps.openTreeMenu(event, { root, node: rootedNode(root, node) });
+      onContextMenu: (event, node, selection) => {
+        if (!writable && node.type !== "directory") return;
+        const rooted = (each: SpaceTreeNode) => rootedNode(root, each);
+        deps.openTreeMenu(event, { root, node: rooted(node), ...(selection && { selection: selection.map(rooted) }) });
       },
       ...deps.treeActions.editing(root),
-      // A library's rows are picked one at a time, and Delete takes none.
-      selectsMany: false,
-      onDelete: undefined,
       isCollapsed: deps.collapsed.isCollapsed,
       onToggleCollapse: (rootedPath, collapsed) => {
         deps.collapsed.setCollapsed(rootedPath, collapsed);
@@ -922,7 +921,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     openTreeMenu: (event, target) => {
       event.preventDefault();
       deps.contextMenu.open({
-        menu: "tree",
+        menu: target.selection ? "tree-selection" : "tree",
         arg: target,
         at: { x: event.clientX, y: event.clientY },
         ariaLabel: "Library actions",

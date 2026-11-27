@@ -489,6 +489,25 @@ describe("a library's tree", () => {
     expect(confirm.mock.calls[2][0]).toMatchObject({ warning: "Everything inside it will be deleted." });
   });
 
+  it("deletes several from the Delete key, naming them and the library's trash", async () => {
+    const { actions, confirm, deps } = harness();
+    actions.editing(one).onDelete?.([file("notes/a.md"), folder("batch")]);
+    await vi.waitFor(() => expect(deps.onDeleted).toHaveBeenCalledTimes(2));
+    expect(confirm.mock.calls[0][0]).toMatchObject({
+      title: "Move 2 Items to Trash",
+      message: 'These 2 items will be moved to the .trash folder inside this library: "a.md" and "batch".',
+      warning: "Everything inside the folder among them will be moved too.",
+    });
+    expect(postDeleteEntry).toHaveBeenCalledWith("lib:one/batch", true);
+  });
+
+  it("picks one row at a time in a library that takes no writes", () => {
+    const { actions } = harness();
+    expect(actions.editing(one)).toMatchObject({ selectsMany: true });
+    setLibraryPermissions([{ ...writable, access: "read-only" } as LibraryRow]);
+    expect(actions.editing(one)).toMatchObject({ selectsMany: false, onDelete: undefined });
+  });
+
   it("deletes into the library, re-lists its tree, then lets go of the path", async () => {
     const { actions, libraryTree, tree, deps } = harness();
     await actions.confirmDelete([libraryNote]);

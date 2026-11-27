@@ -250,11 +250,14 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
 
   function editing(root: PathRoot = "space"): TreeEditing {
     const rooted = (node: SpaceTreeNode) => rootedNode(root, node);
+    // Rows are picked together to move or delete them, so a tree whose root
+    // takes no writes picks one at a time and takes no Delete key.
+    const writes = isWritableRoot(root);
     return {
       onDragStart: (nodes) => drag.start(nodes.map(rooted)),
       onDrop: (event, node, zone) => handleDrop(event, rooted(node), zone, root),
-      selectsMany: true,
-      onDelete: (nodes) => void confirmDelete(nodes.map(rooted)),
+      selectsMany: writes,
+      onDelete: writes ? (nodes) => void confirmDelete(nodes.map(rooted)) : undefined,
       editingPath,
       onRenameSubmit: (node, rawValue) => commitRename(rooted(node), rawValue),
       onRenameCancel: cancelRename,
