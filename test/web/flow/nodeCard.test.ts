@@ -64,6 +64,23 @@ function setup(edges: FlowEdgeInstance[] = []) {
 const contextMenuOn = (el: Element) =>
   el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 5, clientY: 6 }));
 
+describe("an output a For Each zone gives per item", () => {
+  it("is offered no Expose, but an old exposure can still be taken back", () => {
+    const { cards, deps, graph } = setup([
+      { id: "e1", source: "forEach-1", sourcePort: "item", target: "joinText-1", targetPort: "list" },
+    ]);
+    const field = node("joinText", { separator: ", " });
+    graph.nodes.push(node("forEach"), field);
+    const label = cards.build(field).querySelector(".flow-node-outputs .flow-port-label") as HTMLElement;
+    contextMenuOn(label);
+    expect(vi.mocked(deps.menus.openExposeMenu).mock.calls.at(-1)?.[4]).toBeUndefined();
+
+    field.exposed = ["text"];
+    contextMenuOn(label);
+    expect(vi.mocked(deps.menus.openExposeMenu).mock.calls.at(-1)?.[4]).toEqual(expect.any(Function));
+  });
+});
+
 describe("For Each End's slots", () => {
   const lists = (el: HTMLElement) =>
     [...el.querySelectorAll(".flow-node-outputs .flow-port-row.output")].map((row) => [
@@ -938,7 +955,7 @@ describe("a Choice node's card", () => {
     const el = cards.build(flowNode);
     contextMenuOn(el.querySelector(".flow-node-config .flow-config-field") as HTMLElement);
     const toggle = vi.mocked(deps.menus.openExposeMenu).mock.calls[0][4];
-    toggle();
+    toggle?.();
     expect(flowNode.exposed).toEqual(["text"]);
     const pinLabel = el.querySelector(".flow-node-outputs .flow-port-label") as HTMLElement;
     expect(pinLabel.classList.contains("exposed")).toBe(true);
@@ -1039,7 +1056,7 @@ describe("an Int node's card", () => {
     contextMenuOn(field);
     const [, , portType, exposed, toggle] = vi.mocked(deps.menus.openExposeMenu).mock.calls[0];
     expect([portType, exposed]).toEqual(["number", false]);
-    toggle();
+    toggle?.();
     expect(flowNode.exposed).toEqual(["value"]);
     const label = field.querySelector(".flow-config-label") as HTMLElement;
     expect(label.classList.contains("exposed") && label.classList.contains("type-number")).toBe(true);

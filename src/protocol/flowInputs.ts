@@ -9,6 +9,7 @@ import {
   nodePorts,
   nodesLeftOut,
 } from "./flowNodes.ts";
+import { perItemNodes } from "./flowZones.ts";
 import type { FlowGraph, FlowNodeInstance } from "./types.ts";
 
 export type FlowRunInputType = "text" | "boolean" | "integer" | "path" | "model";
@@ -96,7 +97,9 @@ export function flowRunInputs(graph: FlowGraph): FlowRunInput[] {
 }
 
 export function flowRunOutputs(graph: FlowGraph): FlowRunOutput[] {
+  const perItem = perItemNodes(graph);
   return exposedNodes(graph).flatMap((node) => {
+    if (perItem.has(node.id)) return [];
     const outputs = nodePorts(node).outputs;
     return (node.exposed ?? []).flatMap((id) => {
       const port = isFieldOutput(node, id) ? undefined : outputs.find((candidate) => candidate.id === id);

@@ -120,7 +120,13 @@ function setUp(graph: FlowGraph, path = "flows/a.flow.html") {
     node: (id: string) => shown.nodes.find((each) => each.id === id),
     nodeEls,
     cards: { clearRunState: vi.fn(), showRunResult: vi.fn() },
-    appMode: { clearResults: vi.fn(), showResults: vi.fn(), showConfig: vi.fn(), isActive: () => false },
+    appMode: {
+      clearResults: vi.fn(),
+      showResults: vi.fn(),
+      showConfig: vi.fn(),
+      isActive: vi.fn(() => false),
+      showAsk: vi.fn(),
+    },
     saves: { compose: () => "<html></html>", persist: vi.fn() },
     history: { settled: vi.fn() },
     remountNodes: vi.fn(),
@@ -580,5 +586,25 @@ describe("canvasRun For Each zones", () => {
     expect(ids).toEqual(["field-3", "gen-4"]);
     expect(shown?.outputs.get("gen-4")?.text).toEqual({ type: "text", value: "one" });
     expect(lastView(deps)?.shown).toBe(0);
+  });
+
+  it("asks above App mode's results when App mode shows, and goes on with the answer", async () => {
+    rows();
+    const { replies } = heldReplies();
+    const { canvasRun, deps } = setUp(summaries());
+    vi.mocked(deps.appMode.isActive).mockReturnValue(true);
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(replies).toHaveLength(1));
+    replies[0]("one");
+    await vi.waitFor(() => expect(deps.appMode.showAsk).toHaveBeenCalled());
+    const ask = vi.mocked(deps.appMode.showAsk).mock.calls[0]?.[0];
+    expect([ask?.title, ask?.rest, ask?.files]).toEqual(["Row 1 done", 2, []]);
+    expect(lastView(deps)?.ask).toBeUndefined();
+    ask?.answer(true);
+    await vi.waitFor(() => expect(replies).toHaveLength(3));
+    replies[1]("two");
+    replies[2]("three");
+    await running;
+    expect(vi.mocked(deps.appMode.showAsk).mock.calls.at(-1)?.[0]).toBeUndefined();
   });
 });

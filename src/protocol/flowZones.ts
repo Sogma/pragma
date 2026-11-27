@@ -49,6 +49,18 @@ export function flowZones(graph: FlowGraph): Map<string, FlowZone> {
   return zones;
 }
 
+/** The nodes whose outputs hold one value per item: every For Each, and
+ * every node a zone holds. None of their outputs is a run's result
+ * (docs/protocol.md, Run inputs and results). */
+export function perItemNodes(graph: FlowGraph): Set<string> {
+  const nodes = new Set<string>();
+  for (const zone of flowZones(graph).values()) {
+    nodes.add(zone.forEach);
+    for (const id of zone.members) nodes.add(id);
+  }
+  return nodes;
+}
+
 /** What stops a zone or an End from running, by the node that fails: a For
  * Each whose zone holds another, shares a node with another or wires its End
  * back into itself, and an End naming no For Each or one another End took.

@@ -20,6 +20,8 @@ import {
   nodePorts,
   nodesLeftOut,
 } from "../../src/protocol/flowNodes.ts";
+import { perItemNodes } from "../../src/protocol/flowZones.ts";
+import { basenameOf } from "../../src/protocol/rootedPath.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 import type {
   FlowCapabilityDeclaration,
@@ -166,6 +168,16 @@ export interface RunOutcome {
   needs?: Map<string, SetupNeed>;
 }
 
+/** The ask after a For Each zone's first generation, as App mode shows it:
+ * what the item made, by the paths its Generate nodes hand on, and how many
+ * items are left to run. */
+export interface AppModeAsk {
+  title: string;
+  files: readonly string[];
+  rest: number;
+  answer(go: boolean): void;
+}
+
 export interface AppMode {
   isActive(): boolean;
   // Shows or hides the form; entering rebuilds it, leaving remounts the
@@ -182,6 +194,9 @@ export interface AppMode {
   // Shows these nodes' fields from their config again, once a run has moved
   // a value on.
   showConfig(nodeIds: readonly string[]): void;
+  // The ask after a zone's first generation, above the form's results, or
+  // none.
+  showAsk(ask: AppModeAsk | undefined): void;
   // Design mode: the form's tiles arrange, its fields lock and Run waits.
   // Only while the form shows; leaving App mode ends it.
   isDesigning(): boolean;
@@ -634,6 +649,9 @@ export function createAppMode(deps: AppModeDeps): AppMode {
       return field(buildAppModeFieldOutput(node), node.type === "choice" ? "line" : "textBox");
     }
     const outputPort = nodePorts(node).outputs.find((p) => p.id === id);
+    // An output a For Each zone gives per item is no result
+    // (docs/protocol.md, Run inputs and results).
+    if (outputPort && perItemNodes(deps.graph()).has(node.id)) return undefined;
     if (node.type === "chart" && id === "rows") return field(buildAppModeChartField(node), "chart");
     if ((node.type === "generateVideo" && outputPort?.id === "path") || outputPort?.type === "video") {
       return field(buildAppModeClipField(node, outputPort), "videoResult");
@@ -759,6 +777,49 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     return tile;
   }
 
+  // Above the form's results, kept in view while the form scrolls, and drawn
+  // again with the form: what the item made, each file a click from its
+  // preview, then Continue or Stop.
+  let pendingAsk: AppModeAsk | undefined;
+  let askEl: HTMLElement | undefined;
+  function renderAsk(): void {
+    askEl?.remove();
+    askEl = undefined;
+    if (!pendingAsk) return;
+    const { title, files, rest, answer } = pendingAsk;
+    const ask = document.createElement("div");
+    ask.className = "flow-app-ask";
+    ask.setAttribute("role", "group");
+    ask.setAttribute("aria-label", title);
+    const heading = document.createElement("span");
+    heading.className = "flow-app-ask-title";
+    heading.textContent = title;
+    ask.append(heading);
+    for (const file of files) {
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "flow-app-ask-file";
+      link.textContent = basenameOf(file);
+      link.dataset.tooltip = file;
+      link.addEventListener("click", () => deps.previewResult(flowTreePath(deps.flowPath(), file)));
+      ask.append(link);
+    }
+    const choice = (className: string, label: string, go: boolean) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = className;
+      button.textContent = label;
+      button.addEventListener("click", () => answer(go));
+      return button;
+    };
+    const buttons = document.createElement("span");
+    buttons.className = "flow-app-ask-buttons";
+    buttons.append(choice("btn primary", `Continue with ${rest} more`, true), choice("btn", "Stop", false));
+    ask.append(buttons);
+    deps.elements.appModePane.prepend(ask);
+    askEl = ask;
+  }
+
   // Only for a fresh entry into App mode — a reorder moves DOM nodes
   // instead. That keeps the replaceChildren() below safe: the group's title
   // bar moves into the pane only after the toggle returns, so on a fresh
@@ -790,6 +851,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
         ? "Everything exposed is left out of a run: disabled, or fed by a disabled node."
         : "Nothing exposed yet. Right-click a port, config field, or picker in the graph and choose Expose to add it here.";
       deps.elements.appModePane.appendChild(empty);
+      renderAsk();
       deps.elements.appModePane.scrollTop = scrollTop;
       return;
     }
@@ -819,6 +881,7 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     }
     grid.layout();
     applyDesigning();
+    renderAsk();
     deps.elements.appModePane.scrollTop = scrollTop;
   }
 
@@ -1022,6 +1085,10 @@ export function createAppMode(deps: AppModeDeps): AppMode {
     },
     showConfig(nodeIds) {
       for (const nodeId of nodeIds) for (const show of appModeFieldShows.get(nodeId) ?? []) show();
+    },
+    showAsk(ask) {
+      pendingAsk = ask;
+      renderAsk();
     },
   };
 }

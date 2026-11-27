@@ -44,3 +44,45 @@
   font-size: var(--small-font-size);
   white-space: nowrap;
 }
+
+/* The ask after a For Each zone's first generation, above the form's
+   results (appMode.ts): kept in view while the form scrolls, so its fill is
+   solid under the accent's tint. */
+.flow-app-ask {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-accent-bg);
+  border-radius: var(--box-radius);
+  background: var(--bg-primary);
+  box-shadow: inset 0 0 0 100vmax var(--color-accent-bg-faint);
+}
+
+.flow-app-ask-title {
+  font-weight: 600;
+}
+
+.flow-app-ask-file {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.flow-app-ask-file:hover {
+  text-decoration: underline;
+}
+
+.flow-app-ask-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}

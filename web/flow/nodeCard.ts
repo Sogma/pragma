@@ -27,11 +27,13 @@ import {
   GET_FIELD_SLOTS,
   holdsNewNodeValue,
   intValue,
+  isFieldOutput,
   nodePorts,
   type SlotSpec,
   TEMPLATE_VARIABLE_SLOTS,
 } from "../../src/protocol/flowNodes.ts";
 import { missingPortIds } from "../../src/protocol/flowProblems.ts";
+import { perItemNodes } from "../../src/protocol/flowZones.ts";
 import { MAKE_OBJECT_NODE_TYPE } from "../../src/protocol/makeObjectNode.ts";
 import { referenceMentions } from "../../src/protocol/referenceMentions.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
@@ -950,7 +952,14 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         setExposedClass(labelEl, portType, isExposed(node, id));
         persistGraph();
       };
-      deps.menus.openExposeMenu(event.clientX, event.clientY, portType, isExposed(node, id), toggle, actions());
+      // An output a For Each zone gives per item is no result, so it is
+      // offered only to take back an exposure made before it joined one.
+      const perItem =
+        nodePorts(node).outputs.some((port) => port.id === id) &&
+        !isFieldOutput(node, id) &&
+        perItemNodes(deps.graph()).has(node.id);
+      const offered = isExposed(node, id) || !perItem ? toggle : undefined;
+      deps.menus.openExposeMenu(event.clientX, event.clientY, portType, isExposed(node, id), offered, actions());
     });
   }
 

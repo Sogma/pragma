@@ -294,6 +294,8 @@ describe("flowMenus: field menu", () => {
     const { menus, opened } = setup();
 
     menus.openExposeMenu(0, 0, "image", false, vi.fn(), [{ label: "Clear", run: vi.fn() }]);
+    menus.openExposeMenu(0, 0, "text", false, undefined, [{ label: "Clear", run: vi.fn() }]);
+    expect(labels(opened.at(-1)?.items)).toEqual(["TEXT", "Clear"]);
 
     expect(labels(opened[0].items)).toEqual(["IMAGE", "Expose", "Clear"]);
   });

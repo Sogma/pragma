@@ -1139,3 +1139,47 @@ describe("App mode and a disabled node", () => {
     expect(elements.appModePane.querySelector(".flow-app-empty")?.textContent).toMatch(/left out of a run/);
   });
 });
+
+describe("App mode and a For Each zone", () => {
+  const zone = () => {
+    const each = node("forEach");
+    const field = { ...node("getField", { field1Key: "title" }, ["field_1"]), id: "getField-2" };
+    return { each, field };
+  };
+
+  it("draws no result for an output the zone gives per item", () => {
+    const { each, field } = zone();
+    const { appMode, elements, graph } = setup([each, field]);
+    graph.edges.push({ id: "e1", source: "forEach-1", sourcePort: "item", target: "getField-2", targetPort: "object" });
+    appMode.setActive(true);
+    expect(elements.appModePane.querySelector(".flow-app-output-value")).toBeNull();
+  });
+
+  it("asks above its results after a zone's first generation, with what the item made", () => {
+    const { appMode, deps, elements } = setup([node("prompt", { text: "hi" }, ["text"])]);
+    appMode.setActive(true);
+    const answer = vi.fn();
+    appMode.showAsk({ title: "Row 1 done", files: ["/clips/one.mp4"], rest: 11, answer });
+    const ask = elements.appModePane.firstElementChild as HTMLElement;
+    expect(ask.className).toBe("flow-app-ask");
+    expect([...ask.querySelectorAll("span, button")].map((part) => part.textContent)).toEqual([
+      "Row 1 done",
+      "one.mp4",
+      "Continue with 11 moreStop",
+      "Continue with 11 more",
+      "Stop",
+    ]);
+    (ask.querySelector(".flow-app-ask-file") as HTMLButtonElement).click();
+    expect(deps.previewResult).toHaveBeenCalledWith("clips/one.mp4");
+    const [go, stop] = [...ask.querySelectorAll(".flow-app-ask-buttons button")] as HTMLButtonElement[];
+    go.click();
+    stop.click();
+    expect(answer.mock.calls).toEqual([[true], [false]]);
+
+    appMode.setActive(false);
+    appMode.setActive(true);
+    expect(elements.appModePane.firstElementChild?.className).toBe("flow-app-ask");
+    appMode.showAsk(undefined);
+    expect(elements.appModePane.querySelector(".flow-app-ask")).toBeNull();
+  });
+});

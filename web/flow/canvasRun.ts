@@ -65,7 +65,7 @@ export interface CanvasRunDeps
   node(nodeId: string): FlowNodeInstance | undefined;
   nodeEls: ReadonlyMap<string, HTMLElement>;
   cards: Pick<NodeCards, "clearRunState" | "showRunResult">;
-  appMode: Pick<AppMode, "clearResults" | "showResults" | "showConfig" | "isActive">;
+  appMode: Pick<AppMode, "clearResults" | "showResults" | "showConfig" | "isActive" | "showAsk">;
   // Each For Each zone's label: its run's items, stepper and ask.
   zones: Pick<Zones, "show">;
   saves: Pick<FlowSaves, "compose" | "persist">;
@@ -285,9 +285,10 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         },
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
-        // On the zone's label, where its first item's results already show; App
-        // mode keeps the canvas out of sight, so it asks in a dialog.
-        confirmRest: (ask) => (deps.appMode.isActive() || !latest ? askInDialog(ask) : askOnLabel(ask)),
+        // On the zone's label, where its first item's results already show;
+        // App mode keeps the canvas out of sight, so it asks above its results.
+        confirmRest: (ask) =>
+          deps.appMode.isActive() ? askInAppMode(ask) : latest ? askOnLabel(ask) : askInDialog(ask),
         signal: state.controller.signal,
         regenerating: regenerated?.id,
         madeTake: (id, take) => {
@@ -361,6 +362,29 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         if (!pinned.has(forEach) && newest(forEach)) deps.cards.showRunResult({ ...progress, reports }, members);
       };
       const askInDialog = confirmRestDialog(deps.dialog);
+      // What an item made, by the paths its Generate nodes hand on.
+      const madeBy = (forEach: string, index: number): string[] => {
+        const item = latest?.zones?.get(forEach)?.items[index];
+        return [...(zones.get(forEach)?.members ?? [])].flatMap((id) => {
+          const node = target.nodes.find((each) => each.id === id);
+          const path = item?.outputs.get(id)?.path;
+          const generated = FLOW_NODE_REGISTRY[node?.type ?? ""]?.category === "AI";
+          return generated && path?.type === "text" && path.value ? [path.value] : [];
+        });
+      };
+      const askInAppMode = (ask: { forEach: string; done: number; rest: number; word: string }) =>
+        new Promise<boolean>((resolve) => {
+          let open = true;
+          const answer = (go: boolean) => {
+            if (!open) return;
+            open = false;
+            deps.appMode.showAsk(undefined);
+            resolve(go);
+          };
+          const files = madeBy(ask.forEach, ask.done - 1);
+          deps.appMode.showAsk({ title: `${ask.word} ${ask.done} done`, files, rest: ask.rest, answer });
+          state.controller.signal.addEventListener("abort", () => answer(false), { once: true });
+        });
       const askOnLabel = (ask: { forEach: string; rest: number }) =>
         new Promise<boolean>((resolve) => {
           const answer = (go: boolean) => {

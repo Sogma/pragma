@@ -156,3 +156,26 @@ describe("a node a run leaves out", () => {
     expect(() => applyRunInputs(graph, { "prompt-1.text": "x" })).toThrow(/takes no input "prompt-1\.text"/);
   });
 });
+
+describe("a For Each zone's outputs", () => {
+  it("are no results: a For Each's and its zone's nodes' have a value per item, its End's lists do not", () => {
+    const zone: FlowGraph = {
+      nodes: [
+        { id: "each-1", type: "forEach", position: { x: 0, y: 0 }, config: {}, exposed: ["index"] },
+        { id: "field-2", type: "getField", position: { x: 0, y: 0 }, config: { field1Key: "a" }, exposed: ["field_1"] },
+        {
+          id: "end-3",
+          type: "forEachEnd",
+          position: { x: 0, y: 0 },
+          config: { forEach: "each-1" },
+          exposed: ["list_1"],
+        },
+      ],
+      edges: [
+        { id: "e1", source: "each-1", sourcePort: "item", target: "field-2", targetPort: "object" },
+        { id: "e2", source: "field-2", sourcePort: "field_1", target: "end-3", targetPort: "value_1" },
+      ],
+    };
+    expect(flowRunOutputs(zone).map((output) => output.name)).toEqual(["end-3.list_1"]);
+  });
+});

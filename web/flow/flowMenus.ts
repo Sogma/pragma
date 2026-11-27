@@ -58,12 +58,13 @@ export interface FlowMenuDeps {
 export interface FlowMenus {
   openContextMenu(clientX: number, clientY: number, flowX: number, flowY: number): void;
   openHandleMenu(clientX: number, clientY: number, portType: FlowPortType | null, edges: FlowEdgeInstance[]): void;
+  // Without `onToggle`, the field can't be exposed and the menu offers none.
   openExposeMenu(
     clientX: number,
     clientY: number,
     portType: FlowPortType,
     exposed: boolean,
-    onToggle: () => void,
+    onToggle: (() => void) | undefined,
     actions?: MenuItem[],
   ): void;
   openNodeMenu(
@@ -155,13 +156,14 @@ export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
     clientY: number,
     portType: FlowPortType,
     exposed: boolean,
-    onToggle: () => void,
+    onToggle: (() => void) | undefined,
     actions: MenuItem[] = [],
   ): void {
+    const toggle = onToggle ? [{ label: exposed ? "Unexpose" : "Expose", run: onToggle }] : [];
     deps.contextMenu.open({
       at: { x: clientX, y: clientY },
       ariaLabel: "Field",
-      items: [pinTypeRow(portType), { label: exposed ? "Unexpose" : "Expose", run: onToggle }, ...actions],
+      items: [pinTypeRow(portType), ...toggle, ...actions],
     });
   }
 
