@@ -171,8 +171,8 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
 
       // Beside the document, never in its place: the document's tab is what
       // the panel shows the toolkit for. The Class that gave it opens too, so
-      // where a note's buttons come from is a click away; a Table's come
-      // from the Table itself, already open.
+      // where the buttons come from is a click away; a Table's own links'
+      // come from the Table itself, already open.
       const items: MenuItem[] = [
         {
           label: "Open Flow",

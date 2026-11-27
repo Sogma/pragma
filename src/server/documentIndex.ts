@@ -33,9 +33,9 @@ import {
   type RootedPath,
   sameRoot,
 } from "../protocol/rootedPath.ts";
-import { readMetadataBlock } from "../protocol/tableFile.ts";
+import { parseTableFile, readMetadataBlock } from "../protocol/tableFile.ts";
 import { tagsOf } from "../protocol/tags.ts";
-import { type ClassFile, isClassFile, isMarkdownFile } from "../protocol/types.ts";
+import { type ClassFile, isClassFile, isMarkdownFile, type MetadataEntry } from "../protocol/types.ts";
 import { walkSpace } from "./spaceWalk.ts";
 
 /** A note's frontmatter and its display title, the plain text of a leading
@@ -46,6 +46,13 @@ export interface NoteHead {
   data: Record<string, unknown>;
   title: string | undefined;
   error?: string;
+}
+
+/** A Table's title as its `<head><title>` writes it, undefined for none, and
+ * its metadata block. */
+export interface TableHead {
+  title: string | undefined;
+  metadata: MetadataEntry[];
 }
 
 /** A root a question reads: its folder, absolute, and how a path names it. */
@@ -89,6 +96,9 @@ export interface DocumentIndex {
    * a file that can't be read. */
   frontmatter(file: string): Record<string, unknown>;
   noteHead(file: string): NoteHead;
+  /** A Table's head, with no title or metadata for a file that can't be
+   * read or isn't a Table. */
+  tableHead(file: string): TableHead;
   /** A note's opening as plain text, read from its head. One path is always
    * asked with the same `maxChars`. */
   noteExcerpt(file: string, maxChars: number): string | undefined;
@@ -154,6 +164,7 @@ interface Entry {
   embeds?: readonly string[];
   // A Table's, Class's or Flow's.
   metadataTags?: { value: readonly string[] | undefined };
+  tableHead?: { value: TableHead | undefined };
   classFile?: { value: ClassFile | undefined };
   // The root whose lookup holds the note's links, and under which keys: an
   // entry dropped takes them back, whichever check found the change.
@@ -269,6 +280,11 @@ function frontmatterIn(text: string): { data: Record<string, unknown>; error?: s
 function metadataTagsIn(text: string): string[] {
   if (!text.includes("tags")) return [];
   return tagsOf(readMetadataBlock(parse(text)).find((entry) => entry.key === "tags")?.values);
+}
+
+function tableHeadIn(text: string): TableHead | undefined {
+  const table = parseTableFile(text);
+  return table && { title: table.name, metadata: table.metadata ?? [] };
 }
 
 // The path a link names, folded as entry names compare, so a link files
@@ -455,6 +471,12 @@ export function createDocumentIndex(): MemoryDocumentIndex {
       const { data, error } = frontmatterOf(file, entry);
       entry.title ??= attempt(() => splitNoteTitle(readHeadText(file)).title);
       return { data, title: entry.title.value, ...(error ? { error } : {}) };
+    },
+    tableHead(file) {
+      const entry = entryFor(file);
+      if (!entry) return { title: undefined, metadata: [] };
+      entry.tableHead ??= attempt(() => tableHeadIn(readFileSync(file, "utf8")));
+      return entry.tableHead.value ?? { title: undefined, metadata: [] };
     },
     noteExcerpt(file, maxChars) {
       const entry = entryFor(file);

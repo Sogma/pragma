@@ -613,6 +613,25 @@ describe("classPane: changed where it shows", () => {
     expect(saved()?.filter).toEqual([{ property: "take", test: "is", values: ["shots"] }]);
   });
 
+  it("offers the kinds as a Kind line's values", async () => {
+    const { pane } = await setup();
+    toolbarButton(pane, "Filter").click();
+    popoverButton("All views").click();
+    popoverButton("+ Add filter").click();
+    const added = document.querySelectorAll(".class-filter-line")[1];
+    type(added.querySelector(".class-filter-property"), "file.kind");
+    const values = added.querySelector<HTMLInputElement>(".class-filter-values");
+    const offered = document.getElementById(values?.getAttribute("list") ?? "")?.querySelectorAll("option");
+    expect([...(offered ?? [])].map((option) => option.value)).toEqual([
+      "Note",
+      "Screenplay",
+      "Table",
+      "Image",
+      "Video",
+      "PDF",
+    ]);
+  });
+
   describe("a folder dragged in from the tree", () => {
     const dropOn = (path: string, type: "file" | "directory") => {
       const event = new MouseEvent("drop", { bubbles: true, cancelable: true });
@@ -1155,7 +1174,7 @@ describe("classPane: its links", () => {
   });
 });
 
-describe("classPane: screenplays and media as rows", () => {
+describe("classPane: screenplays, Tables and media as rows", () => {
   const cellOf = (pane: EditorPane, row: number, column: number) =>
     pane.element.querySelectorAll("tbody tr")[row].querySelectorAll("td:not(.row-gutter, .row-select)")[column];
   const kinds: ClassRow[] = [
@@ -1178,6 +1197,30 @@ describe("classPane: screenplays and media as rows", () => {
     expect(cellOf(pane, 0, 2).querySelector("select, input")).toBeNull();
     // A note's own value can still be set.
     expect(cellOf(pane, 0, 1).querySelector("select")).not.toBeNull();
+  });
+
+  it("shows a Table's metadata, sets none of it, and opens the Table from its title", async () => {
+    const cast: ClassRow = { ...note("cast.table.html", "Cast", { status: "approved", take: 4 }), kind: "table" };
+    const { pane, deps } = await setup(classFile({ views: [] }), [rows[0], cast]);
+    expect(cellOf(pane, 1, 1).textContent?.trim()).toBe("approved");
+    expect(cellOf(pane, 1, 1).querySelector("select, input")).toBeNull();
+    expect(cellOf(pane, 1, 2).querySelector("select, input")).toBeNull();
+    expect(cellOf(pane, 0, 1).querySelector("select")).not.toBeNull();
+    const title = [...pane.element.querySelectorAll<HTMLButtonElement>(".class-row-title")].find(
+      (each) => each.textContent === "Cast",
+    );
+    title?.click();
+    expect(deps.openPath).toHaveBeenCalledWith("shots/cast.table.html");
+  });
+
+  it("offers no New note where a Kind rule, the Class's or the view's, leaves notes out", async () => {
+    const kind = (...values: string[]) => [{ property: "file.kind", test: "is", values }];
+    const addRows = async (file: ClassFileResponse) =>
+      (await setup(file, kinds)).pane.element.querySelectorAll(".data-table-add-row").length;
+    const folder = classFile().filter;
+    expect(await addRows(classFile({ filter: [...folder, ...kind("table")], views: [] }))).toBe(0);
+    expect(await addRows(classFile({ views: [{ name: "Tables", layout: "list", filter: kind("Table") }] }))).toBe(0);
+    expect(await addRows(classFile({ filter: [...folder, ...kind("note", "table")], views: [] }))).toBe(1);
   });
 
   // A note's media field and a picture's own file share the cards' picture
@@ -1262,10 +1305,10 @@ describe("classPane: screenplays and media as rows", () => {
     );
     fields?.click();
     const offered = () => [...document.querySelectorAll(".class-popover-facts button")].map((each) => each.textContent);
-    expect(offered()).toEqual(["+ Name", "+ Folder", "+ Extension", "+ Size", "+ Modified", "+ All tags"]);
+    expect(offered()).toEqual(["+ Name", "+ Folder", "+ Kind", "+ Extension", "+ Size", "+ Modified", "+ All tags"]);
     ([...document.querySelectorAll<HTMLButtonElement>(".class-popover-facts button")].at(-2) as HTMLElement).click();
     expect(saved()?.fields.at(-1)).toEqual({ id: "file.modified", type: "timestamp", label: "Modified" });
-    expect(offered()).toEqual(["+ Name", "+ Folder", "+ Extension", "+ Size", "+ All tags"]);
+    expect(offered()).toEqual(["+ Name", "+ Folder", "+ Kind", "+ Extension", "+ Size", "+ All tags"]);
   });
 
   it("gives a file's own fact no type of its own to change", async () => {

@@ -2,6 +2,7 @@ import { mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
+import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import { emptyClass } from "../../src/protocol/types.ts";
 import {
   createDocumentIndex,
@@ -100,6 +101,20 @@ describe("one file's entry", () => {
     expect(index.noteExcerpt(file, 1000)).toBe("First draft.");
     await writeFile(file, "# Title\n\nThe second draft.\n");
     expect(index.noteExcerpt(file, 1000)).toBe("The second draft.");
+  });
+
+  it("reads a Table's title and metadata, again once it changes, and none from a file that isn't one", async () => {
+    const index = createDocumentIndex();
+    const root = folder();
+    const metadata = [{ key: "tags", values: ["studio"] }];
+    const table = (name: string) => serializeTableFile({ version: "1.0", name, metadata, columns: [], rows: [] });
+    const file = await write(root, "cast.table.html", table("Cast"));
+    expect(index.tableHead(file)).toEqual({ title: "Cast", metadata });
+    await writeFile(file, table("The crew"));
+    expect(index.tableHead(file).title).toBe("The crew");
+    const notTable = await write(root, "flow.table.html", '<html data-format="flow"><title>Flow</title></html>');
+    expect(index.tableHead(notTable)).toEqual({ title: undefined, metadata: [] });
+    expect(index.tableHead(path.join(root, "missing.table.html"))).toEqual({ title: undefined, metadata: [] });
   });
 
   it("is never made for a link or a missing file", async () => {

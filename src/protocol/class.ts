@@ -3,6 +3,7 @@
 // a value reads.
 import { isNamed } from "./entryName.ts";
 import { compareSortValues, orderByProperty, toSortValue } from "./folderSort.ts";
+import { metadataProperties } from "./metadata.ts";
 import { basenameOf, formatRootedPath, parseRootedPath, sameRoot } from "./rootedPath.ts";
 import { isAgentsFile, isReadme } from "./scopes.ts";
 import { isTagOrNested, sameTag, tagNameOf, tagsOf } from "./tags.ts";
@@ -16,13 +17,27 @@ import {
   fileKindForPath,
   isFlowFile,
   isMarkdownFile,
+  type MetadataEntry,
   newRowValue,
   parseTimestamp,
   splitDocumentName,
   type TableColumn,
 } from "./types.ts";
 
-export type RowKind = "note" | "screenplay" | "image" | "video" | "pdf";
+/** What a row's file is, in the order a group by kind lists them. */
+export const ROW_KINDS = ["note", "screenplay", "table", "image", "video", "pdf"] as const;
+export type RowKind = (typeof ROW_KINDS)[number];
+
+/** Each kind as `file.kind` reads it, the name a person sees: a rule
+ * matches it in any case, so `table` still names a Table. */
+export const KIND_NAMES: Readonly<Record<RowKind, string>> = {
+  note: "Note",
+  screenplay: "Screenplay",
+  table: "Table",
+  image: "Image",
+  video: "Video",
+  pdf: "PDF",
+};
 
 /** One row: a file, or a folder read through its `index.md`. */
 export interface ClassRow {
@@ -44,7 +59,7 @@ export interface ClassRow {
   // root, `/…`, outside it.
   folder: string;
   // Its own values: a note's frontmatter, a screenplay's title page keys
-  // in lower case. A media file has none.
+  // in lower case, a Table's metadata. A media file has none.
   properties: Record<string, unknown>;
   // Why its frontmatter doesn't parse, for a note whose block doesn't: its
   // row has no values, and nothing may set one.
@@ -185,14 +200,16 @@ export function viewFields(fields: readonly TableColumn[], view: Pick<ClassView,
   return [...new Set(view.fields)].flatMap((key) => fields.find((field) => field.id === key) ?? []);
 }
 
-/** A folder's file as a row: a note, a screenplay or a media file,
+/** A folder's file as a row: a note, a screenplay, a Table or a media file,
  * else undefined. The folder's own `index.md` and `README.md` describe it,
- * and its `AGENTS.md` instructs agents, rather than belong to it; a Table,
- * Flow, Applet or Class is never a row. */
+ * and its `AGENTS.md` instructs agents, rather than belong to it; a Flow,
+ * Applet or Class is never a row. */
 export function rowKindOf(name: string): RowKind | undefined {
   const kind = fileKindForPath(name);
   if (kind === "note") return isNamed(name, "index.md") || isReadme(name) || isAgentsFile(name) ? undefined : "note";
-  return kind === "screenplay" || kind === "image" || kind === "video" || kind === "pdf" ? kind : undefined;
+  return kind === "screenplay" || kind === "table" || kind === "image" || kind === "video" || kind === "pdf"
+    ? kind
+    : undefined;
 }
 
 /** Whether a folder's entry is one of a Class's rows: a file of a row's
@@ -201,13 +218,29 @@ export function isRowEntry(name: string, type: "file" | "directory", hasIndex: b
   return type === "directory" ? hasIndex : rowKindOf(name) !== undefined;
 }
 
+/** A Table row's values: its metadata as frontmatter holds keys, one value
+ * as text, several as a list and `tags` always a list. A key its `<dt>`
+ * types holds that type's value, so a `score` of 4 sorts and shows as a
+ * note's does. */
+export function tableRowValues(metadata: readonly MetadataEntry[]): Record<string, unknown> {
+  const values: Record<string, unknown> = metadataProperties(metadata);
+  for (const { key, field } of metadata) {
+    const held = values[key];
+    if (!field || held === "") continue;
+    const typed = (text: string) => FIELD_TYPES[field.type].stored(text, field);
+    values[key] = Array.isArray(held) ? held.map(typed) : typed(String(held));
+  }
+  return values;
+}
+
 /** The fields a file's own facts fill rather than its values: never set, and
  * typed as here whatever a Class's definition says. Its name as the tree
- * shows it, the folder it's in, its extension, its size in bytes, when it
- * last changed, and every tag it carries. */
+ * shows it, the folder it's in, its kind, its extension, its size in bytes,
+ * when it last changed, and every tag it carries. */
 export const FILE_FIELDS: readonly TableColumn[] = [
   { id: "file.name", type: "text", label: "Name" },
   { id: "file.folder", type: "text", label: "Folder" },
+  { id: "file.kind", type: "select", label: "Kind", options: ROW_KINDS.map((kind) => KIND_NAMES[kind]) },
   { id: "file.ext", type: "text", label: "Extension" },
   { id: "file.size", type: "integer", label: "Size" },
   { id: "file.modified", type: "timestamp", label: "Modified" },
@@ -241,6 +274,8 @@ export function rowValue(row: ClassRow, key: string): unknown {
       return basenameOf(row.path) === row.name ? splitDocumentName(row.name).stem : row.name;
     case "file.folder":
       return row.folder;
+    case "file.kind":
+      return KIND_NAMES[row.kind];
     case "file.ext":
       return splitDocumentName(basenameOf(row.path)).extension.slice(1).toLowerCase();
     case "file.size":
@@ -279,6 +314,7 @@ function sameValue(property: string, written: string, text: string): boolean {
     const wanted = tagNameOf(written);
     return wanted !== undefined && isTagOrNested(text, wanted);
   }
+  if (property === "file.kind") return isNamed(written, text);
   if (property === "file.ext") return isNamed(written.replace(/^\./, ""), text);
   return written === text;
 }
@@ -347,8 +383,9 @@ function folderHolds(value: string, row: ClassRow, below: boolean, place: ClassP
  * tag matches in any case, as does one nested under it. A `has` on `tags`
  * counts the tags a note writes in its text, which `file.tags` holds already.
  *
- * On `file.ext`, an extension matches in any case, its dot written or not.
- * `place`, where the Class sits, is what Folder values are read from. */
+ * On `file.kind`, a kind matches in any case, and on `file.ext` an
+ * extension, its dot written or not. `place`, where the Class sits, is what
+ * Folder values are read from. */
 export function matchesRules(row: ClassRow, rules: readonly ClassRule[], place?: ClassPlace): boolean {
   return rules.every((rule) => {
     const value = rowValue(row, rule.property);
@@ -518,6 +555,27 @@ function definitionOf(field: TableColumn): string {
 export function frontmatterValue(field: TableColumn, text: string): unknown {
   return FIELD_TYPES[field.type].stored(text.trim(), field);
 }
+
+/** Whether a note passes the Kind and Extension rules among `rules`, a
+ * Class's filter and a view's. Nothing a new note is given changes either,
+ * so where one fails, a note made there would leave the view at once. */
+export function keepsNotes(rules: readonly ClassRule[]): boolean {
+  return matchesRules(
+    NOTE_ROW,
+    rules.filter((rule) => rule.property === "file.kind" || rule.property === "file.ext"),
+  );
+}
+
+const NOTE_ROW: ClassRow = {
+  path: "new.md",
+  name: "new.md",
+  title: "",
+  kind: "note",
+  size: 0,
+  modified: "",
+  folder: ".",
+  properties: {},
+};
 
 /** What a new note holds so it lands in the view it was added from, over
  * `held`, a template's frontmatter: each field's starting value where it

@@ -402,7 +402,7 @@ A host's file read returns, for a text document:
 { "kind": "text", "path": "...", "content": "...", "documentType": "note", "toolkits": [ ... ], "classLinks": [ ... ], "fields": [ ... ] }
 ```
 
-Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it, or for a Table's read the Table itself, and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root. Each entry in `fields` is a [field](#class-fields) the Classes holding it define for one of its properties, so a host can draw that property as its type; a key two of them define differently, other than by label, has none.
+Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it, or the Table itself for a Flow its own links name, and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root. Each entry in `fields` is a [field](#class-fields) the Classes holding it define for one of its properties, so a host can draw that property as its type; a key two of them define differently, other than by label, has none.
 
 #### Text embeds
 
@@ -526,7 +526,7 @@ A row's full card shows its fields as tiles on the grid [App mode](#app-mode) la
 
 #### Table links
 
-`<ul data-role="links">`, after the small card's block, lists the Flows the Table links, one `<li>` each, in order, each a path read from the Table's folder, as a [Class's links](#what-a-class-links) are. They are the Table's toolkits (see [Toolkit resolution](#toolkit-resolution)). A writer leaves the list out when it is empty, and a Table's read gives it as `links` beside its resolved `toolkits`.
+`<ul data-role="links">`, after the small card's block, lists the Flows the Table links, one `<li>` each, in order, each a path read from the Table's folder, as a [Class's links](#what-a-class-links) are. They are the Table's first toolkits (see [Toolkit resolution](#toolkit-resolution)). A writer leaves the list out when it is empty, and a Table's read gives it as `links` beside its resolved `toolkits`.
 
 #### Table writes
 
@@ -549,7 +549,7 @@ Adding a column gives existing rows the same starting value, except that a `time
 
 ### Classes
 
-A **Class** defines a group of files, the fields they share, and the views and tools available for them. Its rows are Markdown notes, screenplays and media, and a row's values are its own file's, a note's in its frontmatter, so nothing is copied out of a file and several Classes may show the same one. A Class holds a filter, which picks its rows from its root, its [fields](#class-fields), its [views](#class-views), and the files it [links](#what-a-class-links) them to.
+A **Class** defines a group of files, the fields they share, and the views and tools available for them. Its rows are Markdown notes, screenplays, Tables and media, and a row's values are its own file's, a note's in its frontmatter, so nothing is copied out of a file and several Classes may show the same one. A Class holds a filter, which picks its rows from its root, its [fields](#class-fields), its [views](#class-views), and the files it [links](#what-a-class-links) them to.
 
 #### Class storage
 
@@ -608,22 +608,23 @@ A **Class** defines a group of files, the fields they share, and the views and t
 
 - **A Class's rows come from its root**, the space or its library, as a host's tree lists it: no dot entry, and nothing reached through a symbolic link. Its filter keeps the rows it holds, so a Class with no filter holds every one.
 - **Its Folder rule says which folders they come from**: the first rule of its own filter on `file.folder` that tests `is` or `within`. A host may read only the folders it names, and below a pattern's first `*`, since every row it holds is among them.
-- **A row is** a Markdown note other than a folder's own `index.md`, `README.md` or `AGENTS.md`; a Fountain screenplay; an image, video or PDF; or a folder holding an `index.md`, read through that file and held by the folder above it. A Table, Class, Flow or Applet is never a row, and a file reached twice is one row.
+- **A row is** a Markdown note other than a folder's own `index.md`, `README.md` or `AGENTS.md`; a Fountain screenplay; a Table; an image, video or PDF; or a folder holding an `index.md`, read through that file and held by the folder above it. A Class, Flow or Applet is never a row, and a file reached twice is one row.
 - **[Presets](#presets) are no rows** unless the Folder rule names a folder among them.
 - **The Class's filter keeps a row when every rule holds**; a view's narrows only what that view shows. Each rule tests one of the row's values against its own: `has`, that one of the rule's values is the row's value or one of its items; `is`, that the row's value, not a list, is one of them; `within`, on `file.folder` alone, that the row's folder is one of them or below one; `contains`, that one of them is inside the value's text or an item's, ignoring case; `empty` and `not-empty`, where absent, blank and an empty list are empty. A test a reader doesn't know holds, so a newer one hides nothing.
 
 #### Class values
 
-- **A note's values are its frontmatter's keys**, none when its frontmatter doesn't parse. A screenplay's are its title page's, whose keys match in any case, and a media file has none. A folder's row reads its `index.md`.
+- **A note's values are its frontmatter's keys**, none when its frontmatter doesn't parse. A screenplay's are its title page's, whose keys match in any case; a Table's its [metadata](#metadata)'s, a key typed there held as a field of that type [stores it](#class-fields); and a media file has none. A folder's row reads its `index.md`.
 - **A row's title** is its file's [display title](#display-titles), a screenplay's from its title page. A folder row's is the leading heading of its `index.md`, else the folder's name, and a media file's is its name without extension.
 - **A key starting with `file.` names one of the file's own facts**, never a property, and no Class sets one:
   - `file.name`: its name without extension; a folder row's is the folder's.
   - `file.folder`: the folder it sits in, written from the Class's [scope](#scopes): `.` for the scope's folder, `album/lyrics` below it, and from the root, `/…`, outside it. A folder row's is the folder holding it.
-  - `file.ext`: what follows the last dot of its name, in lower case, such as `fountain`; a folder row's is `md`.
+  - `file.kind`: `Note`, `Screenplay`, `Table`, `Image`, `Video` or `PDF`; a folder row's is `Note`.
+  - `file.ext`: its extension in lower case, without its dot, such as `fountain` or a Table's `table.html`; a folder row's is `md`.
   - `file.size`, in bytes, and `file.modified`, the instant it last changed.
   - `file.tags`: every tag it carries, those a `has` on `tags` counts, each once.
 - **On `tags` and `file.tags`, a test reads the tags a value names**, and a tag matches in any case, as does one [nested](#tags) under it. A `has` on `tags` counts a note's [inline tags](#sources) with its frontmatter's.
-- **An extension matches in any case** on `file.ext`, with or without its dot.
+- **A kind matches in any case** on `file.kind`, and an extension on `file.ext`, with or without its dot.
 - **`is` and `within` on `file.folder` take a pattern**: a `*` step stands for any one folder name, and a leading `/` names a folder outside the scope. Names match in any case, and a value with no `*` is the folder it names, however it is written.
 - **`this.file.folder` is the Class's own folder** wherever it sits, so a moved Class or a template's copy reads its own. A folder of that name is written `./this.file.folder`.
 
@@ -632,7 +633,7 @@ A **Class** defines a group of files, the fields they share, and the views and t
 **The `<thead>` of `<table data-role="fields">` defines a Class's fields as a Table's defines its columns** (see [Table columns](#table-columns)): each attribute, with the `<th>` text as the label, means what it means there, except:
 
 - **`data-field` is a key**: one of a row's [values](#class-values), or one of a file's own facts. It holds no comma, since a view lists keys comma-separated.
-- **A field on a file's own fact keeps that fact's type** whatever its `<th>` says. Only its label is the Class's.
+- **A field on a file's own fact keeps that fact's type** whatever its `<th>` says, `file.kind` being a `select` of its kinds in the order [Class values](#class-values) lists them. Only its label is the Class's.
 - **A Class has no `path` type**: a move rewrites no note's frontmatter, so a path kept there would break on the first move. One written by hand reads from the note's folder, as a `media` value does.
 - **`data-media-folder` is read from the Class's folder.** A file dropped on a value is copied there, else into the note's own folder.
 
@@ -649,7 +650,7 @@ A field's type decides how a note's frontmatter stores its value, as plain YAML 
 
 - **Reading is lenient.** A value that isn't its field's type, such as a list in a `text` field, `wip` in a `select` or `"yes"` in a `checkbox`, shows as the text it is and is never rewritten until that field is set. A list shows its items, and no list is set.
 - **A missing key is blank.** Adding a field writes nothing, and changing a field's type or options rewrites no note.
-- **Only a note's values are set**, a folder row's in its `index.md`: never a screenplay's title page, a media file, a file's own fact, or a note whose frontmatter doesn't parse.
+- **Only a note's values are set**, a folder row's in its `index.md`: never a screenplay's title page, a Table's metadata, a media file, a file's own fact, or a note whose frontmatter doesn't parse.
 - **Setting a value writes one key**, every other key kept as the [frontmatter](#frontmatter) edit rule keeps it. Blank text removes the key, a checkbox is always `true` or `false`, and text that isn't its type's, such as `3a` in an `integer`, is stored as typed.
 
 #### Class views
@@ -680,7 +681,7 @@ A writer leaves out the list layout and the ascending order. A view shows its ro
 
 #### New notes
 
-A host that makes a note from a Class puts it in the first folder its Folder rule names, a pattern's before its first `*`, else in the Class's own folder, never one below it. It offers none where that folder's root takes no writes.
+A host that makes a note from a Class puts it in the first folder its Folder rule names, a pattern's before its first `*`, else in the Class's own folder, never one below it. It offers none where that folder's root takes no writes, nor in a view where a note fails a `file.kind` or `file.ext` rule, the Class's or the view's.
 
 - **The typed title** is kept as the note's leading heading, and a legal name derived from it (see [Entry names](#entry-names)).
 - **Each field's starting value** is written where it isn't blank, as a [new Table row](#new-table-rows) gets one.
@@ -694,6 +695,8 @@ Only the space's own Classes link anything, never one in a library or a preset f
 - **A Flow in the space**: its buttons in the row's toolkit (see [Toolkit resolution](#toolkit-resolution)).
 - **A Markdown file template** in a folder the space lists for templates: what a [new note](#new-notes) made from the Class starts from.
 - **Any other file**, in the space or a library: a place among the row's links, under the Class.
+
+A Table row is given only a Flow's buttons, after those of its own [links](#table-links).
 
 ### Applets
 
@@ -1011,7 +1014,7 @@ The fields exposed in [App mode](#app-mode) define a run's public inputs and res
 
 ### Toolkit resolution
 
-Toolkit resolution runs on every read of a text document in the space; a library's documents have none. Each [Class](#classes) holding the document as a row contributes the Flows it links, in its links' order, the Classes taken in path order: natural, ignoring case. A Flow reached twice is one toolkit, at its first place, and a link that is not an existing `.flow.html` file in the space gives none. A Flow's buttons are its Button nodes (see [Actions](#actions)). No toolkit means no buttons; several are presented in that order. A Table's toolkits are the Flows its own [links](#table-links) name, in their order, by the same rules; a Table in a library has none.
+Toolkit resolution runs on every read of a text document or Table in the space; a library's documents have none. Each [Class](#classes) holding the document as a row contributes the Flows it links, in its links' order, the Classes taken in path order: natural, ignoring case. A Flow reached twice is one toolkit, at its first place, and a link that is not an existing `.flow.html` file in the space gives none. A Flow's buttons are its Button nodes (see [Actions](#actions)). No toolkit means no buttons; several are presented in that order. A Table's own [links](#table-links) come first, in their order.
 
 ### Actions
 

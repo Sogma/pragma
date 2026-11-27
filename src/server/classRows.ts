@@ -1,5 +1,5 @@
-// A Class's rows, read from its notes' own frontmatter and text: the host's
-// half of the rules src/protocol/class.ts states.
+// A Class's rows, each read from its own file: the host's half of the rules
+// src/protocol/class.ts states.
 import { lstatSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -15,6 +15,7 @@ import {
   type ReadFolder,
   readsFolder,
   rowKindOf,
+  tableRowValues,
 } from "../protocol/class.ts";
 import { parseClassFile } from "../protocol/classFile.ts";
 import { isNamed } from "../protocol/entryName.ts";
@@ -42,7 +43,7 @@ function classPlaceOf(spaceRoot: string, classPath: string): ClassPlace {
   return { scope: scopeFolderOf(spaceRoot, folder), folder };
 }
 
-/** The notes `classPath` holds: the rows of the folders its Folder rule
+/** The rows `classPath` holds: those of the folders its Folder rule
  * names, else of its whole root, kept by its filter. A Class file that
  * can't be read gives none at all. */
 export async function classRows(spaceRoot: string, classPath: string): Promise<ClassRow[]> {
@@ -172,6 +173,10 @@ function readRow(file: string, rowPath: string, node: Pick<SpaceTreeNode, "name"
     }
     const title = typeof properties.title === "string" && properties.title ? properties.title : stem;
     return { ...facts, title, properties };
+  }
+  if (kind === "table") {
+    const { title, metadata } = documentIndex().tableHead(file);
+    return { ...facts, title: title ?? stem, properties: tableRowValues(metadata) };
   }
   return { ...facts, title: stem, properties: {} };
 }

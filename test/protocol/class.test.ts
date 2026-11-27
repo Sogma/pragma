@@ -17,6 +17,7 @@ import {
   holdsTags,
   isRowEntry,
   isThisFolder,
+  keepsNotes,
   matchesRules,
   newNoteProperties,
   noteFields,
@@ -25,6 +26,7 @@ import {
   rowKindOf,
   rowValue,
   suggestedFields,
+  tableRowValues,
   viewFields,
   viewRows,
 } from "../../src/protocol/class.ts";
@@ -191,19 +193,21 @@ describe("isRowEntry", () => {
     expect(isRowEntry("README.md", "file", false)).toBe(false);
   });
 
-  it("takes screenplays and media, and never a Table, Flow, Applet or Class", () => {
-    expect(["draft.fountain", "cover.png", "take.mp4", "board.pdf"].map(rowKindOf)).toEqual([
+  it("takes screenplays, Tables and media, and never a Flow, Applet or Class", () => {
+    expect(["draft.fountain", "cast.table.html", "cover.png", "take.mp4", "board.pdf"].map(rowKindOf)).toEqual([
       "screenplay",
+      "table",
       "image",
       "video",
       "pdf",
     ]);
-    for (const name of ["cast.table.html", "polish.flow.html", "dials.applet.html", "shots.class.html", "a.txt"]) {
+    for (const name of ["polish.flow.html", "dials.applet.html", "shots.class.html", "a.txt"]) {
       expect(isRowEntry(name, "file", false)).toBe(false);
     }
   });
 
   it("reads each of those names in any case", () => {
+    expect(rowKindOf("Cast.Table.HTML")).toBe("table");
     expect(isRowEntry("Shot-2.MD", "file", false)).toBe(true);
     expect(isRowEntry("Index.md", "file", false)).toBe(false);
     expect(isRowEntry("readme.md", "file", false)).toBe(false);
@@ -548,6 +552,43 @@ describe("a row's own facts", () => {
     expect(matchesRules(row("a.md", {}), [{ property: "file.ext", test: "is", values: ["fountain"] }])).toBe(false);
   });
 
+  it("reads a row's kind, a folder row's a note's, and filters it in any case", () => {
+    const cast = row("cast.table.html", {}, "table");
+    expect(rowValue(cast, "file.kind")).toBe("Table");
+    expect(rowValue({ ...row("scene-1", {}), path: "shots/scene-1/index.md" }, "file.kind")).toBe("Note");
+    for (const value of ["table", "Table", "TABLE"]) {
+      expect(matchesRules(cast, [{ property: "file.kind", test: "is", values: [value] }])).toBe(true);
+    }
+    const media = [{ property: "file.kind", test: "is", values: ["image", "video"] }];
+    expect(matchesRules(row("a.md", {}), media)).toBe(false);
+    expect(matchesRules(row("take.mov", {}, "video"), media)).toBe(true);
+  });
+
+  it("reads a Table's extension whole", () => {
+    expect(rowValue(row("Cast.Table.HTML", {}, "table"), "file.ext")).toBe("table.html");
+    expect(
+      matchesRules(row("cast.table.html", {}, "table"), [
+        { property: "file.ext", test: "is", values: [".table.html"] },
+      ]),
+    ).toBe(true);
+  });
+
+  it("types Kind as a select of the kinds, and groups by it in their order", () => {
+    expect(fieldAsRead({ id: "file.kind", type: "text", label: "What" })).toEqual({
+      id: "file.kind",
+      type: "select",
+      label: "What",
+      options: ["Note", "Screenplay", "Table", "Image", "Video", "PDF"],
+    });
+    const rows = [
+      row("b.png", {}, "image"),
+      row("a.md", {}),
+      row("c.table.html", {}, "table"),
+      row("d.fountain", {}, "screenplay"),
+    ];
+    expect(groupRows(rows, "file.kind").map((group) => group.value)).toEqual(["Note", "Screenplay", "Table", "Image"]);
+  });
+
   it("reads a screenplay's title page keys in any case", () => {
     const draft = row("draft.fountain", { "draft date": "1/1/26", title: "Brick" }, "screenplay");
     expect(rowValue(draft, "Draft date")).toBe("1/1/26");
@@ -584,6 +625,50 @@ describe("a row's own facts", () => {
     const filter = [{ property: "file.ext", test: "is", values: ["md"] }];
     const view = { filter: [], groupBy: "file.ext" };
     expect(newNoteProperties({ fields, filter }, view, "png", new Date())).toEqual({});
+  });
+});
+
+describe("tableRowValues", () => {
+  it("reads a Table's metadata as frontmatter holds keys, a typed key as its type", () => {
+    const metadata = [
+      { key: "description", values: ["Image models."] },
+      { key: "tags", values: ["studio"] },
+      { key: "cast", values: ["Ana", "Rui"] },
+      { key: "rating", values: ["4"], field: { type: "score" as const } },
+      { key: "done", values: ["true"], field: { type: "checkbox" as const } },
+      { key: "takes", values: ["3a"], field: { type: "integer" as const } },
+      { key: "blank", values: [] },
+    ];
+    expect(tableRowValues(metadata)).toEqual({
+      description: "Image models.",
+      tags: ["studio"],
+      cast: ["Ana", "Rui"],
+      rating: 4,
+      done: true,
+      takes: "3a",
+      blank: "",
+    });
+  });
+
+  it("gives a Table row the tags its metadata carries", () => {
+    const cast = row("cast.table.html", tableRowValues([{ key: "tags", values: ["Studio"] }]), "table");
+    expect(rowValue(cast, "file.tags")).toEqual(["Studio"]);
+    expect(matchesRules(cast, [{ property: "file.tags", test: "has", values: ["studio"] }])).toBe(true);
+  });
+});
+
+describe("keepsNotes", () => {
+  it("holds unless a Kind or Extension rule, the Class's or the view's, leaves notes out", () => {
+    expect(keepsNotes([{ property: "file.ext", test: "is", values: ["fountain"] }])).toBe(false);
+    expect(keepsNotes([{ property: "file.ext", test: "is", values: [".md", "fountain"] }])).toBe(true);
+    expect(keepsNotes([])).toBe(true);
+    expect(keepsNotes([{ property: "file.kind", test: "is", values: ["Note", "table"] }])).toBe(true);
+    expect(keepsNotes([{ property: "file.kind", test: "is", values: ["table"] }])).toBe(false);
+    const both = [
+      { property: "status", test: "is", values: ["draft"] },
+      { property: "file.kind", test: "has", values: ["image"] },
+    ];
+    expect(keepsNotes(both)).toBe(false);
   });
 });
 

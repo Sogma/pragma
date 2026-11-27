@@ -668,9 +668,9 @@ export interface SpaceGraphResponse {
 
 // ---- /api/file, /api/prompt/save
 
-// One Flow resolved as a toolkit for a text document: the Classes holding
-// it can link more than one (docs/protocol.md's Toolkit resolution), so this
-// is an array on TextFileResponse. Only its buttons come down with the
+// One Flow resolved as a toolkit for a text document or a Table: the
+// Classes holding it can link more than one (docs/protocol.md's Toolkit
+// resolution), so this is an array on its read. Only its buttons come down with the
 // document; the graph is read fresh when one is clicked, as every Flow run
 // reads it.
 export interface TextToolkitInfo {

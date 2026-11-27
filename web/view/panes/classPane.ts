@@ -22,6 +22,7 @@ import {
   groupRows,
   holdsTags,
   isFileField,
+  keepsNotes,
   matchesRules,
   newNoteProperties,
   noteFolderOf,
@@ -606,8 +607,8 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     );
   }
 
-  // A note's values are set from here. A screenplay's title page, a media
-  // file and a file's own facts aren't.
+  // A note's values are set from here. A screenplay's title page, a Table's
+  // metadata, a media file and a file's own facts aren't.
   function settable(row: ClassRow, field: TableColumn): boolean {
     return row.error === undefined && !isFileField(field.id) && row.kind === "note";
   }
@@ -747,9 +748,10 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
   // ---- New notes ----
 
   // The folder a new note goes in, never one below it, and only where its
-  // root takes writes.
+  // root takes writes and the view could show a note.
   function noteFolder(): string | undefined {
     if (!open || !editable()) return undefined;
+    if (!keepsNotes([...open.file.filter, ...(currentView()?.filter ?? [])])) return undefined;
     const folder = noteFolderOf(place(), open.file.filter);
     return isWritableRoot(parseRootedPath(folder).root) ? folder : undefined;
   }

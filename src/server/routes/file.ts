@@ -122,7 +122,7 @@ async function headerDetails(filePath: string): Promise<{ clip: ClipDetails } | 
 // couldn't fully read goes out locked, never as a document to save over.
 // `undefined` is a parse that failed on non-blank text.
 // Each Flow the files linking it give a document, read for its name and
-// buttons: the Classes holding a note, or a Table's own links.
+// buttons: the Classes holding it as a row, after a Table's own links.
 async function toolkitsOf(
   spaceRoot: string,
   linking: readonly { classPath: string; links: readonly string[] }[],
@@ -476,7 +476,10 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         const table = parsed ?? emptyTable();
         const localLayout = (await readTableLayouts(spaceRoot))[formatWithinRoot(resolved, filePath)];
         const links = table.links ?? [];
-        const toolkits = inSpace ? await toolkitsOf(spaceRoot, [{ classPath: rooted.path, links }]) : [];
+        // A Table not yet on disk is no Class's row.
+        const held = inSpace && bytes !== undefined;
+        const classes = held ? await classesHolding(spaceRoot, { path: rooted.path, filePath }) : [];
+        const toolkits = inSpace ? await toolkitsOf(spaceRoot, [{ classPath: rooted.path, links }, ...classes]) : [];
         return c.json<TableFileResponse>({
           kind: "table",
           path: relativePath,

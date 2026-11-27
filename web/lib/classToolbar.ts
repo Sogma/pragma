@@ -13,6 +13,8 @@ import {
   fieldLabel,
   holdsTags,
   isThisFolder,
+  KIND_NAMES,
+  ROW_KINDS,
   THIS_FOLDER,
   viewFields,
 } from "../../src/protocol/class.ts";
@@ -301,6 +303,9 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
     const folderValues = el("datalist");
     folderValues.id = `class-folders-${++datalistCount}`;
     folderValues.appendChild(Object.assign(el("option"), { value: THIS_FOLDER, label: "This folder" }));
+    const kindValues = el("datalist");
+    kindValues.id = `class-kinds-${++datalistCount}`;
+    for (const kind of ROW_KINDS) kindValues.appendChild(Object.assign(el("option"), { value: KIND_NAMES[kind] }));
 
     const commit = (scope: "view" | "all"): void => {
       const rules = lines[scope].map(ruleOf).filter((rule): rule is ClassRule => rule !== undefined);
@@ -352,7 +357,7 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
     }
 
     const body = el("div", "class-popover-body");
-    panel.append(scopes, body, datalist, folderValues);
+    panel.append(scopes, body, datalist, folderValues, kindValues);
 
     function lineRow(scope: "view" | "all", line: Line, index: number): HTMLElement {
       const row = el("div", "class-filter-line");
@@ -373,13 +378,15 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
       const remove = iconButton("Remove this filter", "x");
 
       // A Folder line offers "is within" and the Class's own folder by name,
-      // as the property is typed. Leaving Folder takes "is within" with it,
-      // which would hold on any other property.
+      // and a Kind line the kinds, as the property is typed. Leaving Folder
+      // takes "is within" with it, which would hold on any other property.
       const fitTests = (): void => {
-        const onFolder = property.value.trim() === "file.folder";
+        const key = property.value.trim();
+        const onFolder = key === "file.folder";
         if (!onFolder && line.test === "within") line.test = "is";
         setOptions(test, testsFor(property.value, line.test), line.test);
-        if (onFolder) values.setAttribute("list", folderValues.id);
+        const suggested = onFolder ? folderValues : key === "file.kind" ? kindValues : undefined;
+        if (suggested) values.setAttribute("list", suggested.id);
         else values.removeAttribute("list");
       };
       fitTests();

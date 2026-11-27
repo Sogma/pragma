@@ -259,11 +259,15 @@ describe("createToolkitPanel", () => {
     expect(openFlow).toHaveBeenCalledWith("songs/tools/lyrics.class.html");
   });
 
-  it("offers no Class to open for a Table's toolkit, which the Table itself gives", () => {
+  it("offers no Class to open for a Table's own toolkit, and the Class for one a Class gives it", () => {
     const { panel, buttons, menuOpen } = setup();
-    panel.setToolkits([{ ...rewrite, classPath: "shots.table.html" }], "shots.table.html");
-    buttons.querySelector<HTMLButtonElement>(".toolkit-section-header .toolkit-section-menu")?.click();
+    const given = { ...rewrite, path: "tools/polish.flow.html", classPath: "shots/boards.class.html" };
+    panel.setToolkits([{ ...rewrite, classPath: "shots.table.html" }, given], "shots.table.html");
+    const menus = buttons.querySelectorAll<HTMLButtonElement>(".toolkit-section-header .toolkit-section-menu");
+    menus[0].click();
     expect(menuOpen.mock.calls[0][0].items?.map((item) => item.label)).toEqual(["Open Flow"]);
+    menus[1].click();
+    expect(menuOpen.mock.calls.at(-1)?.[0].items?.map((item) => item.label)).toEqual(["Open Flow", "Open Class"]);
   });
 
   it("opens the same menu under the header's More options button, and closes it on a second click", () => {

@@ -3450,15 +3450,29 @@ describe("API contract — space class", () => {
     ]);
   });
 
-  it("holds screenplays and media beside notes, each with its own values, never a Table or Flow", async () => {
+  it("holds screenplays, Tables and media beside notes, each with its own values, never a Flow", async () => {
     await place("col/kinds/kinds.class.html", classFile(["col/kinds"]));
     await place("col/kinds/a.md", "---\nstatus: draft\n---\n# A note\n");
     await place("col/kinds/c.fountain", "Title: Brick\nDraft Date: 1/1/26\n\nEXT. PATIO - DAY\n");
     await place("col/kinds/d.png", "not really a png");
     await place("col/kinds/e.pdf", PDF_BYTES.toString("latin1"));
-    await place("col/kinds/f.table.html", "");
+    await place(
+      "col/kinds/f.table.html",
+      serializeTableFile({
+        version: "1.0",
+        name: "Cast",
+        metadata: [
+          { key: "status", values: ["final"] },
+          { key: "rating", values: ["4"], field: { type: "score" } },
+          { key: "tags", values: ["studio"] },
+        ],
+        columns: [{ id: "name", type: "text", label: "Name" }],
+        rows: [],
+      }),
+    );
     await place("col/kinds/g.flow.html", "");
     await place("col/kinds/h.txt", "plain");
+    await place("col/kinds/i.table.html", "");
 
     const held = await rows("col/kinds/kinds.class.html");
     expect(held.map(({ name, kind, title, properties }) => ({ name, kind, title, properties }))).toEqual([
@@ -3471,8 +3485,33 @@ describe("API contract — space class", () => {
       },
       { name: "d.png", kind: "image", title: "d", properties: {} },
       { name: "e.pdf", kind: "pdf", title: "e", properties: {} },
+      {
+        name: "f.table.html",
+        kind: "table",
+        title: "Cast",
+        properties: { status: "final", rating: 4, tags: ["studio"] },
+      },
+      { name: "i.table.html", kind: "table", title: "i", properties: {} },
     ]);
     expect(held[2]).toMatchObject({ ...facts("image"), size: "not really a png".length });
+  });
+
+  it("filters by Kind in any case, a Table's tags counting as a note's", async () => {
+    const tables = [{ property: "file.kind", test: "is", values: ["Table"] }];
+    await place("col/boards/boards.class.html", classFile(["col/boards"], tables));
+    await place("col/boards/a.md", "---\ntags: [studio]\n---\n# A\n");
+    await place(
+      "col/boards/b.table.html",
+      serializeTableFile({ version: "1.0", metadata: [{ key: "tags", values: ["Studio"] }], columns: [], rows: [] }),
+    );
+    expect((await rows("col/boards/boards.class.html")).map((row) => row.path)).toEqual(["col/boards/b.table.html"]);
+
+    const tagged = [{ property: "file.tags", test: "has", values: ["studio"] }];
+    await place("col/boards/tagged.class.html", classFile(["col/boards"], tagged));
+    expect((await rows("col/boards/tagged.class.html")).map((row) => row.path)).toEqual([
+      "col/boards/a.md",
+      "col/boards/b.table.html",
+    ]);
   });
 
   it("writes each row's folder from the Class's scope, and filters Folder by * for any one folder", async () => {
@@ -4411,6 +4450,39 @@ describe("API contract — toolkits", () => {
       body.toolkits.map((toolkit: { path: string; classPath: string }) => [toolkit.path, toolkit.classPath]),
     ).toEqual([["tools/rewrite.flow.html", "tools/shots.table.html"]]);
     expect(body.toolkits[0].actions.map((action: { label: string }) => action.label)).toEqual(["Tighten", "Expand"]);
+  });
+
+  it("gives a Table the toolkits of the Classes holding it, after its own links'", async () => {
+    await mkdir(path.join(testServer.spaceRoot, "boards"), { recursive: true });
+    await writeFile(
+      path.join(testServer.spaceRoot, "boards", "boards.class.html"),
+      serializeClassFile({
+        version: "1.0",
+        filter: [
+          { property: "file.folder", test: "is", values: ["this.file.folder"] },
+          { property: "file.kind", test: "is", values: ["table"] },
+        ],
+        fields: [],
+        views: [],
+        links: ["../tools/rewrite.flow.html", "../tools/polish.flow.html"],
+      }),
+    );
+    await writeFile(
+      path.join(testServer.spaceRoot, "boards", "cast.table.html"),
+      serializeTableFile({
+        version: "1.0",
+        columns: [{ id: "name", type: "text", label: "Name" }],
+        rows: [],
+        links: ["../tools/polish.flow.html"],
+      }),
+    );
+    const body = await (await fetch(`${testServer.baseUrl}/api/file?path=boards/cast.table.html`)).json();
+    expect(
+      body.toolkits.map((toolkit: { path: string; classPath: string }) => [toolkit.path, toolkit.classPath]),
+    ).toEqual([
+      ["tools/polish.flow.html", "boards/cast.table.html"],
+      ["tools/rewrite.flow.html", "boards/boards.class.html"],
+    ]);
   });
 
   // Its tags can't be read, but it has to open for the writer to fix it.
