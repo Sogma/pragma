@@ -4,7 +4,7 @@ description: "Linden Lake Lodge's languages, voice, conventions and glossary for
 
 # Style guide: Linden Lake Lodge
 
-Translate, Alternatives, Back-translate and Check terms read this note on every click, so a change here applies from the next one. Query client drafts its question from the selected passage alone.
+Translate selected passages reads this guide once for the whole batch. Translate, Alternatives, Back-translate and Check terms also read it on each click. Query client drafts its question from the selected passage alone.
 
 ## Languages
 

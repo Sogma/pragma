@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 import { actionGraph, flowActions, runAction, upstreamGraph } from "../../src/protocol/flowActions.ts";
 import type { NodeExecutionContext } from "../../src/protocol/flowExecutors.ts";
 import { parseFlowFile } from "../../src/protocol/flowFile.ts";
 import { computeFlowCapabilities } from "../../src/protocol/flowNodes.ts";
+import { parseTableFile } from "../../src/protocol/tableFile.ts";
 import type { FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
 
 function node(id: string, type: string, x: number, y: number, label?: string): FlowNodeInstance {
@@ -246,6 +247,54 @@ describe("runAction", () => {
       expect(run.document.showResult).toHaveBeenCalledWith([`Added the query to /${tablePath}`]);
     },
   );
+
+  it("translates only the ticked template passages with the guide beside their Table", async () => {
+    const tableFile = new URL("../../templates/space/projects/translation/passages.table.html", import.meta.url);
+    const content = await readFile(tableFile, "utf8");
+    const table = parseTableFile(content);
+    assert.isDefined(table);
+    const toolkit = table.links?.[0];
+    assert.isDefined(toolkit);
+    const flow = parseFlowFile(await readFile(new URL(toolkit, tableFile), "utf8"));
+    assert.isDefined(flow);
+    const button = flowActions(flow.graph).find((action) => action.label === "Translate selected passages");
+    assert.isDefined(button);
+
+    const picked = [table.rows[0], table.rows[2]];
+    const run = context(false);
+    run.flowPath = `projects/translation/${toolkit}`;
+    run.document = {
+      path: "clients/Lodge/passages.table.html",
+      hasSelection: false,
+      read: () => ({ content, selection: "" }),
+      rows: { columns: table.columns, rows: picked },
+      replaceSelection: vi.fn(),
+      showResult: vi.fn(),
+    };
+    const guide = "Use usted and translate rates as tarifas.";
+    vi.mocked(run.sandbox.read).mockResolvedValue({ kind: "text", content: guide });
+    const drafts = ["La primavera llega temprano.", "Las tarifas empiezan en US$120."];
+    const generate = vi.mocked(run.sandbox.generate);
+    for (const reply of drafts) generate.mockResolvedValueOnce({ reply, model: "test-model" });
+
+    const result = await runAction(actionGraph(flow.graph, button.nodeId), button.nodeId, run);
+
+    expect([...result.errors]).toEqual([]);
+    expect(run.sandbox.read).toHaveBeenCalledExactlyOnceWith(
+      "flow",
+      run.flowPath,
+      "space:clients/Lodge/style-guide.md",
+    );
+    const prompts = generate.mock.calls.map(([, , request]) => request.instruction);
+    expect(prompts).toHaveLength(picked.length);
+    for (const [index, prompt] of prompts.entries()) {
+      expect(prompt).toContain(guide);
+      expect(table.rows.filter((row) => prompt.includes(row.values.passage))).toEqual([picked[index]]);
+    }
+    expect(run.document.showResult).toHaveBeenCalledExactlyOnceWith(
+      picked.map((row, index) => `English\n${row.values.passage}\n\nDraft\n${drafts[index]}`),
+    );
+  });
 });
 
 describe("runAction on an old toolkit", () => {

@@ -15,7 +15,7 @@ One file a new space gets is *not* here: `.gitignore`. Every packager mangles th
 - **It has to stay true.** When a format or a client API changes, update the example in the same change. An example that no longer works is worse than no example, and this one is what new users copy from.
 - **It has to stay small.** It is a first impression, not a feature tour. New users delete this folder when they are done with it; anything that belongs in the docs belongs in the docs.
 
-`space/projects/translation/` puts the same kinds to work on one professional's job, a translator's: a brochure to translate, the client's style guide that both of its toolkits read, a query sheet a Flow adds rows to, and a Class that gives the brochure its buttons. It is the example to show someone who asks what Pragma would do for their own work. It follows the same two rules, and stays one job rather than every tool a translator could want.
+`space/projects/translation/` follows a translator working on a hotel brochure. A passage Table links a Flow that drafts translations for selected rows using the client's style guide. A Class gives the brochure its translation and review buttons, including one that adds questions to the client's query sheet. The same two rules apply.
 
 `space/_templates/` is the space's own templates, one of each kind: a Daily Note file template, dated by `{{$date}}`, and a Project folder template, titled by `{{$title}}`, with a `README.md` explaining both. It stays true and small for the same reasons, and twins none of `builtin/`'s, or New ▸ Template would list one twice.
 

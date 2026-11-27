@@ -47,12 +47,14 @@ describe("scaffoldSpace", () => {
       "_structure.json",
       "brochure.md",
       "jobs.class.html",
+      "passages.table.html",
       "queries.table.html",
       "style-guide.md",
       "tools",
     ]);
     expect((await readdir(path.join(target, "projects/translation/tools"))).sort()).toEqual([
       "review.flow.html",
+      "translate-passages.flow.html",
       "translate.flow.html",
     ]);
   });
