@@ -78,7 +78,8 @@ describe("checkProposal", () => {
     const proposal = flow({
       nodes: [
         node("dials", "applet", { appletPath: "dials.applet.html" }),
-        node("add", "addRow", { tablePath: "cast.table.html" }),
+        node("add", "makeObject", { tablePath: "cast.table.html" }),
+        node("row", "addRow", { tablePath: "cast.table.html" }),
         node("vars", "templateVariables", { var1Name: "a", var3Name: "c" }),
         node("p", "prompt", { text: "x" }),
       ],
@@ -96,6 +97,7 @@ describe("checkProposal", () => {
       ports: { inputs: [], outputs: [{ id: "direction", type: "text", label: "direction" }] },
     });
     expect(filled("dials")?.label).toBe("Story Dials");
+    expect(filled("row")?.config.columns).toEqual(filled("add")?.config.columns);
     expect(filled("add")?.config.columns).toEqual([
       { id: "name", type: "text", label: "Name" },
       { id: "lead", type: "checkbox", label: "Lead" },
@@ -188,18 +190,33 @@ describe("checkProposal", () => {
     ]);
   });
 
-  it("names an Applet node whose Applet isn't there, and an Add Row node whose Table isn't one", async () => {
+  it("names an Applet node whose Applet isn't there, and a node whose Table isn't one", async () => {
     const proposal = flow({
       nodes: [
         node("a", "applet", { appletPath: "gone.applet.html" }),
+        node("m", "makeObject", { tablePath: "notes/idea.md" }),
         node("r", "addRow", { tablePath: "notes/idea.md" }),
       ],
       edges: [],
     });
     expect(await problemsOf("story.flow.html", proposal)).toEqual([
       'Applet "a": "gone.applet.html" isn\'t there.',
+      'Make Object "m": "notes/idea.md" isn\'t a Table Pragma can read.',
       'Add Row "r": "notes/idea.md" isn\'t a Table Pragma can read.',
     ]);
+  });
+
+  // A wire may name the Table instead, which only the run can read.
+  it("asks an Add Row node for a Table, unless a wire brings one", async () => {
+    const unwired = flow({ nodes: [node("r", "addRow")], edges: [] });
+    expect(await problemsOf("story.flow.html", unwired)).toEqual([
+      'Add Row "r": it names no Table; "tablePath" is the Table it adds to, unless a wire brings one.',
+    ]);
+    const wired = flow({
+      nodes: [node("p", "prompt", { text: "log.table.html" }), node("r", "addRow")],
+      edges: [wire("p", "text", "r", "path")],
+    });
+    expect(await problemsOf("story.flow.html", wired)).toEqual([]);
   });
 
   it("names a Table column it would read as text, or that no Flow could name", async () => {

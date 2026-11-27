@@ -1,6 +1,7 @@
-import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_PORT, addRowPorts } from "./addRowNode.ts";
+import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_INPUT, addRowPorts } from "./addRowNode.ts";
 import type { ModelSettingValue } from "./api.ts";
 import { APPLET_NODE_TYPE, appletNodeConfig } from "./appletNode.ts";
+import { MAKE_OBJECT_NODE_TYPE, makeObjectPorts } from "./makeObjectNode.ts";
 import { isDeclaredAddress, isHiddenPath, resolveDeclaredPath } from "./relativeReference.ts";
 import { dirnameOf, formatDeclaredPath, parseRootedPath } from "./rootedPath.ts";
 import type {
@@ -235,9 +236,7 @@ function configString(config: Record<string, unknown>, key: string): string {
 }
 
 // A path pin is optional and comes first: the node's target, ahead of the
-// values it takes. It is `path` on every node that takes one but Add Row,
-// whose other pins are its Table's column ids, so a column named `path`
-// would lose its pin to it.
+// values it takes. It is `path` on every node that takes one.
 const PATH_PORT = "path";
 
 function withPathInput(
@@ -434,21 +433,39 @@ const applet: FlowNodeTypeDefinition = {
   configKeys: ["appletPath", "appletHash", "ports", "state", "outputs"],
 };
 
-/** Adds a row to a Table, an input per column (addRowNode.ts). The Table
- * dragged in from the tree gives the columns; a path wired into `table_path`
- * writes the row to another Table with the same column ids. Its pin comes
- * from `portsFrom`, since the rest are the Table's. */
+/** A Table's columns as pins, and the object they make (makeObjectNode.ts).
+ * The Table dragged in only gives the pins, so a run never reads it and
+ * asks for nothing. Its pins come from `portsFrom`, since they are the
+ * Table's. */
+const makeObject: FlowNodeTypeDefinition = {
+  type: MAKE_OBJECT_NODE_TYPE,
+  label: "Make Object",
+  description: "Fields, as one object.",
+  category: "Data",
+  keywords: ["row", "record", "fields", "columns", "table", "json", "build", "compose", "construct"],
+  version: "1.0",
+  inputs: [],
+  outputs: [],
+  portsFrom: makeObjectPorts,
+  configFields: [],
+  configKeys: ["tablePath", "columns", "values"],
+};
+
+/** Adds a row to a Table (addRowNode.ts): the one dragged in, or the one a
+ * wired path names. Its row comes on one object input, and the Table dragged
+ * in gives a pin per column beside it, so all its pins come from
+ * `portsFrom`. */
 const addRow: FlowNodeTypeDefinition = {
   type: ADD_ROW_NODE_TYPE,
   label: "Add Row",
   description: "One row, added to a Table.",
   category: "Data",
   keywords: ["append", "insert", "log", "record", "save", "store", "write", "table", "csv", "spreadsheet"],
-  version: "1.0",
+  version: "2.0",
   inputs: [],
   outputs: [],
   portsFrom: addRowPorts,
-  pathInput: { portId: ADD_ROW_PATH_PORT, configKey: "tablePath", access: "write" },
+  pathInput: { portId: ADD_ROW_PATH_INPUT, configKey: "tablePath", access: "write" },
   configFields: [],
   configKeys: ["tablePath", "columns", "values"],
   capabilityFor: (config) => {
@@ -1390,6 +1407,7 @@ const REGISTERED = {
   loadRow,
   loadRandomRow,
   loadTableRows,
+  makeObject,
   addRow,
   chart,
   loadNote,

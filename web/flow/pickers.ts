@@ -152,6 +152,7 @@ export interface Pickers {
   createWriteFolderNotePicker(node: FlowNodeInstance): PathPicker;
   createOpenToSidePicker(node: FlowNodeInstance): PathPicker;
   createLoadTableRowsPicker(node: FlowNodeInstance): PathPicker;
+  createMakeObjectPicker(node: FlowNodeInstance, onChosen: () => void): MakeObjectPicker;
   createAddRowPicker(node: FlowNodeInstance, onChosen: () => void): AddRowPicker;
   createFolderPicker(node: FlowNodeInstance): PathPicker;
   // The dropdown alone of the value a Load Row or a folder loader exposes,
@@ -188,10 +189,17 @@ export interface PathPicker {
   target: HTMLElement;
 }
 
-/** An Add Row node's Table: the drop target, and the stat line beneath it
- * that the card fills once it has read the Table. */
-export interface AddRowPicker {
+/** A Make Object node's Table: the drop target, and the stat line beneath
+ * it that the card fills once it has read the Table. */
+export interface MakeObjectPicker {
   el: HTMLDivElement;
+  describe(columns: number, rows: number): void;
+  setDetail(text: string): void;
+}
+
+/** An Add Row node's Table, which its path pin sits beside, and the stat
+ * line beneath it that the card fills once it has read the Table. */
+export interface AddRowPicker extends PathPicker {
   describe(columns: number, rows: number): void;
   setDetail(text: string): void;
   // A Table with nothing at its path, as a loader's chip shows one.
@@ -1240,15 +1248,26 @@ export function createPickers(deps: PickerDeps): Pickers {
     return { el: wrap, target: target.elements[0] };
   }
 
-  // addRow's config: writeNote's drop target, for a Table. A different Table
-  // brings different columns, so what was typed for the last one's goes with
-  // it, and the card is rebuilt rather than patched. The drag isn't consent
-  // to write: the run asks, naming the Table, the first time it would.
+  // makeObject's config: the Table whose columns it takes. A run never reads it.
+  function createMakeObjectPicker(node: FlowNodeInstance, onChosen: () => void): MakeObjectPicker {
+    return createTableColumnsPicker(node, "Drag a Table here for its columns", onChosen);
+  }
+
+  // addRow's config: the Table it adds to, whose columns give its pins. The
+  // drag isn't consent to write: the run asks, naming the Table, the first
+  // time it would.
   function createAddRowPicker(node: FlowNodeInstance, onChosen: () => void): AddRowPicker {
+    return createTableColumnsPicker(node, "Drag the Table to add rows to here", onChosen);
+  }
+
+  // The Table a node takes its column pins from. A different Table brings
+  // different columns, so what was typed for the last one's goes with it,
+  // and the card is rebuilt rather than patched.
+  function createTableColumnsPicker(node: FlowNodeInstance, emptyText: string, onChosen: () => void): AddRowPicker {
     const wrap = document.createElement("div");
     wrap.className = "flow-node-config";
 
-    const target = loaderTarget(node, "table", "Drag the Table to add rows to here");
+    const target = loaderTarget(node, "table", emptyText);
     target.setPath(typeof node.config.tablePath === "string" ? node.config.tablePath : "");
     clearsTo(node, target, () => {
       node.config = {};
@@ -1273,6 +1292,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     wrap.append(...target.elements);
     return {
       el: wrap,
+      target: target.elements[0],
       describe: (columns, rows) => target.setDetail(tableContentsLabel(columns, rows)),
       setDetail: target.setDetail,
       setMissing: target.setMissing,
@@ -1603,6 +1623,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     createWriteNotePicker,
     createOpenToSidePicker,
     createLoadTableRowsPicker,
+    createMakeObjectPicker,
     createAddRowPicker,
     createFolderPicker,
     createRowSelect: (node) => createRowSelect(node),

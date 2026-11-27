@@ -279,10 +279,11 @@
 
 /* Unwired, the target says what the pin takes, so the pin goes unnamed.
    Wired, the picker shows only the pins and their names: nothing it shows of
-   the dragged file is what the run will read. */
-.flow-path-picker:not(.wired) > .flow-path-row > .flow-port-label,
-.flow-path-picker.wired > :not(.flow-path-row),
-.flow-path-picker.wired > .flow-path-row > :not(.handle, .flow-port-label, .flow-port-row) {
+   the dragged file is what the run will read. An Add Row's Table still gives
+   its column pins, so while it does (`gives-columns`) it stays, as unwired. */
+.flow-path-picker:is(:not(.wired), .gives-columns) > .flow-path-row > .flow-port-label,
+.flow-path-picker.wired:not(.gives-columns) > :not(.flow-path-row),
+.flow-path-picker.wired:not(.gives-columns) > .flow-path-row > :not(.handle, .flow-port-label, .flow-port-row) {
   display: none;
 }
 

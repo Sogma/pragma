@@ -6,14 +6,16 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { type HTMLElement, parse } from "node-html-parser";
-import { ADD_ROW_NODE_TYPE, addRowColumns, addRowNodeConfig } from "../protocol/addRowNode.ts";
+import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_INPUT } from "../protocol/addRowNode.ts";
 import { contentHashFor, parseAppletFile, readAppletFile } from "../protocol/appletFile.ts";
 import { APPLET_NODE_TYPE, appletNodeConfig, appletNodeProblem } from "../protocol/appletNode.ts";
 import { parseClassFile } from "../protocol/classFile.ts";
+import { columnPinsConfig, recordColumns } from "../protocol/columnPins.ts";
 import { parseFlowFile } from "../protocol/flowFile.ts";
 import { serializeFlowFile } from "../protocol/flowHtml.ts";
 import { FLOW_NODE_REGISTRY, GET_FIELD_SLOTS, type SlotSpec, TEMPLATE_VARIABLE_SLOTS } from "../protocol/flowNodes.ts";
 import { flowAuthoringProblems, nodeName } from "../protocol/flowProblems.ts";
+import { MAKE_OBJECT_NODE_TYPE } from "../protocol/makeObjectNode.ts";
 import { resolveDeclaredPath } from "../protocol/relativeReference.ts";
 import { dirnameOf, formatRootedPath } from "../protocol/rootedPath.ts";
 import { parseTableFile } from "../protocol/tableFile.ts";
@@ -25,6 +27,7 @@ import {
   isClassFile,
   isFlowFile,
   isTableFile,
+  type TableFile,
 } from "../protocol/types.ts";
 import { readAppletImports } from "./appletImports.ts";
 import { type Access, isSpaceTarget, type ResolvedRootedPath, resolveHeldPath } from "./rootedFiles.ts";
@@ -78,7 +81,8 @@ async function checkFlow(spaceRoot: string, relativePath: string, content: strin
   const problems: string[] = [];
   for (const node of graph.nodes) {
     if (node.type === APPLET_NODE_TYPE) problems.push(...(await fillAppletNode(spaceRoot, flowDir, node)));
-    if (node.type === ADD_ROW_NODE_TYPE) problems.push(...(await fillAddRowNode(spaceRoot, flowDir, node)));
+    if (node.type === MAKE_OBJECT_NODE_TYPE) problems.push(...(await fillMakeObjectNode(spaceRoot, flowDir, node)));
+    if (node.type === ADD_ROW_NODE_TYPE) problems.push(...(await fillAddRowNode(spaceRoot, flowDir, node, graph)));
     fillSlots(node, graph);
   }
   problems.push(...(await pathProblems(spaceRoot, flowDir, graph)), ...flowAuthoringProblems(graph));
@@ -147,20 +151,50 @@ async function fillAppletNode(spaceRoot: string, flowDir: string, node: FlowNode
   return [error, appletNodeProblem(manifest)].filter((problem) => problem !== undefined).map((p) => `${name}: ${p}`);
 }
 
-// An Add Row node's columns, from its Table as it is.
-async function fillAddRowNode(spaceRoot: string, flowDir: string, node: FlowNodeInstance): Promise<string[]> {
+// A Make Object node's columns, from its Table as it is.
+async function fillMakeObjectNode(spaceRoot: string, flowDir: string, node: FlowNodeInstance): Promise<string[]> {
+  const name = nodeName(node, FLOW_NODE_REGISTRY[MAKE_OBJECT_NODE_TYPE]);
+  const { tablePath } = columnPinsConfig(node.config);
+  if (!tablePath) return [`${name}: it names no Table; "tablePath" is the Table whose columns it takes.`];
+  const table = await readTable(spaceRoot, flowDir, tablePath, "read");
+  if (typeof table === "string") return [`${name}: ${table}`];
+  node.config.columns = recordColumns(table.columns);
+  return [];
+}
+
+// An Add Row node adds to a Table that is already there, the one dragged in
+// or one a wire names. The one dragged in gives its column pins.
+async function fillAddRowNode(
+  spaceRoot: string,
+  flowDir: string,
+  node: FlowNodeInstance,
+  graph: FlowGraph,
+): Promise<string[]> {
   const name = nodeName(node, FLOW_NODE_REGISTRY[ADD_ROW_NODE_TYPE]);
-  const { tablePath } = addRowNodeConfig(node.config);
-  if (!tablePath) return [`${name}: it names no Table; "tablePath" is the Table it adds to.`];
-  const found = await findEntry(spaceRoot, flowDir, tablePath, "write");
-  if (typeof found === "string") return [`${name}: ${found}`];
+  const { tablePath } = columnPinsConfig(node.config);
+  if (!tablePath) {
+    const wired = graph.edges.some((edge) => edge.target === node.id && edge.targetPort === ADD_ROW_PATH_INPUT);
+    return wired ? [] : [`${name}: it names no Table; "tablePath" is the Table it adds to, unless a wire brings one.`];
+  }
+  const table = await readTable(spaceRoot, flowDir, tablePath, "write");
+  if (typeof table === "string") return [`${name}: ${table}`];
+  node.config.columns = recordColumns(table.columns);
+  return [];
+}
+
+async function readTable(
+  spaceRoot: string,
+  flowDir: string,
+  tablePath: string,
+  use: Access,
+): Promise<TableFile | string> {
+  const found = await findEntry(spaceRoot, flowDir, tablePath, use);
+  if (typeof found === "string") return found;
   const table =
     !found.isDirectory && isTableFile(found.filePath)
       ? parseTableFile(await readFile(found.filePath, "utf8"))
       : undefined;
-  if (!table) return [`${name}: "${tablePath}" isn't a Table Pragma can read.`];
-  node.config.columns = addRowColumns(table.columns);
-  return [];
+  return table ?? `"${tablePath}" isn't a Table Pragma can read.`;
 }
 
 const SLOTTED: Record<string, SlotSpec> = {

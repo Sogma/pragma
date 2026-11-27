@@ -7,13 +7,9 @@ import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { HandleType as XYHandleType } from "@xyflow/system";
 import { minimalSetup } from "codemirror";
-import {
-  ADD_ROW_NODE_TYPE,
-  ADD_ROW_PATH_PORT,
-  addRowColumns,
-  addRowNodeConfig,
-} from "../../src/protocol/addRowNode.ts";
+import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_INPUT, addRowColumns } from "../../src/protocol/addRowNode.ts";
 import { APPLET_NODE_TYPE } from "../../src/protocol/appletNode.ts";
+import { columnPinsConfig, recordColumns } from "../../src/protocol/columnPins.ts";
 import { placeholderPattern } from "../../src/protocol/datePlaceholders.ts";
 import type { PortValue } from "../../src/protocol/flowExecutors.ts";
 import {
@@ -32,6 +28,7 @@ import {
   TEMPLATE_VARIABLE_SLOTS,
 } from "../../src/protocol/flowNodes.ts";
 import { missingPortIds } from "../../src/protocol/flowProblems.ts";
+import { MAKE_OBJECT_NODE_TYPE } from "../../src/protocol/makeObjectNode.ts";
 import { referenceMentions } from "../../src/protocol/referenceMentions.ts";
 import type { SetupNeed } from "../../src/protocol/setupNeed.ts";
 import {
@@ -93,6 +90,7 @@ import {
   type FieldPicker,
   folderPickKey,
   type GenerationView,
+  type MakeObjectPicker,
   type PathPicker,
   sourceIn,
 } from "./pickers.ts";
@@ -290,8 +288,9 @@ export interface NodeCardDeps {
   menus: Pick<FlowMenus, "openNodeMenu" | "openHandleMenu" | "openExposeMenu" | "openChipMenu">;
   // A locked Flow takes no edits, so a missing pin offers none.
   locked(): boolean;
-  // A file a node names, read from the Flow's folder: an Applet node's, an
-  // Add Row's Table. Then an Applet frame's markup with the node client.
+  // A file a node names, read from the Flow's folder: an Applet node's, a
+  // Make Object's or an Add Row's Table. Then an Applet frame's markup with
+  // the node client.
   loadFile(stored: string): Promise<FileResponse>;
   injectAppletRuntime(
     html: string,
@@ -420,6 +419,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   const unnamedDots = new WeakMap<HTMLElement, string>();
   // Each Load Video's clip, by node id, so its player goes with the card.
   const clipPickers = new Map<string, ClipPicker>();
+  // Each Add Row's Table chip, by node id, read again when a wire into its
+  // path comes or goes: its stat line says what the Table still gives.
+  const tablePickers = new Map<string, AddRowPicker>();
   // Per slotted node, what shows or hides its "+" for what's revealed and
   // what the picked model takes.
   const slotAddRefreshers = new Map<string, () => void>();
@@ -751,6 +753,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     if (picker && picker.classList.contains("wired") !== connected) {
       picker.classList.toggle("wired", connected);
       deps.onLayoutChange(nodeId);
+      const table = tablePickers.get(nodeId);
+      const node = table && deps.graph().nodes.find((each) => each.id === nodeId);
+      if (table && node) void syncTableColumns(node, table);
     }
     // A wired model is unknown until the run, so the "+" stops at the ceiling,
     // and a frame wired or unwired shows or hides with it.
@@ -959,8 +964,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     return row;
   }
 
-  // One of an Add Row node's column inputs: pin and the column's label, plus
-  // what the cell gets when nothing is wired, hidden once something is.
+  // One of a column input of a Make Object or an Add Row node: pin and the
+  // column's label, plus what the field gets when nothing is wired, hidden
+  // once something is.
   //
   // No Expose: App mode and a run's inputs set a field by its config key,
   // and these values live under `values`, apart from the node's own keys.
@@ -991,9 +997,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // column has none: it takes a path from a wire. A timestamp says what the
   // Table fills in, which is the Table's to decide, not the node's.
   function createColumnControl(node: FlowNodeInstance, column: TableColumn): HTMLElement | undefined {
-    const stored = addRowNodeConfig(node.config).values[column.id];
+    const stored = columnPinsConfig(node.config).values[column.id];
     const save = (value: string) => {
-      node.config.values = { ...addRowNodeConfig(node.config).values, [column.id]: value };
+      node.config.values = { ...columnPinsConfig(node.config).values, [column.id]: value };
       deps.persistGraph();
     };
 
@@ -1046,52 +1052,78 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     }
   }
 
-  // An Add Row node's Table. Read again on every build, so the pins follow
+  // A Make Object node's Table. Read again on every build, so the pins follow
   // the Table's columns as they are now — one added, renamed or deleted.
-  function createAddRowContent(node: FlowNodeInstance): HTMLDivElement {
-    const picker = pickers.createAddRowPicker(node, () => deps.remount(node.id));
-    void syncAddRowNode(node, picker);
+  function createMakeObjectContent(node: FlowNodeInstance): HTMLDivElement {
+    const picker = pickers.createMakeObjectPicker(node, () => deps.remount(node.id));
+    void syncTableColumns(node, picker);
     return picker.el;
+  }
+
+  // An Add Row node's Table: where the row goes, and, read again on every
+  // build, the columns its pins follow. While it gives pins it shows through
+  // a wired path too (`gives-columns`), since the pins are still its.
+  function createAddRowContent(node: FlowNodeInstance): AddRowPicker {
+    const picker = pickers.createAddRowPicker(node, () => deps.remount(node.id));
+    picker.el.classList.toggle("gives-columns", addRowColumns(node.config).length > 0);
+    tablePickers.set(node.id, picker);
+    void syncTableColumns(node, picker);
+    return picker;
   }
 
   // Records the Table's columns, and rebuilds the card when they changed;
   // the rebuild's own read then finds nothing to change. A deleted column
   // takes its wires with it: a column's id survives a rename, so its wires
   // could only ever be disconnected from a missing pin.
-  async function syncAddRowNode(node: FlowNodeInstance, picker: AddRowPicker): Promise<void> {
-    const { tablePath, columns: saved } = addRowNodeConfig(node.config);
+  //
+  // A gone Table reads as an empty one, which would pass for a Table whose
+  // columns all went and take the node's wires: the node keeps both. Make
+  // Object's run never reads the Table, so it fails nothing; Add Row's does
+  // unless a wire names another Table, and its chip says so as the run will.
+  async function syncTableColumns(node: FlowNodeInstance, picker: MakeObjectPicker | AddRowPicker): Promise<void> {
+    const { tablePath, columns: saved } = columnPinsConfig(node.config);
     if (!tablePath) return;
-    let file: FileResponse;
-    try {
-      file = await deps.loadFile(tablePath);
-    } catch {
-      picker.setDetail("Can't read this Table");
-      return;
-    }
-    if (file.kind !== "table" || file.locked === "unreadable") {
-      picker.setDetail("Not a Table Pragma can read");
-      return;
-    }
-    // A gone Table reads as an empty one, which would pass for a Table whose
-    // columns all went and take the node's wires: the node keeps both. Only
-    // an unwired node's run would fail on it; a wired one adds elsewhere.
+    const file = await readTableFor(tablePath, picker);
+    if (!file) return;
+    const wired =
+      node.type === ADD_ROW_NODE_TYPE &&
+      deps.graph().edges.some((edge) => edge.target === node.id && edge.targetPort === ADD_ROW_PATH_INPUT);
     if (file.missing) {
-      const { edges } = deps.graph();
-      const wired = edges.some((edge) => edge.target === node.id && edge.targetPort === ADD_ROW_PATH_PORT);
-      if (!wired) picker.setMissing(noFileAt(file.path));
+      if (node.type === MAKE_OBJECT_NODE_TYPE) picker.setDetail(`${noFileAt(file.path)}. Its columns are kept.`);
+      else if (!wired && "setMissing" in picker) picker.setMissing(noFileAt(file.path));
       return;
     }
-    picker.describe(file.columns.length, file.rows.length);
-    const columns = addRowColumns(file.columns);
+    const columns = recordColumns(file.columns);
+    if (wired && addRowColumns({ columns }).length > 0) picker.setDetail("Sets the columns. The wire picks the Table.");
+    else picker.describe(file.columns.length, file.rows.length);
     if (JSON.stringify(columns) === JSON.stringify(saved)) return;
     node.config.columns = columns;
-    const kept = new Set(columns.map((column) => column.id));
+    const kept = new Set(nodePorts(node).inputs.map((port) => port.id));
     const graph = deps.graph();
     const dropped = graph.edges.filter((edge) => edge.target === node.id && !kept.has(edge.targetPort));
     graph.edges = graph.edges.filter((edge) => !dropped.includes(edge));
     deps.persistGraph();
     deps.remount(node.id);
     for (const edge of dropped) updateOutputHandleVisibility(edge.source, edge.sourcePort);
+  }
+
+  // A Table a node names, or nothing, with why on its stat line.
+  async function readTableFor(
+    tablePath: string,
+    picker: { setDetail(text: string): void },
+  ): Promise<Extract<FileResponse, { kind: "table" }> | undefined> {
+    let file: FileResponse;
+    try {
+      file = await deps.loadFile(tablePath);
+    } catch {
+      picker.setDetail("Can't read this Table");
+      return undefined;
+    }
+    if (file.kind !== "table" || file.locked === "unreadable") {
+      picker.setDetail("Not a Table Pragma can read");
+      return undefined;
+    }
+    return file;
   }
 
   // The row of the input a type's `affix` names: pin and label, plus the
@@ -2133,7 +2165,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     inputsEl.className = "flow-node-inputs";
     if (flowNode.type === "prompt") inputsEl.appendChild(createMentionInfoRow());
     const ports = nodePorts(flowNode);
-    const columns = flowNode.type === ADD_ROW_NODE_TYPE ? addRowNodeConfig(flowNode.config).columns : [];
+    const columns =
+      flowNode.type === MAKE_OBJECT_NODE_TYPE
+        ? columnPinsConfig(flowNode.config).columns
+        : flowNode.type === ADD_ROW_NODE_TYPE
+          ? addRowColumns(flowNode.config)
+          : [];
     const referenceSlots = definition.referenceSlots;
     const slotPorts = (spec: SlotSpec | undefined) =>
       spec ? Array.from({ length: spec.max }, (_, i) => spec.portId(i + 1)) : [];
@@ -2220,8 +2257,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     contentEl.className = "flow-node-content";
 
     // The file a node names, which its path pin moves beside, and a loader's
-    // `path` output. Not Add Row's: the dragged Table still gives the node
-    // its columns, so a wire leaves it showing and the pin stays an input.
+    // `path` output.
     let pathPicker: PathPicker | undefined;
     if (flowNode.type === "loadImage") {
       pathPicker = pickers.createDropzone(flowNode);
@@ -2294,8 +2330,11 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     } else if (flowNode.type === "loadTableRows") {
       pathPicker = pickers.createLoadTableRowsPicker(flowNode);
       contentEl.appendChild(pathPicker.el);
+    } else if (flowNode.type === MAKE_OBJECT_NODE_TYPE) {
+      contentEl.appendChild(createMakeObjectContent(flowNode));
     } else if (flowNode.type === ADD_ROW_NODE_TYPE) {
-      contentEl.appendChild(createAddRowContent(flowNode));
+      pathPicker = createAddRowContent(flowNode);
+      contentEl.appendChild(pathPicker.el);
     } else if (flowNode.type === APPLET_NODE_TYPE) {
       contentEl.appendChild(createAppletContent(flowNode));
     } else if (flowNode.type === "chart") {
@@ -2424,6 +2463,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       titleEls.delete(nodeId);
       clipPickers.get(nodeId)?.dispose();
       clipPickers.delete(nodeId);
+      tablePickers.delete(nodeId);
       heldViews.delete(nodeId);
       contextReports.delete(nodeId);
       resultEls.delete(nodeId);

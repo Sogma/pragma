@@ -6,7 +6,7 @@
 // port is a transport seam, not a permission boundary: server-side
 // enforcement is what gates a capability.
 
-import { addRowNodeConfig, cellText } from "./addRowNode.ts";
+import { ADD_ROW_INPUT, addRowColumns, cellText, cellTexts } from "./addRowNode.ts";
 import type {
   AddRowResponse,
   ClipFacts,
@@ -27,6 +27,7 @@ import type {
 } from "./api.ts";
 import { appletNodeConfig } from "./appletNode.ts";
 import { formatAspectRatio, isAspectRatio } from "./aspectRatio.ts";
+import { columnPinsConfig, typedFieldValue, wiredFieldValue } from "./columnPins.ts";
 import { type ClockReading, dateFill, fillDates, fillPlaceholders } from "./datePlaceholders.ts";
 import { fileStemFor } from "./entryName.ts";
 import {
@@ -1083,19 +1084,37 @@ const addToNote: NodeExecutor = async (node, inputs, context) => {
 };
 
 // A wired input wins, then what the card's own control holds; a column given
-// neither is left out, so the host fills in what a new row gets from the
-// Table as it is on disk, not as the canvas last saw it.
-const addRow: NodeExecutor = async (node, inputs, context) => {
-  const { columns, values } = addRowNodeConfig(node.config);
-  const { path: tablePath, wired } = nodePath(node, inputs, context);
-  if (!tablePath)
-    throw new Error(wired ? "Nothing reached its table_path input" : "Drag the table to add rows to onto this node");
-  if (!isTableFile(tablePath)) throw new Error(`"${tablePath}" is no longer a table`);
-  const row: Record<string, string> = {};
+// neither is left out of the object, so the Table fills in what a new row
+// gets, from the Table as it is on disk when the row is added.
+const makeObject: NodeExecutor = async (node, inputs, context) => {
+  const { columns, values } = columnPinsConfig(node.config);
+  const object: Record<string, string | number | boolean> = {};
   for (const column of columns) {
     const input = inputs[column.id];
-    if (input) row[column.id] = cellText(input);
-    else if (values[column.id]) row[column.id] = fillDates(values[column.id], context.clock);
+    if (input) object[column.id] = wiredFieldValue(column, input);
+    else if (values[column.id])
+      object[column.id] = typedFieldValue(column, fillDates(values[column.id], context.clock));
+  }
+  return { object: { type: "object", value: object } };
+};
+
+// A column takes its pin's wire, else the row's field for it, else what the
+// card holds: everything wired over everything typed. Given none, it is left
+// to the Table, which fills in a new row's value from itself.
+const addRow: NodeExecutor = async (node, inputs, context) => {
+  const { path: tablePath, wired } = nodePath(node, inputs, context);
+  if (!tablePath)
+    throw new Error(wired ? "Nothing reached its path input" : "Drag the Table to add rows to onto this node");
+  if (!isTableFile(tablePath)) throw new Error(`"${tablePath}" is no longer a table`);
+  const { values } = columnPinsConfig(node.config);
+  const columns = addRowColumns(node.config);
+  const row: Record<string, string> = {};
+  for (const column of columns) if (values[column.id]) row[column.id] = fillDates(values[column.id], context.clock);
+  const input = inputs[ADD_ROW_INPUT];
+  if (input?.type === "object") Object.assign(row, cellTexts(input.value));
+  for (const column of columns) {
+    const pinned = inputs[column.id];
+    if (pinned) row[column.id] = cellText(pinned);
   }
   const granted = await context.ensureCapability(writeCapability(tablePath, wired));
   if (!granted) throw new Error(`Permission denied to write "${tablePath}"`);
@@ -1326,6 +1345,7 @@ export const NODE_EXECUTORS: Record<string, NodeExecutor> = {
   loadRow,
   loadRandomRow,
   loadTableRows,
+  makeObject,
   addRow,
   chart,
   loadNote,

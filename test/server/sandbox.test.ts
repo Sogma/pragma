@@ -590,12 +590,7 @@ describe("a path a wire chose", () => {
           { id: "src", type: "prompt", position: { x: 0, y: 0 }, config: { text: "x" } },
           { id: "load", type: "loadNote", position: { x: 0, y: 0 }, config: {} },
           { id: "write", type: "writeNote", position: { x: 0, y: 0 }, config: {} },
-          {
-            id: "row",
-            type: "addRow",
-            position: { x: 0, y: 0 },
-            config: { columns: [{ id: "note", type: "text", label: "Note" }] },
-          },
+          { id: "row", type: "addRow", position: { x: 0, y: 0 }, config: {} },
         ],
         edges: edges.map((edge, i) => ({ id: `e${i}`, source: "src", sourcePort: "text", ...edge })),
       },
@@ -654,7 +649,7 @@ describe("a path a wire chose", () => {
       path.join(space, WIRED),
       wiredFlow([
         { target: "write", targetPort: "path" },
-        { target: "row", targetPort: "table_path" },
+        { target: "row", targetPort: "path" },
       ]),
     );
     const flow = await doc();

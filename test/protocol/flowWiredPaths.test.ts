@@ -233,17 +233,14 @@ describe("a path wired into a writer", () => {
     );
   });
 
-  it("adds a row to the Table it names, with the columns the dragged Table gave the node", async () => {
+  it("adds its row to the Table it names, in place of the dragged one", async () => {
     sandboxAddRow.mockResolvedValue({ path: "projects/log.table.html" });
     const ensureCapability = vi.fn(async () => true);
-    const addRow = node("addRow", {
-      tablePath: "space:projects/schema.table.html",
-      columns: [{ id: "note", type: "text", label: "Note" }],
-    });
+    const addRow = node("addRow", { tablePath: "space:projects/other.table.html" });
 
     await NODE_EXECUTORS.addRow(
       addRow,
-      { table_path: text("../projects/log.table.html"), note: text("hello") },
+      { path: text("../projects/log.table.html"), row: { type: "object", value: { note: "hello" } } },
       context({ ensureCapability }),
     );
 
@@ -350,14 +347,14 @@ describe("Current Document's path", () => {
 });
 
 describe("the pins", () => {
-  it("are one optional text input per path-taking node, `path` on every one but Add Row", () => {
+  it("are one optional text input named path on every path-taking node", () => {
     const pins = Object.values(FLOW_NODE_REGISTRY)
       .filter((definition) => definition.pathInput)
       .map((definition) => [definition.type, definition.pathInput?.portId, definition.pathInput?.configKey]);
     expect(pins).toEqual([
       ["loadRandomRow", "path", "tablePath"],
       ["loadTableRows", "path", "tablePath"],
-      ["addRow", "table_path", "tablePath"],
+      ["addRow", "path", "tablePath"],
       ["loadNote", "path", "notePath"],
       ["loadImage", "path", "imagePath"],
       ["loadVideo", "path", "videoPath"],

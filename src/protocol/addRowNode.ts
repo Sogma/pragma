@@ -1,102 +1,45 @@
-// A Flow's Add Row node: what its config holds, the ports a Table's columns
-// give it, and the cell text a wired value becomes.
+// A Flow's Add Row node: its pins, the cell text each value becomes, and
+// which of its values a column takes.
+import { columnInputs, columnPinsConfig } from "./columnPins.ts";
 import type { PortValue } from "./flowExecutors.ts";
-import { type FlowPort, fieldPortType, isScoreMax, parseFieldValueType, type TableColumn } from "./types.ts";
+import type { FlowPort, TableColumn } from "./types.ts";
 
 export const ADD_ROW_NODE_TYPE = "addRow";
 
-/** The input a wired path arrives on. A Table column with this id has no pin
- * of its own, since its wires would be read as the path. */
-export const ADD_ROW_PATH_PORT = "table_path";
+/** The input a wired path arrives on, as on every node that takes one. */
+export const ADD_ROW_PATH_INPUT = "path";
 
-/** An Add Row node's config. `columns` are the Table's as the editor last
- * read them, kept so a run and the canvas type edges without reading it.
- * `values` are what the card's own controls hold, by column id: apart from
- * the node's own keys, since a column's id is whatever the Table says. */
-export interface AddRowNodeConfig {
-  tablePath: string;
-  columns: TableColumn[];
-  values: Record<string, string>;
+/** The input the row arrives on, an object keyed by column id. */
+export const ADD_ROW_INPUT = "row";
+
+/** The Table's columns the node gives pins, as its config keeps them. A
+ * column named for one of the node's own inputs has no pin, since its wires
+ * would be read as that input's; `row` can still fill it. */
+export function addRowColumns(config: Record<string, unknown>): TableColumn[] {
+  return columnPinsConfig(config).columns.filter(({ id }) => id !== ADD_ROW_PATH_INPUT && id !== ADD_ROW_INPUT);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** What the node keeps of a Table's columns: enough to type a port and draw
- * its control. A column without an id has no port to give, and a repeated
- * id would give two pins one wire identifier, so both are dropped, as is
- * one named for the path pin. */
-export function addRowColumns(columns: readonly TableColumn[]): TableColumn[] {
-  const seen = new Set<string>([ADD_ROW_PATH_PORT]);
-  const kept: TableColumn[] = [];
-  for (const { id, type, label, options, default: fill, max, reject } of columns) {
-    if (id === "" || seen.has(id)) continue;
-    seen.add(id);
-    kept.push({
-      id,
-      type,
-      label: label || id,
-      ...(type === "select" && options?.length ? { options } : {}),
-      ...(type === "timestamp" && fill ? { default: fill } : {}),
-      ...(type === "score" && max !== undefined && isScoreMax(max) ? { max } : {}),
-      ...(type === "score" && reject ? { reject } : {}),
-    });
-  }
-  return kept;
-}
-
-// The saved columns, re-checked: a hand-edited graph is trusted here no more
-// than anywhere else.
-function readSavedColumns(value: unknown): TableColumn[] {
-  if (!Array.isArray(value)) return [];
-  return addRowColumns(
-    value.filter(isRecord).map((raw) => ({
-      id: typeof raw.id === "string" ? raw.id : "",
-      type: parseFieldValueType(typeof raw.type === "string" ? raw.type : undefined),
-      label: typeof raw.label === "string" ? raw.label : "",
-      ...(Array.isArray(raw.options)
-        ? { options: raw.options.filter((option): option is string => typeof option === "string") }
-        : {}),
-      ...(raw.default === "now" ? { default: "now" as const } : {}),
-      ...(typeof raw.max === "number" ? { max: raw.max } : {}),
-      ...(raw.reject === true ? { reject: true as const } : {}),
-    })),
-  );
-}
-
-export function addRowNodeConfig(config: Record<string, unknown>): AddRowNodeConfig {
-  const values: Record<string, string> = {};
-  if (isRecord(config.values)) {
-    for (const [id, value] of Object.entries(config.values)) if (typeof value === "string") values[id] = value;
-  }
-  return {
-    tablePath: typeof config.tablePath === "string" ? config.tablePath : "",
-    columns: readSavedColumns(config.columns),
-    values,
-  };
-}
-
-/** The path pin, then an input per column, each optional: a column given
- * nothing takes what a new row gets. The one output is the Table written to,
- * named `path` because outputs never share a name with a column. */
+/** The path pin and the row, then a pin per column of the Table dragged in,
+ * each optional. The one output is the Table written to, `path` as for
+ * every writer, since outputs never share a name with an input. */
 export function addRowPorts(config: Record<string, unknown>): { inputs: FlowPort[]; outputs: FlowPort[] } {
   return {
     inputs: [
       {
-        id: ADD_ROW_PATH_PORT,
+        id: ADD_ROW_PATH_INPUT,
         type: "text",
-        label: ADD_ROW_PATH_PORT,
+        label: ADD_ROW_PATH_INPUT,
         required: false,
-        description:
-          "The path of the Table to add the row to, in place of the dragged one. It needs the dragged Table's columns, since those set this node's pins.",
+        description: "The Table's path in the space.",
       },
-      ...addRowNodeConfig(config).columns.map((column) => ({
-        id: column.id,
-        type: fieldPortType(column.type),
-        label: column.label,
+      {
+        id: ADD_ROW_INPUT,
+        type: "object",
+        label: ADD_ROW_INPUT,
         required: false,
-      })),
+        description: "The row's values, keyed by column id, such as Make Object's.",
+      },
+      ...columnInputs(addRowColumns(config)),
     ],
     outputs: [{ id: "path", type: "text", label: "path", description: "A node wired from it runs after the write." }],
   };
@@ -113,6 +56,24 @@ export function cellText(value: PortValue): string {
     case "number":
       return String(value.value);
     default:
-      throw new Error(`A Table cell can't hold ${value.type === "image" ? "an image" : "an object"}`);
+      throw new Error(`A Table cell can't hold ${value.type === "video" ? "a" : "an"} ${value.type}`);
   }
+}
+
+/** An object's fields as the text Table cells store, by column id: text as
+ * it is, a number in figures, a boolean as a checkbox writes it. A field
+ * holding nothing is left out, so its column takes what a new row gets. A
+ * list or a group of fields fails rather than being written out as JSON. */
+export function cellTexts(record: unknown): Record<string, string> {
+  if (typeof record !== "object" || record === null || Array.isArray(record)) {
+    throw new Error("Its row input isn't a record of fields");
+  }
+  const cells: Record<string, string> = {};
+  for (const [id, value] of Object.entries(record)) {
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) throw new Error(`Field "${id}" is a list, not a single value`);
+    if (typeof value === "object") throw new Error(`Field "${id}" is a group of fields, not a single value`);
+    cells[id] = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
+  }
+  return cells;
 }

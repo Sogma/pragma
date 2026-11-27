@@ -393,13 +393,17 @@ describe("a headless run with an Add Row", () => {
           nodes: [
             { id: "prompt-1", type: "prompt", position: { x: 0, y: 0 }, config: { text: "x" }, exposed: ["text"] },
             {
-              id: "add-1",
-              type: "addRow",
+              id: "object-1",
+              type: "makeObject",
               position: { x: 200, y: 0 },
               config: { tablePath: "log.table.html", columns: [{ id: "entry", label: "Entry", type: "text" }] },
             },
+            { id: "add-1", type: "addRow", position: { x: 400, y: 0 }, config: { tablePath: "log.table.html" } },
           ],
-          edges: [{ id: "e1", source: "prompt-1", sourcePort: "text", target: "add-1", targetPort: "entry" }],
+          edges: [
+            { id: "e1", source: "prompt-1", sourcePort: "text", target: "object-1", targetPort: "entry" },
+            { id: "e2", source: "object-1", sourcePort: "object", target: "add-1", targetPort: "row" },
+          ],
         },
       }),
     );

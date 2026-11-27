@@ -869,7 +869,7 @@ Port types are `text`, `image`, `boolean`, `object`, `number`, and `video`. **A 
 
 A **widget input** is an input port that also has an inline fallback control (a text box, a checkbox, or a select) used when nothing is connected; the fallback value lives in `config[portId]`. A plain input port with no widget is connect-only: unconnected means empty. A port may be marked `required: false` to say it is optional despite having no widget.
 
-**Text typed on a node has its [date placeholders](#date-placeholders) filled when a run reads it**: a text box's fallback, a Prompt's or Choice's own `text`, and Add Row's values. A value that arrives on a wire is used as it arrives, and [`templateVariables`](flow-nodes.md#templatevariables) is the node that fills wired text.
+**Text typed on a node has its [date placeholders](#date-placeholders) filled when a run reads it**: a text box's fallback, a Prompt's or Choice's own `text`, and Make Object's values. A value that arrives on a wire is used as it arrives, and [`templateVariables`](flow-nodes.md#templatevariables) is the node that fills wired text.
 
 #### Node types
 
@@ -942,7 +942,7 @@ Which changes may carry an entry to a new digest is set in [Grant storage](#gran
 
 ### Wired paths
 
-A node whose [Flow nodes](flow-nodes.md) entry lists a path input, `path` or `addRow`'s `table_path`, takes its path from that input when a wire is connected, in place of its config's; a connected empty value is no path, never the config's. The value is read as a path the Flow declares, from the Flow's own folder, and asked for by its address (see [Addresses and libraries](#addresses-and-libraries)). A wire may not name an entry with a segment starting with `.`, and only `loadImage`'s and `loadVideo`'s may name a library's file; a path breaking either rule, or leading nowhere, fails the node before anything is asked. A path a node only shows to the person who clicked, as [`openToSide`](flow-nodes.md#opentoside)'s, is read the same way and asked for by no one: nothing reaches the Flow.
+A node whose [Flow nodes](flow-nodes.md) entry lists a path input, `path`, takes its path from that input when a wire is connected, in place of its config's; a connected empty value is no path, never the config's. The value is read as a path the Flow declares, from the Flow's own folder, and asked for by its address (see [Addresses and libraries](#addresses-and-libraries)). A wire may not name an entry with a segment starting with `.`, and only `loadImage`'s and `loadVideo`'s may name a library's file; a path breaking either rule, or leading nowhere, fails the node before anything is asked. A path a node only shows to the person who clicked, as [`openToSide`](flow-nodes.md#opentoside)'s, is read the same way and asked for by no one: nothing reaches the Flow.
 
 **A wired path is no declaration.** The [capability set](#capabilities-and-grants) derives from node configuration; grants follow [Grant storage](#grant-storage). The derived set can't name a path a run computes, so its grant is per file: `readFile:<address>`, a library image's included, or `writeDocument:<address>`, asked the first time a run names that file and never recorded by a drag; a folder a [`writeFolderNote`](flow-nodes.md#writefoldernote) writes into is asked for once, as `writeDocument:<address>` of the folder. A path wired into a generation's `context` asks instead for `searchContext:<address>`, the address of the folder of the scope the path sits in, so one grant covers every path that scope holds and its [context](#context-of-a-path) never reaches past that folder. A host accepts such a key only while the graph has a wire into a pin of that access, read, write or context, and only for an address in its one spelling, so a Flow that wires nothing can't be asked for a path nobody chose. A read is allowed by a granted declaration that covers it, as any read is, or by a granted key of its own address. With no person present nothing can be asked, so only a file already granted is read or written. A host lists the wired paths a Flow holds grants for beside its derived set, while a wire could use them, so each can be revoked.
 
@@ -1043,7 +1043,9 @@ The source map below is the only part of this document that names implementation
 | Applet manifest read, content hash | `src/protocol/appletFile.ts` |
 | Applet imports | `src/server/appletImports.ts` |
 | Applet nodes: config, reports, the save rule | `src/protocol/appletNode.ts`, `web/flow/appletFrame.ts` |
-| Add Row nodes: config, ports, cell text | `src/protocol/addRowNode.ts` |
+| Column pins of Make Object and Add Row nodes: config, field values | `src/protocol/columnPins.ts` |
+| Make Object nodes: ports | `src/protocol/makeObjectNode.ts` |
+| Add Row nodes: ports, cell text | `src/protocol/addRowNode.ts` |
 | Flow read / write, node registry, capability derivation | `src/protocol/flowFile.ts`, `src/protocol/flowHtml.ts`, `src/protocol/flowNodes.ts` |
 | Flow execution, node executors | `src/protocol/flowRuntime.ts`, `src/protocol/flowExecutors.ts` |
 | Flow actions, and a toolkit button's run | `src/protocol/flowActions.ts`, `web/flow/toolkitAction.ts`, `web/view/toolkitRunner.ts` |

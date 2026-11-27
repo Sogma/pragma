@@ -31,6 +31,11 @@
   --node-glyph: var(--icon-rows);
 }
 
+/* An object with its fields, {…}: Template Variables wears the bare braces. */
+[data-node-type="makeObject"] {
+  --node-glyph: var(--icon-braces-dots);
+}
+
 /* loadTableRows' stacked rows, with a plus where the next row goes. */
 [data-node-type="addRow"] {
   --node-glyph: var(--icon-row-plus);

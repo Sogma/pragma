@@ -1352,7 +1352,7 @@ describe("a select widget on the card", () => {
   });
 });
 
-describe("an Add Row node's card", () => {
+describe("a Make Object node's card", () => {
   const columns = [
     { id: "prompt", label: "Prompt", type: "text" },
     { id: "image", label: "Image", type: "media" },
@@ -1375,14 +1375,10 @@ describe("an Add Row node's card", () => {
     deps.loadFile = vi.fn(async () => structuredClone(table)) as unknown as NodeCardDeps["loadFile"];
   };
 
-  it("gives each column a pin, and a control for what its cell gets with nothing wired", () => {
+  it("gives each column a pin, and a control for what its field gets with nothing wired", () => {
     const { cards } = setup();
-    const el = cards.build(node("addRow", { tablePath: "space:renders/log.table.html", columns }));
-    const [pathRow, ...rows] = [...el.querySelectorAll(".flow-node-inputs .flow-port-row")];
-    // The path pin first, a wire-only input: what it overrides is the Table
-    // the node shows below.
-    expect(pathRow.querySelector(".flow-port-label")?.textContent).toBe("table_path");
-    expect(pathRow.classList.contains("has-widget")).toBe(false);
+    const el = cards.build(node("makeObject", { tablePath: "space:renders/log.table.html", columns }));
+    const rows = [...el.querySelectorAll(".flow-node-inputs .flow-port-row")];
     expect(rows.map((row) => row.querySelector(".flow-port-label")?.textContent)).toEqual([
       "Prompt",
       "Image",
@@ -1405,7 +1401,7 @@ describe("an Add Row node's card", () => {
   it("keeps what's typed under values, apart from the node's own keys, and hides it once wired", () => {
     const { cards, deps, graph } = setup();
     const own = [{ id: "columns", label: "Columns", type: "text" }];
-    const flowNode = node("addRow", { tablePath: "renders/log.table.html", columns: own });
+    const flowNode = node("makeObject", { tablePath: "renders/log.table.html", columns: own });
     const el = cards.build(flowNode);
     const input = el.querySelector('.flow-node-inputs input[type="text"]') as HTMLInputElement;
     input.value = "three";
@@ -1414,15 +1410,15 @@ describe("an Add Row node's card", () => {
     expect(flowNode.config.columns).toEqual(own);
     expect(deps.persistGraph).toHaveBeenCalled();
 
-    graph.edges.push({ id: "e", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "columns" });
-    cards.updateInputWidgetVisibility("addRow-1", "columns");
+    graph.edges.push({ id: "e", source: "p", sourcePort: "text", target: "makeObject-1", targetPort: "columns" });
+    cards.updateInputWidgetVisibility("makeObject-1", "columns");
     expect(input.hidden).toBe(true);
   });
 
   it("reads its Table on every build, records the columns, and drops the wires of one the Table lost", async () => {
     const { cards, deps, graph } = setup([
-      { id: "e1", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "prompt" },
-      { id: "e2", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "gone" },
+      { id: "e1", source: "p", sourcePort: "text", target: "makeObject-1", targetPort: "prompt" },
+      { id: "e2", source: "p", sourcePort: "text", target: "makeObject-1", targetPort: "gone" },
       { id: "e3", source: "p", sourcePort: "text", target: "other-1", targetPort: "gone" },
     ]);
     reading(deps);
@@ -1430,9 +1426,9 @@ describe("an Add Row node's card", () => {
       { id: "prompt", label: "Prompt", type: "text" },
       { id: "gone", label: "Gone", type: "text" },
     ];
-    const flowNode = node("addRow", { tablePath: "renders/log.table.html", columns: saved });
+    const flowNode = node("makeObject", { tablePath: "renders/log.table.html", columns: saved });
     const el = cards.build(flowNode);
-    await vi.waitFor(() => expect(deps.remount).toHaveBeenCalledWith("addRow-1"));
+    await vi.waitFor(() => expect(deps.remount).toHaveBeenCalledWith("makeObject-1"));
     expect(deps.loadFile).toHaveBeenCalledWith("renders/log.table.html");
     expect(flowNode.config.columns).toEqual(columns);
     expect(graph.edges.map((edge) => edge.id)).toEqual(["e1", "e3"]);
@@ -1443,7 +1439,7 @@ describe("an Add Row node's card", () => {
   it("finds nothing to change in a Table that is as recorded", async () => {
     const { cards, deps } = setup();
     reading(deps);
-    const el = cards.build(node("addRow", { tablePath: "renders/log.table.html", columns }));
+    const el = cards.build(node("makeObject", { tablePath: "renders/log.table.html", columns }));
     await vi.waitFor(() => expect(el.querySelector(".flow-node-detail")?.textContent).toBe("6 columns · 2 rows"));
     expect(deps.remount).not.toHaveBeenCalled();
     expect(deps.persistGraph).not.toHaveBeenCalled();
@@ -1452,7 +1448,7 @@ describe("an Add Row node's card", () => {
   // Another Table's columns are other columns: what was typed for these goes.
   it("starts over on a different Table, and refuses a file that isn't one", () => {
     const { cards, deps } = setup();
-    const flowNode = node("addRow", { tablePath: "renders/log.table.html", columns, values: { prompt: "x" } });
+    const flowNode = node("makeObject", { tablePath: "renders/log.table.html", columns, values: { prompt: "x" } });
     const el = cards.build(flowNode);
     const drop = (path: string) => {
       const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
@@ -1466,20 +1462,20 @@ describe("an Add Row node's card", () => {
     drop("other/shots.table.html");
     expect(flowNode.config).toEqual({ tablePath: "other/shots.table.html" });
     expect(deps.persistGraph).toHaveBeenCalled();
-    expect(deps.remount).toHaveBeenCalledWith("addRow-1");
+    expect(deps.remount).toHaveBeenCalledWith("makeObject-1");
   });
 
   it("reads the same Table again when it is dropped again, keeping what was typed for it", () => {
     const { cards, deps } = setup();
     const config = { tablePath: "space:renders/log.table.html", columns, values: { prompt: "x" } };
-    const flowNode = node("addRow", structuredClone(config));
+    const flowNode = node("makeObject", structuredClone(config));
     const el = cards.build(flowNode);
     const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
     Object.defineProperty(event, "dataTransfer", { value: { getData: () => "renders/log.table.html", files: [] } });
     el.querySelector(".flow-space-drop")?.dispatchEvent(event);
     expect(flowNode.config).toEqual(config);
     expect(deps.persistGraph).not.toHaveBeenCalled();
-    expect(deps.remount).toHaveBeenCalledWith("addRow-1");
+    expect(deps.remount).toHaveBeenCalledWith("makeObject-1");
   });
 
   // A gone Table reads as an empty one. Taken for a Table whose columns all
@@ -1493,37 +1489,152 @@ describe("an Add Row node's card", () => {
     })) as unknown as NodeCardDeps["loadFile"];
   };
 
-  it("keeps its columns and wires for a Table that isn't there, and says so as its run would", async () => {
-    const wire = { id: "e1", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "prompt" };
+  // Its run never reads the Table, so a gone one fails nothing: the card only
+  // says so, and keeps what it recorded for when the Table is back.
+  it("keeps its columns and wires for a Table that isn't there, and says so without failing", async () => {
+    const wire = { id: "e1", source: "p", sourcePort: "text", target: "makeObject-1", targetPort: "prompt" };
     const { cards, deps, graph } = setup([wire]);
     gone(deps);
-    const flowNode = node("addRow", { tablePath: "space:renders/log.table.html", columns });
+    const flowNode = node("makeObject", { tablePath: "space:renders/log.table.html", columns });
     const el = cards.build(flowNode);
     await vi.waitFor(() =>
-      expect(el.querySelector(".flow-node-error")?.textContent).toBe('No table at "renders/log.table.html"'),
+      expect(el.querySelector(".flow-node-detail")?.textContent).toBe(
+        'No table at "renders/log.table.html". Its columns are kept.',
+      ),
     );
-    expect(el.querySelector(".flow-space-drop")?.classList.contains("missing")).toBe(true);
-    expect(deps.fileMissing).toHaveBeenCalledWith("addRow-1", 'No table at "renders/log.table.html"');
+    expect(el.querySelector(".flow-node-error")).toBeNull();
+    expect(el.querySelector(".flow-space-drop")?.classList.contains("missing")).toBe(false);
+    expect(deps.fileMissing).not.toHaveBeenCalledWith("makeObject-1", expect.any(String));
     expect(flowNode.config.columns).toEqual(columns);
     expect(graph.edges).toEqual([wire]);
     expect(deps.persistGraph).not.toHaveBeenCalled();
     expect(deps.remount).not.toHaveBeenCalled();
   });
+});
 
-  // The run adds to the Table the wire names, so a gone dragged one fails nothing.
-  it("says nothing of a gone Table while a wire brings the path, and still keeps its columns", async () => {
-    const wire = { id: "e1", source: "r", sourcePort: "path", target: "addRow-1", targetPort: "table_path" };
-    const { cards, deps, graph } = setup([wire]);
-    gone(deps);
-    const flowNode = node("addRow", { tablePath: "space:renders/log.table.html", columns });
-    const el = cards.build(flowNode);
-    await vi.waitFor(() => expect(deps.loadFile).toHaveBeenCalled());
+describe("an Add Row node's card", () => {
+  const table = {
+    kind: "table",
+    path: "renders/log.table.html",
+    revision: "r1",
+    id: "tbl_log",
+    version: "1.0",
+    name: "Log",
+    columns: [{ id: "note", label: "Note", type: "text" }],
+    rows: [{ values: {} }, { values: {} }, { values: {} }],
+  };
+  const reading = (deps: NodeCardDeps, missing = false) => {
+    deps.loadFile = vi.fn(async () => ({
+      ...structuredClone(table),
+      ...(missing ? { columns: [], rows: [], missing: true } : {}),
+    })) as unknown as NodeCardDeps["loadFile"];
+  };
+
+  // The Table is only where the row goes, so its path pin sits beside its
+  // chip as every node's does, and the row arrives whole on one pin.
+  it("puts its path pin beside the Table's chip, and takes the row on one object pin", async () => {
+    const { cards, deps } = setup();
+    reading(deps);
+    const el = cards.build(node("addRow", { tablePath: "space:renders/log.table.html" }));
+    const pin = el.querySelector('.handle.target[data-handleid="path"]') as HTMLElement;
+    expect(pin.closest(".flow-path-row")?.querySelector(".flow-space-drop")).not.toBeNull();
+    const rows = [...el.querySelectorAll(".flow-node-inputs .flow-port-row")];
+    expect(rows.map((row) => row.querySelector(".flow-port-label")?.textContent)).toEqual(["row"]);
+    expect(rows[0].querySelector('.handle[data-handleid="row"]')).not.toBeNull();
+    await vi.waitFor(() => expect(el.querySelector(".flow-node-detail")?.textContent).toBe("1 column · 3 rows"));
+    expect(deps.loadFile).toHaveBeenCalledWith("space:renders/log.table.html");
+  });
+
+  it("marks a gone Table missing as its run would fail, unless a wire names another", async () => {
+    const lone = setup();
+    reading(lone.deps, true);
+    const el = lone.cards.build(node("addRow", { tablePath: "space:renders/log.table.html" }));
+    await vi.waitFor(() =>
+      expect(el.querySelector(".flow-node-error")?.textContent).toBe('No table at "renders/log.table.html"'),
+    );
+    expect(el.querySelector(".flow-space-drop")?.classList.contains("missing")).toBe(true);
+    expect(lone.deps.fileMissing).toHaveBeenCalledWith("addRow-1", 'No table at "renders/log.table.html"');
+
+    const wired = setup([{ id: "e1", source: "r", sourcePort: "path", target: "addRow-1", targetPort: "path" }]);
+    reading(wired.deps, true);
+    const wiredEl = wired.cards.build(node("addRow", { tablePath: "space:renders/log.table.html" }));
+    await vi.waitFor(() => expect(wired.deps.loadFile).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(el.querySelector(".flow-node-error")).toBeNull();
-    expect(el.querySelector(".flow-space-drop")?.classList.contains("missing")).toBe(false);
-    expect(deps.fileMissing).not.toHaveBeenCalled();
-    expect(flowNode.config.columns).toEqual(columns);
-    expect(graph.edges).toEqual([wire]);
+    expect(wiredEl.querySelector(".flow-node-error")).toBeNull();
+    expect(wired.deps.fileMissing).not.toHaveBeenCalledWith("addRow-1", expect.any(String));
+  });
+
+  // Another Table's columns are other pins: what was typed for these goes.
+  it("starts over on a dropped Table, and refuses a file that isn't one", async () => {
+    const { cards, deps } = setup();
+    reading(deps);
+    const flowNode = node("addRow", {
+      tablePath: "renders/log.table.html",
+      columns: table.columns,
+      values: { note: "x" },
+    });
+    const el = cards.build(flowNode);
+    const drop = (path: string) => {
+      const event = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
+      Object.defineProperty(event, "dataTransfer", { value: { getData: () => path, files: [] } });
+      el.querySelector(".flow-space-drop")?.dispatchEvent(event);
+    };
+    drop("notes/log.md");
+    expect(el.querySelector(".flow-space-drop")?.textContent).toBe("Not a table: notes/log.md");
+    expect(deps.persistGraph).not.toHaveBeenCalled();
+
+    drop("other/shots.table.html");
+    expect(flowNode.config).toEqual({ tablePath: "other/shots.table.html" });
+    expect(deps.persistGraph).toHaveBeenCalled();
+    expect(deps.remount).toHaveBeenCalledWith("addRow-1");
+  });
+
+  it("gives a pin per column of the Table in its chip, below the row, with a control for what its cell gets", () => {
+    const { cards } = setup();
+    const columns = [
+      { id: "prompt", label: "Prompt", type: "text" },
+      { id: "keep", label: "Keep", type: "checkbox" },
+      { id: "path", label: "Path", type: "path" },
+    ];
+    const el = cards.build(node("addRow", { tablePath: "space:renders/log.table.html", columns }));
+    const rows = [...el.querySelectorAll(".flow-node-inputs .flow-port-row")];
+    expect(rows.map((each) => each.querySelector(".flow-port-label")?.textContent)).toEqual(["row", "Prompt", "Keep"]);
+    expect(rows[1].querySelector('input[type="text"]')).not.toBeNull();
+    expect(rows[2].querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(el.querySelector(".flow-path-picker")?.classList.contains("gives-columns")).toBe(true);
+  });
+
+  // The chip still gives the pins, so it stays while a wire picks the Table
+  // the row goes to, and says which it now does.
+  it("keeps its Table showing while it gives pins and a wire names where the row goes", async () => {
+    const wire = { id: "e1", source: "r", sourcePort: "path", target: "addRow-1", targetPort: "path" };
+    const { cards, deps } = setup([wire]);
+    reading(deps);
+    const flowNode = node("addRow", { tablePath: "space:renders/log.table.html", columns: table.columns });
+    const el = cards.build(flowNode);
+    cards.syncWiring(flowNode);
+    const picker = el.querySelector(".flow-path-picker") as HTMLElement;
+    expect([picker.classList.contains("wired"), picker.classList.contains("gives-columns")]).toEqual([true, true]);
+    await vi.waitFor(() =>
+      expect(el.querySelector(".flow-node-detail")?.textContent).toBe("Sets the columns. The wire picks the Table."),
+    );
+  });
+
+  it("drops the wires of a column its Table lost, never its path's or its row's", async () => {
+    const wires = [
+      { id: "e1", source: "r", sourcePort: "path", target: "addRow-1", targetPort: "path" },
+      { id: "e2", source: "m", sourcePort: "object", target: "addRow-1", targetPort: "row" },
+      { id: "e3", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "note" },
+      { id: "e4", source: "p", sourcePort: "text", target: "addRow-1", targetPort: "gone" },
+    ];
+    const { cards, deps, graph } = setup(wires);
+    reading(deps);
+    const saved = [...table.columns, { id: "gone", label: "Gone", type: "text" }];
+    const flowNode = node("addRow", { tablePath: "space:renders/log.table.html", columns: saved });
+    cards.build(flowNode);
+    await vi.waitFor(() => expect(deps.remount).toHaveBeenCalledWith("addRow-1"));
+    expect(flowNode.config.columns).toEqual(table.columns);
+    expect(graph.edges.map((edge) => edge.id)).toEqual(["e1", "e2", "e3"]);
   });
 });
 
@@ -1590,37 +1701,29 @@ describe("a node's path pin", () => {
     expect(el.querySelector("button")).toBeNull();
   });
 
-  it("sits beside a drop target on every node with one but Add Row", () => {
+  it("sits beside a drop target on every node with one", () => {
     const { cards } = setup();
     for (const definition of Object.values(FLOW_NODE_REGISTRY)) {
       if (!definition.pathInput) continue;
       const el = cards.build(node(definition.type));
       const pin = el.querySelector(`.handle.target[data-handleid="${definition.pathInput.portId}"]`);
       const beside = pin?.closest(".flow-path-row")?.querySelector(".flow-dropzone") ?? null;
-      if (definition.type === "addRow") expect(beside, definition.type).toBeNull();
-      else expect(beside, definition.type).not.toBeNull();
+      expect(beside, definition.type).not.toBeNull();
     }
   });
 
-  it("leaves Add Row's Table showing, since it still gives the columns", () => {
-    const wire = {
-      id: "e1",
-      source: "resolve-1",
-      sourcePort: "path",
-      target: "addRow-1",
-      targetPort: "table_path",
-    };
-    const { cards } = setup([wire]);
-    const flowNode = node("addRow", {
-      tablePath: "space:renders/log.table.html",
-      columns: [{ id: "note", label: "Note", type: "text" }],
-    });
+  // The Table only says where the row goes, so a wire hides it as it hides
+  // any node's file.
+  it("hides Add Row's Table while a wire names the one it adds to", () => {
+    const wire = { id: "e1", source: "resolve-1", sourcePort: "path", target: "addRow-1", targetPort: "path" };
+    const { cards, graph } = setup();
+    const flowNode = node("addRow", { tablePath: "space:renders/log.table.html" });
     const el = cards.build(flowNode);
-    cards.syncWiring(flowNode);
-    const target = el.querySelector(".flow-space-drop") as HTMLElement;
-    expect(target.closest("[hidden]")).toBeNull();
-    expect(el.querySelector('.flow-node-inputs .handle[data-handleid="table_path"]')).not.toBeNull();
-    expect(el.querySelector(".flow-path-picker")).toBeNull();
+    const picker = el.querySelector(".flow-path-picker") as HTMLElement;
+    expect(picker.classList.contains("wired")).toBe(false);
+    graph.edges.push(wire);
+    cards.updateInputWidgetVisibility("addRow-1", "path");
+    expect(picker.classList.contains("wired")).toBe(true);
   });
 });
 
@@ -1938,7 +2041,7 @@ describe("a node's color", () => {
   it("is its default with none of its own: the Table kind's on a node naming a Table, AI's violet, none for the rest", () => {
     const { cards } = setup();
     expect(color(cards.build(node("generateImage", { outputFolderPath: "art" })))).toBe("#7c3aed");
-    for (const type of ["loadRow", "loadRandomRow", "loadTableRows", "addRow"]) {
+    for (const type of ["loadRow", "loadRandomRow", "loadTableRows", "makeObject", "addRow"]) {
       const el = cards.build(node(type));
       expect(color(el)).toBe("var(--kind-table)");
       expect(el.classList.contains("tinted")).toBe(true);

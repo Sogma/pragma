@@ -1162,7 +1162,7 @@ describe("Add to Note", () => {
   });
 });
 
-describe("Add Row", () => {
+describe("Make Object", () => {
   const columns = [
     { id: "prompt", label: "Prompt", type: "text" },
     { id: "image", label: "Image", type: "media" },
@@ -1171,11 +1171,57 @@ describe("Add Row", () => {
     { id: "status", label: "Status", type: "select", options: ["Draft", "Final"] },
     { id: "added", label: "Added", type: "timestamp", default: "now" },
   ];
+  const objectNode = (config: Record<string, unknown>): FlowNodeInstance => ({
+    id: "makeObject-1",
+    type: "makeObject",
+    position: { x: 0, y: 0 },
+    config: { tablePath: "renders/log.table.html", columns, ...config },
+  });
+
+  // What the card holds only stands in for a wire; a column given neither is
+  // left out, for the Table to fill in from itself when the row is added.
+  it("takes a wired value over what the card holds, and leaves a column given neither out", async () => {
+    const outputs = await NODE_EXECUTORS.makeObject(
+      objectNode({ values: { prompt: "typed on the card", status: "Final", keep: "", width: "640" } }),
+      {
+        prompt: { type: "text", value: "a red door" },
+        image: { type: "text", value: "renders/red-door-1a2b3c.png" },
+        keep: { type: "boolean", value: true },
+      },
+      context(),
+    );
+    expect(outputs).toEqual({
+      object: {
+        type: "object",
+        value: { prompt: "a red door", image: "renders/red-door-1a2b3c.png", keep: true, width: 640, status: "Final" },
+      },
+    });
+  });
+
+  it("fills the date placeholders in what the card holds, and reads nothing", async () => {
+    const read = vi.fn();
+    const outputs = await NODE_EXECUTORS.makeObject(
+      objectNode({ values: { prompt: "Shot on {{$date:%Y}}", keep: "false" } }),
+      {},
+      context({ sandbox: { ...context().sandbox, read } }),
+    );
+    expect(outputs.object).toEqual({ type: "object", value: { prompt: "Shot on 2026", keep: false } });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("fails on a number typed on the card that isn't a whole one", async () => {
+    await expect(NODE_EXECUTORS.makeObject(objectNode({ values: { width: "wide" } }), {}, context())).rejects.toThrow(
+      '"Width" isn\'t a whole number',
+    );
+  });
+});
+
+describe("Add Row", () => {
   const rowNode = (config: Record<string, unknown>): FlowNodeInstance => ({
     id: "addRow-1",
     type: "addRow",
     position: { x: 0, y: 0 },
-    config: { tablePath: "renders/log.table.html", columns, ...config },
+    config: { tablePath: "renders/log.table.html", ...config },
   });
   const sandboxWith = (addRow: NodeExecutionContext["sandbox"]["addRow"]) => ({
     read: sandboxRead,
@@ -1187,21 +1233,43 @@ describe("Add Row", () => {
     generateImage: vi.fn(),
     generateVideo: vi.fn(),
   });
+  const row = (value: unknown) => ({ type: "object" as const, value });
 
-  // What the card holds only stands in for a wire; a column given neither is
-  // left to the host, which fills in a new row's value from the Table itself.
-  it("sends a wired value over what the card holds, and leaves a column given neither out", async () => {
+  // Everything wired beats everything typed: a column's pin, then the row's
+  // field, then what the card holds; a column given none is left out.
+  it("fills a column from its pin, else the row's field, else what the card holds", async () => {
+    const addRow = vi.fn(async () => ({ path: "renders/log.table.html" }));
+    const columns = [
+      { id: "prompt", label: "Prompt", type: "text" },
+      { id: "keep", label: "Keep", type: "checkbox" },
+      { id: "status", label: "Status", type: "select", options: ["Draft", "Final"] },
+      { id: "day", label: "Day", type: "text" },
+      { id: "note", label: "Note", type: "text" },
+    ];
+    await NODE_EXECUTORS.addRow(
+      rowNode({ columns, values: { prompt: "typed", status: "Final", day: "{{$date}}" } }),
+      {
+        row: row({ prompt: "from the row", keep: false, status: "Draft" }),
+        prompt: { type: "text", value: "from the pin" },
+        keep: { type: "boolean", value: true },
+      },
+      context({ sandbox: sandboxWith(addRow) }),
+    );
+    expect(addRow).toHaveBeenCalledWith("flow", "picture.flow.html", "renders/log.table.html", {
+      prompt: "from the pin",
+      keep: "true",
+      status: "Draft",
+      day: "2026-11-09",
+    });
+  });
+
+  it("sends each field of its row as cell text", async () => {
     const addRow = vi.fn(async () => ({ path: "renders/log.table.html" }));
     const ensureCapability = vi.fn(async () => true);
     const wrote = vi.fn();
     const outputs = await NODE_EXECUTORS.addRow(
-      rowNode({ values: { prompt: "typed on the card", status: "Final", keep: "" } }),
-      {
-        prompt: { type: "text", value: "a red door" },
-        image: { type: "text", value: "renders/red-door-1a2b3c.png" },
-        keep: { type: "boolean", value: true },
-        width: { type: "number", value: 1024 },
-      },
+      rowNode({}),
+      { row: row({ prompt: "a red door", image: "renders/red-door-1a2b3c.png", keep: true, width: 1024, gone: null }) },
       context({ sandbox: sandboxWith(addRow), ensureCapability, wrote }),
     );
     expect(outputs).toEqual({ path: { type: "text", value: "/renders/log.table.html" } });
@@ -1211,14 +1279,13 @@ describe("Add Row", () => {
       image: "renders/red-door-1a2b3c.png",
       keep: "true",
       width: "1024",
-      status: "Final",
     });
     expect(wrote).toHaveBeenCalledWith("renders/log.table.html");
   });
 
   // Read from the Flow's folder, handed on from the root, so it names the
-  // Table wherever it is wired.
-  it("passes the Table on from the root", async () => {
+  // Table wherever it is wired. With no row, every column takes a new row's.
+  it("passes the Table on from the root, and adds a row of starting values with nothing wired", async () => {
     const addRow = vi.fn(async () => ({ path: "projects/shoot/log.table.html" }));
     const wrote = vi.fn();
     const outputs = await NODE_EXECUTORS.addRow(
@@ -1227,21 +1294,26 @@ describe("Add Row", () => {
       context({ sandbox: sandboxWith(addRow), wrote, flowPath: "projects/shoot/picture.flow.html" }),
     );
     expect(outputs).toEqual({ path: { type: "text", value: "/projects/shoot/log.table.html" } });
+    expect(addRow).toHaveBeenCalledWith("flow", "projects/shoot/picture.flow.html", "log.table.html", {});
     expect(wrote).toHaveBeenCalledWith("projects/shoot/log.table.html");
   });
 
-  it("adds nothing on a denied grant", async () => {
+  it("adds nothing on a denied grant, or for a row no Table can hold", async () => {
     const addRow = vi.fn();
     const denied = context({ sandbox: sandboxWith(addRow), ensureCapability: vi.fn(async () => false) });
     await expect(NODE_EXECUTORS.addRow(rowNode({}), {}, denied)).rejects.toThrow(
       'Permission denied to write "renders/log.table.html"',
+    );
+    const granted = context({ sandbox: sandboxWith(addRow) });
+    await expect(NODE_EXECUTORS.addRow(rowNode({}), { row: row({ tags: ["a"] }) }, granted)).rejects.toThrow(
+      'Field "tags" is a list, not a single value',
     );
     expect(addRow).not.toHaveBeenCalled();
   });
 
   it("fails, naming why, with no Table or a file that isn't one", async () => {
     await expect(NODE_EXECUTORS.addRow(rowNode({ tablePath: "" }), {}, context())).rejects.toThrow(
-      "Drag the table to add rows to onto this node",
+      "Drag the Table to add rows to onto this node",
     );
     await expect(NODE_EXECUTORS.addRow(rowNode({ tablePath: "notes/log.md" }), {}, context())).rejects.toThrow(
       '"notes/log.md" is no longer a table',
@@ -1902,18 +1974,17 @@ describe("dates in typed text", () => {
     expect(await NODE_EXECUTORS.choice(choice, {}, context())).toEqual({ text: textOf("Shot on Nov 9") });
   });
 
-  it("fills Add Row's typed values, never a wired one", async () => {
-    const addRow = vi.fn(async (..._args: unknown[]) => ({ path: "log.table.html" }));
+  it("fills Make Object's typed values, never a wired one", async () => {
     const columns = [
       { id: "day", label: "Day", type: "text" },
       { id: "note", label: "Note", type: "text" },
     ];
-    await NODE_EXECUTORS.addRow(
-      nodeOf("addRow", { tablePath: "log.table.html", columns, values: { day: "{{$date}}", note: "typed" } }),
+    const outputs = await NODE_EXECUTORS.makeObject(
+      nodeOf("makeObject", { tablePath: "log.table.html", columns, values: { day: "{{$date}}", note: "typed" } }),
       { note: textOf("{{$date}}") },
-      context({ sandbox: { ...context().sandbox, addRow } }),
+      context(),
     );
-    expect(addRow.mock.lastCall?.[3]).toEqual({ day: "2026-11-09", note: "{{$date}}" });
+    expect(outputs.object).toEqual({ type: "object", value: { day: "2026-11-09", note: "{{$date}}" } });
   });
 });
 
