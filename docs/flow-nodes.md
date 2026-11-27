@@ -175,7 +175,7 @@ Replaces each `{{name}}` in `source` with the value wired into the slot whose na
 
 **Join Text**: texts, joined by a separator.
 
-- **Inputs:** `text_1: text` (text widget), `text_2: text` (text widget), `text_3: text` (text widget), `list: object` (optional), `separator: text` (text widget, `", "` in a new node)
+- **Inputs:** `text_1: text` (text widget), `text_2: text` (text widget), `text_3: text` (text widget), `list: object` (optional), `separator: text` (text widget)
 - **Outputs:** `text: text`
 
 A wired `list` is joined in place of the three texts, as [`replaceSelection`](#replaceselection)'s `options` wins over its text, and a list holding anything but texts fails the node.

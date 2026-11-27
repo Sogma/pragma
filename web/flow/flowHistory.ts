@@ -115,7 +115,7 @@ function typedChange(before: Recorded, after: Recorded): Typed | undefined {
 
 // Whether the open step left the graph as it found it. A field typed into
 // and emptied again did, if it held nothing before: blank and absent show
-// alike unless the field has a default, as Join Text's separator does.
+// alike unless the field has a default, as Generate Image's prefix does.
 function backWhereItBegan(before: Recorded | undefined, now: Recorded, typing: string | undefined): boolean {
   if (!before) return false;
   if (before.key === now.key) return true;

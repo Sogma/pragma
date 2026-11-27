@@ -1220,9 +1220,8 @@ const forEachEnd: FlowNodeTypeDefinition = {
 
 /** Joins `text_1`…`text_3` with `separator`, literally — an empty slot still
  * contributes an empty segment, never filtered out. Every port is a widget
- * input, so the node works typed-in or wired; `separator`'s non-empty
- * default is seeded into a new node's config, unlike the others' "". A
- * wired `list` joins in place of the three. */
+ * input, so the node works typed-in or wired. A wired `list` joins in place
+ * of the three. */
 const joinText: FlowNodeTypeDefinition = {
   type: "joinText",
   label: "Join Text",
@@ -1247,7 +1246,7 @@ const joinText: FlowNodeTypeDefinition = {
     { portId: "text_1", type: "text" },
     { portId: "text_2", type: "text" },
     { portId: "text_3", type: "text" },
-    { portId: "separator", type: "text", defaultValue: ", " },
+    { portId: "separator", type: "text" },
   ],
 };
 

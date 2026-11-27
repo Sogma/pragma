@@ -2221,7 +2221,7 @@ describe("a card hiding its unused pins", () => {
     expect(["model", "aspect_ratio", "resolution", "duration", "prefix"].map((id) => unused(rowOf(video, id)))).toEqual(
       [true, true, false, true, true],
     );
-    const join = cards.build(node("joinText", { text_1: "", text_2: "draft", text_3: "", separator: "" }));
+    const join = cards.build(node("joinText", { text_1: "", text_2: "draft", text_3: "", separator: " / " }));
     expect(["text_1", "text_2", "text_3", "separator"].map((id) => unused(rowOf(join, id)))).toEqual([
       true,
       false,
@@ -2278,7 +2278,7 @@ describe("a card hiding its unused pins", () => {
     const { cards, deps, graph } = setup();
     const flowNode = node(
       "joinText",
-      { text_1: "", text_2: "draft", text_3: "", separator: ", " },
+      { text_1: "", text_2: "draft", text_3: "", separator: "" },
       { unusedPinsHidden: true },
     );
     const card = cards.build(flowNode);

@@ -97,15 +97,16 @@ describe("flowHistory steps", () => {
   // Blank and absent show alike, unless the field has a default.
   it("drops a step that typed into an empty field and emptied it, unless the field has a default", () => {
     const a = node("a");
-    const graph: FlowGraph = { nodes: [a], edges: [] };
+    const image: FlowNodeInstance = { id: "b", type: "generateImage", position: { x: 0, y: 0 }, config: {} };
+    const graph: FlowGraph = { nodes: [a, image], edges: [] };
     const { history, type } = setup(graph);
     type(a, "text_1", "x");
     type(a, "text_1", "");
     expect(history.canUndo()).toBe(false);
 
-    type(a, "separator", "x");
-    type(a, "separator", "");
-    expect(history.undo()?.nodes[0].config).toEqual({ text_1: "" });
+    type(image, "prefix", "x");
+    type(image, "prefix", "");
+    expect(history.undo()?.nodes[1].config).toEqual({});
   });
 
   it("drops what Redo had once a new step opens", () => {

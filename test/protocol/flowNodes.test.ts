@@ -165,12 +165,12 @@ describe("holdsNewNodeValue", () => {
     expect(holdsNewNodeValue("generateVideo", "model", { model: "studio:clip-2" })).toBe(false);
   });
 
-  // A text widget's blank is a value of its own, so a cleared separator holds
+  // A text widget's blank is a value of its own, so a cleared prefix holds
   // no new node's value, and a missing one reads blank.
   it("reads a text field's blank and a checkbox's blank as they run", () => {
-    expect(holdsNewNodeValue("joinText", "separator", { separator: ", " })).toBe(true);
-    expect(holdsNewNodeValue("joinText", "separator", { separator: "" })).toBe(false);
-    expect(holdsNewNodeValue("joinText", "separator", {})).toBe(false);
+    expect(holdsNewNodeValue("generateImage", "prefix", { prefix: "{{$date:%y%m%d}}" })).toBe(true);
+    expect(holdsNewNodeValue("generateImage", "prefix", { prefix: "" })).toBe(false);
+    expect(holdsNewNodeValue("generateImage", "prefix", {})).toBe(false);
     expect(holdsNewNodeValue("joinText", "text_2", {})).toBe(true);
     expect(holdsNewNodeValue("joinText", "text_2", { text_2: "draft" })).toBe(false);
     expect(holdsNewNodeValue("toggleText", "true", { true: "false" })).toBe(true);
