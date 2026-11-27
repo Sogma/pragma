@@ -39,7 +39,7 @@ import {
   valueCells,
   wireRowSelection,
 } from "../../lib/dataGrid.ts";
-import { buildTableRowDeleteButton, el, iconButton } from "../../lib/dom.ts";
+import { el, iconButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type CellOptions, createCell } from "../../lib/fieldValue.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
@@ -618,12 +618,9 @@ export function createTableView(deps: TableViewDeps): TableView {
       lastHeader: schemaTools
         ? { header: addColumnHeader(columns), headerClass: "data-table-add-column-cell" }
         : undefined,
-      // A card deletes from its own head; a list row is ticked and deleted
+      // A card deletes from its own corner; a list row is ticked and deleted
       // from the toolbar.
-      rowControl:
-        readOnly || layout === "list"
-          ? undefined
-          : (row, redraw) => buildTableRowDeleteButton(() => deleteRows([row], redraw)),
+      deleteRow: readOnly ? undefined : (row, redraw) => deleteRows([row], redraw),
       openRow: rowCard ? (_row, index) => rowCard.open(index) : undefined,
       // Design's grid ticks nothing: its tools are the columns'.
       selection: designing ? undefined : selection,

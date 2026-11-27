@@ -12,6 +12,7 @@
 }
 
 .data-cards-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -117,13 +118,45 @@
   opacity: 1;
 }
 
+/* A card's remove button, shown as its open button is: a disc centered on
+   the curve of the card's bottom-right corner. That point lies 0.293 of the
+   radius (1 - 1/√2) in from the border's outer edge, and right and bottom
+   count from 1px inside that edge. It reaches into the gap between cards,
+   which is wider, so it never covers the next card. */
+.data-cards-remove {
+  position: absolute;
+  right: calc(var(--panel-radius) * 0.293 - 13px);
+  bottom: calc(var(--panel-radius) * 0.293 - 13px);
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  opacity: 0;
+}
+
+.data-cards-card:hover > .data-cards-remove,
+.data-cards-card:focus-within > .data-cards-remove {
+  opacity: 1;
+}
+
+/* Red on hover, as a delete button is. */
+.data-cards-remove:hover {
+  background: var(--bg-hover);
+  color: var(--color-danger);
+}
+
+.data-cards-remove-icon {
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-trash) center / contain no-repeat;
+}
+
 /* An arranged card (lib/smallCard.ts): its tiles on a grid four across, a
    row one value tall. A tile keeps the part's class a composed card uses,
    so its title, badge and lines look as they do there. */
-.data-cards-arranged {
-  position: relative;
-}
-
 .data-cards-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

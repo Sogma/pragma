@@ -405,6 +405,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
       placeChanged: () => tabs.placeChanged(),
       viewChanged: () => chrome.viewChanged(),
       openToSide: (path) => tabs.openBeside(path, group.id),
+      fileRemoval,
     };
     const view = createEditorGroupView({
       stripHost: deps.stripHost,
@@ -897,17 +898,29 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   };
   // A file's trash as its tree row's menu offers it: on its tab's menu, and
   // on a Class row's card and right-click, whose argument names the row's file.
-  const removalOf = (path: string): MenuItem => {
+  const removalCommand = (path: string): { command: string; arg: unknown } => {
     const entry = { name: basenameOf(path), path, type: "file" } as const;
     const row = treeRowMenu(entry, renameDialog(entry));
-    return {
-      command: row.menu === "tree" ? "tree.delete" : "libraryTree.delete",
-      arg: row.arg,
-      group: "trash",
-      label: () => removalLabel(deps.moveToTrash.get()),
-      danger: true,
-    };
+    return { command: row.menu === "tree" ? "tree.delete" : "libraryTree.delete", arg: row.arg };
   };
+  const removalOf = (path: string): MenuItem => ({
+    ...removalCommand(path),
+    group: "trash",
+    label: () => removalLabel(deps.moveToTrash.get()),
+    danger: true,
+  });
+  // The same trash for a pane's own button, a Class card's. The command and
+  // the tree's node are looked up at the press, as a menu looks them up when
+  // it opens: a listing draws a button on every card.
+  function fileRemoval(path: string): { label: string; run(): void } {
+    return {
+      label: removalLabel(deps.moveToTrash.get()),
+      run: () => {
+        const { command, arg } = removalCommand(path);
+        void deps.commands.run(command, { tab: workspace.activeTab(), pane: focusedPane() }, arg);
+      },
+    };
+  }
   const rowFileItems = (_: CommandContext, arg: unknown): MenuItem[] => {
     const file = fileOf(arg);
     return file === undefined ? [] : [removalOf(file)];

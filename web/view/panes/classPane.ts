@@ -92,6 +92,7 @@ import {
   cardParts,
   createCard,
   createCardList,
+  createCardRemoveButton,
   createColumnHeader,
   createGridTable,
   createRowOpenButton,
@@ -176,6 +177,9 @@ export interface ClassPaneDeps {
   // where its open button opens.
   previewSources: PreviewSources & SelectedReads;
   openBeside: (rootedPath: string) => void;
+  // A row's file trashed as its right-click trashes it: what a card's
+  // remove button is named and does.
+  removal: (path: string) => { label: string; run(): void };
 }
 
 // What only main holds; the descriptor binds the rest.
@@ -250,6 +254,7 @@ export function classPane({ menus, tabs, ...deps }: ClassPaneWiring): EditorPane
         dialogHost: group.element,
         reportReadout: (text) => group.reportReadout(text),
         tags: tagVocabulary,
+        removal: (path) => group.fileRemoval(path),
       }),
   };
 }
@@ -1219,8 +1224,12 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     const pictureOf = (row: ClassRow) => cardPicture(row, picture);
     const arranged = open?.file.smallCard && resolveSmallCard(fields, open.file.smallCard, { picture, badge });
     const list = createCardList();
+    // Offered where a Table's card offers its delete: in Edit mode alone.
+    const removable = editable() && !designing;
     const items = rows.map((row) => {
       const actions = [createRowOpenButton(() => openCard(row))];
+      const removal = removable ? deps.removal(row.path) : undefined;
+      const remove = removal && createCardRemoveButton(removal.label, removal.run);
       const card = arranged
         ? createArrangedCard(
             arranged.map(({ part, size, label, field }) => ({
@@ -1235,6 +1244,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
                     : field && buildCell(field, row),
             })),
             actions,
+            remove,
           )
         : createCard({
             picture: pictureOf(row),
@@ -1244,6 +1254,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
             lines: lines
               .filter((field) => filled(field, row))
               .map((field) => ({ label: field.label, control: buildCell(field, row) })),
+            remove,
           });
       list.appendChild(card);
       return { element: card, row };

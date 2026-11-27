@@ -143,8 +143,12 @@ export function createArrangedTile(tile: ArrangedTile): HTMLElement {
 
 /** An arranged card. Its actions end the title's tile, as they end the head
  * of a card the cards view composes; with no title on the card they sit in
- * its top corner. */
-export function createArrangedCard(tiles: readonly ArrangedTile[], actions: readonly HTMLElement[]): HTMLElement {
+ * its top corner. Its remove button ends it, as a composed card's does. */
+export function createArrangedCard(
+  tiles: readonly ArrangedTile[],
+  actions: readonly HTMLElement[],
+  remove?: HTMLElement,
+): HTMLElement {
   const card = document.createElement("article");
   card.className = "card data-cards-card data-cards-arranged form-input-row";
   const grid = document.createElement("div");
@@ -165,5 +169,6 @@ export function createArrangedCard(tiles: readonly ArrangedTile[], actions: read
     bar.append(...actions);
     card.appendChild(bar);
   }
+  if (remove) card.appendChild(remove);
   return card;
 }

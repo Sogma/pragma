@@ -5,7 +5,7 @@ import type { DocumentLock } from "../../src/protocol/api.ts";
 import type { FieldValueType, SmallCardTile, TableColumn, TableLayout, TableRow } from "../../src/protocol/types.ts";
 import { currentPlatform } from "../services/keybindings.ts";
 import type { MenuItem } from "../services/menus.ts";
-import { buildLockNotice } from "./dom.ts";
+import { buildLockNotice, el, iconButton } from "./dom.ts";
 import { fieldTypeIcon } from "./fieldTypeIcon.ts";
 import type { RowPick, RowSelection } from "./rowSelection.ts";
 import { createArrangedCard, resolveSmallCard } from "./smallCard.ts";
@@ -88,6 +88,14 @@ export function createRowOpenButton(onOpen: () => void): HTMLButtonElement {
   button.tabIndex = -1;
   button.setAttribute("aria-label", "Open card");
   button.addEventListener("click", onOpen);
+  return button;
+}
+
+/** A card's delete or trash, on its bottom-right corner. */
+export function createCardRemoveButton(label: string, onRemove: () => void): HTMLButtonElement {
+  const button = iconButton("data-cards-remove", label);
+  button.appendChild(el("span", "data-cards-remove-icon"));
+  button.addEventListener("click", onRemove);
   return button;
 }
 
@@ -395,9 +403,11 @@ export interface CardContent {
   picture?: HTMLElement;
   title?: HTMLElement;
   badge?: HTMLElement;
-  // Controls at the end of the card's head, such as its delete button.
+  // Controls at the end of the card's head, such as its open button.
   actions?: HTMLElement[];
   lines: { label: string; control: HTMLElement }[];
+  // The card's remove button, drawn on its corner.
+  remove?: HTMLElement;
 }
 
 /** One card, its parts already built. A head with nothing in it is left
@@ -439,6 +449,7 @@ export function createCard(content: CardContent): HTMLElement {
     line.append(labelEl, controlEl);
     card.appendChild(line);
   }
+  if (content.remove) card.appendChild(content.remove);
   return card;
 }
 
@@ -485,9 +496,9 @@ export interface TableFormSpec {
   header?(column: TableColumn): HTMLElement;
   /** A header cell after the columns' own, with no cell in any row. */
   lastHeader?: GridColumn<TableRow>;
-  /** A row's own control, at the end of its line or in its card's head,
-   * given how to draw the rows again once the row is gone. */
-  rowControl?(row: TableRow, redraw: () => void): HTMLElement;
+  /** Deletes a row, from its card's remove button, given how to draw the
+   * rows again once the row is gone. */
+  deleteRow?(row: TableRow, redraw: () => void): void;
   /** Opens the row's full card: from its gutter in the list, from its
    * head in a card. */
   openRow?(row: TableRow, index: number): void;
@@ -525,12 +536,10 @@ function tableCards(spec: TableFormSpec): HTMLElement {
   const { picture, title, badge, lines } = cardParts(spec.columns);
   const list = createCardList();
   const draw = () => list.replaceChildren(...spec.rows.map(card));
-  const { openRow } = spec;
+  const { openRow, deleteRow } = spec;
   const arranged = spec.smallCard && resolveSmallCard(spec.columns, spec.smallCard, { picture, title, badge });
-  const actions = (row: TableRow, index: number) => [
-    ...(openRow ? [createRowOpenButton(() => openRow(row, index))] : []),
-    ...(spec.rowControl ? [spec.rowControl(row, draw)] : []),
-  ];
+  const actions = (row: TableRow, index: number) => (openRow ? [createRowOpenButton(() => openRow(row, index))] : []);
+  const remove = (row: TableRow) => deleteRow && createCardRemoveButton("Delete entry", () => deleteRow(row, draw));
   const card = (row: TableRow, index: number) =>
     arranged
       ? createArrangedCard(
@@ -541,6 +550,7 @@ function tableCards(spec: TableFormSpec): HTMLElement {
             control: field && spec.cell(field, row),
           })),
           actions(row, index),
+          remove(row),
         )
       : createCard({
           picture: picture && spec.cell(picture, row),
@@ -550,6 +560,7 @@ function tableCards(spec: TableFormSpec): HTMLElement {
           lines: lines
             .filter((column) => !spec.readOnly || (row.values[column.id] ?? "").trim())
             .map((column) => ({ label: column.label, control: spec.cell(column, row) })),
+          remove: remove(row),
         });
   draw();
   return list;
@@ -564,11 +575,9 @@ function tableGrid(spec: TableFormSpec): HTMLElement {
     })),
   ];
   if (spec.lastHeader) columns.push(spec.lastHeader);
-  const { rowControl, selection } = spec;
-  const draw = () => grid.setRows(spec.rows);
-  if (rowControl) columns.push({ cell: (row) => rowControl(row, draw) });
+  const { selection } = spec;
   if (selection) columns.push(rowSelectColumn(selection));
   const grid = createGridTable(columns, selection && ((element, row) => selection.bind(element, row)));
-  draw();
+  grid.setRows(spec.rows);
   return grid.table;
 }

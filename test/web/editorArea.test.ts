@@ -15,6 +15,7 @@ import { PREVIEW_OPEN_MENU } from "../../web/notePreview.ts";
 import { ROW_CARD_MENU } from "../../web/rowCard.ts";
 import type { CommandContext } from "../../web/services/commands.ts";
 import type { DialogService } from "../../web/services/dialog.ts";
+import type { PaneGroup } from "../../web/services/editorPanes.ts";
 import { COMMAND_PALETTE, type ResolvedMenuItem } from "../../web/services/menus.ts";
 import type { SaveQueue } from "../../web/services/saveQueue.ts";
 import type { Setting } from "../../web/services/settings.ts";
@@ -504,6 +505,35 @@ describe("editor area", () => {
     expect(trash(ROW_MENU, { file: "shots/one.md" })).toEqual([["Move to Trash", "tree.delete", row, true]]);
     // A Table's row is no file.
     expect(trash(ROW_CARD_MENU)).toEqual([]);
+  });
+
+  it("gives a pane a file's trash for its own button, run as the row's right-click runs it", async () => {
+    const harness = await setup();
+    registerFileCommands(harness);
+    let group: PaneGroup | undefined;
+    harness.panes.register({
+      kind: "gallery",
+      chrome: { toolbar: false, readingView: false, statusbar: false, actions: [] },
+      create: (created) => {
+        group = created;
+        return {
+          kind: "gallery" as const,
+          element: document.createElement("div"),
+          setInput: async () => undefined,
+          clearInput: () => undefined,
+          title: () => "shots",
+          dispose: () => undefined,
+        };
+      },
+    });
+    await harness.tabs.openFolder("shots");
+    const removal = (group as PaneGroup).fileRemoval("shots/one.md");
+    expect(removal.label).toBe("Move to Trash");
+    removal.run();
+    const row = expect.objectContaining({ node: expect.objectContaining({ path: "shots/one.md", type: "file" }) });
+    await vi.waitFor(() =>
+      expect(harness.commands.get("tree.delete")?.run).toHaveBeenCalledWith(expect.anything(), row),
+    );
   });
 
   // The flyout's rows read the menu's own argument, which names the tab, so

@@ -20,6 +20,7 @@ export function fakePaneGroup(overrides: Partial<PaneGroup> = {}): PaneGroup {
     placeChanged: vi.fn(),
     viewChanged: vi.fn(),
     openToSide: vi.fn(async () => {}),
+    fileRemoval: vi.fn(() => ({ label: "Move to Trash", run: vi.fn() })),
     ...overrides,
   };
 }

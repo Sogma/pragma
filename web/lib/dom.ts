@@ -202,18 +202,6 @@ export function setRunCount(button: HTMLButtonElement, count: number): void {
   (button.lastElementChild as HTMLElement).textContent = `${count} running`;
 }
 
-export function buildTableRowDeleteButton(onClick: () => void): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "icon-button data-table-row-delete";
-  button.setAttribute("aria-label", "Delete entry");
-  const icon = document.createElement("span");
-  icon.className = "data-table-row-delete-icon";
-  button.appendChild(icon);
-  button.addEventListener("click", onClick);
-  return button;
-}
-
 /** A Settings list row that opens its item's subpage: the whole row is the
  * button, ending in a chevron. `item` is the item's id, which outlives the
  * row, so Settings can find it again after the list is rebuilt. */

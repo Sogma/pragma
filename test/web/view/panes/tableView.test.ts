@@ -137,7 +137,7 @@ describe("row add/delete", () => {
   it("draws no delete button on a list row: its checkbox ends it instead", () => {
     const { tableView, editorTable } = setup(false, false);
     tableView.render(sampleFile());
-    expect(editorTable.querySelector("tbody .data-table-row-delete")).toBeNull();
+    expect(editorTable.querySelector(".data-cards-remove")).toBeNull();
     const cells = editorTable.querySelector("tbody tr")?.children ?? [];
     expect(cells[cells.length - 1]?.className).toBe("row-select");
     expect(editorTable.querySelector("thead th:last-child")?.className).toBe("row-select");
@@ -517,7 +517,7 @@ describe("reading view", () => {
     expect(editorTable.querySelector("thead .type-icon")).toBeNull();
     expect([...editorTable.querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Name", "Done"]);
     expect(editorTable.querySelector(".data-table-add-row")).toBeNull();
-    expect(editorTable.querySelector(".data-table-row-delete")).toBeNull();
+    expect(editorTable.querySelector(".data-cards-remove")).toBeNull();
     expect(editorTable.querySelector(".data-table-column-menu")).toBeNull();
     expect(editorTable.querySelectorAll("tbody input, tbody select, tbody button")).toHaveLength(0);
     const values = [...editorTable.querySelectorAll("tbody .data-table-value")];
@@ -607,7 +607,7 @@ describe("design mode", () => {
     expect(editorTable.querySelectorAll(".data-table-column-menu")).toHaveLength(2);
     expect(editorTable.querySelector(".data-table-add-column")).not.toBeNull();
     expect(editorTable.querySelector(".data-table-add-row")).toBeNull();
-    expect(editorTable.querySelector(".data-table-row-delete")).toBeNull();
+    expect(editorTable.querySelector(".data-cards-remove")).toBeNull();
     expect(editorTable.querySelectorAll("tbody input, tbody select, tbody button")).toHaveLength(0);
     expect(editorTable.querySelector("tbody .data-table-value")?.textContent).toBe("Widget");
   });
@@ -705,12 +705,14 @@ describe("layouts", () => {
     expect((card.querySelector(".data-cards-title input") as HTMLInputElement).value).toBe("BR2-001");
     expect((card.querySelector(".data-cards-badge select") as HTMLSelectElement).value).toBe("complete");
     expect([...card.querySelectorAll(".data-cards-field-label")].map((l) => l.textContent)).toEqual(["Note"]);
-    // Editing: the row delete sits on the card, and Add is below.
-    expect(card.querySelector(".data-table-row-delete")).not.toBeNull();
+    // Editing: the row's delete ends the card, drawn on its corner, and Add
+    // is below.
+    expect(card.lastElementChild?.getAttribute("aria-label")).toBe("Delete entry");
+    expect(card.querySelector(".data-cards-head .data-cards-remove")).toBeNull();
     expect(editorTable.querySelector(".data-table-add-row")).not.toBeNull();
   });
 
-  it("draws an arranged card's tiles on its grid, parts by the rule, blanks kept, actions after the title", () => {
+  it("draws an arranged card's tiles on its grid, parts by the rule, blanks kept, its delete last", () => {
     const { tableView, editorTable } = setup(false, false);
     tableView.render({
       ...mediaFile(),
@@ -729,7 +731,7 @@ describe("layouts", () => {
     expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["4", "3", "4", "2"]);
     expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-rows"))).toEqual(["3", "1", "1", "1"]);
     expect((tiles[1].querySelector("input") as HTMLInputElement).value).toBe("BR2-001");
-    expect(tiles[1].querySelector(".data-table-row-delete")).not.toBeNull();
+    expect(card.lastElementChild?.classList.contains("data-cards-remove")).toBe(true);
     expect(tiles[2].textContent).toBe("Notes");
     // Status, the badge, is off this card; the blank note keeps its tile.
     expect(card.querySelector(".data-cards-badge")).toBeNull();
@@ -766,7 +768,7 @@ describe("layouts", () => {
     const only = editorTable.querySelector(".data-cards-card") as HTMLElement;
     expect(only.querySelector(".data-cards-picture .media-field video")).not.toBeNull();
     expect(only.querySelector(".data-cards-title")).toBeNull();
-    expect(only.querySelector(".data-cards-head .data-table-row-delete")).not.toBeNull();
+    expect(only.querySelector(":scope > .data-cards-remove")).not.toBeNull();
   });
 
   it("skips a blank line while reading, and shows it while editing", () => {
@@ -775,7 +777,7 @@ describe("layouts", () => {
     const cards = reading.editorTable.querySelectorAll(".data-cards-card");
     expect(cards[0].querySelector(".data-cards-field")).toBeNull(); // note is blank
     expect(cards[1].querySelectorAll(".data-cards-field")).toHaveLength(1);
-    expect(cards[0].querySelector(".data-table-row-delete")).toBeNull();
+    expect(cards[0].querySelector(".data-cards-remove")).toBeNull();
 
     const editing = setup(false, false);
     editing.tableView.render({ ...mediaFile(), layout: "cards" });
@@ -820,7 +822,7 @@ describe("layouts", () => {
     tableView.render({ ...mediaFile(), layout: "cards" });
     (editorTable.querySelector(".data-table-add-row") as HTMLButtonElement).click();
     expect(editorTable.querySelectorAll(".data-cards-card")).toHaveLength(3);
-    (editorTable.querySelector(".data-table-row-delete") as HTMLButtonElement).click();
+    (editorTable.querySelector(".data-cards-remove") as HTMLButtonElement).click();
     expect(document.querySelector(".dialog-panel .dialog-title")?.textContent).toBe('Delete "BR2-001" entry?');
     (document.querySelector(".dialog-primary") as HTMLButtonElement).click();
     await new Promise((resolve) => setTimeout(resolve, 0));

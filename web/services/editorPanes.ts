@@ -188,6 +188,9 @@ export interface PaneGroup {
   // Opens a file in the group beside this one, focus staying here: what a
   // run in this group opens to the side. Rejects when it can't be opened.
   openToSide(path: string): Promise<void>;
+  // A file's trash as its tree row's menu offers it, named by the trash
+  // setting, for a button of the pane's own to run.
+  fileRemoval(path: string): { label: string; run(): void };
 }
 
 export interface EditorPaneDescriptor {

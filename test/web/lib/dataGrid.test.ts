@@ -150,27 +150,24 @@ describe("createTableForm", () => {
     expect(empty.lastElementChild).toBe(after);
   });
 
-  it("puts a row's control at the end of its line or its card's head, drawing the rows again once it is gone", () => {
-    for (const layout of ["list", "cards"] as const) {
-      const shown = rows();
-      const drawn = form({
-        layout,
-        rows: shown,
-        rowControl: (row, redraw) => {
-          const button = Object.assign(document.createElement("button"), { textContent: "x" });
-          button.addEventListener("click", () => {
-            shown.splice(shown.indexOf(row), 1);
-            redraw();
-          });
-          return button;
-        },
-      });
-      const where = layout === "list" ? "tbody tr > td:last-child > button" : ".data-cards-head > button";
-      expect(drawn.querySelectorAll(where), layout).toHaveLength(2);
-      (drawn.querySelector(where) as HTMLButtonElement).click();
-      expect(drawn.querySelectorAll(where), layout).toHaveLength(1);
-      expect(drawn.textContent, layout).not.toContain("wide");
+  it("deletes a row from its card's remove button, last on the card, drawing the cards again once it is gone", () => {
+    const shown = rows();
+    const deleteRow = (row: TableRow, redraw: () => void) => {
+      shown.splice(shown.indexOf(row), 1);
+      redraw();
+    };
+    const smallCard = [{ title: true as const }, { field: "note" }];
+    for (const arranged of [undefined, smallCard]) {
+      const drawn = form({ layout: "cards", rows: shown, deleteRow, smallCard: arranged });
+      const removes = [...drawn.querySelectorAll<HTMLButtonElement>(".data-cards-card > .data-cards-remove")];
+      expect(removes.map((each) => each.parentElement?.lastElementChild === each)).toEqual(shown.map(() => true));
+      expect(removes[0].getAttribute("aria-label")).toBe("Delete entry");
     }
+    const drawn = form({ layout: "cards", rows: shown, deleteRow });
+    (drawn.querySelector(".data-cards-remove") as HTMLButtonElement).click();
+    expect(drawn.querySelectorAll(".data-cards-remove")).toHaveLength(1);
+    expect(drawn.textContent).not.toContain("wide");
+    expect(form({ rows: shown, deleteRow }).querySelector(".data-cards-remove")).toBeNull();
   });
 
   it("takes headers of the pane's own, and a last header cell with no cell in any row", () => {

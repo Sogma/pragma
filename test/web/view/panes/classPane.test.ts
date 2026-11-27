@@ -161,7 +161,10 @@ async function setup(
         return knownTags;
       }),
     },
+    removal: vi.fn((path: string) => ({ label: "Move to Trash", run: () => trashed.push(path) })),
   };
+  // The files a card's remove button trashed.
+  const trashed: string[] = [];
   // What the last frontmatter edit left, from an empty block.
   const edited: Record<string, unknown> = {};
   const pane = createClassPane(deps);
@@ -178,7 +181,7 @@ async function setup(
   const tell = (...paths: string[]) => {
     for (const listener of hearWrites) listener(paths, writes);
   };
-  return { pane, deps, saved, edited, sorted: (folder: string) => hearSort?.(folder), wrote, tell };
+  return { pane, deps, saved, edited, trashed, sorted: (folder: string) => hearSort?.(folder), wrote, tell };
 }
 
 const DESCRIPTION = { key: "description", values: ["Every shot."] };
@@ -1224,6 +1227,25 @@ describe("classPane: screenplays and media as rows", () => {
     expect(tiles[0].querySelector(".class-row-title")?.textContent).toBe("Wide");
     expect(tiles[0].querySelector(".row-open")).not.toBeNull();
     expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["2", "1", "2"]);
+    expect(card.lastElementChild?.classList.contains("data-cards-remove")).toBe(true);
+  });
+
+  it("trashes a card's note from the button on its corner, in Edit mode alone", async () => {
+    const file = classFile({ views: [{ name: "Cards", layout: "cards", filter: [] }] });
+    const { pane, trashed } = await setup(file);
+    const removes = [...pane.element.querySelectorAll<HTMLButtonElement>(".data-cards-card > .data-cards-remove")];
+    expect(removes.map((each) => each.getAttribute("aria-label"))).toEqual(Array(3).fill("Move to Trash"));
+    removes[1].click();
+    expect(trashed).toEqual(["shots/close.md"]);
+
+    // A mode change redraws the pane, as the group's mode switch does.
+    pane.design?.toggle();
+    pane.refresh?.();
+    expect(pane.element.querySelector(".data-cards-remove")).toBeNull();
+
+    const reading = await setup(file, rows, { reading: true });
+    expect(reading.pane.element.querySelector(".data-cards-card")).not.toBeNull();
+    expect(reading.pane.element.querySelector(".data-cards-remove")).toBeNull();
   });
 
   it("pictures a media row with its own file among cards", async () => {
