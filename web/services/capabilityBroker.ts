@@ -24,6 +24,8 @@ export interface BrokerCapability {
   key: string;
   type: string;
   path?: string;
+  // A column grant's column id, beside its Table's `path`.
+  column?: string;
   description?: string;
 }
 
@@ -85,6 +87,8 @@ const PROMPT_ACTIONS: Record<string, string> = {
   searchContext: "send files to an AI model from",
   generateImage: "Generate Image in",
   generateVideo: "Generate Video in",
+  readColumn: "read every file named in",
+  writeColumn: "write every file named in",
 };
 
 // A paragraph after the prompt's sentence, for a kind that spends credits or
@@ -112,6 +116,8 @@ const ROW_ACTIONS: Record<string, string> = {
   searchContext: "Send files to AI from",
   generateImage: "Generate images into",
   generateVideo: "Generate videos into",
+  readColumn: "Read every file named in",
+  writeColumn: "Write every file named in",
 };
 
 // A run's list of grants puts the path first and the permission at the
@@ -123,6 +129,8 @@ const LIST_ACTIONS: Record<string, string> = {
   searchContext: "Send to AI",
   generateImage: "Generate Image",
   generateVideo: "Generate Video",
+  readColumn: "Read",
+  writeColumn: "Write",
 };
 
 // A read of a library's file is named as one, not left to the path: a prompt
@@ -140,9 +148,16 @@ function subjectIcon(subject: Pick<BrokerSubject, "path">): EntryIcon | undefine
 
 // A capability's path as every prompt draws it: a root by its title, any
 // other path as a path label, the declaration's description after it.
+//
+// A column grant is one chip, the Table and then its column.
 function drawnPath(capability: BrokerCapability, path: string): (string | Node)[] {
   const description = capability.description ? ` (${capability.description})` : "";
-  return [rootTitle(capability.path) ?? createPathLabel(path, pathNames), description];
+  const label = rootTitle(capability.path) ?? createPathLabel(path, pathNames);
+  if (capability.column !== undefined && label instanceof HTMLElement) {
+    const box = label.querySelector(".path-label-box") ?? label;
+    box.append(el("span", "path-label-separator", " > "), el("span", "path-label-name", capability.column));
+  }
+  return [label, description];
 }
 
 // Every prompt's title. Only a Flow asks, and the sentence under the title

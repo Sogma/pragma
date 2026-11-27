@@ -84,6 +84,7 @@ function setup(options: { granted?: boolean; refused?: boolean; isPrivate?: bool
     loadFile: vi.fn(async () => file),
     modelConsole: { logLlmCall: vi.fn(), beginLlmActivity: vi.fn(), endLlmActivity: vi.fn() },
     notices: { begin: vi.fn(), add: vi.fn() },
+    dialog: { confirm: vi.fn(async () => true) },
   };
   const invocation = {
     flow: { path: file.path, name: "Prefix" },

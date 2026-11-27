@@ -13,10 +13,11 @@ import { withSetupNeed } from "../../src/protocol/setupNeed.ts";
 import type { FlowGraph } from "../../src/protocol/types.ts";
 import { proposeReplacement } from "../editProposal.ts";
 import type { BrokerSubject, CapabilityBroker } from "../services/capabilityBroker.ts";
+import type { DialogService } from "../services/dialog.ts";
 import type { DocumentAccess, DocumentSnapshot } from "../services/documentAccess.ts";
 import type { FileNotices } from "../services/fileNotices.ts";
 import { failedCallEntry, type ModelConsole } from "../services/modelConsole.ts";
-import { createFlowContext, type JobStarting } from "./browserEnvironment.ts";
+import { confirmRestDialog, createFlowContext, type JobStarting } from "./browserEnvironment.ts";
 import { brokerCapability, flowBrokerCapabilities } from "./flowPermissions.ts";
 
 export interface ToolkitInvocation {
@@ -39,6 +40,8 @@ export interface ToolkitRun {
 
 export interface ToolkitActionDeps {
   broker: CapabilityBroker;
+  // Asks before a For Each zone's other items start, once one has generated.
+  dialog: Pick<DialogService, "confirm">;
   loadFile(path: string): Promise<FileResponse>;
   modelConsole: Pick<ModelConsole, "logLlmCall" | "beginLlmActivity" | "endLlmActivity">;
   // A model call that failed, as an error on the document the button ran on
@@ -159,6 +162,7 @@ export async function runToolkitAction(
     jobStarting,
     document,
     openToSide: invocation.openToSide,
+    confirmRest: confirmRestDialog(deps.dialog),
     generations: {
       // A failure is an error on the document until a button runs on it
       // again, its entry written by the notice.

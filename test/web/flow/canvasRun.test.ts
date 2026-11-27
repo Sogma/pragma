@@ -10,6 +10,7 @@ import {
 import { type CanvasRunDeps, type CanvasRunInfo, createCanvasRun } from "../../../web/flow/canvasRun.ts";
 import { sweep } from "../../../web/lib/sweep.ts";
 import type { RunAsk } from "../../../web/services/capabilityBroker.ts";
+import { createDialogService } from "../../../web/services/dialog.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // Runs side by side on the canvas: each on the Flow as it was saved when it
@@ -124,6 +125,7 @@ function setUp(graph: FlowGraph, path = "flows/a.flow.html") {
     ensureCapability: vi.fn(async () => true),
     ensureCapabilities: vi.fn(async (): Promise<RunAsk> => ({ allowed: true, asked: [] })),
     openToSide: vi.fn(async () => {}),
+    dialog: createDialogService(),
   } satisfies CanvasRunDeps;
   const canvasRun = createCanvasRun(deps);
   return {

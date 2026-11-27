@@ -9,6 +9,9 @@ type Outputs = Record<string, PortValue>;
 interface Remembered {
   outputs: Outputs;
   fingerprint?: string;
+  // A For Each zone's node gives one result per item, each kept by its
+  // fingerprint, so a repeat of any item recalls its own.
+  items?: Map<string, Outputs>;
   // A blank model falls back to the default text model, so a run under
   // another default may have received something else: nothing recalls
   // across one.
@@ -38,11 +41,31 @@ export function createRunMemory(defaultModel: () => string): (flowPath: string, 
         new Map([...nodes].filter(([id]) => id !== fresh).map(([id, entry]): [string, Outputs] => [id, entry.outputs])),
       recall: (nodeId, fingerprint) => {
         const entry = nodeId === fresh ? undefined : nodes.get(nodeId);
-        return entry?.fingerprint === fingerprint && entry.defaultModel === model ? entry.outputs : undefined;
+        if (entry?.defaultModel !== model) return undefined;
+        return entry.fingerprint === fingerprint ? entry.outputs : entry.items?.get(fingerprint);
       },
       record(ran, given) {
+        const items = new Map<string, Map<string, Outputs>>();
+        for (const zone of ran.zones?.values() ?? []) {
+          for (const item of zone.items) {
+            for (const [id, fingerprint] of item?.fingerprints ?? []) {
+              const outputs = item?.outputs.get(id);
+              if (!outputs) continue;
+              const held = items.get(id) ?? new Map<string, Outputs>();
+              held.set(fingerprint, outputs);
+              items.set(id, held);
+            }
+          }
+        }
         for (const [id, outputs] of ran.outputs) {
-          if (!given?.has(id)) nodes.set(id, { outputs, fingerprint: ran.fingerprints.get(id), defaultModel: model });
+          if (given?.has(id)) continue;
+          const held = items.get(id);
+          nodes.set(id, {
+            outputs,
+            fingerprint: ran.fingerprints.get(id),
+            defaultModel: model,
+            ...(held ? { items: held } : {}),
+          });
         }
       },
     };

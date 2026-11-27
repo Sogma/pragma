@@ -1,6 +1,8 @@
 import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_INPUT, addRowPorts } from "./addRowNode.ts";
 import type { ModelSettingValue } from "./api.ts";
 import { APPLET_NODE_TYPE, appletNodeConfig } from "./appletNode.ts";
+import { columnIdOf } from "./columnId.ts";
+import { FOR_EACH_PAIR_KEY, flowZones } from "./flowZones.ts";
 import { MAKE_OBJECT_NODE_TYPE, makeObjectPorts } from "./makeObjectNode.ts";
 import { isDeclaredAddress, isHiddenPath, resolveDeclaredPath } from "./relativeReference.ts";
 import { dirnameOf, formatDeclaredPath, parseRootedPath } from "./rootedPath.ts";
@@ -10,8 +12,10 @@ import type {
   FlowNodeInstance,
   FlowPort,
   FlowPortType,
+  FlowReadColumnCapability,
   FlowReadFileCapability,
   FlowSearchContextCapability,
+  FlowWriteColumnCapability,
   FlowWriteDocumentCapability,
 } from "./types.ts";
 import { flowCapabilityKey } from "./types.ts";
@@ -1158,21 +1162,82 @@ const getField: FlowNodeTypeDefinition = {
   configKeys: [...slotKeys(GET_FIELD_SLOTS), GET_FIELD_SLOTS.slotsKey],
 };
 
+/** Runs the nodes between it and its End once per item of `list`
+ * (docs/protocol.md, For Each zones). A run does the looping, handing the
+ * zone each item and its place, so this node's own executor never runs. */
+const forEach: FlowNodeTypeDefinition = {
+  type: "forEach",
+  label: "For Each",
+  description: "The nodes up to its For Each End, run once per item of a list.",
+  category: "Data",
+  keywords: ["loop", "each", "every", "repeat", "iterate", "rows", "list", "zone", "map"],
+  version: "1.0",
+  inputs: [objectPort("list", "A list, such as Load Table's rows.")],
+  outputs: [objectPort("item"), numberPort("index", "The item's place in the list, from 1.")],
+  configFields: [],
+  configKeys: [],
+};
+
+export const FOR_EACH_END_MAX = 10;
+
+export const FOR_EACH_END_SLOTS: SlotSpec = {
+  slotsKey: "valueSlots",
+  max: FOR_EACH_END_MAX,
+  portId: (slot) => `value_${slot}`,
+  configKey: (slot) => `value${slot}Name`,
+};
+
+/** Slot N's list as For Each End hands it on. */
+export function forEachEndListPort(slot: number): string {
+  return `list_${slot}`;
+}
+
+function forEachEndPorts(): { inputs: FlowPort[]; outputs: FlowPort[] } {
+  const inputs: FlowPort[] = [];
+  const outputs: FlowPort[] = [];
+  for (let slot = 1; slot <= FOR_EACH_END_MAX; slot++) {
+    inputs.push(textPort(FOR_EACH_END_SLOTS.portId(slot)));
+    outputs.push(objectPort(forEachEndListPort(slot), `Every finished item's value_${slot}, in item order.`));
+  }
+  return { inputs, outputs };
+}
+
+/** Closes a For Each's zone: what each item gave on a slot, collected into
+ * that slot's list in item order. `config.forEach` names its For Each, and
+ * `config.value{N}Name` labels slot N's pins, as Template Variables' names
+ * do. A failed item gives nothing to any list, so the lists stay aligned. */
+const forEachEnd: FlowNodeTypeDefinition = {
+  type: "forEachEnd",
+  label: "For Each End",
+  description: "What each item of a For Each gave, collected into lists.",
+  category: "Data",
+  keywords: ["loop", "each", "collect", "gather", "list", "zone"],
+  version: "1.0",
+  ...forEachEndPorts(),
+  configFields: [],
+  configKeys: [FOR_EACH_PAIR_KEY, ...slotKeys(FOR_EACH_END_SLOTS), FOR_EACH_END_SLOTS.slotsKey],
+};
+
 /** Joins `text_1`…`text_3` with `separator`, literally — an empty slot still
  * contributes an empty segment, never filtered out. Every port is a widget
  * input, so the node works typed-in or wired; `separator`'s non-empty
- * default is seeded into a new node's config, unlike the others' "". */
+ * default is seeded into a new node's config, unlike the others' "". A
+ * wired `list` joins in place of the three. */
 const joinText: FlowNodeTypeDefinition = {
   type: "joinText",
   label: "Join Text",
-  description: "Three texts, joined by a separator.",
+  description: "Texts, joined by a separator.",
   category: "Text",
-  keywords: ["concat", "combine", "merge"],
+  keywords: ["concat", "combine", "merge", "list"],
   version: "1.0",
   inputs: [
     textPort("text_1"),
     textPort("text_2"),
     textPort("text_3"),
+    {
+      ...objectPort("list", "A list of texts, joined in place of the three, such as For Each End's."),
+      required: false,
+    },
     textPort("separator", "Goes between each two texts, empty ones included."),
   ],
   outputs: [textPort("text")],
@@ -1438,6 +1503,8 @@ const REGISTERED = {
   showText,
   showObject,
   getField,
+  forEach,
+  forEachEnd,
   joinText,
   resolvePath,
   templateVariables,
@@ -1587,17 +1654,57 @@ export function runCapabilities(
   const needs: { nodeId: string; capability: FlowCapabilityDeclaration }[] = [];
   const leftOut = nodesLeftOut(graph);
   const wired = wiredOutputs(graph);
-  for (const node of graph.nodes) {
-    if (leftOut.has(node.id) || skip?.has(node.id)) continue;
-    const declared = FLOW_NODE_REGISTRY[node.type]?.capabilityFor?.(node.config, wired.get(node.id) ?? new Set());
-    if (!declared) continue;
+  const declared = (nodeId: string, capability: FlowCapabilityDeclaration) => {
     try {
-      needs.push({ nodeId: node.id, capability: resolveFlowCapability(declared, flowPath) });
+      needs.push({ nodeId, capability: resolveFlowCapability(capability, flowPath) });
     } catch {
       // A path that names nothing asks for nothing; its node says why when it runs.
     }
+  };
+  for (const node of graph.nodes) {
+    if (leftOut.has(node.id) || skip?.has(node.id)) continue;
+    const capability = FLOW_NODE_REGISTRY[node.type]?.capabilityFor?.(node.config, wired.get(node.id) ?? new Set());
+    if (capability) declared(node.id, capability);
+  }
+  for (const [nodeId, capability] of pathColumns(graph)) {
+    if (!leftOut.has(nodeId) && !skip?.has(nodeId)) declared(nodeId, capability);
   }
   return needs;
+}
+
+/** Each node a Table column hands its wired path, with the column grant it
+ * asks for in place of each file's (docs/protocol.md, For Each zones): a Get
+ * Field on a zone's item wires the column straight in, and the zone's rows
+ * come from a Load Table whose Table the graph names. A key that isn't a
+ * column id, or a folder written into, names no column. */
+export function pathColumns(graph: FlowGraph): Map<string, FlowReadColumnCapability | FlowWriteColumnCapability> {
+  const columns = new Map<string, FlowReadColumnCapability | FlowWriteColumnCapability>();
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const into = (nodeId: string, portId: string) =>
+    graph.edges.find((edge) => edge.target === nodeId && edge.targetPort === portId);
+  for (const zone of flowZones(graph).values()) {
+    const list = into(zone.forEach, "list");
+    const rows = list && nodesById.get(list.source);
+    if (rows?.type !== "loadTableRows" || list?.sourcePort !== "rows" || into(rows.id, PATH_PORT)) continue;
+    const table = configString(rows.config, "tablePath");
+    if (!table) continue;
+    for (const edge of graph.edges) {
+      const getter = nodesById.get(edge.source);
+      const target = nodesById.get(edge.target);
+      if (getter?.type !== "getField" || !target || !zone.members.has(getter.id) || !zone.members.has(target.id))
+        continue;
+      const object = into(getter.id, "object");
+      if (object?.source !== zone.forEach || object.sourcePort !== "item") continue;
+      const spec = FLOW_NODE_REGISTRY[target.type]?.pathInput;
+      if (!spec || spec.access === "show" || spec.configKey === "folderPath" || edge.targetPort !== spec.portId)
+        continue;
+      const slot = Number(/^field_(\d+)$/.exec(edge.sourcePort)?.[1]);
+      const column = slot ? configString(getter.config, `field${slot}Key`) : "";
+      if (!column || columnIdOf(column) !== column) continue;
+      columns.set(target.id, { type: spec.access === "read" ? "readColumn" : "writeColumn", path: table, column });
+    }
+  }
+  return columns;
 }
 
 /** What the graph's wired path pins may ask for: a read, a write, a

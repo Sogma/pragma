@@ -2,7 +2,12 @@
 // Permissions panel lists, and what a run asks for. Shared by the canvas and
 // the toolkit runner, so a key is spelled one way wherever it is asked.
 import { flowPermissionRows, resolveFlowCapability } from "../../src/protocol/flowNodes.ts";
-import { type FlowCapabilityDeclaration, type FlowGraph, flowCapabilityKey } from "../../src/protocol/types.ts";
+import {
+  type FlowCapabilityDeclaration,
+  type FlowGraph,
+  flowCapabilityKey,
+  isColumnCapability,
+} from "../../src/protocol/types.ts";
 import { type FlowFileResponse, sandboxSetUnattended } from "../core/apiClient.ts";
 import type { BrokerCapability, UnattendedGrant } from "../services/capabilityBroker.ts";
 
@@ -19,6 +24,7 @@ export function brokerCapability(capability: FlowCapabilityDeclaration, flowPath
     key: flowCapabilityKey(resolved),
     type: resolved.type,
     ...("path" in resolved ? { path: resolved.path } : {}),
+    ...(isColumnCapability(resolved) ? { column: resolved.column } : {}),
     ...("wired" in resolved && resolved.wired ? { description: WIRED } : {}),
   };
 }

@@ -1073,6 +1073,24 @@ export interface FlowGenerateVideoCapability {
   path: string;
 }
 
+/** Declares intent to read every file one column of a Table names, whatever
+ * its value, rows added later included: derived from a For Each zone whose
+ * rows come from a Load Table, where a Get Field on the zone's item hands a
+ * column straight to a node's path (docs/protocol.md, For Each zones).
+ * `path` is the Table's, `column` the column's id. */
+export interface FlowReadColumnCapability {
+  type: "readColumn";
+  path: string;
+  column: string;
+}
+
+/** The same grant for writing every file one column of a Table names. */
+export interface FlowWriteColumnCapability {
+  type: "writeColumn";
+  path: string;
+  column: string;
+}
+
 export type FlowCapabilityDeclaration =
   | FlowReadFileCapability
   | FlowGenerateTextCapability
@@ -1080,7 +1098,16 @@ export type FlowCapabilityDeclaration =
   | FlowReadCurrentDocumentCapability
   | FlowSearchContextCapability
   | FlowGenerateImageCapability
-  | FlowGenerateVideoCapability;
+  | FlowGenerateVideoCapability
+  | FlowReadColumnCapability
+  | FlowWriteColumnCapability;
+
+/** Whether a capability grants a Table column's files. */
+export function isColumnCapability(
+  capability: FlowCapabilityDeclaration,
+): capability is FlowReadColumnCapability | FlowWriteColumnCapability {
+  return capability.type === "readColumn" || capability.type === "writeColumn";
+}
 
 /** The parsed shape of a `.flow.html` file — see docs/protocol.md's "Flows"
  * section. Lives here, unlike the applet parse result, because a reader
@@ -1103,8 +1130,12 @@ export interface FlowFile {
 //
 // Two colons, one split: the key's own separator is the first, so the
 // address after it keeps its `space:` or `lib:` scheme.
+//
+// A column's key ends `#<column id>` after the Table's address. An id never
+// holds `#`, so a key splits at its last one even when a file name has one.
 export function flowCapabilityKey(capability: FlowCapabilityDeclaration): string {
   if (capability.type === "readCurrentDocument" || capability.type === "generateText") return capability.type;
+  if (isColumnCapability(capability)) return `${capability.type}:${capability.path}#${capability.column}`;
   return `${capability.type}:${capability.path}`;
 }
 

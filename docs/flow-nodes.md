@@ -52,6 +52,25 @@ Gives every row as one list, each row keyed by column **id** and its `media` and
 
 Outputs `object`'s top-level field named exactly `field{N}Key` on `field_{N}`, as text; a slot with no key outputs nothing. No key at all, a non-record input, or a missing, list or record field fails the node, never reading as `""`. `fieldSlots` lists the slots past the first that an editor shows, as numbers; a run reads every slot whatever it holds.
 
+### `forEach`
+
+**For Each**: the nodes up to its For Each End, run once per item of a list.
+
+- **Inputs:** `list: object`
+- **Outputs:** `item: object`, `index: number`
+
+Opens a [zone](protocol.md#for-each-zones): the nodes between it and the [`forEachEnd`](#foreachend) whose `forEach` names it run once per item of `list`, each run handed the item on `item` and its place, from 1, on `index`. No list, or a value that isn't one, fails the node and every node its zone holds.
+
+### `forEachEnd`
+
+**For Each End**: what each item of a For Each gave, collected into lists.
+
+- **Inputs:** `value_1`–`value_10: text`
+- **Outputs:** `list_1`–`list_10: object` (a list of texts)
+- **Config:** `forEach`, `value{N}Name` (one per slot), `valueSlots`
+
+Closes the zone of the For Each its `forEach` names: each finished item's `value_{N}` joins `list_{N}` in item order, and a failed item joins no list, so the lists stay aligned. With no item finished it gives nothing. `value{N}Name` labels slot N's pins, and `valueSlots` lists the slots past the first that an editor shows, as numbers. An End naming no For Each, or one another End closes, fails.
+
 ### `showObject`
 
 **Show Object**: an object, shown and passed on.
@@ -154,10 +173,12 @@ Replaces each `{{name}}` in `source` with the value wired into the slot whose na
 
 ### `joinText`
 
-**Join Text**: three texts, joined by a separator.
+**Join Text**: texts, joined by a separator.
 
-- **Inputs:** `text_1: text` (text widget), `text_2: text` (text widget), `text_3: text` (text widget), `separator: text` (text widget, `", "` in a new node)
+- **Inputs:** `text_1: text` (text widget), `text_2: text` (text widget), `text_3: text` (text widget), `list: object` (optional), `separator: text` (text widget, `", "` in a new node)
 - **Outputs:** `text: text`
+
+A wired `list` is joined in place of the three texts, as [`replaceSelection`](#replaceselection)'s `options` wins over its text, and a list holding anything but texts fails the node.
 
 ### `numberToText`
 

@@ -539,6 +539,26 @@ describe("ensureAll", () => {
     expect(panel()).toBeNull();
   });
 
+  it("draws a column grant as one chip, the Table and then its column", async () => {
+    const { broker, host } = setup();
+    broker.mount(subjectOf(), host);
+    void broker.ensureAll([
+      {
+        key: "readColumn:space:shots.table.html#image",
+        type: "readColumn",
+        path: "space:shots.table.html",
+        column: "image",
+      },
+      { key: "generateText", type: "generateText" },
+    ]);
+    await tick();
+    const row = panel()?.querySelector(".run-permission-row");
+    expect(row?.querySelectorAll(".path-label-box")).toHaveLength(1);
+    expect(row?.querySelector(".run-permission-target")?.textContent).toBe("shots.table.html > image");
+    expect(row?.querySelector(".run-permission-action")?.textContent).toBe("Read");
+    buttonNamed(panel() as HTMLElement, "Deny").click();
+  });
+
   it("grants none of them on Deny", async () => {
     const { broker, deps, host } = setup();
     broker.mount(subjectOf(), host);

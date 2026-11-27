@@ -19,6 +19,24 @@ function ran(entries: Array<[string, string, string?]>): RunResult {
 }
 
 describe("runMemory", () => {
+  // A zone's node gives one result per item; a repeat of any item finds its own.
+  it("recalls each item of a For Each zone by its own fingerprint", () => {
+    const memoryOf = createRunMemory(() => "");
+    const item = (value: string, fingerprint: string) => ({
+      outputs: new Map([["gen-1", text(value)]]),
+      errors: new Map(),
+      fingerprints: new Map([["gen-1", fingerprint]]),
+    });
+    memoryOf("a.flow.html").record({
+      ...ran([["gen-1", "second", "fp2"]]),
+      zones: new Map([["each", { items: [item("first", "fp1"), item("second", "fp2")], stopped: false }]]),
+    });
+    const memory = memoryOf("a.flow.html");
+    expect(memory.recall("gen-1", "fp1")).toEqual(text("first"));
+    expect(memory.recall("gen-1", "fp2")).toEqual(text("second"));
+    expect(memory.recall("gen-1", "fp3")).toBeUndefined();
+  });
+
   it("recalls a node's outputs only under the fingerprint they answer", () => {
     const memoryOf = createRunMemory(() => "");
     memoryOf("a.flow.html").record(ran([["gen-1", "kept", "fp1"]]));

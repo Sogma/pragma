@@ -69,6 +69,8 @@ import {
   type FieldValueType,
   type FlowCapabilityDeclaration,
   type FlowNodeInstance,
+  type FlowReadColumnCapability,
+  type FlowWriteColumnCapability,
   holdsPath,
   isInlineImage,
   isMarkdownFile,
@@ -77,6 +79,8 @@ import {
   notAVideo,
   rasterImageMediaTypeForPath,
   splitDocumentName,
+  type TableColumn,
+  type TableRow,
   videoMediaTypeForPath,
 } from "./types.ts";
 import { modeConflict } from "./videoModes.ts";
@@ -161,6 +165,14 @@ export interface NodeExecutionContext {
   /** The first-use grant prompt, called before touching anything
    * capability-gated. Only UX: server-side enforcement is what gates. */
   ensureCapability: (capability: FlowCapabilityDeclaration) => Promise<boolean>;
+  /** The Table column a node's wired path comes straight from, which a run
+   * sets for that node alone: the node asks for the column's grant, covering
+   * every file the column names, in place of the file's. */
+  pathColumn?: FlowReadColumnCapability | FlowWriteColumnCapability;
+  /** Asked once a For Each zone holding a Generate node has generated for an
+   * item, before any other item starts (docs/protocol.md, For Each zones):
+   * true runs the rest. Absent where no one is present, and the rest run. */
+  confirmRest?: (ask: { forEach: string; done: number; rest: number; word: "Row" | "Item" }) => Promise<boolean>;
   /** The status-bar model indicator. The generate executor wraps just its
    * own request, not the whole run, so it tracks only the in-flight call. */
   beginLlmActivity: (model: string) => void;
@@ -318,22 +330,49 @@ function readPath(context: NodeExecutionContext, declared: string): PortValue {
 /** How a loader hands on the values of the document it read at `declared`:
  * a media or path value, written from that document's folder, from the root
  * as every path a node hands on is; one that names nothing as written. */
-function documentValues(
-  context: NodeExecutionContext,
-  declared: string,
-): (type: FieldValueType, value: string) => string {
-  const docDir = dirnameOf(formatRootedPath(resolveDeclaredPath(dirnameOf(context.flowPath), declared)));
+function documentValues(flowPath: string, declared: string): (type: FieldValueType, value: string) => string {
+  const docDir = dirnameOf(formatRootedPath(resolveDeclaredPath(dirnameOf(flowPath), declared)));
   return (type, value) => {
     const read = holdsPath(type) && value.trim() ? readWrittenPath(docDir, value.trim(), "markdown") : undefined;
     return read ? formatRootPath(read.target, read.folder) : value;
   };
 }
 
-function readCapability(path: string, wired: boolean): FlowCapabilityDeclaration {
+/** Every address a run can hand a node's wired path from one column of the
+ * Table at `table`, as a Load Table hands the column on and the node reads
+ * it from the Flow's folder: what that column's grant reaches, checked
+ * against the Table as it is when the node asks. */
+export function columnAddresses(
+  flowPath: string,
+  table: string,
+  file: { columns: readonly TableColumn[]; rows: readonly TableRow[] },
+  columnId: string,
+): Set<string> {
+  const addresses = new Set<string>();
+  const column = file.columns.find((candidate) => candidate.id === columnId);
+  if (!column) return addresses;
+  const handOn = documentValues(flowPath, table);
+  for (const row of file.rows) {
+    const text = handOn(column.type, row.values[columnId] ?? "").trim();
+    if (!text) continue;
+    try {
+      addresses.add(formatDeclaredPath(resolveDeclaredPath(dirnameOf(flowPath), text)));
+    } catch {
+      // A value that names nothing reaches nothing.
+    }
+  }
+  return addresses;
+}
+
+// A wired path a Table column handed on asks for the column's grant, which
+// covers every file the column names; any other asks for its own file.
+function readCapability(context: NodeExecutionContext, path: string, wired: boolean): FlowCapabilityDeclaration {
+  if (wired && context.pathColumn?.type === "readColumn") return context.pathColumn;
   return { type: "readFile", path, ...(wired ? { wired: true as const } : {}) };
 }
 
-function writeCapability(path: string, wired: boolean): FlowCapabilityDeclaration {
+function writeCapability(context: NodeExecutionContext, path: string, wired: boolean): FlowCapabilityDeclaration {
+  if (wired && context.pathColumn?.type === "writeColumn") return context.pathColumn;
   return { type: "writeDocument", path, ...(wired ? { wired: true as const } : {}) };
 }
 
@@ -589,7 +628,7 @@ const loadRow: NodeExecutor = async (node, _inputs, context) => {
     if (!granted) throw new Error(`Permission denied to read "${tablePath}"`);
     const result = await context.sandbox.read("flow", context.flowPath, tablePath);
     const { columns, rows } = result.kind === "table" ? result : { columns: [], rows: [] };
-    const value = documentValues(context, tablePath);
+    const value = documentValues(context.flowPath, tablePath);
     const firstColumnId = columns[0]?.id;
     const match =
       firstColumnId === undefined
@@ -615,11 +654,11 @@ const loadTableRows: NodeExecutor = async (node, inputs, context) => {
   const { path: tablePath, wired } = nodePath(node, inputs, context);
   let rows: Record<string, string>[] = [];
   if (tablePath) {
-    const granted = await context.ensureCapability(readCapability(tablePath, wired));
+    const granted = await context.ensureCapability(readCapability(context, tablePath, wired));
     if (!granted) throw new Error(`Permission denied to read "${tablePath}"`);
     const result = await context.sandbox.read("flow", context.flowPath, tablePath);
     if (result.kind !== "table") throw new Error(`"${tablePath}" isn't a table`);
-    const value = documentValues(context, tablePath);
+    const value = documentValues(context.flowPath, tablePath);
     rows = result.rows.map((row) =>
       Object.fromEntries(result.columns.map((column) => [column.id, value(column.type, row.values[column.id] ?? "")])),
     );
@@ -679,7 +718,7 @@ const loadRandomRow: NodeExecutor = async (node, inputs, context) => {
   let row: Record<string, string> = {};
   let selected = "";
   if (tablePath) {
-    const granted = await context.ensureCapability(readCapability(tablePath, wired));
+    const granted = await context.ensureCapability(readCapability(context, tablePath, wired));
     if (!granted) throw new Error(`Permission denied to read "${tablePath}"`);
     const result = await context.sandbox.read("flow", context.flowPath, tablePath);
     if (result.kind === "table" && result.columns.length > 0 && result.rows.length > 0) {
@@ -699,7 +738,7 @@ const loadRandomRow: NodeExecutor = async (node, inputs, context) => {
         }
         pick -= weight;
       }
-      const value = documentValues(context, tablePath);
+      const value = documentValues(context.flowPath, tablePath);
       const [first] = result.columns;
       row = Object.fromEntries(
         result.columns.map((column) => [column.id, value(column.type, match.values[column.id] ?? "")]),
@@ -747,7 +786,7 @@ const loadNote: NodeExecutor = async (node, inputs, context) => {
   const { path: notePath, wired } = nodePath(node, inputs, context);
   if (!notePath) return EMPTY_NOTE_OUTPUTS;
   if (!isMarkdownFile(notePath)) throw new Error(`"${notePath}" is no longer a markdown note`);
-  const granted = await context.ensureCapability(readCapability(notePath, wired));
+  const granted = await context.ensureCapability(readCapability(context, notePath, wired));
   if (!granted) throw new Error(`Permission denied to read "${notePath}"`);
   const result = await context.sandbox.read("flow", context.flowPath, notePath);
   if (result.kind !== "text") throw new Error(`"${notePath}" is no longer readable as text`);
@@ -800,7 +839,7 @@ const loadImage: NodeExecutor = async (node, inputs, context): Promise<Record<st
   if (imagePath) {
     // Before anything is asked: a grant to read what the node refuses is no use.
     if (!rasterImageMediaTypeForPath(imagePath)) throw new Error(notARasterImage(imagePath));
-    const granted = await context.ensureCapability(readCapability(imagePath, wired));
+    const granted = await context.ensureCapability(readCapability(context, imagePath, wired));
     if (!granted) throw new Error(`Permission denied to read "${imagePath}"`);
     const result = await context.sandbox.read("flow", context.flowPath, imagePath);
     if (result.kind !== "image") throw new Error(`"${imagePath}" is no longer an image`);
@@ -834,7 +873,7 @@ const loadVideo: NodeExecutor = async (node, inputs, context): Promise<Record<st
   }
   // Before anything is asked: a grant to read what the node refuses is no use.
   if (!videoMediaTypeForPath(videoPath)) throw new Error(notAVideo(videoPath));
-  const granted = await context.ensureCapability(readCapability(videoPath, wired));
+  const granted = await context.ensureCapability(readCapability(context, videoPath, wired));
   if (!granted) throw new Error(`Permission denied to read "${videoPath}"`);
   const result = await context.sandbox.read("flow", context.flowPath, videoPath);
   if (result.kind !== "video") throw new Error(`"${videoPath}" is no longer a video clip`);
@@ -1040,7 +1079,7 @@ async function noteToWrite(
   if (!isMarkdownFile(notePath)) throw new Error(`"${notePath}" is no longer a markdown note`);
   const text = inputs.text?.type === "text" ? inputs.text.value : undefined;
   if (text === undefined) throw new Error(`${FLOW_NODE_REGISTRY[node.type]?.label} has no text connected`);
-  const granted = await context.ensureCapability(writeCapability(notePath, wired));
+  const granted = await context.ensureCapability(writeCapability(context, notePath, wired));
   if (!granted) throw new Error(`Permission denied to write "${notePath}"`);
   return { notePath, text };
 }
@@ -1064,7 +1103,7 @@ const writeFolderNote: NodeExecutor = async (node, inputs, context) => {
   if (!stem) throw new Error(`"${typed}" can't name a note`);
   const text = inputs.text?.type === "text" ? inputs.text.value : undefined;
   if (text === undefined) throw new Error("Write Folder Note has no text connected");
-  const granted = await context.ensureCapability(writeCapability(folderPath, wired));
+  const granted = await context.ensureCapability(writeCapability(context, folderPath, wired));
   if (!granted) throw new Error(`Permission denied to write in "${folderPath}"`);
   const folder = resolveDeclaredPath(dirnameOf(context.flowPath), folderPath);
   const name = `${stem}.md`;
@@ -1112,7 +1151,7 @@ const addRow: NodeExecutor = async (node, inputs, context) => {
     const pinned = inputs[column.id];
     if (pinned) row[column.id] = cellText(pinned);
   }
-  const granted = await context.ensureCapability(writeCapability(tablePath, wired));
+  const granted = await context.ensureCapability(writeCapability(context, tablePath, wired));
   if (!granted) throw new Error(`Permission denied to write "${tablePath}"`);
   const { path } = await context.sandbox.addRow("flow", context.flowPath, tablePath, row);
   context.wrote?.(path);
@@ -1188,12 +1227,39 @@ const getField: NodeExecutor = async (node, inputs) => {
 
 // Literal join, no empty-slot filtering — see FLOW_NODE_REGISTRY's
 // joinText entry.
+// A wired list wins over the three texts, as Replace Selection's list wins
+// over its text. Only texts join: a row or a number in it fails the node
+// rather than reading as "[object Object]".
 const joinText: NodeExecutor = async (node, inputs, context) => {
+  const separator = resolveTextInput(inputs, node, "separator", context);
+  const list = inputs.list;
+  if (list?.type === "object") {
+    if (!Array.isArray(list.value)) throw new Error("Join Text's list isn't a list. Wire For Each End's list into it.");
+    const odd = list.value.findIndex((entry) => typeof entry !== "string");
+    if (odd !== -1) throw new Error(`Join Text joins texts, and item ${odd + 1} of its list isn't one.`);
+    return { text: { type: "text", value: list.value.join(separator) } };
+  }
   const a = resolveTextInput(inputs, node, "text_1", context);
   const b = resolveTextInput(inputs, node, "text_2", context);
   const c = resolveTextInput(inputs, node, "text_3", context);
-  const separator = resolveTextInput(inputs, node, "separator", context);
   return { text: { type: "text", value: [a, b, c].join(separator) } };
+};
+
+/** The items a For Each runs its zone over: the list wired into it, which
+ * must be one. */
+export function forEachItems(input: PortValue | undefined): unknown[] {
+  if (input === undefined) throw new Error("For Each needs a list. Wire one into it, such as Load Table's rows.");
+  if (input.type !== "object" || !Array.isArray(input.value)) {
+    throw new Error("For Each's input isn't a list. Wire a list into it, such as Load Table's rows.");
+  }
+  return input.value;
+}
+
+// A run hands a For Each's zone its items and collects into its End
+// (flowRuntime.ts), so a node of either type reaching its executor is one no
+// zone holds.
+const zoneOnly: NodeExecutor = async (node) => {
+  throw new Error(`${FLOW_NODE_REGISTRY[node.type]?.label ?? node.type} runs only as part of a For Each zone.`);
 };
 
 // One pass over `source`, so a slot's value is never read for placeholders:
@@ -1338,6 +1404,8 @@ const openToSide: NodeExecutor = async (node, inputs, context) => {
 // Every registered type and only those, so a type the registry gains without
 // an executor fails to compile here rather than at its first run.
 export const NODE_EXECUTORS: Record<string, NodeExecutor> = {
+  forEach: zoneOnly,
+  forEachEnd: zoneOnly,
   loadRow,
   loadRandomRow,
   loadTableRows,

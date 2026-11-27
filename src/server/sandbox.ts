@@ -30,6 +30,7 @@ import {
   type VideoReferencePayload,
 } from "../protocol/api.ts";
 import { generationEffort } from "../protocol/dispatchAction.ts";
+import { columnAddresses } from "../protocol/flowExecutors.ts";
 import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
 import type { AffixMode, FrameKind } from "../protocol/flowNodes.ts";
 import {
@@ -51,6 +52,7 @@ import {
   formatDeclaredPath,
   formatRootedPath,
   isLibraryRoot,
+  parseRootedPath,
   type RootedPath,
 } from "../protocol/rootedPath.ts";
 import type { ScopeFolders } from "../protocol/scopes.ts";
@@ -64,6 +66,7 @@ import {
   extensionForMediaType,
   flowCapabilityKey,
   holdsPath,
+  isColumnCapability,
   isFlowFile,
   isInlineImage,
   isMarkdownFile,
@@ -101,6 +104,8 @@ export interface SandboxCapability {
   key: string;
   type: string;
   path?: string;
+  // A column grant's column id, beside its Table's `path`.
+  column?: string;
 }
 
 export interface SandboxDocument {
@@ -153,6 +158,7 @@ const KINDS: Record<SandboxKind, KindRow> = {
           key: flowCapabilityKey(capability),
           type: capability.type,
           path: "path" in capability ? capability.path : undefined,
+          ...(isColumnCapability(capability) ? { column: capability.column } : {}),
         })),
         wired: wiredPathAccess(graph),
       };
@@ -319,7 +325,31 @@ async function requireWrite(spaceRoot: string, doc: SandboxDocument, target: Roo
   for (const capability of candidates) {
     if (await isCapabilityGranted(spaceRoot, doc.subject, capability.key)) return;
   }
+  if (await columnGrantCovers(spaceRoot, doc, "writeColumn", target)) return;
   throw new SandboxRequestError(403, `${doc.label} hasn't been granted "${candidates[0].key}"`);
+}
+
+/** Whether a granted column grant reaches `target`: the Table's column names
+ * it as the request comes, read as a run hands the column on
+ * (docs/protocol.md, For Each zones). Checked against the Table on disk, so
+ * a value changed since the run read the row reaches only what it says now. */
+async function columnGrantCovers(
+  spaceRoot: string,
+  doc: SandboxDocument,
+  type: "readColumn" | "writeColumn",
+  target: RootedPath,
+): Promise<boolean> {
+  const address = formatDeclaredPath(target);
+  for (const capability of doc.capabilities) {
+    if (capability.type !== type || capability.path === undefined || capability.column === undefined) continue;
+    if (!(await isCapabilityGranted(spaceRoot, doc.subject, capability.key))) continue;
+    const table = parseRootedPath(capability.path);
+    if (table.root !== "space") continue;
+    const raw = await readSpaceFile(spaceRoot, table.path).catch(() => undefined);
+    const file = raw === undefined ? undefined : parseTableFile(raw);
+    if (file && columnAddresses(doc.path, capability.path, file, capability.column).has(address)) return true;
+  }
+  return false;
 }
 
 /** Whether the document may be asked to grant `key`: a capability it
@@ -340,9 +370,13 @@ export async function performSandboxRead(
   targetPath: string,
 ): Promise<SandboxReadResult> {
   const target = resolveDeclared(doc, targetPath);
-  const capability = findReadCapability(doc, target) ?? wiredRequest(doc, "read", target);
-  if (!capability) throw new SandboxRequestError(400, `${doc.label} doesn't declare a read of "${targetPath}"`);
-  await requireGranted(spaceRoot, doc, capability.key);
+  const declared = findReadCapability(doc, target);
+  if (declared) await requireGranted(spaceRoot, doc, declared.key);
+  else if (!(await columnGrantCovers(spaceRoot, doc, "readColumn", target))) {
+    const wired = wiredRequest(doc, "read", target);
+    if (!wired) throw new SandboxRequestError(400, `${doc.label} doesn't declare a read of "${targetPath}"`);
+    await requireGranted(spaceRoot, doc, wired.key);
+  }
   return readSandboxTarget(spaceRoot, formatRootedPath(target));
 }
 

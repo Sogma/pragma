@@ -2230,7 +2230,7 @@ describe("a card hiding its unused pins", () => {
     field.dispatchEvent(new Event("input", { bubbles: true }));
     expect(flowNode.config.text_2).toBe("");
     expect(unused(rowOf(card, "text_2"))).toBe(true);
-    expect(card.querySelector(".flow-node-unused-count")?.textContent).toBe("4");
+    expect(card.querySelector(".flow-node-unused-count")?.textContent).toBe("5");
   });
 
   // A field being edited stays until focus leaves it, so the card is measured then.

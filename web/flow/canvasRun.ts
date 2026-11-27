@@ -25,7 +25,7 @@ import { formatVersionPhrase } from "../lib/dom.ts";
 import { sweep } from "../lib/sweep.ts";
 import type { RunAsk } from "../services/capabilityBroker.ts";
 import type { AppMode } from "./appMode.ts";
-import { createFlowContext } from "./browserEnvironment.ts";
+import { confirmRestDialog, createFlowContext } from "./browserEnvironment.ts";
 import type { FlowHistory } from "./flowHistory.ts";
 import type { FlowSaves } from "./flowSaves.ts";
 import type { NodeCards } from "./nodeCard.ts";
@@ -49,7 +49,10 @@ export interface CanvasRunInfo {
 }
 
 export interface CanvasRunDeps
-  extends Pick<FlowViewDeps, "modelLists" | "saveNow" | "modelConsole" | "spent" | "documentWritten" | "onRunsChange"> {
+  extends Pick<
+    FlowViewDeps,
+    "modelLists" | "saveNow" | "modelConsole" | "spent" | "documentWritten" | "onRunsChange" | "dialog"
+  > {
   // The open Flow, compared by identity once a run ends: node ids repeat
   // across Flows, so a run that ended after the view moved to another moves
   // nothing there.
@@ -249,6 +252,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         },
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
+        confirmRest: confirmRestDialog(deps.dialog),
         signal: state.controller.signal,
         regenerating: regenerated?.id,
         madeTake: (id, take) => {

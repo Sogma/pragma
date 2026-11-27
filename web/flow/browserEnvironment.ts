@@ -31,6 +31,7 @@ import {
 } from "../core/apiClient.ts";
 import { scopesOf } from "../core/spaceTree.ts";
 import { bytesToBase64 } from "../lib/base64.ts";
+import type { DialogService } from "../services/dialog.ts";
 import type { LlmCallOutcome } from "../services/modelConsole.ts";
 import { jobsFeed } from "./jobsFeed.ts";
 
@@ -209,6 +210,24 @@ export function createFlowContext(
     decodeImageDimensions,
     scopes: async () => scopesOf(flow.flowPath),
     clock: readClock(new Date()),
+  };
+}
+
+/** The ask a For Each zone makes once an item has generated, before the
+ * rest start (docs/protocol.md, For Each zones): what the item made is
+ * already where its results land, and Stop ends the run there. */
+export function confirmRestDialog(dialog: Pick<DialogService, "confirm">): NodeExecutionContext["confirmRest"] {
+  return ({ done, rest, word }) => {
+    const noun = word.toLowerCase();
+    return dialog.confirm({
+      title: `${word} ${done} done`,
+      message:
+        rest === 1
+          ? `Look at what it made before the last ${noun} starts.`
+          : `Look at what it made before the other ${rest} ${noun}s start.`,
+      confirmLabel: `Continue with ${rest} more`,
+      cancelLabel: "Stop",
+    });
   };
 }
 

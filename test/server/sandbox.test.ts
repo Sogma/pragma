@@ -728,3 +728,84 @@ describe("writing into a folder", () => {
     expect(existsSync(path.join(space, "projects", "drafts"))).toBe(false);
   });
 });
+
+describe("a Table column a zone reads or writes", () => {
+  const ZONE = "projects/zone.flow.html";
+  const zoneFlow = (use: string, field: string) =>
+    serializeFlowFile({
+      version: "1.0",
+      name: "Zone",
+      graph: {
+        nodes: [
+          {
+            id: "rows",
+            type: "loadTableRows",
+            position: { x: 0, y: 0 },
+            config: { tablePath: "space:shots.table.html" },
+          },
+          { id: "each", type: "forEach", position: { x: 0, y: 0 }, config: {} },
+          { id: "field", type: "getField", position: { x: 0, y: 0 }, config: { field1Key: field } },
+          { id: "use", type: use, position: { x: 0, y: 0 }, config: {} },
+        ],
+        edges: [
+          { id: "e1", source: "rows", sourcePort: "rows", target: "each", targetPort: "list" },
+          { id: "e2", source: "each", sourcePort: "item", target: "field", targetPort: "object" },
+          { id: "e3", source: "field", sourcePort: "field_1", target: "use", targetPort: "path" },
+        ],
+      },
+    });
+  const shots = (images: string[]) =>
+    serializeTableFile({
+      version: "1.0",
+      columns: [
+        { id: "image", label: "Image", type: "media" },
+        { id: "out", label: "Out", type: "path" },
+      ],
+      rows: images.map((image) => ({
+        values: { image, out: image.replace("refs/", "notes/").replace(".png", ".md") },
+      })),
+    });
+  const doc = () => readSandboxDocument(space, "flow", ZONE);
+
+  beforeEach(() => {
+    saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+    mkdirSync(path.join(space, "projects"), { recursive: true });
+    mkdirSync(path.join(space, "refs"), { recursive: true });
+    for (const name of ["a", "b", "c"]) writeFileSync(path.join(space, "refs", `${name}.png`), PNG);
+    writeFileSync(path.join(space, "shots.table.html"), shots(["refs/a.png", "refs/b.png"]));
+  });
+
+  it("is declared, and reads a file the column names once granted, and no other", async () => {
+    writeFileSync(path.join(space, ZONE), zoneFlow("loadImage", "image"));
+    const flow = await doc();
+    const key = "readColumn:space:shots.table.html#image";
+    expect(declaresCapability(flow, key)).toBe(true);
+    expect(await statusOf(performSandboxRead(space, flow, "space:refs/a.png"))).toBe(403);
+
+    await grantCapability(space, flow.subject, key);
+    for (const target of ["space:refs/a.png", "space:refs/b.png"]) {
+      await expect(performSandboxRead(space, flow, target), target).resolves.toMatchObject({ kind: "image" });
+    }
+    expect(await statusOf(performSandboxRead(space, flow, "space:refs/c.png"))).toBe(403);
+    expect(await statusOf(performSandboxRead(space, flow, "space:t.table.html"))).toBe(403);
+  });
+
+  it("reaches what the column names as it reads now, rows added later included", async () => {
+    writeFileSync(path.join(space, ZONE), zoneFlow("loadImage", "image"));
+    const flow = await doc();
+    await grantCapability(space, flow.subject, "readColumn:space:shots.table.html#image");
+    writeFileSync(path.join(space, "shots.table.html"), shots(["refs/b.png", "refs/c.png"]));
+    await expect(performSandboxRead(space, flow, "space:refs/c.png")).resolves.toMatchObject({ kind: "image" });
+    expect(await statusOf(performSandboxRead(space, flow, "space:refs/a.png"))).toBe(403);
+  });
+
+  it("writes a file the column names once its write is granted", async () => {
+    writeFileSync(path.join(space, ZONE), zoneFlow("writeNote", "out"));
+    const flow = await doc();
+    expect(await statusOf(performSandboxWrite(space, flow, "space:notes/a.md", "# A\n"))).toBe(403);
+    await grantCapability(space, flow.subject, "writeColumn:space:shots.table.html#out");
+    await performSandboxWrite(space, flow, "space:notes/a.md", "# New A\n");
+    expect(readFileSync(path.join(space, "notes", "a.md"), "utf8")).toBe("# New A\n");
+    expect(await statusOf(performSandboxWrite(space, flow, "space:notes/z.md", "x"))).toBe(403);
+  });
+});
