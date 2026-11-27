@@ -1,6 +1,6 @@
 {
   "name": "pragma",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "private": true,
   "description": "An open protocol and an open-source, local-first editor for AI-assisted work in a space you own. Keep your writing, data, workflows, and sandboxed applications together as plain Markdown and HTML files.",
   "keywords": [
