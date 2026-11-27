@@ -56,7 +56,7 @@ describe("createLinksPopover", () => {
     expect(panel.querySelector(".class-popover-add")?.textContent).toBe("+ Add Flow");
     const empty = setup("table");
     expect(empty.panel.textContent).toContain(
-      "A Flow's buttons show in the Tools tab while this Table is open, and run on the rows ticked.",
+      "A Flow's buttons show in the Tools tab while this Table is open, and run on the rows selected.",
     );
   });
 

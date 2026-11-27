@@ -9,7 +9,7 @@ import {
   runCapabilities,
 } from "../../src/protocol/flowNodes.ts";
 import { runFlow } from "../../src/protocol/flowRuntime.ts";
-import { flowZones, zonePartners, zoneProblems } from "../../src/protocol/flowZones.ts";
+import { flowZones, itemWord, zonePartners, zoneProblems } from "../../src/protocol/flowZones.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowEdgeInstance,
@@ -398,7 +398,7 @@ describe("a column grant from a toolkit's Table", () => {
       node("use", "loadImage"),
     ],
     edges: [
-      wire("click", "rows", "each", "list"),
+      wire("click", "selected_rows", "each", "list"),
       wire("each", "item", "field", "object"),
       wire("field", "field_1", "use", "path"),
     ],
@@ -410,6 +410,10 @@ describe("a column grant from a toolkit's Table", () => {
       { nodeId: "click", capability: { type: "readCurrentDocument" } },
       { nodeId: "use", capability: { type: "readColumn", path: "space:shots.table.html", column: "image" } },
     ]);
+  });
+
+  it("counts a Button's selected rows as rows", () => {
+    expect(itemWord(buttonZone(), "each")).toBe("row");
   });
 
   it("names the column and its access a host accepts, whichever Table it is", () => {

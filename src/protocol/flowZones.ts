@@ -54,7 +54,7 @@ export function flowZones(graph: FlowGraph): Map<string, FlowZone> {
 export function itemWord(graph: FlowGraph, forEach: string): "row" | "item" {
   const list = graph.edges.find((edge) => edge.target === forEach && edge.targetPort === "list");
   const source = list && graph.nodes.find((node) => node.id === list.source);
-  const rows = source?.type === "loadTableRows" || (source?.type === "button" && list?.sourcePort === "rows");
+  const rows = source?.type === "loadTableRows" || (source?.type === "button" && list?.sourcePort === "selected_rows");
   return rows ? "row" : "item";
 }
 

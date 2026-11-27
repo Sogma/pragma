@@ -51,7 +51,7 @@ const WORDING: Record<LinksOwner, Wording> = {
       { use: "reference", heading: "Other files", gives: "nothing in a Table" },
     ],
     add: "+ Add Flow",
-    empty: "A Flow's buttons show in the Tools tab while this Table is open, and run on the rows ticked.",
+    empty: "A Flow's buttons show in the Tools tab while this Table is open, and run on the rows selected.",
   },
 };
 

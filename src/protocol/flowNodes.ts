@@ -1399,8 +1399,8 @@ const showResult: FlowNodeTypeDefinition = {
 /** Where a toolkit click starts: each instance is a button, and a click runs
  * it before anything else, then what its wires reach and what those need.
  * It hands on the document the click was made in. Only `selection`, `raw`
- * and `rows` read it, so a Button that passes on just its path asks for
- * nothing. */
+ * and `selected_rows` read it, so a Button that passes on just its path
+ * asks for nothing. */
 const button: FlowNodeTypeDefinition = {
   type: "button",
   label: "Button",
@@ -1412,7 +1412,7 @@ const button: FlowNodeTypeDefinition = {
   outputs: [
     textPort("selection"),
     ...NOTE_OUTPUTS.filter((port) => port.id === "raw"),
-    objectPort("rows", "The rows ticked where it was clicked in a Table, each keyed by column id."),
+    objectPort("selected_rows", "The rows selected where it was clicked in a Table, each keyed by column id."),
     textPort("path"),
   ],
   configFields: [
@@ -1425,7 +1425,7 @@ const button: FlowNodeTypeDefinition = {
   ],
   configKeys: ["requireSelection"],
   capabilityFor: (_config, wired) =>
-    !wired || wired.has("selection") || wired.has("raw") || wired.has("rows")
+    !wired || wired.has("selection") || wired.has("raw") || wired.has("selected_rows")
       ? { type: "readCurrentDocument" }
       : undefined,
   action: true,
@@ -1691,7 +1691,8 @@ interface ColumnUse {
   nodeId: string;
   access: WiredAccess;
   column: string;
-  // The Load Table's own Table, or none where a Button's rows feed the zone.
+  // The Load Table's own Table, or none where a Button's selected rows feed
+  // the zone.
   table?: string;
 }
 
@@ -1705,7 +1706,7 @@ function columnUses(graph: FlowGraph): ColumnUse[] {
   for (const zone of flowZones(graph).values()) {
     const list = into(zone.forEach, "list");
     const rows = list && nodesById.get(list.source);
-    const fromButton = rows?.type === "button" && list?.sourcePort === "rows";
+    const fromButton = rows?.type === "button" && list?.sourcePort === "selected_rows";
     const fromTable = rows?.type === "loadTableRows" && list?.sourcePort === "rows" && !into(rows.id, PATH_PORT);
     const table = fromTable ? configString(rows.config, "tablePath") : "";
     if (!fromButton && !table) continue;
@@ -1728,9 +1729,9 @@ function columnUses(graph: FlowGraph): ColumnUse[] {
   return uses;
 }
 
-/** The columns a Button's rows hand a node in a zone, by the access they're
- * read or written with: the keys a host accepts for whichever Table a
- * toolkit runs in, though the graph names none. */
+/** The columns a Button's selected rows hand a node in a zone, by the
+ * access they're read or written with: the keys a host accepts for
+ * whichever Table a toolkit runs in, though the graph names none. */
 export function rowColumnUses(graph: FlowGraph): { access: WiredAccess; column: string }[] {
   return columnUses(graph).flatMap(({ access, column, table }) => (table === undefined ? [{ access, column }] : []));
 }

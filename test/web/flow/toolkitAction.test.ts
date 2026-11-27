@@ -438,7 +438,7 @@ describe("runToolkitAction in a Table", () => {
       node("join", "joinText", 0, { config: { separator: ", " }, exposed: ["text"] }),
     ],
     edges: [
-      edge("go", "rows", "each", "list"),
+      edge("go", "selected_rows", "each", "list"),
       edge("each", "item", "field", "object"),
       edge("field", "field_1", "end", "value_1"),
       edge("end", "list_1", "join", "list"),
@@ -468,14 +468,14 @@ describe("runToolkitAction in a Table", () => {
     return { ...ran, run, row };
   }
 
-  it("hands the Button the rows ticked at the click, keyed by column id", async () => {
+  it("hands the Button the rows selected at the click, keyed by column id", async () => {
     const { run } = inTable(perRow);
     expect(await run("go")).toEqual({ lines: ["Join Text · text: Dawn, Dusk"], warnings: [] });
   });
 
-  it("stops a click with no row ticked before asking anything", async () => {
+  it("stops a click with no row selected before asking anything", async () => {
     const { run, broker } = inTable(perRow, { rows: [] });
-    await expect(run("go")).rejects.toThrow("Titles: Tick some rows first");
+    await expect(run("go")).rejects.toThrow("Titles: Select some rows first");
     expect(broker.ensureAll).not.toHaveBeenCalled();
   });
 
@@ -510,7 +510,7 @@ describe("runToolkitAction in a Table", () => {
             node("end", "forEachEnd", 0, { config: { forEach: "each" } }),
           ],
           edges: [
-            edge("go", "rows", "each", "list"),
+            edge("go", "selected_rows", "each", "list"),
             edge("each", "item", "field", "object"),
             edge("field", "field_1", "load", "path"),
             edge("load", "raw", "end", "value_1"),
@@ -538,7 +538,7 @@ describe("runToolkitAction in a Table", () => {
           node("end", "forEachEnd", 0, { config: { forEach: "each" } }),
         ],
         edges: [
-          edge("go", "rows", "each", "list"),
+          edge("go", "selected_rows", "each", "list"),
           edge("each", "item", "field", "object"),
           edge("field", "field_1", "gen", "prompt"),
           edge("gen", "text", "end", "value_1"),

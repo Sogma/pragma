@@ -135,7 +135,7 @@ export interface DocumentPort {
   replaceSelection(alternatives: readonly string[]): void;
   /** Shows lines under the button the run was started from. */
   showResult(lines: readonly string[]): void;
-  /** The rows ticked where the click was made, when that is a Table, as
+  /** The rows selected where the click was made, when that is a Table, as
    * they stood at the click. Absent for any other document. */
   readonly rows?: { columns: readonly TableColumn[]; rows: readonly TableRow[] };
 }
@@ -1382,17 +1382,19 @@ export function buttonStop(
   wired: ReadonlySet<string> | undefined,
 ): string | undefined {
   if (wired?.size === 0) return "Nothing is wired from it, so a click would run nothing";
-  if (wired?.has("rows") && !document.rows) return "Its rows come from a Table: click it in one, with rows ticked";
-  if (wired?.has("rows") && document.rows?.rows.length === 0) return "Tick some rows first";
+  if (wired?.has("selected_rows") && !document.rows) {
+    return "Its selected rows come from a Table: click it in one, with rows selected";
+  }
+  if (wired?.has("selected_rows") && document.rows?.rows.length === 0) return "Select some rows first";
   if (configBoolean(node, "requireSelection") && !document.hasSelection) return "Select some text first";
   return undefined;
 }
 
-// The document is read only when a wire takes its selection, text or rows,
-// so a Button that hands on just its path asks for nothing. Rows pass the
-// same read, which refuses a private document. A Table's ticked rows go on
-// as Load Table hands on its rows: keyed by column id, a `media` or `path`
-// value from the root.
+// The document is read only when a wire takes its selection, text or
+// selected rows, so a Button that hands on just its path asks for nothing.
+// Rows pass the same read, which refuses a private document. A Table's
+// selected rows go on as Load Table hands on its rows: keyed by column id,
+// a `media` or `path` value from the root.
 const button: NodeExecutor = async (node, _inputs, context, wired) => {
   const document = boundDocument(context);
   const stop = buttonStop(node, document, wired);
@@ -1401,19 +1403,19 @@ const button: NodeExecutor = async (node, _inputs, context, wired) => {
     path: { type: "text", value: formatRootPath(parseRootedPath(document.path)) },
   };
   const reads = (port: string) => !wired || wired.has(port);
-  if (!reads("selection") && !reads("raw") && !reads("rows")) return outputs;
+  if (!reads("selection") && !reads("raw") && !reads("selected_rows")) return outputs;
   if (!(await context.ensureCapability({ type: "readCurrentDocument" }))) {
     throw new Error("Permission denied to read the open document");
   }
   const { content, selection } = document.read();
   const ticked = document.rows;
   const table = rowsTableOf(document);
-  if (ticked && table && reads("rows")) {
+  if (ticked && table && reads("selected_rows")) {
     const value = documentValues(context.flowPath, table);
     const handed = ticked.rows.map((row) =>
       Object.fromEntries(ticked.columns.map((column) => [column.id, value(column.type, row.values[column.id] ?? "")])),
     );
-    outputs.rows = { type: "object", value: handed };
+    outputs.selected_rows = { type: "object", value: handed };
   }
   if (reads("selection") || reads("raw")) {
     outputs.selection = { type: "text", value: selection };

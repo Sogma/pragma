@@ -353,12 +353,12 @@ It reads a clip, an MP4, M4V, MOV or WebM file, in the space or a library, store
 
 **Button**: where a toolkit click starts, in the document it was clicked in.
 
-- **Outputs:** `selection: text`, `raw: text`, `rows: object` (a list of rows), `path: text`
+- **Outputs:** `selection: text`, `raw: text`, `selected_rows: object` (a list of rows), `path: text`
 - **Config:** `requireSelection`
-- **Capability:** readCurrentDocument, only while `selection`, `raw` or `rows` is wired
+- **Capability:** readCurrentDocument, only while `selection`, `raw` or `selected_rows` is wired
 - **Action:** each instance is a toolkit button (see [Actions](protocol.md#actions))
 
-A click starts here: the Button runs before any other node, then every node its wires reach and whatever those need (see [Actions](protocol.md#actions)). It hands on the document the click was made in, as [`currentDocument`](#currentdocument) reads it: `selection` (`""` when nothing is selected), `raw`, the whole file, and `path`, its path from the root. Clicked in a Table, `rows` hands on the rows ticked there, each keyed by column id with its `media` and `path` values from the root, as [`loadTableRows`](#loadtablerows) gives its rows. Only `selection`, `raw` and `rows` read the document, so a Button that passes on just its `path` asks for nothing. With `rows` wired, a click outside a Table, or with no row ticked, fails before asking for any grant. With no document bound it fails, naming why, and with nothing wired from it, since a click would run nothing; with `requireSelection` it also fails when nothing was selected, before asking for any grant, and then nothing else runs. A chain that takes no value from the Button, directly or through the nodes before it, is not part of its click.
+A click starts here: the Button runs before any other node, then every node its wires reach and whatever those need (see [Actions](protocol.md#actions)). It hands on the document the click was made in, as [`currentDocument`](#currentdocument) reads it: `selection` (`""` when nothing is selected), `raw`, the whole file, and `path`, its path from the root. Clicked in a Table, `selected_rows` hands on the rows selected there, each keyed by column id with its `media` and `path` values from the root, as [`loadTableRows`](#loadtablerows) gives its rows. Only `selection`, `raw` and `selected_rows` read the document, so a Button that passes on just its `path` asks for nothing. With `selected_rows` wired, a click outside a Table, or with no row selected, fails before asking for any grant. With no document bound it fails, naming why, and with nothing wired from it, since a click would run nothing; with `requireSelection` it also fails when nothing was selected, before asking for any grant, and then nothing else runs. A chain that takes no value from the Button, directly or through the nodes before it, is not part of its click.
 
 ### `currentDocument`
 

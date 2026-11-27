@@ -749,15 +749,15 @@ describe("Button", () => {
     },
   });
 
-  it("hands on a Table's ticked rows as Load Table hands on its rows, asking to read the document", async () => {
+  it("hands on a Table's selected rows as Load Table hands on its rows, asking to read the document", async () => {
     const ensureCapability = vi.fn(async () => true);
     const outputs = await NODE_EXECUTORS.button(
       buttonNode(),
       {},
       context({ document: tablePort(["Kite", "Dune"]), ensureCapability }),
-      new Set(["rows"]),
+      new Set(["selected_rows"]),
     );
-    expect(outputs.rows).toEqual({
+    expect(outputs.selected_rows).toEqual({
       type: "object",
       value: [
         { title: "Kite", image: "/shots/kite.png" },
@@ -768,12 +768,14 @@ describe("Button", () => {
     expect(ensureCapability).toHaveBeenCalledWith({ type: "readCurrentDocument" });
   });
 
-  it("stops a click with no row ticked, and one outside a Table, before asking anything", async () => {
+  it("stops a click with no row selected, and one outside a Table, before asking anything", async () => {
     const ensureCapability = vi.fn(async () => true);
     const click = (document: ReturnType<typeof port>) =>
-      NODE_EXECUTORS.button(buttonNode(), {}, context({ document, ensureCapability }), new Set(["rows"]));
-    await expect(click(tablePort([]))).rejects.toThrow("Tick some rows first");
-    await expect(click(port())).rejects.toThrow("Its rows come from a Table: click it in one, with rows ticked");
+      NODE_EXECUTORS.button(buttonNode(), {}, context({ document, ensureCapability }), new Set(["selected_rows"]));
+    await expect(click(tablePort([]))).rejects.toThrow("Select some rows first");
+    await expect(click(port())).rejects.toThrow(
+      "Its selected rows come from a Table: click it in one, with rows selected",
+    );
     expect(ensureCapability).not.toHaveBeenCalled();
   });
 

@@ -823,7 +823,7 @@ describe("a column a toolkit's Table hands a zone", () => {
         { id: "use", type: "loadImage", position: { x: 0, y: 0 }, config: {} },
       ],
       edges: [
-        { id: "e1", source: "click", sourcePort: "rows", target: "each", targetPort: "list" },
+        { id: "e1", source: "click", sourcePort: "selected_rows", target: "each", targetPort: "list" },
         { id: "e2", source: "each", sourcePort: "item", target: "field", targetPort: "object" },
         { id: "e3", source: "field", sourcePort: "field_1", target: "use", targetPort: "path" },
       ],
