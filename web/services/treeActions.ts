@@ -11,6 +11,7 @@ import {
   basenameOf,
   dirnameOf,
   formatRootedPath,
+  isLibraryPath,
   isLibraryRoot,
   type PathRoot,
   parseRootedPath,
@@ -533,11 +534,29 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
 
   // A key, the palette or the menu bar hands no row, so the entry open in the
   // focused group stands in: a create lands in its folder (the space root for
-  // a tab outside the tree), and Rename and Delete take it when it is a file.
-  // For a name, the tree comes up, since it is typed into a row there. Only
-  // the space's tree answers for a tab.
+  // a tab outside the space's tree), and Rename and Delete take it when it is
+  // a file in a tree that writes. For a name, the tree comes up, since it is
+  // typed into a row there.
   const focusedEntry = (context: CommandContext): SpaceTreeNode | null =>
     (context.tab.kind === "empty" ? undefined : hostOf("space")?.findEntry(context.tab.path)) ?? null;
+  // A library's tab may hold a file its tree hasn't listed, so its node is
+  // built from the tab, as a gallery tile's is.
+  function focusedTarget(context: CommandContext): TreeTarget | undefined {
+    const { tab } = context;
+    if (tab.kind === "empty") return undefined;
+    if (!isLibraryPath(tab.path)) {
+      const node = focusedEntry(context);
+      return node ? { node } : undefined;
+    }
+    const { root, path } = parseRootedPath(tab.path);
+    if (!path) return undefined;
+    const type = tab.kind === "gallery" ? "directory" : "file";
+    return { root, node: hostOf(root)?.findEntry(tab.path) ?? { name: basenameOf(path), path: tab.path, type } };
+  }
+  const focusedFile = (context: CommandContext): SpaceTreeNode | undefined => {
+    const target = focusedTarget(context);
+    return target?.node?.type === "file" && writable(target) ? target.node : undefined;
+  };
   const creates = (type: "file" | "directory", kind?: CreateKind) => (context: CommandContext, arg?: TreeTarget) => {
     const parentPath = parentPathOf(arg ? arg.node : focusedEntry(context), rootOf(arg));
     if (arg?.naming) {
@@ -598,9 +617,9 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
     id: "tree.rename",
     label: "Rename…",
     when: (context, arg?: TreeTarget) =>
-      arg ? isRow(context, arg) && writable(arg) : focusedEntry(context)?.type === "file",
+      arg ? isRow(context, arg) && writable(arg) : focusedFile(context) !== undefined,
     run: (context, arg?: TreeTarget) => {
-      const node = arg ? arg.node : focusedEntry(context);
+      const node = arg ? arg.node : focusedFile(context);
       if (!node) return;
       if (arg?.naming) {
         arg.naming.rename(node.path, (name) => void renameNamed(node, name));
@@ -614,12 +633,12 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
     id: "tree.delete",
     label: "Delete",
     when: (context, arg?: TreeTarget) => {
-      if (!arg) return focusedEntry(context)?.type === "file";
+      if (!arg) return focusedFile(context) !== undefined;
       if (!writable(arg)) return false;
       return arg.selection ? arg.selection.length > 0 : isRow(context, arg);
     },
     run: (context, arg?: TreeTarget) => {
-      const node = arg ? arg.node : focusedEntry(context);
+      const node = arg ? arg.node : focusedFile(context);
       void confirmDelete(arg?.selection ?? (node ? [node] : []));
     },
   });

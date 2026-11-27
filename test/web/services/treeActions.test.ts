@@ -685,3 +685,50 @@ describe("an entry another surface drags", () => {
     expect(deps.move).not.toHaveBeenCalled();
   });
 });
+
+// F2, the palette and the menu bar hand no row: the focused tab's file
+// stands in, a library's as the space's, wherever its library can write.
+describe("a key on a library's tab", () => {
+  const writable = { id: "one", label: "One", path: "/media/one", access: "read-write", missing: false };
+  beforeEach(() => setLibraryPermissions([writable as LibraryRow]));
+  afterEach(() => setLibraryPermissions([]));
+  const tabOf = (kind: "document" | "gallery", path: string): CommandContext => ({
+    tab: (kind === "gallery" ? { kind, path } : { kind, path, documentType: "note" }) as Tab,
+    pane: undefined,
+  });
+
+  it("renames the tab's file in its library's tree, bringing the row up", async () => {
+    const { commands, actions, libraryTree } = harness();
+    const context = tabOf("document", "lib:one/notes/a.md");
+    expect(commands.get("tree.rename")?.when?.(context, undefined)).toBe(true);
+    await commands.run("tree.rename", context);
+    expect(libraryTree.bringIntoView).toHaveBeenCalledWith("lib:one/notes/a.md");
+    expect(actions.editing(one).editingPath).toBe("lib:one/notes/a.md");
+  });
+
+  it("trashes the tab's file though the library's tree hasn't listed it", async () => {
+    const { commands, confirm, deps } = harness({}, { library: { findEntry: () => undefined } });
+    await commands.run("tree.delete", tabOf("document", "lib:one/far/x.md"));
+    await vi.waitFor(() => expect(deps.onDeleted).toHaveBeenCalledWith("lib:one/far/x.md"));
+    expect(confirm.mock.calls[0][0]).toMatchObject({ title: 'Move "x.md" to Trash' });
+    expect(postDeleteEntry).toHaveBeenCalledWith("lib:one/far/x.md", true);
+  });
+
+  it("offers neither for a read-only library's tab, nor for a folder's", () => {
+    const { commands } = harness();
+    for (const id of ["tree.rename", "tree.delete"]) {
+      expect(commands.get(id)?.when?.(tabOf("gallery", "lib:one/notes"), undefined), id).toBe(false);
+    }
+    setLibraryPermissions([{ ...writable, access: "read-only" } as LibraryRow]);
+    for (const id of ["tree.rename", "tree.delete"]) {
+      expect(commands.get(id)?.when?.(tabOf("document", "lib:one/notes/a.md"), undefined), id).toBe(false);
+    }
+  });
+
+  it("makes a key's new note at the space's top, as before", async () => {
+    const { commands, actions, tree } = harness();
+    await commands.run("tree.newNote", tabOf("document", "lib:one/notes/a.md"));
+    expect(tree.bringIntoView).toHaveBeenCalledWith("");
+    expect(actions.editing().pendingCreate).toEqual({ parentPath: "", type: "file", kind: "note" });
+  });
+});
