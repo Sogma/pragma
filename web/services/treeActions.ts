@@ -140,7 +140,7 @@ export interface TreeActions {
   /** The tree listing every root `owns` answers true for: its rows' writes,
    * and the commands run on them, go through `host`. */
   attach(owns: (root: PathRoot) => boolean, host: TreeHost): void;
-  /** For a tree of `root`, whose nodes' paths are relative to it. */
+  /** For a tree of `root`, which hands over its nodes with their paths rooted. */
   editing(root?: PathRoot): TreeEditing;
   startCreate(parentPath: string, type: "file" | "directory", kind?: CreateKind): void;
   startRename(node: SpaceTreeNode): void;
@@ -181,11 +181,6 @@ export type TreeTarget = {
 export function parentPathOf(node: SpaceTreeNode | null, root: PathRoot = "space"): string {
   if (!node) return formatRootedPath({ root, path: "" });
   return node.type === "directory" ? node.path : dirnameOf(node.path);
-}
-
-/** A node a tree of `root` hands over, its path rooted. */
-export function rootedNode(root: PathRoot, node: SpaceTreeNode): SpaceTreeNode {
-  return isLibraryRoot(root) ? { ...node, path: formatRootedPath({ root, path: node.path }) } : node;
 }
 
 const rootOf = (arg?: TreeTarget): PathRoot => arg?.root ?? "space";
@@ -250,17 +245,16 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
   }
 
   function editing(root: PathRoot = "space"): TreeEditing {
-    const rooted = (node: SpaceTreeNode) => rootedNode(root, node);
     // Rows are picked together to move or delete them, so a tree whose root
     // takes no writes picks one at a time and takes no Delete key.
     const writes = isWritableRoot(root);
     return {
-      onDragStart: (nodes) => drag.start(nodes.map(rooted)),
-      onDrop: (event, node, zone) => handleDrop(event, rooted(node), zone, root),
+      onDragStart: (nodes) => drag.start(nodes),
+      onDrop: (event, node, zone) => handleDrop(event, node, zone, root),
       selectsMany: writes,
-      onDelete: writes ? (nodes) => void confirmDelete(nodes.map(rooted)) : undefined,
+      onDelete: writes ? (nodes) => void confirmDelete(nodes) : undefined,
       editingPath,
-      onRenameSubmit: (node, rawValue) => commitRename(rooted(node), rawValue),
+      onRenameSubmit: commitRename,
       onRenameCancel: cancelRename,
       pendingCreate,
       onCreateSubmit: commitCreate,

@@ -403,7 +403,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       onOpenDirectory: (path) => deps.openDirectory(path),
       onContextMenu: (event, node) => {
         if (node.type !== "directory") return;
-        const folder = formatRootedPath({ root, path: node.path });
+        const folder = node.path;
         const listed = presetFoldersOf(kind).find(
           (view) => view.missing === undefined && entryNameKey(view.path) === entryNameKey(folder),
         );

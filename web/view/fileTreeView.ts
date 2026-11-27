@@ -100,9 +100,9 @@ export interface TreeRenderContext {
   readOnly?: boolean;
   // Which root this tree's nodes are relative to; absent means the space,
   // where the rooted spelling and the bare path are the same string. The tree
-  // composes the rooted form once per row and hands *that* to everything
-  // outside itself: the row's data attribute, the drag payload, the open
-  // callbacks.
+  // composes the rooted form once per row and hands only that outside itself:
+  // the row's data attribute, the drag payload, the open callbacks, and the
+  // path of every node a callback is handed.
   root?: PathRoot;
   // A folder's tooltip totals the files and folders under it, all the way
   // down. Only a tree listed whole asks for it: one listed a folder at a
@@ -239,6 +239,12 @@ interface Row {
   label?: HTMLSpanElement;
   /** What the label was last drawn from, so an unchanged row is never redrawn. */
   drawn: string;
+}
+
+// The entry a callback is handed for a row, its path rooted. A space row's
+// node already is that, and goes as it is.
+function handed(row: Row): SpaceTreeNode {
+  return row.node.path === row.rootedPath ? row.node : { ...row.node, path: row.rootedPath };
 }
 
 // `parent` is the rooted path of the folder the slot is listed in.
@@ -477,7 +483,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
       input.value = showFullName ? node.name : stripExtension(node.name);
       attachEditInputHandlers(
         input,
-        (value) => ctx?.onRenameSubmit(row.node, showFullName ? value : value + extensionOf(row.node.name)),
+        (value) => ctx?.onRenameSubmit(handed(row), showFullName ? value : value + extensionOf(row.node.name)),
         () => ctx?.onRenameCancel(),
       );
       parts.push(input);
@@ -1089,7 +1095,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     const modified = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
     if (context.onDelete && isDeleteKey(event, mac)) {
       const row = cursor === undefined ? undefined : rows.get(cursor);
-      const nodes = (selectedWith(undefined) ?? (row ? [row] : [])).map((each) => each.node);
+      const nodes = (selectedWith(undefined) ?? (row ? [row] : [])).map(handed);
       if (nodes.length === 0) return;
       event.preventDefault();
       context.onDelete(nodes);
@@ -1142,13 +1148,8 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     event.preventDefault();
     event.stopPropagation();
     const together = selectedWith(hit.row);
-    if (together)
-      ctx.onContextMenu(
-        event,
-        hit.row.node,
-        together.map((row) => row.node),
-      );
-    else ctx.onContextMenu(event, hit.row.node);
+    if (together) ctx.onContextMenu(event, handed(hit.row), together.map(handed));
+    else ctx.onContextMenu(event, handed(hit.row));
   });
 
   // A drag of several rows shows how many by the pointer, in place of the
@@ -1185,7 +1186,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     // promising a move that will never happen.
     if (event.dataTransfer) event.dataTransfer.effectAllowed = ctx.readOnly ? "copy" : "move";
     label.addEventListener("dragend", endDrag, { once: true });
-    ctx.onDragStart((together ?? [row]).map((each) => each.node));
+    ctx.onDragStart((together ?? [row]).map(handed));
   });
 
   function carried(rootedPath: string): boolean {
@@ -1229,7 +1230,7 @@ export function createTreeView(listPath: string | (() => string), options: TreeV
     if (carried(row.rootedPath)) return;
     const zone = dropZoneFor(event, label, row.node.type === "directory");
     label.classList.remove(...DROP_ZONE_CLASSES);
-    ctx.onDrop(event, row.node, zone);
+    ctx.onDrop(event, handed(row), zone);
   });
 
   return {

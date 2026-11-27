@@ -1135,8 +1135,9 @@ describe("a writable library's tree", () => {
   const contextOf = (d: TestDeps) =>
     vi.mocked(d.renderTree).mock.calls[vi.mocked(d.renderTree).mock.calls.length - 1][2];
   const one = { library: "one" };
-  const node = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
-  const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
+  // As the tree hands its rows over: each path rooted.
+  const node = { name: "a.md", path: "lib:one/notes/a.md", type: "file" } as SpaceTreeNode;
+  const folder = { name: "batch", path: "lib:one/batch", type: "directory", children: [] } as SpaceTreeNode;
   const run = (d: TestDeps, command: string, arg: unknown) => d.treeCommands.run(command, context, arg);
   const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
 
@@ -1173,22 +1174,18 @@ describe("a writable library's tree", () => {
 
   // A read-only library's folders still open as a gallery from the menu; its
   // files have nothing to offer, so they open none.
-  it("opens the tree menu on its root with the row rooted, and a read-only one on folders only", async () => {
+  it("opens the tree menu on its root with the row, and a read-only one on folders only", async () => {
     const writable = writableDeps();
     await expanded(writable);
-    const rootedFolder = { ...folder, path: "lib:one/batch" };
     contextOf(writable).onContextMenu(new MouseEvent("contextmenu"), node);
-    expect(writable.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), {
-      root: one,
-      node: { ...node, path: "lib:one/notes/a.md" },
-    });
+    expect(writable.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node });
 
     const readOnly = deps();
     await expanded(readOnly);
     contextOf(readOnly).onContextMenu(new MouseEvent("contextmenu"), node);
     expect(readOnly.openTreeMenu).not.toHaveBeenCalled();
     contextOf(readOnly).onContextMenu(new MouseEvent("contextmenu"), folder);
-    expect(readOnly.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node: rootedFolder });
+    expect(readOnly.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node: folder });
   });
 
   it("picks several rows and takes the Delete key where it writes, one at a time where it can't", async () => {
@@ -1203,19 +1200,12 @@ describe("a writable library's tree", () => {
     expect(contextOf(readOnly).onDelete).toBeUndefined();
   });
 
-  it("opens the menu of a right-clicked selection with every row rooted", async () => {
+  it("opens the menu of a right-clicked selection with every row", async () => {
     const d = writableDeps();
     await expanded(d);
-    const other = { name: "b.md", path: "b.md", type: "file" } as SpaceTreeNode;
+    const other = { name: "b.md", path: "lib:one/b.md", type: "file" } as SpaceTreeNode;
     contextOf(d).onContextMenu(new MouseEvent("contextmenu"), node, [node, other]);
-    expect(d.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), {
-      root: one,
-      node: { ...node, path: "lib:one/notes/a.md" },
-      selection: [
-        { ...node, path: "lib:one/notes/a.md" },
-        { ...other, path: "lib:one/b.md" },
-      ],
-    });
+    expect(d.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node, selection: [node, other] });
   });
 
   // The gesture the feature exists for: a take dragged off the desktop
@@ -1248,7 +1238,8 @@ describe("a writable library's tree", () => {
     );
 
     contextOf(d).onDragStart([node]);
-    contextOf(d).onDrop(fakeDrag("drop").event, { name: "b.md", path: "b.md", type: "file" } as SpaceTreeNode, "after");
+    const top = { name: "b.md", path: "lib:one/b.md", type: "file" } as SpaceTreeNode;
+    contextOf(d).onDrop(fakeDrag("drop").event, top, "after");
     expect(d.move).toHaveBeenLastCalledWith([{ from: "lib:one/notes/a.md", to: "lib:one/a.md" }], expect.any(Function));
     expect(importDroppedFiles).not.toHaveBeenCalled();
   });
@@ -1258,11 +1249,11 @@ describe("a writable library's tree", () => {
   it("ignores a row from another root, beside its own folder's rows, or into itself", async () => {
     const d = writableDeps();
     await expanded(d);
-    const nested = { name: "inner", path: "batch/inner", type: "directory", children: [] } as SpaceTreeNode;
-    const sibling = { name: "b.md", path: "notes/b.md", type: "file" } as SpaceTreeNode;
+    const nested = { name: "inner", path: "lib:one/batch/inner", type: "directory", children: [] } as SpaceTreeNode;
+    const sibling = { name: "b.md", path: "lib:one/notes/b.md", type: "file" } as SpaceTreeNode;
     d.treeActions.editing().onDragStart([{ name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode]);
     contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
-    d.treeActions.editing({ library: "two" }).onDragStart([node]);
+    d.treeActions.editing({ library: "two" }).onDragStart([{ ...node, path: "lib:two/a.md" }]);
     contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
     contextOf(d).onDragStart([node]);
     contextOf(d).onDrop(fakeDrag("drop").event, sibling, "before");
@@ -1333,7 +1324,7 @@ describe("a writable library's tree", () => {
   it("creates at the library root for the empty area, and nothing on a file", async () => {
     const d = writableDeps();
     await expanded(d);
-    const onFile = { root: one, node: { ...node, path: "lib:one/notes/a.md" } };
+    const onFile = { root: one, node };
     expect(d.treeCommands.isEnabled("tree.newFolder", context, onFile)).toBe(false);
 
     await run(d, "tree.newNote", { root: one, node: null });
@@ -1355,7 +1346,7 @@ describe("a writable library's tree", () => {
   it("renames in place, naming both ends rooted", async () => {
     const d = writableDeps();
     await expanded(d);
-    await run(d, "tree.rename", { root: one, node: { ...node, path: "lib:one/notes/a.md" } });
+    await run(d, "tree.rename", { root: one, node });
     expect(contextOf(d).editingPath).toBe("lib:one/notes/a.md");
 
     contextOf(d).onRenameSubmit(node, "b.md");
@@ -1384,7 +1375,7 @@ describe("a writable library's tree", () => {
     contextOf(d).onCreateCancel();
     expect(contextOf(d).pendingCreate).toBeUndefined();
 
-    await run(d, "tree.rename", { root: one, node: { ...node, path: "lib:one/notes/a.md" } });
+    await run(d, "tree.rename", { root: one, node });
     contextOf(d).onRenameCancel();
     expect(contextOf(d).editingPath).toBeUndefined();
     expect(postCreateEntry).not.toHaveBeenCalled();

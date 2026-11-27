@@ -414,7 +414,23 @@ describe("createTreeView — drag source", () => {
     dispatchDrag(label, "drop");
     label.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
     expect(ctx.onDrop).not.toHaveBeenCalled();
-    expect(ctx.onContextMenu).toHaveBeenCalledWith(expect.any(MouseEvent), FILE);
+    expect(ctx.onContextMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { ...FILE, path: "lib:footage/note.md" });
+  });
+
+  // Callers never root a tree's paths again: a library row's node goes out
+  // with its path rooted, a space row's as it is.
+  it("hands its callbacks a library row with the row's rooted path", () => {
+    const ctx = baseCtx({ root: { library: "footage" } });
+    dispatchDrag(labelOf(ctx), "dragstart");
+    // Onto a row drawn apart: the row a drag carries takes no drop.
+    dispatchDrag(labelOf(ctx), "drop");
+    const rooted = { ...FILE, path: "lib:footage/note.md" };
+    expect(ctx.onDragStart).toHaveBeenCalledWith([rooted]);
+    expect(ctx.onDrop).toHaveBeenCalledWith(expect.any(Event), rooted, expect.any(String));
+
+    const space = baseCtx();
+    labelOf(space).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    expect(vi.mocked(space.onContextMenu).mock.calls[0][1]).toBe(FILE);
   });
 
   describe("several rows selected", () => {

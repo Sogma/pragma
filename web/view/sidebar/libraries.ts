@@ -50,7 +50,7 @@ import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import { spaceChanges } from "../../services/spaceChanges.ts";
 import type { Tabs } from "../../services/tabs.ts";
-import { rootedNode, type TreeActions, type TreeHost, type TreeTarget } from "../../services/treeActions.ts";
+import type { TreeActions, TreeHost, TreeTarget } from "../../services/treeActions.ts";
 import type { ContextMenu } from "../contextMenu.ts";
 import type { TreeRenderContext, TreeView } from "../fileTreeView.ts";
 
@@ -237,9 +237,8 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
       // A read-only library's file rows offer nothing, so only its folders
       // open a menu — the one that opens them as a gallery.
       onContextMenu: (event, node, selection) => {
-        if (!writable && node.type !== "directory") return;
-        const rooted = (each: SpaceTreeNode) => rootedNode(root, each);
-        deps.openTreeMenu(event, { root, node: rooted(node), ...(selection && { selection: selection.map(rooted) }) });
+        if (writable || node.type === "directory")
+          deps.openTreeMenu(event, { root, node, ...(selection && { selection }) });
       },
       ...deps.treeActions.editing(root),
       isCollapsed: deps.collapsed.isCollapsed,
@@ -391,11 +390,12 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     return isLibraryRoot(root) && root.library === expandedId ? within : undefined;
   }
 
+  // The open library's listing of a folder, each path rooted.
   function listedIn(path: string): SpaceTreeNode[] | undefined {
     const dir = withinOpen(path);
-    if (dir === undefined || expandedId === undefined) return undefined;
-    const root: PathRoot = { library: expandedId };
-    return listings.get(dir)?.map((node) => rootedNode(root, node));
+    const id = expandedId;
+    if (dir === undefined || id === undefined) return undefined;
+    return listings.get(dir)?.map((node) => ({ ...node, path: rootedIn(id, node.path) }));
   }
 
   const host: TreeHost = {

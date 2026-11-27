@@ -491,7 +491,7 @@ describe("a library's tree", () => {
 
   it("deletes several from the Delete key, naming them and the library's trash", async () => {
     const { actions, confirm, deps } = harness();
-    actions.editing(one).onDelete?.([file("notes/a.md"), folder("batch")]);
+    actions.editing(one).onDelete?.([file("lib:one/notes/a.md"), folder("lib:one/batch")]);
     await vi.waitFor(() => expect(deps.onDeleted).toHaveBeenCalledTimes(2));
     expect(confirm.mock.calls[0][0]).toMatchObject({
       title: "Move 2 Items to Trash",
@@ -517,10 +517,10 @@ describe("a library's tree", () => {
     expect(deps.onDeleted).toHaveBeenCalledWith("lib:one/notes/a.md");
   });
 
-  it("roots the nodes its tree hands over, for a rename and a drop", async () => {
+  it("acts on the rooted nodes a library's tree hands over, for a rename and a drop", async () => {
     const { actions, libraryTree, deps } = harness();
     const editing = actions.editing(one);
-    editing.onRenameSubmit(file("notes/a.md"), "b.md");
+    editing.onRenameSubmit(file("lib:one/notes/a.md"), "b.md");
     await vi.waitFor(() =>
       expect(deps.move).toHaveBeenCalledWith(
         [{ from: "lib:one/notes/a.md", to: "lib:one/notes/b.md" }],
@@ -529,8 +529,8 @@ describe("a library's tree", () => {
     );
     expect(libraryTree.refresh).toHaveBeenCalled();
 
-    editing.onDragStart([file("notes/a.md")]);
-    editing.onDrop(fakeDrag("drop").event, folder("batch"), "into");
+    editing.onDragStart([file("lib:one/notes/a.md")]);
+    editing.onDrop(fakeDrag("drop").event, folder("lib:one/batch"), "into");
     expect(deps.move).toHaveBeenLastCalledWith(
       [{ from: "lib:one/notes/a.md", to: "lib:one/batch/a.md" }],
       expect.any(Function),
@@ -563,7 +563,7 @@ describe("a library's tree", () => {
 
   it("refuses a note name no file can carry, pointing at the heading", async () => {
     const { actions, deps } = harness();
-    actions.editing(one).onRenameSubmit(file("notes/a.md"), "Part 1: Intro");
+    actions.editing(one).onRenameSubmit(file("lib:one/notes/a.md"), "Part 1: Intro");
     await vi.waitFor(() => expect(alert).toHaveBeenCalled());
     expect(deps.move).not.toHaveBeenCalled();
   });
@@ -650,10 +650,10 @@ describe("a library's tree", () => {
 
   it("keeps a row dragged from one root out of another's tree", () => {
     const { actions, deps } = harness();
-    actions.editing(one).onDragStart([file("notes/a.md")]);
+    actions.editing(one).onDragStart([file("lib:one/notes/a.md")]);
     actions.editing().onDrop(fakeDrag("drop").event, other, "into");
     actions.editing().onDragStart([note]);
-    actions.editing(one).onDrop(fakeDrag("drop").event, folder("batch"), "into");
+    actions.editing(one).onDrop(fakeDrag("drop").event, folder("lib:one/batch"), "into");
     expect(deps.move).not.toHaveBeenCalled();
   });
 });
