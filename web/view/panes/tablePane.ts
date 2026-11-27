@@ -1,7 +1,9 @@
+import type { TextToolkitInfo } from "../../../src/protocol/api.ts";
 import { cardWithField, cardWithFieldRenamed, cardWithoutField } from "../../../src/protocol/card.ts";
 import { columnIdFor, columnIdOf } from "../../../src/protocol/columnId.ts";
-import { stampTableDates, TABLE_DATE_KEYS } from "../../../src/protocol/metadata.ts";
-import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
+import { isPrivateMetadata, stampTableDates, TABLE_DATE_KEYS } from "../../../src/protocol/metadata.ts";
+import { resolveFileReference } from "../../../src/protocol/relativeReference.ts";
+import { basenameOf, dirnameOf, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
 import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
 import type {
   CardTile,
@@ -15,6 +17,7 @@ import type {
 import {
   emptyFieldValue,
   FIELD_VALUE_TYPE_OPTIONS,
+  isFlowFile,
   isTableLayout,
   newRowValue,
   TABLE_LAYOUTS,
@@ -25,7 +28,8 @@ import {
   postTableLayout,
   type TableFileResponse,
 } from "../../core/apiClient.ts";
-import { pathNames } from "../../core/spaceTree.ts";
+import { DRAGGED_ENTRY_TYPE, readDraggedPath, stripExtension } from "../../core/paths.ts";
+import { entryIconAt, offeredFiles, pathNames, writePathFrom } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
 import {
   createMediaPreview,
@@ -35,6 +39,7 @@ import {
   type SelectedReads,
   servedPreviewSources,
 } from "../../filePreview.ts";
+import type { TableAtClick } from "../../flow/toolkitAction.ts";
 import { createLayoutPanel } from "../../layoutPanel.ts";
 import {
   cardParts,
@@ -50,6 +55,7 @@ import { el, iconButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type CellOptions, createCell } from "../../lib/fieldValue.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
+import { createLinksPopover } from "../../lib/linksPopover.ts";
 import { createPathLabel } from "../../lib/pathLabel.ts";
 import { createRowSelection } from "../../lib/rowSelection.ts";
 import { createPageFind } from "../../pageFind.ts";
@@ -57,6 +63,7 @@ import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
 import type { EditorPane, EditorPaneDescriptor } from "../../services/editorPanes.ts";
 import { fieldSettingItems } from "../../services/fieldSettings.ts";
+import { pickFile } from "../../services/filePicker.ts";
 import type { FormatRegistry } from "../../services/formats.ts";
 import { promptMediaFolder } from "../../services/mediaField.ts";
 import type { ContextMenuService } from "../../services/menus.ts";
@@ -203,6 +210,8 @@ export interface TableViewDeps {
   // A layout picked from Layout: the pane draws it and keeps it for the
   // table's next open, as it keeps ⋮ › Layout's.
   pickLayout?: (layout: TableLayout) => void;
+  // A change to the Table's links was written, so its toolkits are read again.
+  linksWritten?: () => void;
 }
 
 export interface TableView {
@@ -241,6 +250,8 @@ export interface TableView {
   // A row's card, while one shows over the pane.
   isCardOpen(): boolean;
   closeCard(): void;
+  // The Table as a toolkit click takes it; undefined with none drawn.
+  atClick(): TableAtClick | undefined;
 }
 
 // Owns the open `.table.html` file's live working copy (columns + rows) and
@@ -256,9 +267,12 @@ export function createTableView(deps: TableViewDeps): TableView {
         rows: TableRow[];
         card?: CardTile[];
         smallCard?: SmallCardTile[];
+        links: string[];
       }
     | undefined;
   let designing = false;
+  // A change to the links written since the toolkits were last read.
+  let linksUnread = false;
   let layout: TableLayout = "list";
   let drawn: HTMLElement | undefined;
 
@@ -268,24 +282,38 @@ export function createTableView(deps: TableViewDeps): TableView {
   // section) and left untouched after that.
   function persistActiveTable(onWritten?: () => void): void {
     if (!activeTable) return;
-    const { file, columns, rows, card, smallCard } = activeTable;
+    const { file } = activeTable;
     // Belt-and-braces against the pane's own read-only lock: re-serializing a
     // locked file drops whatever this build couldn't parse out of it.
     if (file.locked) return;
     const today = new Date().toISOString().slice(0, 10);
-    const content = serializeTableFile({
+    const working = workingFile(activeTable);
+    const content = serializeTableFile({ ...working, metadata: stampTableDates(working.metadata, today) });
+    // A save that overtakes the one carrying a links change carries it too,
+    // so whichever lands reads the toolkits again.
+    deps.scheduleSave(file.path, content, () => {
+      onWritten?.();
+      if (!linksUnread) return;
+      linksUnread = false;
+      deps.linksWritten?.();
+    });
+  }
+
+  // The file's own layout is carried through untouched: a layout switch is
+  // not an edit.
+  function workingFile(table: NonNullable<typeof activeTable>): TableFile {
+    const { file, columns, rows, card, smallCard, links } = table;
+    return {
       version: file.version,
       name: file.name,
-      metadata: stampTableDates(file.metadata, today),
+      metadata: file.metadata,
       columns,
       rows,
-      // The file's own default, carried through untouched: a layout switch
-      // is not an edit.
       layout: file.layout,
       card,
       smallCard,
-    } satisfies TableFile);
-    deps.scheduleSave(file.path, content, onWritten);
+      links,
+    };
   }
 
   // Shared by both Add-column entry points (the empty-table state and the
@@ -514,23 +542,103 @@ export function createTableView(deps: TableViewDeps): TableView {
   layoutButton.type = "button";
   layoutButton.setAttribute("aria-haspopup", "dialog");
   layoutButton.addEventListener("click", openLayout);
+  // How many Flows the Table links, in the pill a count wears on any control.
+  const linksButton = el("button", "flat-button table-toolbar-button");
+  linksButton.type = "button";
+  linksButton.setAttribute("aria-haspopup", "dialog");
+  const linksCount = el("span", "count-badge");
+  const linksDigits = el("span");
+  linksCount.append(linksDigits);
+  linksButton.append("Links", linksCount);
+  linksButton.addEventListener("click", openLinks);
   const toolbar = el("div", "table-toolbar");
   toolbar.hidden = true;
-  toolbar.append(deleteButton, layoutButton);
+  // Links first, so neither Delete nor Layout moves it as they come and go.
+  toolbar.append(linksButton, deleteButton, layoutButton);
   let layoutFlyout: Flyout | undefined;
+  let linksFlyout: Flyout | undefined;
 
   // Delete for the ticked rows is offered where rows can change: Edit mode,
   // on the list. Its label, which its tooltip shows, counts them. Layout is
-  // offered in Design mode alone, where the Table's shape changes.
+  // offered in Design mode alone, where the Table's shape changes. Links,
+  // wherever the Table can be saved.
   function showToolbar(): void {
     const count = selection.count();
     const total = activeTable?.rows.length ?? 0;
     deleteButton.hidden = count === 0 || valuesLocked() || layout !== "list";
     layoutButton.hidden = !arrangeable();
-    toolbar.hidden = deleteButton.hidden && layoutButton.hidden;
+    linksButton.hidden = !linksEditable();
+    toolbar.hidden = deleteButton.hidden && layoutButton.hidden && linksButton.hidden;
     if (layoutButton.hidden) layoutFlyout?.close();
+    if (linksButton.hidden) linksFlyout?.close();
+    const links = activeTable?.links.length ?? 0;
+    linksCount.hidden = links === 0;
+    linksDigits.textContent = String(links);
+    linksButton.setAttribute("aria-pressed", String(links > 0));
     deleteButton.setAttribute("aria-label", count === 1 ? "Delete entry" : `Delete ${count} entries`);
     deps.reportReadout?.(count === 0 ? "" : `${count} of ${total} ${total === 1 ? "entry" : "entries"} selected`);
+  }
+
+  // A Table in a library has no toolkits, so nothing to link.
+  const linksEditable = (): boolean =>
+    activeTable !== undefined &&
+    !deps.isReadingView() &&
+    activeTable.file.locked === undefined &&
+    !isLibraryRoot(parseRootedPath(activeTable.file.path).root);
+  const tableDir = (): string => dirnameOf(activeTable?.file.path ?? "");
+
+  // A Table's Flows come from the space, as its toolkits do.
+  function droppedFlow(event: DragEvent): { link: string } | { refused: string } | undefined {
+    if (!event.dataTransfer?.types.includes(DRAGGED_ENTRY_TYPE)) return undefined;
+    const dragged = readDraggedPath(event);
+    if (!dragged) return undefined;
+    if (event.dataTransfer.getData(DRAGGED_ENTRY_TYPE) === "directory")
+      return { refused: "Drop a Flow, not a folder." };
+    if (!isFlowFile(dragged.path)) return { refused: "A Table links Flows." };
+    if (isLibraryRoot(dragged.root)) return { refused: "A Table's Flows come from this space." };
+    const link = writePathFrom(tableDir(), dragged);
+    return link ? { link } : { refused: "This Table can't name that file." };
+  }
+
+  // Built fresh from the Table each time it opens, so a second press closes
+  // it before a new one is made.
+  function openLinks(): void {
+    if (linksFlyout) {
+      linksFlyout.close();
+      return;
+    }
+    const written = (path: string) => writePathFrom(tableDir(), parseRootedPath(path)) ?? path;
+    const panel = createLinksPopover({
+      owner: "table",
+      links: () => activeTable?.links ?? [],
+      change(edit) {
+        if (!activeTable || !linksEditable()) return;
+        edit(activeTable.links);
+        linksUnread = true;
+        persistActiveTable();
+        showToolbar();
+      },
+      pickFile: (anchor, pick) =>
+        pickFile(deps.contextMenu, {
+          files: offeredFiles().filter((path) => isFlowFile(path)),
+          anchor,
+          ariaLabel: "Link a Flow to this Table",
+          chosen: (path) => activeTable?.links.includes(written(path)) ?? false,
+          pick: (path) => pick(written(path)),
+        }),
+      droppedFile: droppedFlow,
+      describeLink(link) {
+        const path = resolveFileReference(tableDir(), link) ?? link;
+        const use = isFlowFile(path) ? "toolkit" : "reference";
+        return { use, icon: entryIconAt(path, "file"), name: stripExtension(basenameOf(path)), path };
+      },
+      resized: () => linksFlyout?.reposition(),
+    });
+    linksButton.setAttribute("aria-expanded", "true");
+    linksFlyout = openFlyout(linksButton, panel, () => {
+      linksButton.setAttribute("aria-expanded", "false");
+      linksFlyout = undefined;
+    });
   }
 
   // A row's name: its title column's value, else its place.
@@ -800,6 +908,7 @@ export function createTableView(deps: TableViewDeps): TableView {
         rows: file.rows.map((row) => ({ values: { ...row.values } })),
         ...(file.card ? { card: file.card.map((tile) => ({ ...tile })) } : {}),
         ...(file.smallCard ? { smallCard: file.smallCard.map((tile) => ({ ...tile })) } : {}),
+        links: [...(file.links ?? [])],
       };
       renderActiveTablePane();
       rowCard?.refresh();
@@ -820,6 +929,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       // the table it was about.
       folderPrompt?.close();
       layoutFlyout?.close();
+      linksFlyout?.close();
       rowCard?.close(false);
       selection.clear();
       activeTable = undefined;
@@ -833,6 +943,15 @@ export function createTableView(deps: TableViewDeps): TableView {
     },
     isCardOpen: () => rowCard?.isOpen() ?? false,
     closeCard: () => rowCard?.close(),
+    atClick() {
+      if (!activeTable) return undefined;
+      return {
+        content: serializeTableFile(workingFile(activeTable)),
+        columns: structuredClone(activeTable.columns),
+        rows: selection.selected().map((row) => ({ values: { ...row.values } })),
+        private: isPrivateMetadata(activeTable.file.metadata),
+      };
+    },
   };
 }
 
@@ -840,7 +959,7 @@ export function createTableView(deps: TableViewDeps): TableView {
 // The editor-group contract over createTableView above (docs/architecture.md's
 // Files and views section): the pane owns its element, loads the file, and adapts the view.
 
-export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "openMedia"> {
+export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "openMedia" | "linksWritten"> {
   loadFile: (path: string) => Promise<FileResponse>;
   // The base the pane's next save names (see services/saveQueue.ts).
   noteRevision: (path: string, revision: string) => void;
@@ -850,6 +969,21 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
   // What a media cell's preview and the Info section it fills read.
   previewSources: PreviewSources & SelectedReads;
   formats: Pick<FormatRegistry, "get">;
+  // The pane read the toolkits of the Table it shows: on each open, and once
+  // a change to its links is written.
+  toolkitsRead?: (pane: TablePane) => void;
+}
+
+/** A Table's pane, as the Tools tab reads it: the Table shown with the
+ * toolkits its last read gave, and the Table as a click there takes it. */
+export interface TablePane extends EditorPane {
+  readonly kind: "table";
+  shownTable(): { path: string; toolkits: readonly TextToolkitInfo[] } | undefined;
+  atClick(): (TableAtClick & { path: string }) | undefined;
+}
+
+export function isTablePane(pane: EditorPane): pane is TablePane {
+  return pane.kind === "table";
 }
 
 // What a descriptor is wired with: everything but the hooks a pane takes
@@ -886,7 +1020,7 @@ export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescrip
   };
 }
 
-export function createTablePane(deps: TablePaneDeps): EditorPane {
+export function createTablePane(deps: TablePaneDeps): TablePane {
   const element = document.createElement("div");
   element.className = "editor-table";
   // The pane's box, which stays still while the rows scroll in `element`,
@@ -916,6 +1050,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     openMedia: media.open,
     overlayHost: frame,
     pickLayout,
+    linksWritten: () => void readToolkits(),
   });
   const properties = deps.metadataProperties();
   // Find searches the values in every mode, never replacing them.
@@ -923,6 +1058,18 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
 
   // The file the view holds, whose metadata the Properties tab edits.
   let shown: TableFileResponse | undefined;
+  // Its toolkits, as the server resolved them from its links.
+  let toolkits: readonly TextToolkitInfo[] = [];
+
+  // A failed read keeps the buttons shown until the next open.
+  async function readToolkits(): Promise<void> {
+    const path = shown?.path;
+    if (!path) return;
+    const file = await deps.loadFile(path).catch(() => undefined);
+    if (shown?.path !== path || file?.kind !== "table") return;
+    toolkits = file.toolkits ?? [];
+    deps.toolkitsRead?.(pane);
+  }
 
   // Drawn at once, since the view holds every row it needs; the pick is kept
   // for the table's next open, from ⋮ › Layout and from Layout alike.
@@ -945,7 +1092,7 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
     });
   }
 
-  return {
+  const pane: TablePane = {
     kind: "table",
     element: frame,
     inspector: selected.section,
@@ -962,15 +1109,23 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       context = contextOfTab(tab);
       view.render(file);
       shown = file;
+      toolkits = file.toolkits ?? [];
       find.show(file.path);
       showProperties(file);
+      deps.toolkitsRead?.(pane);
     },
     clearInput: () => {
       media.close(false);
       find.show(undefined);
       view.clear();
       shown = undefined;
+      toolkits = [];
       properties.clear();
+    },
+    shownTable: () => (shown ? { path: shown.path, toolkits } : undefined),
+    atClick() {
+      const at = shown && view.atClick();
+      return shown && at ? { ...at, path: shown.path } : undefined;
     },
     title: () => view.getFileName(),
     titleHost: () => element,
@@ -1000,4 +1155,5 @@ export function createTablePane(deps: TablePaneDeps): EditorPane {
       frame.remove();
     },
   };
+  return pane;
 }

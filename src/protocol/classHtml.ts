@@ -1,4 +1,4 @@
-import { cardBlock, escapeHtml, fieldHeaderCell, metadataBlock, smallCardBlock } from "./tableHtml.ts";
+import { cardBlock, escapeHtml, fieldHeaderCell, linksBlock, metadataBlock, smallCardBlock } from "./tableHtml.ts";
 import type { ClassFile, ClassRule, ClassView } from "./types.ts";
 
 // Pure string-building, isomorphic as a Table's serializer is, and
@@ -24,14 +24,6 @@ function view(view: ClassView): string {
   return `    <li${attributes}>\n      <ul data-role="filter">\n${rules}      </ul>\n    </li>\n`;
 }
 
-// Left out when empty, so a Class with no links is written as it was
-// before there were any.
-function links(paths: readonly string[]): string {
-  if (paths.length === 0) return "";
-  const items = paths.map((path) => `    <li>${escapeHtml(path)}</li>\n`).join("");
-  return `\n  <ul data-role="links">\n${items}  </ul>\n`;
-}
-
 /** Serializes a ClassFile back to `.class.html` text, in the order
  * its arrays hold. */
 export function serializeClassFile(file: ClassFile): string {
@@ -51,7 +43,7 @@ ${metadataBlock(file.metadata)}
 
   <ul data-role="filter">
 ${filter}  </ul>
-${links(file.links)}
+${linksBlock(file.links)}
   <table data-role="fields">
     <thead>
       <tr>

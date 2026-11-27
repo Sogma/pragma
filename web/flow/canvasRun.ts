@@ -14,7 +14,7 @@ import {
   writeTake,
 } from "../../src/protocol/flowNodes.ts";
 import { type RunHooks, type RunResult, runFlow } from "../../src/protocol/flowRuntime.ts";
-import { type FlowZone, flowZones } from "../../src/protocol/flowZones.ts";
+import { type FlowZone, flowZones, itemWord } from "../../src/protocol/flowZones.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowGraph,
@@ -33,7 +33,7 @@ import type { FlowSaves } from "./flowSaves.ts";
 import type { NodeCards } from "./nodeCard.ts";
 import { createRunMemory } from "./runMemory.ts";
 import type { FlowViewDeps } from "./xyflowAdapter.ts";
-import { itemWord, type Zones, type ZoneView } from "./zones.ts";
+import type { Zones, ZoneView } from "./zones.ts";
 
 /** One run going, as the Tools tab lists it. */
 export interface CanvasRunInfo {
@@ -362,17 +362,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         if (!pinned.has(forEach) && newest(forEach)) deps.cards.showRunResult({ ...progress, reports }, members);
       };
       const askInDialog = confirmRestDialog(deps.dialog);
-      // What an item made, by the paths its Generate nodes hand on.
-      const madeBy = (forEach: string, index: number): string[] => {
-        const item = latest?.zones?.get(forEach)?.items[index];
-        return [...(zones.get(forEach)?.members ?? [])].flatMap((id) => {
-          const node = target.nodes.find((each) => each.id === id);
-          const path = item?.outputs.get(id)?.path;
-          const generated = FLOW_NODE_REGISTRY[node?.type ?? ""]?.category === "AI";
-          return generated && path?.type === "text" && path.value ? [path.value] : [];
-        });
-      };
-      const askInAppMode = (ask: { forEach: string; done: number; rest: number; word: string }) =>
+      const askInAppMode = (ask: { done: number; rest: number; word: string; files: readonly string[] }) =>
         new Promise<boolean>((resolve) => {
           let open = true;
           const answer = (go: boolean) => {
@@ -381,8 +371,7 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
             deps.appMode.showAsk(undefined);
             resolve(go);
           };
-          const files = madeBy(ask.forEach, ask.done - 1);
-          deps.appMode.showAsk({ title: `${ask.word} ${ask.done} done`, files, rest: ask.rest, answer });
+          deps.appMode.showAsk({ title: `${ask.word} ${ask.done} done`, files: ask.files, rest: ask.rest, answer });
           state.controller.signal.addEventListener("abort", () => answer(false), { once: true });
         });
       const askOnLabel = (ask: { forEach: string; rest: number }) =>

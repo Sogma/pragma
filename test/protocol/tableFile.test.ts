@@ -53,6 +53,21 @@ describe(".table.html round-tripping", () => {
   // The layout is what a reader opens in, carried as one attribute on the
   // data table and written only when it is not the list — a file that never
   // named one must not gain an attribute from being saved.
+  it("round-trips the Flows a Table links, and writes no list without any", () => {
+    const base: TableFile = {
+      version: "1.0",
+      columns: [{ id: "take", type: "text", label: "Take" }],
+      rows: [{ values: { take: "one" } }],
+    };
+    const linked = serializeTableFile({ ...base, links: ["tools/clips.flow.html", "../other.flow.html"] });
+    expect(linked).toContain(
+      '<ul data-role="links">\n    <li>tools/clips.flow.html</li>\n    <li>../other.flow.html</li>\n  </ul>',
+    );
+    expect(parseTableFile(linked)?.links).toEqual(["tools/clips.flow.html", "../other.flow.html"]);
+    expect(serializeTableFile({ ...base, links: [] })).toBe(serializeTableFile(base));
+    expect(parseTableFile(serializeTableFile(base))?.links).toBeUndefined();
+  });
+
   it("round-trips data-layout, and writes nothing for the list", async () => {
     const dir = tempDir("pragma-tablefile-layout-");
     const base: TableFile = {

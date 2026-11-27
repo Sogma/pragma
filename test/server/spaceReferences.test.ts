@@ -334,6 +334,21 @@ describe("paths other documents hold", () => {
     expect(result.rewritten).toEqual(["shots/log.table.html"]);
   });
 
+  it("retargets the Flows a Table links", async () => {
+    const table = serializeTableFile({
+      version: "1.0",
+      columns: [{ id: "title", type: "text", label: "Title" }],
+      rows: [],
+      links: ["../tools/clips.flow.html"],
+    });
+    const root = await space({ "shots/log.table.html": table, "tools/clips.flow.html": "" });
+
+    const result = await move(root, "tools/clips.flow.html", "flows/clips.flow.html");
+
+    expect(parseTableFile(await read(root, "shots/log.table.html"))?.links).toEqual(["../flows/clips.flow.html"]);
+    expect(result.rewritten).toEqual(["shots/log.table.html"]);
+  });
+
   it("retargets a Table's path values, a folder's keeping its slash", async () => {
     const table = serializeTableFile({
       version: "1.0",

@@ -200,3 +200,75 @@ button.flow-jobs-row:hover {
 .flow-jobs-stage.is-problem {
   color: var(--color-warning);
 }
+
+/* A run waiting on its ask: still, the pause glyph in the spinner's place. */
+.flow-jobs-thumb.is-waiting::before {
+  mask-image: var(--icon-pause);
+}
+
+.flow-jobs-stage.is-waiting {
+  color: var(--text-primary);
+}
+
+/* The ask under its run's row: what the first item made, then Continue or
+   Stop. */
+.flow-jobs-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 2px 6px 0;
+  padding: 10px;
+  border: 1px solid var(--color-accent-bg);
+  border-radius: var(--box-radius);
+  background: var(--color-accent-bg-faint);
+}
+
+/* Short enough that Continue and Stop stay in view under a tall picture. */
+.flow-jobs-ask-media {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  border-radius: var(--control-radius);
+  overflow: hidden;
+  background: var(--bg-inset);
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.flow-jobs-ask-media > video {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.flow-jobs-ask-file {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.flow-jobs-ask-file:hover {
+  text-decoration: underline;
+}
+
+.flow-jobs-ask-file > [data-entry-icon],
+.flow-jobs-ask-folder {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.flow-jobs-ask-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

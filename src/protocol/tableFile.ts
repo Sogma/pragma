@@ -42,6 +42,10 @@ export function parseTableFile(raw: string): TableFile | undefined {
     const layout = parseTableLayout(data?.getAttribute("data-layout"));
     const card = readCardBlock(root.querySelector("body > ol[data-role=card]"));
     const smallCard = readSmallCardBlock(root.querySelector("body > ol[data-role=small-card]"));
+    const links = root
+      .querySelectorAll("body > ul[data-role=links] > li")
+      .map((li) => li.textContent.trim())
+      .filter(Boolean);
 
     return {
       version: html.getAttribute("data-format-version") || "1.0",
@@ -52,6 +56,7 @@ export function parseTableFile(raw: string): TableFile | undefined {
       ...(layout ? { layout } : {}),
       ...(card ? { card } : {}),
       ...(smallCard ? { smallCard } : {}),
+      ...(links.length > 0 ? { links } : {}),
     };
   } catch {
     return undefined;

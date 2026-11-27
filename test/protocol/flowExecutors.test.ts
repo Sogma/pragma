@@ -737,6 +737,46 @@ describe("Button", () => {
     expect(ensureCapability).toHaveBeenCalledWith({ type: "readCurrentDocument" });
   });
 
+  const tablePort = (titles: string[]) => ({
+    ...port(false),
+    path: "shots/shots.table.html",
+    rows: {
+      columns: [
+        { id: "title", type: "text" as const, label: "Title" },
+        { id: "image", type: "media" as const, label: "Image" },
+      ],
+      rows: titles.map((title) => ({ values: { title, image: `${title.toLowerCase()}.png` } })),
+    },
+  });
+
+  it("hands on a Table's ticked rows as Load Table hands on its rows, asking to read the document", async () => {
+    const ensureCapability = vi.fn(async () => true);
+    const outputs = await NODE_EXECUTORS.button(
+      buttonNode(),
+      {},
+      context({ document: tablePort(["Kite", "Dune"]), ensureCapability }),
+      new Set(["rows"]),
+    );
+    expect(outputs.rows).toEqual({
+      type: "object",
+      value: [
+        { title: "Kite", image: "/shots/kite.png" },
+        { title: "Dune", image: "/shots/dune.png" },
+      ],
+    });
+    expect(outputs.path).toEqual({ type: "text", value: "/shots/shots.table.html" });
+    expect(ensureCapability).toHaveBeenCalledWith({ type: "readCurrentDocument" });
+  });
+
+  it("stops a click with no row ticked, and one outside a Table, before asking anything", async () => {
+    const ensureCapability = vi.fn(async () => true);
+    const click = (document: ReturnType<typeof port>) =>
+      NODE_EXECUTORS.button(buttonNode(), {}, context({ document, ensureCapability }), new Set(["rows"]));
+    await expect(click(tablePort([]))).rejects.toThrow("Tick some rows first");
+    await expect(click(port())).rejects.toThrow("Its rows come from a Table: click it in one, with rows ticked");
+    expect(ensureCapability).not.toHaveBeenCalled();
+  });
+
   it("asks for nothing and reads nothing while only its path is wired", async () => {
     const document = port();
     const ensureCapability = vi.fn(async () => true);

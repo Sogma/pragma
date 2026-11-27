@@ -887,7 +887,7 @@ describe("nodeCard", () => {
     const { cards } = setup();
     const el = cards.build(node("button", { requireSelection: "true" }, { label: "Tighten" }));
     const pins = [...el.querySelectorAll<HTMLElement>(".flow-node-outputs .handle.source")];
-    expect(pins.map((pin) => pin.dataset.handleid)).toEqual(["selection", "raw", "path"]);
+    expect(pins.map((pin) => pin.dataset.handleid)).toEqual(["selection", "raw", "rows", "path"]);
     expect(el.querySelector(".flow-node-name")?.textContent).toBe("Tighten");
     expect(el.querySelector("textarea")).toBeNull();
   });

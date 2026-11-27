@@ -1,22 +1,21 @@
 // The toolkits in the assistant inspector's Tools tab (docs/protocol.md,
-// Flows → Actions): an accordion of every Flow the Classes holding the open
-// document link, its action nodes as buttons, the document's runs under
-// them, and the result area a run draws into. A section's header names its
-// Flow; its More options button and a right-click open the same menu.
+// Flows → Actions): an accordion of every Flow the open document's Classes
+// or the open Table link, its action nodes as buttons, the document's runs
+// under them, and the result area a run draws into. A section's header
+// names its Flow; its More options button and a right-click open one menu.
 //
 // A run's result has nowhere else to land, hence one component. Buttons stay
 // clickable while runs go, each click a run of its own, and a run's failure
 // and results draw below them only while its document is shown.
 import type { TextToolkitInfo } from "../../src/protocol/api.ts";
 import type { FlowAction } from "../../src/protocol/flowActions.ts";
+import { isTableFile } from "../../src/protocol/types.ts";
 import { entryIconAt } from "../core/spaceTree.ts";
-import type { JobStarting } from "../flow/browserEnvironment.ts";
-import type { ToolkitInvocation } from "../flow/toolkitAction.ts";
+import type { ToolkitInvocation, ToolkitRow, ToolkitSource } from "../flow/toolkitAction.ts";
 import { createToolkitRuns } from "../flow/toolkitRuns.ts";
 import { readableTextColor } from "../lib/color.ts";
 import { createOutcomeLine } from "../lib/outcomeLine.ts";
 import type { DialogService } from "../services/dialog.ts";
-import type { DocumentAccess } from "../services/documentAccess.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 import type { ModelLists } from "../services/modelLists.ts";
 import type { Tabs } from "../services/tabs.ts";
@@ -30,20 +29,21 @@ export interface ToolkitPanelElements {
 export interface ToolkitPanelDeps {
   /** The document a button acts on and the editor group it is open in —
    * captured at the click, so the run keeps acting on that document (or
-   * fails) wherever focus goes. Undefined when no text document is open. */
-  target(): { path: string; access: DocumentAccess; group: string } | undefined;
-  /** The open document's path in `group` now, checked after a run so a stale
-   * run's failure can't overwrite what that group shows. */
+   * fails) wherever focus goes. Undefined when no text document or Table is
+   * open. */
+  target(): { path: string; source: ToolkitSource; group: string } | undefined;
+  /** The open document's or Table's path in `group` now, checked after a run
+   * so a stale run's failure can't overwrite what that group shows. */
   activePath(group: string): string | undefined;
   /** The tab session, read when it is used: it is built after the panel. */
   tabs(): Pick<Tabs, "onActivate" | "onGroupClosed" | "openEntryBeside" | "openBeside" | "openSpacePath">;
   /** Brings the panel back into view. What a run draws lands where its
    * button was, and the user may have switched away while it ran. */
   reveal(): void;
-  start(invocation: ToolkitInvocation, actionId: string, jobStarting: JobStarting): StartedToolkitRun;
+  start(invocation: ToolkitInvocation, actionId: string, row: ToolkitRow): StartedToolkitRun;
   // Asks before Cancel gives up a run's job whose credits are spent.
   confirm: DialogService["confirm"];
-  contextMenu: Pick<ContextMenuService, "open" | "isOpen" | "close">;
+  contextMenu: ContextMenuService;
   modelLists: Pick<ModelLists, "get" | "load" | "subscribe">;
 }
 
@@ -66,6 +66,7 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
     confirm: (options) => deps.confirm(options),
     openPath: (path) => void deps.tabs().openSpacePath(path),
     modelLists: deps.modelLists,
+    contextMenu: deps.contextMenu,
     onCount: (count) => {
       if (count > 0) elements.buttons.setAttribute("data-running", String(count));
       else elements.buttons.removeAttribute("data-running");
@@ -81,17 +82,19 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
   function runButton(toolkit: TextToolkitInfo, action: FlowAction): void {
     const target = deps.target();
     if (!target) return;
-    const { path, access, group } = target;
+    const { path, source, group } = target;
     const tabs = deps.tabs();
     let stop = (_reason: string) => {};
-    const listed = runs.add({ label: action.label, document: path, flowPath: toolkit.path, stop: (why) => stop(why) });
-    const invocation = {
-      flow: { path: toolkit.path, name: toolkit.name },
-      path,
-      access,
-      openToSide: (file: string) => tabs.openBeside(file, group),
-    };
-    const run = deps.start(invocation, action.nodeId, listed.jobStarting);
+    const openToSide = (file: string) => tabs.openBeside(file, group);
+    const listed = runs.add({
+      label: action.label,
+      document: path,
+      flowPath: toolkit.path,
+      stop: (why) => stop(why),
+      openToSide,
+    });
+    const invocation = { flow: { path: toolkit.path, name: toolkit.name }, path, source, openToSide };
+    const run = deps.start(invocation, action.nodeId, listed);
     stop = run.stop;
     // The run's document access is bound to its group's pane, so the run
     // stops when that group shows another document or closes — not when
@@ -168,7 +171,8 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
 
       // Beside the document, never in its place: the document's tab is what
       // the panel shows the toolkit for. The Class that gave it opens too, so
-      // where a note's buttons come from is a click away.
+      // where a note's buttons come from is a click away; a Table's come
+      // from the Table itself, already open.
       const items: MenuItem[] = [
         {
           label: "Open Flow",
@@ -176,13 +180,15 @@ export function createToolkitPanel(elements: ToolkitPanelElements, deps: Toolkit
           entryIcon: entryIconAt(toolkit.path, "file"),
           run: () => void deps.tabs().openEntryBeside(toolkit.path),
         },
-        {
+      ];
+      if (!isTableFile(toolkit.classPath)) {
+        items.push({
           label: "Open Class",
           icon: true,
           entryIcon: entryIconAt(toolkit.classPath, "file"),
           run: () => void deps.tabs().openEntryBeside(toolkit.classPath),
-        },
-      ];
+        });
+      }
       const menuButton = document.createElement("button");
       menuButton.type = "button";
       menuButton.className = "icon-button toolkit-section-menu";

@@ -4,6 +4,7 @@ import type { JobView } from "../../../src/protocol/api.ts";
 import { createJobsFeed } from "../../../web/flow/jobsFeed.ts";
 import { createToolkitRuns, type ToolkitRuns } from "../../../web/flow/toolkitRuns.ts";
 import type { ConfirmOptions } from "../../../web/services/dialog.ts";
+import type { ContextMenuService } from "../../../web/services/menus.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
 // A note's toolkit runs under its buttons: each with the async job it waits
@@ -49,11 +50,24 @@ function setUp(answer: JobView[]) {
     feed: createJobsFeed({ fetchJobs, markJobsShown }),
     cancelJob,
     modelLists: emptyModelLists(),
+    contextMenu: { open: vi.fn(), isOpen: vi.fn(() => false), close: vi.fn() } as unknown as ContextMenuService,
   });
   const stop = vi.fn();
+  const openToSide = vi.fn(async (_path: string) => {});
   const add = (label: string, document = "shots.md") =>
-    (runs as ToolkitRuns).add({ label, document, flowPath: "kite.flow.html", stop });
-  return { element: runs.element, runs, add, stop, fetchJobs, markJobsShown, confirm, cancelJob, onCount };
+    (runs as ToolkitRuns).add({ label, document, flowPath: "kite.flow.html", stop, openToSide });
+  return {
+    element: runs.element,
+    runs,
+    add,
+    stop,
+    openToSide,
+    fetchJobs,
+    markJobsShown,
+    confirm,
+    cancelJob,
+    onCount,
+  };
 }
 
 const texts = (element: HTMLElement, selector: string) =>
@@ -122,5 +136,52 @@ describe("createToolkitRuns", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(texts(element, ".flow-jobs-heading")).toEqual(["Finished"]);
     expect(texts(element, ".flow-jobs-title")).toEqual(["kite-3f2a.mp4"]);
+  });
+});
+
+describe("a run's ask", () => {
+  const ask = { title: "Row 1 done", files: ["renders/dawn.png", "notes/dawn.md"], rest: 2 };
+
+  it("waits under its row until answered, the row still, and counts as one run", async () => {
+    const { element, runs, add, onCount } = setUp([]);
+    runs.show("shots.md");
+    const listed = add("Make clips");
+    const answered = listed.ask(ask, new AbortController().signal);
+    expect(texts(element, ".flow-jobs-stage")).toEqual(["Row 1 done"]);
+    expect(element.querySelector(".flow-jobs-thumb.is-waiting")).not.toBeNull();
+    expect(element.querySelector(".flow-jobs-ask img")?.getAttribute("src")).toContain("renders%2Fdawn.png");
+    expect(texts(element, ".flow-jobs-ask-file")).toEqual(["renders/dawn", "notes/dawn"]);
+    expect(onCount).toHaveBeenLastCalledWith(1);
+
+    const [go] = element.querySelectorAll<HTMLButtonElement>(".flow-jobs-ask-buttons .btn");
+    expect(go.textContent).toBe("Continue with 2 more");
+    go.click();
+    await expect(answered).resolves.toBe(true);
+    expect(element.querySelector(".flow-jobs-ask")).toBeNull();
+    expect(texts(element, ".flow-jobs-stage")).toEqual(["Running"]);
+  });
+
+  it("opens a file it names beside the document, which keeps the run going", () => {
+    const { element, runs, add, openToSide, stop } = setUp([]);
+    runs.show("shots.md");
+    void add("Make clips").ask(ask, new AbortController().signal);
+    element.querySelectorAll<HTMLButtonElement>(".flow-jobs-ask-file")[1].click();
+    expect(openToSide).toHaveBeenCalledWith("notes/dawn.md");
+    expect(stop).not.toHaveBeenCalled();
+  });
+
+  it("answers Stop on its Stop button, and when the run stops while it waits", async () => {
+    const { element, runs, add } = setUp([]);
+    runs.show("shots.md");
+    const listed = add("Make clips");
+    const stopped = listed.ask(ask, new AbortController().signal);
+    element.querySelectorAll<HTMLButtonElement>(".flow-jobs-ask-buttons .btn")[1].click();
+    await expect(stopped).resolves.toBe(false);
+
+    const run = new AbortController();
+    const left = listed.ask(ask, run.signal);
+    run.abort();
+    await expect(left).resolves.toBe(false);
+    expect(element.querySelector(".flow-jobs-ask")).toBeNull();
   });
 });

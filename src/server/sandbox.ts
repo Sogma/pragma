@@ -34,8 +34,10 @@ import { columnAddresses } from "../protocol/flowExecutors.ts";
 import { capabilityDigest, readFlowFile } from "../protocol/flowFile.ts";
 import type { AffixMode, FrameKind } from "../protocol/flowNodes.ts";
 import {
+  columnCapabilityOfKey,
   computeFlowCapabilities,
   modelSettingValues,
+  rowColumnUses,
   type WiredAccess,
   type WiredPin,
   wiredCapability,
@@ -46,7 +48,13 @@ import { callImageModel } from "../protocol/imageGeneration.ts";
 import { addTextToNote } from "../protocol/markdownTitle.ts";
 import { stampTableDates } from "../protocol/metadata.ts";
 import { DEFAULT_MENTIONS, type MentionKind, mentionedPins, spellMentions } from "../protocol/referenceMentions.ts";
-import { formatRootPath, formatWrittenPath, resolveDeclaredPath } from "../protocol/relativeReference.ts";
+import {
+  formatRootPath,
+  formatWrittenPath,
+  isDeclaredAddress,
+  isHiddenPath,
+  resolveDeclaredPath,
+} from "../protocol/relativeReference.ts";
 import {
   dirnameOf,
   formatDeclaredPath,
@@ -64,6 +72,8 @@ import {
   type ContextSent,
   emptyTable,
   extensionForMediaType,
+  type FlowReadColumnCapability,
+  type FlowWriteColumnCapability,
   flowCapabilityKey,
   holdsPath,
   isColumnCapability,
@@ -84,7 +94,7 @@ import { resolutionName, resolutionShortSide, resolutionSize } from "../protocol
 import { runGenerate, runGenerateOptions } from "./actionHandler.ts";
 import { type ContextLook, lookFurther, refusesTools } from "./contextLook.ts";
 import { findResult, highestTake, resultStart, saveResult, takeOf } from "./generatedResults.ts";
-import { type GrantSubject, grantPath, isCapabilityGranted } from "./grants.ts";
+import { type GrantSubject, grantedCapabilities, grantPath, isCapabilityGranted } from "./grants.ts";
 import { withHeaderReader } from "./headerReader.ts";
 import { writeDocument } from "./history.ts";
 import { type JobOutcome, type JobRunner, jobRunner, type NewJob } from "./jobRunner.ts";
@@ -121,6 +131,9 @@ export interface SandboxDocument {
   // asked for per file, or for a context per scope. Empty for a document
   // with no such pin.
   wired: ReadonlySet<WiredPin>;
+  // The columns a Button's rows hand a node in a zone, by access: allowed
+  // for whichever Table a toolkit runs in, which the graph never names.
+  rowColumns: readonly { access: WiredAccess; column: string }[];
 }
 
 // A request the broker refuses before touching anything: a malformed body,
@@ -144,7 +157,12 @@ interface KindRow {
   read(
     filePath: string,
     docPath: string,
-  ): Promise<{ contentHash: string; capabilities: SandboxCapability[]; wired: ReadonlySet<WiredPin> }>;
+  ): Promise<{
+    contentHash: string;
+    capabilities: SandboxCapability[];
+    wired: ReadonlySet<WiredPin>;
+    rowColumns: readonly { access: WiredAccess; column: string }[];
+  }>;
 }
 
 const KINDS: Record<SandboxKind, KindRow> = {
@@ -161,6 +179,7 @@ const KINDS: Record<SandboxKind, KindRow> = {
           ...(isColumnCapability(capability) ? { column: capability.column } : {}),
         })),
         wired: wiredPathAccess(graph),
+        rowColumns: rowColumnUses(graph),
       };
     },
   },
@@ -184,8 +203,9 @@ export async function readSandboxDocument(
   if (!row.isFile(relativePath)) throw new SandboxRequestError(400, `Not a ${kind} document: ${relativePath}`);
   const filePath = resolveWithinSpace(spaceRoot, relativePath);
   const docPath = grantPath(spaceRoot, filePath);
-  const { contentHash, capabilities, wired } = await row.read(filePath, docPath);
-  return { kind, path: docPath, subject: { path: docPath, contentHash }, label: `This ${kind}`, capabilities, wired };
+  const { contentHash, capabilities, wired, rowColumns } = await row.read(filePath, docPath);
+  const subject = { path: docPath, contentHash };
+  return { kind, path: docPath, subject, label: `This ${kind}`, capabilities, wired, rowColumns };
 }
 
 /** The declaration of `type` a request for `target` falls under, if any:
@@ -340,16 +360,48 @@ async function columnGrantCovers(
   target: RootedPath,
 ): Promise<boolean> {
   const address = formatDeclaredPath(target);
-  for (const capability of doc.capabilities) {
-    if (capability.type !== type || capability.path === undefined || capability.column === undefined) continue;
-    if (!(await isCapabilityGranted(spaceRoot, doc.subject, capability.key))) continue;
-    const table = parseRootedPath(capability.path);
+  const declared = doc.capabilities.flatMap((capability) =>
+    capability.type === type && capability.path !== undefined && capability.column !== undefined
+      ? [{ key: capability.key, path: capability.path, column: capability.column, granted: false }]
+      : [],
+  );
+  // A Button's column grant is no declaration: it is found among the keys
+  // granted, each naming the Table it was asked in.
+  const fromRows =
+    doc.rowColumns.length === 0
+      ? []
+      : (await grantedCapabilities(spaceRoot, doc.subject)).flatMap((key) => {
+          const capability = rowColumnOf(doc, key);
+          return capability?.type === type
+            ? [{ key, path: capability.path, column: capability.column, granted: true }]
+            : [];
+        });
+  for (const candidate of [...declared, ...fromRows]) {
+    if (!candidate.granted && !(await isCapabilityGranted(spaceRoot, doc.subject, candidate.key))) continue;
+    const table = parseRootedPath(candidate.path);
     if (table.root !== "space") continue;
     const raw = await readSpaceFile(spaceRoot, table.path).catch(() => undefined);
     const file = raw === undefined ? undefined : parseTableFile(raw);
-    if (file && columnAddresses(doc.path, capability.path, file, capability.column).has(address)) return true;
+    if (file && columnAddresses(doc.path, candidate.path, file, candidate.column).has(address)) return true;
   }
   return false;
+}
+
+/** A column grant a Button's rows may ask for: a column the graph's Button
+ * zones use with that access, in a Table of the space, by its address in
+ * its one spelling. */
+function rowColumnOf(
+  doc: SandboxDocument,
+  key: string,
+): FlowReadColumnCapability | FlowWriteColumnCapability | undefined {
+  const capability = columnCapabilityOfKey(key);
+  const access = capability?.type === "readColumn" ? "read" : "write";
+  if (!capability || !doc.rowColumns.some((use) => use.access === access && use.column === capability.column)) {
+    return undefined;
+  }
+  if (!isDeclaredAddress(capability.path)) return undefined;
+  const table = parseRootedPath(capability.path);
+  return table.root === "space" && isTableFile(table.path) && !isHiddenPath(table.path) ? capability : undefined;
 }
 
 /** Whether the document may be asked to grant `key`: a capability it
@@ -357,7 +409,9 @@ async function columnGrantCovers(
  * this, so a tampered client can't record or clear one it never asked for. */
 export function declaresCapability(doc: SandboxDocument, key: string): boolean {
   return (
-    doc.capabilities.some((candidate) => candidate.key === key) || wiredCapabilityOfKey(doc.wired, key) !== undefined
+    doc.capabilities.some((candidate) => candidate.key === key) ||
+    wiredCapabilityOfKey(doc.wired, key) !== undefined ||
+    rowColumnOf(doc, key) !== undefined
   );
 }
 

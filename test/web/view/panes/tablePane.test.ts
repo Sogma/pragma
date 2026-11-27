@@ -8,7 +8,7 @@ import { createDialogService } from "../../../../web/services/dialog.ts";
 import type { EditorPane } from "../../../../web/services/editorPanes.ts";
 import { createFormats } from "../../../../web/services/formats.ts";
 import { MEDIA_MENU } from "../../../../web/services/videoMenu.ts";
-import { createTablePane, tablePane } from "../../../../web/view/panes/tablePane.ts";
+import { createTablePane, isTablePane, tablePane } from "../../../../web/view/panes/tablePane.ts";
 import { polyfillRangeRects } from "../../support/codemirrorJsdom.ts";
 import { memoryViews } from "../../support/editorLayout.ts";
 import { testMetadataProperties } from "../../support/metadataProperties.ts";
@@ -41,9 +41,10 @@ function file(overrides: Partial<TableFileResponse> = {}): TableFileResponse {
 }
 
 function setup(loaded: FileResponse = file(), held = memoryViews()) {
-  const loadFile = vi.fn(async () => loaded);
+  const loadFile = vi.fn(async (_path: string): Promise<FileResponse> => loaded);
+  const toolkitsRead = vi.fn();
   const onRendered = vi.fn();
-  const scheduleSave = vi.fn<(path: string, content: string) => void>();
+  const scheduleSave = vi.fn<(path: string, content: string, onWritten?: () => void) => void>();
   const saveLayout = vi.fn<(path: string, layout: TableLayout) => Promise<void>>(async () => {});
   const openPath = vi.fn<(path: string) => void>();
   // Its right-click listener goes with the test, so none left by an earlier
@@ -66,13 +67,14 @@ function setup(loaded: FileResponse = file(), held = memoryViews()) {
     dialogHost: document.body,
     metadataProperties: testMetadataProperties(),
     saveLayout,
+    toolkitsRead,
   });
   document.body.append(pane.element);
   const setReadingView = (on: boolean) => {
     reading = on;
     pane.refresh?.();
   };
-  return { pane, loadFile, onRendered, scheduleSave, saveLayout, openPath, contextMenu, setReadingView };
+  return { pane, loadFile, onRendered, scheduleSave, saveLayout, openPath, contextMenu, setReadingView, toolkitsRead };
 }
 
 const current = { isCurrent: () => true };
@@ -700,5 +702,55 @@ describe("a row's card", () => {
       "Review",
       "Status",
     ]);
+  });
+});
+
+describe("a Table's toolkits", () => {
+  const make = { classPath: "models.table.html", path: "tools/make.flow.html", name: "Make", actions: [] };
+  const cut = { classPath: "models.table.html", path: "tools/cut.flow.html", name: "Cut", actions: [] };
+
+  it("hands the Tools tab the toolkits its read gave, on each open", async () => {
+    const { pane, toolkitsRead } = setup(file({ links: ["tools/make.flow.html"], toolkits: [make] }));
+    expect(isTablePane(pane)).toBe(true);
+    expect(pane.shownTable()).toBeUndefined();
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    expect(toolkitsRead).toHaveBeenCalledWith(pane);
+    expect(pane.shownTable()).toEqual({ path: "models.table.html", toolkits: [make] });
+    pane.clearInput?.();
+    expect(pane.shownTable()).toBeUndefined();
+  });
+
+  it("reads them again once a change to its links is written", async () => {
+    const { pane, loadFile, scheduleSave, toolkitsRead } = setup(
+      file({ links: ["tools/make.flow.html", "tools/cut.flow.html"], toolkits: [make, cut] }),
+    );
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    const links = [...(pane.toolbar?.querySelectorAll<HTMLButtonElement>(".table-toolbar-button") ?? [])].find(
+      (button) => button.textContent?.startsWith("Links"),
+    );
+    links?.click();
+    document.querySelector<HTMLButtonElement>(".class-popover .class-link .class-icon-button")?.click();
+    loadFile.mockResolvedValueOnce(file({ links: ["tools/cut.flow.html"], toolkits: [cut] }));
+    const written = scheduleSave.mock.lastCall?.[2];
+    if (!written) throw new Error("the links change wasn't saved");
+    written();
+    await vi.waitFor(() => expect(toolkitsRead).toHaveBeenCalledTimes(2));
+    expect(loadFile).toHaveBeenLastCalledWith("models.table.html");
+    expect(pane.shownTable()?.toolkits).toEqual([cut]);
+  });
+
+  it("takes the Table it shows at a click, with the rows ticked", async () => {
+    const { pane } = setup(
+      file({
+        rows: [{ values: { value: "one" } }, { values: { value: "two" } }],
+      }),
+    );
+    expect(pane.atClick()).toBeUndefined();
+    await pane.setInput({ kind: "table", path: "models.table.html" }, current);
+    pane.element.querySelectorAll<HTMLInputElement>("tbody td.row-select .row-select-box")[1].click();
+    const at = pane.atClick();
+    expect(at?.path).toBe("models.table.html");
+    expect(at?.rows).toEqual([{ values: { value: "two" } }]);
+    expect(at?.private).toBe(false);
   });
 });

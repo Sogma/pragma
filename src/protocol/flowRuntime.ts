@@ -8,6 +8,7 @@ import {
   type NodeExecutionContext,
   type NodeExecutor,
   type PortValue,
+  rowsTableOf,
 } from "./flowExecutors.ts";
 import {
   FLOW_NODE_REGISTRY,
@@ -18,7 +19,7 @@ import {
   resolveFlowCapability,
   wiredOutputs,
 } from "./flowNodes.ts";
-import { type FlowZone, flowZones, zoneProblems } from "./flowZones.ts";
+import { type FlowZone, flowZones, itemWord, zoneProblems } from "./flowZones.ts";
 import { type SetupNeed, setupNeedOf } from "./setupNeed.ts";
 import type {
   FlowCapabilityDeclaration,
@@ -264,7 +265,7 @@ export async function runFlow(
   // Each node a Table column hands its path to, asking for the column's
   // grant in place of each file's.
   const columns = new Map<string, FlowCapabilityDeclaration>();
-  for (const [id, capability] of pathColumns(graph)) {
+  for (const [id, capability] of pathColumns(graph, rowsTableOf(context.document))) {
     try {
       columns.set(id, resolveFlowCapability(capability, context.flowPath));
     } catch {
@@ -347,8 +348,7 @@ export async function runFlow(
         grew = true;
       }
     }
-    const listSource = listEdge && nodesById.get(listEdge.source);
-    const word: "Row" | "Item" = listSource?.type === "loadTableRows" ? "Row" : "Item";
+    const word: "Row" | "Item" = itemWord(graph, forEachId) === "row" ? "Row" : "Item";
     const run: ZoneRun = { items: Array.from({ length: items.length }, () => undefined), stopped: false };
     zoneRuns.set(forEachId, run);
     hooks?.onNodeStart?.(forEachId);
@@ -438,12 +438,17 @@ export async function runFlow(
     // before the rest start; without a Generate node they go side by side
     // from the first. With no one to ask, the rest go on.
     let next = 0;
-    const generates = order.some((id) => FLOW_NODE_REGISTRY[nodesById.get(id)?.type ?? ""]?.category === "AI");
-    if (generates) {
+    const generators = order.filter((id) => FLOW_NODE_REGISTRY[nodesById.get(id)?.type ?? ""]?.category === "AI");
+    if (generators.length > 0) {
       let generated = false;
       while (!generated && next < items.length && !context.signal?.aborted) generated = await runItem(next++);
       if (generated && next < items.length && !context.signal?.aborted && context.confirmRest) {
-        const ask = { forEach: forEachId, done: next, rest: items.length - next, word };
+        const made = run.items[next - 1]?.outputs;
+        const files = generators.flatMap((id) => {
+          const path = made?.get(id)?.path;
+          return path?.type === "text" && path.value ? [path.value] : [];
+        });
+        const ask = { forEach: forEachId, done: next, rest: items.length - next, word, files };
         run.stopped = !(await context.confirmRest(ask));
       }
     }

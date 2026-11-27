@@ -24,8 +24,10 @@
   border-radius: var(--control-radius);
 }
 
-/* Set on this view: the button says so before it is opened. */
-.class-toolbar-button[aria-pressed="true"] {
+/* Set on this view, or a Table's Links holding any: the button says so
+   before it is opened. */
+.class-toolbar-button[aria-pressed="true"],
+.table-toolbar-button[aria-pressed="true"] {
   color: var(--text-primary);
 }
 

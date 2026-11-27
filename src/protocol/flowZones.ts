@@ -49,6 +49,15 @@ export function flowZones(graph: FlowGraph): Map<string, FlowZone> {
   return zones;
 }
 
+/** What a zone's items are called: rows when its list is a Table's, Load
+ * Table's rows or the rows a Button hands on from a Table, else items. */
+export function itemWord(graph: FlowGraph, forEach: string): "row" | "item" {
+  const list = graph.edges.find((edge) => edge.target === forEach && edge.targetPort === "list");
+  const source = list && graph.nodes.find((node) => node.id === list.source);
+  const rows = source?.type === "loadTableRows" || (source?.type === "button" && list?.sourcePort === "rows");
+  return rows ? "row" : "item";
+}
+
 /** The nodes whose outputs hold one value per item: every For Each, and
  * every node a zone holds. None of their outputs is a run's result
  * (docs/protocol.md, Run inputs and results). */

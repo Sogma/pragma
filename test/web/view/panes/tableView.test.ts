@@ -49,6 +49,7 @@ function setup(readingView = false, designing = true) {
   const onRendered = vi.fn();
   const reportReadout = vi.fn();
   const reloadPath = vi.fn();
+  const linksWritten = vi.fn();
   const tableView = createTableView({
     editorTable,
     dialog: createDialogService(),
@@ -61,14 +62,19 @@ function setup(readingView = false, designing = true) {
     openMedia: vi.fn(),
     dialogHost: document.body,
     reportReadout,
+    linksWritten,
   });
   tableView.setDesigning(designing);
-  return { tableView, editorTable, scheduleSave, onRendered, reportReadout, reloadPath };
+  return { tableView, editorTable, scheduleSave, onRendered, reportReadout, reloadPath, linksWritten };
 }
 
 // A list row's checkbox, at its end.
 const rowBox = (editorTable: HTMLElement, index: number) =>
   editorTable.querySelectorAll<HTMLInputElement>("tbody td.row-select .row-select-box")[index];
+
+// The toolbar's Delete, for the ticked rows.
+const deleteOf = (tableView: { toolbar: HTMLElement }) =>
+  tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement;
 
 describe("render / clear / isActive / getFileName", () => {
   it("is inactive with no file name before any render", () => {
@@ -153,10 +159,10 @@ describe("row add/delete", () => {
   it("the toolbar's Delete, for the selected row, asks first, naming it, and removes it once confirmed", async () => {
     const { tableView, editorTable, scheduleSave } = setup(false, false);
     tableView.render(sampleFile());
-    expect(tableView.toolbar.hidden).toBe(true);
+    expect(deleteOf(tableView).hidden).toBe(true);
     rowBox(editorTable, 0).click();
-    expect(tableView.toolbar.hidden).toBe(false);
-    const button = tableView.toolbar.querySelector(".table-delete-selected") as HTMLButtonElement;
+    expect(deleteOf(tableView).hidden).toBe(false);
+    const button = deleteOf(tableView);
     expect(button.getAttribute("aria-label")).toBe("Delete entry");
     button.click();
     const overlay = document.querySelector(".dialog-panel") as HTMLElement;
@@ -169,7 +175,7 @@ describe("row add/delete", () => {
     expect(document.querySelector(".dialog-panel")).toBeNull();
     expect(editorTable.querySelectorAll("tbody tr")).toHaveLength(0);
     expect(scheduleSave).toHaveBeenCalledTimes(1);
-    expect(tableView.toolbar.hidden).toBe(true);
+    expect(deleteOf(tableView).hidden).toBe(true);
   });
 
   it("Cancel keeps the row, still selected", async () => {
@@ -255,17 +261,16 @@ describe("row add/delete", () => {
     const editing = setup(false, false);
     editing.tableView.render(sampleFile());
     rowBox(editing.editorTable, 0).click();
-    expect(editing.tableView.toolbar.hidden).toBe(false);
+    expect(deleteOf(editing.tableView).hidden).toBe(false);
     editing.tableView.setDesigning(true);
-    // Design's toolbar holds Layout alone.
-    const deleteButton = editing.tableView.toolbar.querySelector(".table-delete-selected") as HTMLElement;
-    expect([editing.tableView.toolbar.hidden, deleteButton.hidden]).toEqual([false, true]);
+    // Design's toolbar holds Layout, and no Delete.
+    expect([editing.tableView.toolbar.hidden, deleteOf(editing.tableView).hidden]).toEqual([false, true]);
     expect(editing.reportReadout).toHaveBeenLastCalledWith("");
     editing.tableView.setDesigning(false);
-    expect(editing.tableView.toolbar.hidden).toBe(true);
+    expect(deleteOf(editing.tableView).hidden).toBe(true);
     rowBox(editing.editorTable, 0).click();
     editing.tableView.setLayout("cards");
-    expect(editing.tableView.toolbar.hidden).toBe(true);
+    expect(deleteOf(editing.tableView).hidden).toBe(true);
     expect(editing.reportReadout).toHaveBeenLastCalledWith("");
     editing.tableView.setLayout("list");
     expect(editing.editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(false);
@@ -280,7 +285,7 @@ describe("row add/delete", () => {
     expect(rowBox(editorTable, 0).checked).toBe(true);
     tableView.render(sampleFile());
     expect(editorTable.querySelector("tbody tr")?.classList.contains("is-selected")).toBe(false);
-    expect(tableView.toolbar.hidden).toBe(true);
+    expect(deleteOf(tableView).hidden).toBe(true);
   });
 });
 
@@ -1194,5 +1199,101 @@ describe("an arranged card", () => {
     tableView.render(sampleFile());
     addColumn(editorTable, "Price");
     expect(savedLast(scheduleSave)).not.toContain('data-role="card"');
+  });
+});
+
+describe("a Table's links and a toolkit click", () => {
+  const linksButtonOf = (tableView: { toolbar: HTMLElement }) =>
+    [...tableView.toolbar.querySelectorAll<HTMLButtonElement>(".table-toolbar-button")].find((button) =>
+      button.textContent?.startsWith("Links"),
+    ) as HTMLButtonElement;
+
+  it("keeps the Table's links through a save of anything else", () => {
+    const { tableView, editorTable, scheduleSave } = setup(false, false);
+    tableView.render(sampleFile({ links: ["tools/make.flow.html"] }));
+    const input = editorTable.querySelector<HTMLInputElement>("tbody .data-table-cell-text");
+    if (!input) throw new Error("no text cell");
+    input.value = "Gadget";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const content = scheduleSave.mock.calls.at(-1)?.[1] as string;
+    expect(parseTableFile(content)?.links).toEqual(["tools/make.flow.html"]);
+  });
+
+  it("offers Links wherever the Table can be saved, counting the Flows it links", () => {
+    const editing = setup(false, false);
+    editing.tableView.render(sampleFile({ links: ["a.flow.html", "b.flow.html"] }));
+    const links = linksButtonOf(editing.tableView);
+    expect([editing.tableView.toolbar.hidden, links.hidden]).toEqual([false, false]);
+    expect(links.querySelector(".count-badge")?.textContent).toBe("2");
+    editing.tableView.setDesigning(true);
+    expect(linksButtonOf(editing.tableView).hidden).toBe(false);
+
+    const reading = setup(true, false);
+    reading.tableView.render(sampleFile());
+    expect([reading.tableView.toolbar.hidden, linksButtonOf(reading.tableView).hidden]).toEqual([true, true]);
+
+    // A library's Table has no toolkits, so nothing to link.
+    const library = setup(false, false);
+    library.tableView.render(sampleFile({ path: "lib:refs/inventory.table.html" }));
+    expect(linksButtonOf(library.tableView).hidden).toBe(true);
+  });
+
+  it("lists its Flows in Links, removes one, and reads the toolkits again once that save is written", () => {
+    const { tableView, scheduleSave, linksWritten } = setup(false, false);
+    tableView.render(sampleFile({ links: ["tools/make.flow.html", "tools/cut.flow.html"] }));
+    linksButtonOf(tableView).click();
+    const popover = document.querySelector<HTMLElement>(".class-popover[aria-label='Links']");
+    if (!popover) throw new Error("no Links popover");
+    expect(popover.querySelector(".class-popover-heading")?.textContent).toBe("Flows · buttons in the Tools tab");
+    expect([...popover.querySelectorAll(".class-link-name")].map((name) => name.textContent)).toEqual(["make", "cut"]);
+    popover.querySelector<HTMLButtonElement>(".class-link .class-icon-button")?.click();
+
+    const [path, content, written] = scheduleSave.mock.calls.at(-1) as [string, string, () => void];
+    expect(path).toBe("inventory.table.html");
+    expect(parseTableFile(content)?.links).toEqual(["tools/cut.flow.html"]);
+    expect(linksButtonOf(tableView).querySelector(".count-badge")?.textContent).toBe("1");
+    expect(linksWritten).not.toHaveBeenCalled();
+    written();
+    expect(linksWritten).toHaveBeenCalledTimes(1);
+    // A later save with no links change reads nothing again.
+    tableView.setMetadata([{ key: "status", values: ["draft"] }]);
+    const later = scheduleSave.mock.lastCall?.[2] as (() => void) | undefined;
+    if (!later) throw new Error("the metadata change wasn't saved");
+    later();
+    expect(linksWritten).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the ticked rows at a click, copied, with the whole file and whether it is private", () => {
+    const { tableView, editorTable } = setup(false, false);
+    tableView.render(
+      sampleFile({
+        metadata: [{ key: "visibility", values: ["private"] }],
+        rows: [
+          { values: { name: "One", done: "false" } },
+          { values: { name: "Two", done: "true" } },
+          { values: { name: "Three", done: "false" } },
+        ],
+      }),
+    );
+    rowBox(editorTable, 0).click();
+    rowBox(editorTable, 2).click();
+    const at = tableView.atClick();
+    expect(at?.rows).toEqual([
+      { values: { name: "One", done: "false" } },
+      { values: { name: "Three", done: "false" } },
+    ]);
+    expect(at?.columns.map((column) => column.id)).toEqual(["name", "done"]);
+    expect(at?.private).toBe(true);
+    expect(parseTableFile(at?.content ?? "")?.rows).toHaveLength(3);
+    // A copy: an edit after the click leaves what the click took.
+    const input = editorTable.querySelector<HTMLInputElement>("tbody .data-table-cell-text");
+    if (!input) throw new Error("no text cell");
+    input.value = "Changed";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(at?.rows[0].values.name).toBe("One");
+  });
+
+  it("takes nothing before a Table is drawn", () => {
+    expect(setup().tableView.atClick()).toBeUndefined();
   });
 });

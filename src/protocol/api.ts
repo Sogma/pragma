@@ -674,7 +674,8 @@ export interface SpaceGraphResponse {
 // document; the graph is read fresh when one is clicked, as every Flow run
 // reads it.
 export interface TextToolkitInfo {
-  // The Class that gave the document this toolkit, holding it as a row.
+  // The Class that gave the document this toolkit, holding it as a row, or
+  // the Table that links it.
   classPath: string;
   path: string;
   // The flow's display name; empty falls back to its file name.
@@ -727,6 +728,11 @@ export interface TableFileResponse {
   // The layout picked for it on this install, which it opens in over
   // `layout`; absent where none was.
   localLayout?: TableLayout;
+  // The Flows the Table links, as written, and those that resolve, in their
+  // order, as its toolkits (docs/protocol.md, Toolkit resolution). Absent
+  // reads as none.
+  links?: string[];
+  toolkits?: TextToolkitInfo[];
   // A row card's tiles; absent shows every column.
   card?: CardTile[];
   // The tiles of the card a cards view draws; absent composes it.

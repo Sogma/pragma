@@ -25,9 +25,10 @@ import {
   type TableColumn,
 } from "../../src/protocol/types.ts";
 import type { EntryIcon } from "../core/paths.ts";
-import { el, setEntryIcon } from "./dom.ts";
+import { el } from "./dom.ts";
 import { createFieldPopover } from "./fieldPopover.ts";
 import { type Flyout, openFlyout } from "./flyout.ts";
+import { createLinksPopover } from "./linksPopover.ts";
 
 // "rows" marks a change to which rows the Class holds, its own filter,
 // which the host reads again once the file is written.
@@ -654,90 +655,16 @@ export function createClassToolbar(deps: ClassToolbarDeps): ClassToolbar {
 
   // ---- Links ----
 
-  // What each kind of link gives the rows, said by its section's heading.
-  const LINK_SECTIONS: readonly { use: ClassLinkUse; heading: string; gives: string }[] = [
-    { use: "toolkit", heading: "Flows", gives: "buttons in each note's Tools tab" },
-    { use: "template", heading: "Templates", gives: "New note starts from one" },
-    { use: "reference", heading: "Files", gives: "in each note's Links tab" },
-  ];
-
-  // The files the Class links its rows to, by what each gives them.
   function linksPanel(): HTMLElement {
-    const panel = popover("Links");
-    const body = el("div", "class-popover-body");
-    const refusal = el("div", "inline-error class-popover-error");
-    panel.appendChild(body);
-
-    function add(link: string): void {
-      deps.change((file) => {
-        if (!file.links.includes(link)) file.links.push(link);
-      }, "view");
-      draw();
-    }
-
-    function draw(): void {
-      body.replaceChildren();
-      const links = deps.current()?.file.links ?? [];
-      const described = links.map((link, index) => ({ index, ...deps.describeLink(link) }));
-      for (const { use, heading, gives } of LINK_SECTIONS) {
-        const shown = described.filter((link) => link.use === use);
-        if (shown.length === 0) continue;
-        const title = el("div", "caption class-popover-heading", heading);
-        title.appendChild(el("span", "class-links-gives", ` · ${gives}`));
-        body.appendChild(title);
-        for (const { index, icon, name, path } of shown) {
-          const row = el("div", "class-link");
-          const glyph = el("span");
-          setEntryIcon(glyph, icon);
-          const label = el("span", "class-link-name", name);
-          label.dataset.tooltip = path;
-          const remove = iconButton("Remove this link", "x");
-          remove.addEventListener("click", () => {
-            deps.change((file) => file.links.splice(index, 1), "view");
-            draw();
-          });
-          row.append(glyph, label, remove);
-          body.appendChild(row);
-        }
-      }
-      const pick = textButton("+ Add file");
-      pick.addEventListener("click", () => deps.pickFile(pick, add));
-      refusal.hidden = true;
-      body.append(pick, refusal, el("div", "caption class-popover-note", "or drag one in from the tree"));
-      if (links.length === 0) {
-        body.appendChild(
-          el(
-            "div",
-            "caption class-popover-note",
-            "A Flow gives each note its buttons, a template from _templates starts each new note, and any other file shows in each note's Links tab.",
-          ),
-        );
-      }
-      flyout?.reposition();
-    }
-
-    panel.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      panel.classList.add("drag-over");
+    return createLinksPopover({
+      owner: "class",
+      links: () => deps.current()?.file.links ?? [],
+      change: (edit) => deps.change((file) => edit(file.links), "view"),
+      pickFile: deps.pickFile,
+      droppedFile: deps.droppedFile,
+      describeLink: deps.describeLink,
+      resized: () => flyout?.reposition(),
     });
-    panel.addEventListener("dragleave", (event) => {
-      if (!panel.contains(event.relatedTarget as Node | null)) panel.classList.remove("drag-over");
-    });
-    panel.addEventListener("drop", (event) => {
-      panel.classList.remove("drag-over");
-      const dropped = deps.droppedFile(event);
-      if (!dropped) return;
-      event.preventDefault();
-      if ("link" in dropped) {
-        add(dropped.link);
-        return;
-      }
-      refusal.textContent = dropped.refused;
-      refusal.hidden = false;
-    });
-
-    draw();
-    return panel;
   }
 
   // The field's key is the frontmatter key it reads, and its label starts

@@ -7,11 +7,11 @@
 // Each run asks through a broker of its own: a broker denies a prompt whose
 // subject moved on, so runs sharing one would deny each other's.
 import type { FileResponse } from "../core/apiClient.ts";
-import type { JobStarting } from "../flow/browserEnvironment.ts";
 import {
   runToolkitAction,
   type ToolkitActionDeps,
   type ToolkitInvocation,
+  type ToolkitRow,
   type ToolkitRun,
 } from "../flow/toolkitAction.ts";
 import { type CapabilityBrokerDeps, createCapabilityBroker } from "../services/capabilityBroker.ts";
@@ -32,7 +32,7 @@ export interface StartedToolkitRun {
 }
 
 export interface ToolkitRunner {
-  start(invocation: ToolkitInvocation, actionId: string, jobStarting?: JobStarting): StartedToolkitRun;
+  start(invocation: ToolkitInvocation, actionId: string, row?: ToolkitRow): StartedToolkitRun;
   dispose(): void;
 }
 
@@ -40,7 +40,7 @@ export function createToolkitRunner(deps: ToolkitRunnerDeps): ToolkitRunner {
   const going = new Set<(reason: string) => void>();
 
   return {
-    start(invocation, actionId, jobStarting) {
+    start(invocation, actionId, row) {
       const broker = createCapabilityBroker(deps);
       const controller = new AbortController();
       const stop = (reason: string) => {
@@ -49,12 +49,10 @@ export function createToolkitRunner(deps: ToolkitRunnerDeps): ToolkitRunner {
         broker.unmount(); // closes a grant prompt the run is waiting on
       };
       going.add(stop);
-      const done = runToolkitAction(invocation, actionId, { broker, ...deps }, controller.signal, jobStarting).finally(
-        () => {
-          going.delete(stop);
-          broker.dispose();
-        },
-      );
+      const done = runToolkitAction(invocation, actionId, { broker, ...deps }, controller.signal, row).finally(() => {
+        going.delete(stop);
+        broker.dispose();
+      });
       return { done, stop };
     },
     dispose() {

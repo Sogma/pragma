@@ -2,10 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TextToolkitInfo } from "../../../src/protocol/api.ts";
 import { SetupError } from "../../../src/protocol/setupNeed.ts";
-import type { JobStarting } from "../../../web/flow/browserEnvironment.ts";
-import type { ToolkitInvocation, ToolkitRun } from "../../../web/flow/toolkitAction.ts";
+import type { ToolkitInvocation, ToolkitRow, ToolkitRun } from "../../../web/flow/toolkitAction.ts";
 import type { DocumentAccess } from "../../../web/services/documentAccess.ts";
-import type { MenuOpenOptions } from "../../../web/services/menus.ts";
+import type { ContextMenuService, MenuOpenOptions } from "../../../web/services/menus.ts";
 import { createToolkitPanel } from "../../../web/view/toolkitPanel.ts";
 import { emptyModelLists } from "../support/emptyModelLists.ts";
 
@@ -32,7 +31,7 @@ function setup() {
   const access = {} as DocumentAccess;
   let path = "draft.md";
   const runs: HeldRun[] = [];
-  const start = vi.fn((_invocation: ToolkitInvocation, _actionId: string, _jobStarting: JobStarting) => {
+  const start = vi.fn((_invocation: ToolkitInvocation, _actionId: string, _row: ToolkitRow) => {
     let finish: HeldRun["finish"] = () => {};
     let fail: HeldRun["fail"] = () => {};
     const done = new Promise<ToolkitRun>((resolve, reject) => {
@@ -68,13 +67,13 @@ function setup() {
   const panel = createToolkitPanel(
     { buttons, results },
     {
-      target: () => ({ path, access, group: "group-1" }),
+      target: () => ({ path, source: { kind: "text" as const, access }, group: "group-1" }),
       activePath: () => path,
       tabs: () => tabs,
       reveal,
       start,
       confirm,
-      contextMenu: { open: menuOpen, isOpen: menuIsOpen, close: menuClose },
+      contextMenu: { open: menuOpen, isOpen: menuIsOpen, close: menuClose } as unknown as ContextMenuService,
       modelLists: emptyModelLists(),
     },
   );
@@ -260,6 +259,13 @@ describe("createToolkitPanel", () => {
     expect(openFlow).toHaveBeenCalledWith("songs/tools/lyrics.class.html");
   });
 
+  it("offers no Class to open for a Table's toolkit, which the Table itself gives", () => {
+    const { panel, buttons, menuOpen } = setup();
+    panel.setToolkits([{ ...rewrite, classPath: "shots.table.html" }], "shots.table.html");
+    buttons.querySelector<HTMLButtonElement>(".toolkit-section-header .toolkit-section-menu")?.click();
+    expect(menuOpen.mock.calls[0][0].items?.map((item) => item.label)).toEqual(["Open Flow"]);
+  });
+
   it("opens the same menu under the header's More options button, and closes it on a second click", () => {
     const { panel, buttons, menuOpen, menuIsOpen, menuClose } = setup();
     panel.setToolkits([rewrite], "draft.md");
@@ -285,9 +291,13 @@ describe("createToolkitPanel", () => {
     panel.setToolkits([rewrite], "draft.md");
     buttons.querySelectorAll<HTMLButtonElement>(".run-button")[1].click();
     expect(start).toHaveBeenCalledWith(
-      expect.objectContaining({ flow: { path: "tools/rewrite.flow.html", name: "Rewrite" }, path: "draft.md", access }),
+      expect.objectContaining({
+        flow: { path: "tools/rewrite.flow.html", name: "Rewrite" },
+        path: "draft.md",
+        source: { kind: "text", access },
+      }),
       "expand",
-      expect.any(Function),
+      expect.objectContaining({ jobStarting: expect.any(Function), ask: expect.any(Function) }),
     );
     // What the run opens to the side goes beside the group the click came from.
     const [invocation] = start.mock.calls[0];

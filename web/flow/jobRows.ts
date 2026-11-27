@@ -28,6 +28,8 @@ export interface LiveParts {
   settings?: string;
   stage: string;
   problem: boolean;
+  // Waiting on the person's answer, so drawn still, not spinning.
+  waiting?: boolean;
 }
 
 /** The model lists a row names a job's model from, as its picker does. */
@@ -103,14 +105,15 @@ export function liveRow(parts: LiveParts, tag: "div" | "span" = "div"): HTMLElem
   const el = document.createElement(tag);
   el.className = "flow-jobs-row";
   const thumb = document.createElement("span");
-  thumb.className = "flow-jobs-thumb is-running";
-  thumb.appendChild(spinner());
+  thumb.className = `flow-jobs-thumb ${parts.waiting ? "is-waiting" : "is-running"}`;
+  if (!parts.waiting) thumb.appendChild(spinner());
   const text = document.createElement("span");
   text.className = "flow-jobs-text";
   text.append(line("flow-jobs-title", parts.title));
   if (parts.detail) text.append(line("flow-jobs-detail", parts.detail));
   if (parts.settings) text.append(line("flow-jobs-settings", parts.settings));
-  text.append(line(`flow-jobs-stage ${parts.problem ? "is-problem" : "is-live"}`, parts.stage));
+  const stage = parts.problem ? "is-problem" : parts.waiting ? "is-waiting" : "is-live";
+  text.append(line(`flow-jobs-stage ${stage}`, parts.stage));
   el.append(thumb, text);
   return el;
 }

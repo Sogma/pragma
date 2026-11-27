@@ -1,6 +1,7 @@
 // The paths each kind of space document holds, rewritten in place for a
-// move: a Table's `media` and `path` values and drop folders, a Class's
-// links, drop folders and Folder values, and an AGENTS.md's folder settings.
+// move: a Table's `media` and `path` values, drop folders and links, a
+// Class's links, drop folders and Folder values, and an AGENTS.md's folder
+// settings.
 //
 // A Flow's and an Applet's paths are left as written: grants are pinned to
 // that code, and a rewrite no one made there would leave them behind.
@@ -59,7 +60,8 @@ export function rewriteDocumentPaths(
         Object.entries(row.values).map(([id, value]) => [id, paths.has(id) ? (next(value) ?? value) : value]),
       ),
     }));
-    return written(serializeTableFile({ ...file, columns, rows }));
+    const links = file.links?.map((each) => next(each) ?? each);
+    return written(serializeTableFile({ ...file, columns, rows, ...(links ? { links } : {}) }));
   }
   if (isClassFile(docPath)) {
     const file = parseClassFile(content);

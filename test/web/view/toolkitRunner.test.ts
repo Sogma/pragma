@@ -69,7 +69,7 @@ function setup() {
   const invocation = {
     flow: { path: "tools/p.flow.html", name: "P" },
     path: "n.md",
-    access,
+    source: { kind: "text" as const, access },
     openToSide: vi.fn(async () => {}),
   };
   return { runner, deps, view, invocation };

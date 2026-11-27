@@ -260,7 +260,7 @@ A scope's `pragma` value may be a map of **settings**: core's sit directly under
 
 Alongside standard Markdown links (`[text](path)`), a text document can reference another entry with a wikilink: `[[target]]` or, for separate display text, `[[target|display text]]` — the long-standing wiki convention, piped form included. A Fountain screenplay is the exception: there `[[…]]` is a note, which every Fountain app leaves out of the printed script, so a screenplay links by [world names](#world-names) instead.
 
-A wikilink's target is a path, never a name, read by the grammar every path a document holds shares — Markdown links and embeds, `media` and `path` values, a Flow's config, an Applet's imports, a Class's links:
+A wikilink's target is a path, never a name, read by the grammar every path a document holds shares — Markdown links and embeds, `media` and `path` values, a Flow's config, an Applet's imports, a Class's or a Table's links:
 
 - `lib:<id>/…` names an entry in that library and `space:…` one in the space (see [Addresses and libraries](#addresses-and-libraries)).
 - `/…` names a path from the root the document sits in, the space or its library.
@@ -279,7 +279,7 @@ A host writes a path relative from the document when the two have the same close
 
 #### References when entries move
 
-A reference survives the move of either entry it joins. A host that moves an entry rewrites, in the same operation, every path the move would break, written as a new link would be from the document's place: a Markdown document's links and embeds, a Table's `media` and `path` values and drop folders, a Class's links and drop folders, the folders its Folder rules name, written from its scope as Folder writes one, the folders an `AGENTS.md`'s settings name, and the folders `_presets.json` lists; a path between two entries with the same closest parent scope is relative, so moving that scope rewrites none of them. A path in a Flow or an Applet is left as written. With no path read as a name, a move has no collision to report.
+A reference survives the move of either entry it joins. A host that moves an entry rewrites, in the same operation, every path the move would break, written as a new link would be from the document's place: a Markdown document's links and embeds, a Table's `media` and `path` values, drop folders and links, a Class's links and drop folders, the folders its Folder rules name, written from its scope as Folder writes one, the folders an `AGENTS.md`'s settings name, and the folders `_presets.json` lists; a path between two entries with the same closest parent scope is relative, so moving that scope rewrites none of them. A path in a Flow or an Applet is left as written. With no path read as a name, a move has no collision to report.
 
 #### World names
 
@@ -402,7 +402,7 @@ A host's file read returns, for a text document:
 { "kind": "text", "path": "...", "content": "...", "documentType": "note", "toolkits": [ ... ], "classLinks": [ ... ], "fields": [ ... ] }
 ```
 
-Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root. Each entry in `fields` is a [field](#class-fields) the Classes holding it define for one of its properties, so a host can draw that property as its type; a key two of them define differently, other than by label, has none.
+Each entry in `toolkits` is a resolved toolkit: `{ classPath, path, name, actions }`, `classPath` being the Class that links it, or for a Table's read the Table itself, and `actions` its buttons, each `{ nodeId, label, comment }`, with no `comment` for a node that has none. Each entry in `classLinks` is `{ classPath, name, paths }`: a Class holding the document, its display name, and the existing [other files](#what-a-class-links) it links, from the root. Each entry in `fields` is a [field](#class-fields) the Classes holding it define for one of its properties, so a host can draw that property as its type; a key two of them define differently, other than by label, has none.
 
 #### Text embeds
 
@@ -523,6 +523,10 @@ A row's full card shows its fields as tiles on the grid [App mode](#app-mode) la
 
 - **The parts stay the [cards view](#table-views)'s.** The tiles place and size the picture, the title, the badge and the lines, and `data-columns` stops at 4. A column the block doesn't list is off the card.
 - **Without the block**, the card is composed as the cards view says. A writer adds the block only once the card is arranged, and keeps it. An added column joins its end; a deleted one leaves it.
+
+#### Table links
+
+`<ul data-role="links">`, after the small card's block, lists the Flows the Table links, one `<li>` each, in order, each a path read from the Table's folder, as a [Class's links](#what-a-class-links) are. They are the Table's toolkits (see [Toolkit resolution](#toolkit-resolution)). A writer leaves the list out when it is empty, and a Table's read gives it as `links` beside its resolved `toolkits`.
 
 #### Table writes
 
@@ -981,7 +985,7 @@ Order is topological: a node runs once every upstream node has finished. These r
 
 **A zone holding a [`generateText`](flow-nodes.md#generatetext), [`generateOptions`](flow-nodes.md#generateoptions), [`generateImage`](flow-nodes.md#generateimage) or [`generateVideo`](flow-nodes.md#generatevideo) node asks before spending on the rest.** Its items run one at a time until one generates, an item answered by [result reuse](#run-result-reuse) counting for none; before any other item starts, the person who started the run is asked whether to go on, on every run. Stopping ends the run there: what the items made stays, the End and every node after it are skipped, and nothing fails. With no person present nothing is asked, and every item runs.
 
-**A path a Table's column hands on asks once for the column.** When the zone's list is a [`loadTableRows`](flow-nodes.md#loadtablerows) whose Table the graph names, and a [`getField`](flow-nodes.md#getfield) on the zone's `item` wires a column by its id straight into a node's path, that node asks for `readColumn:<Table address>#<column id>`, or `writeColumn:` for a write, in place of each file's key: derived as a declaration is, and asked for with the run's other grants before any node starts. Its grant covers every path the column holds, whatever the value, rows added later included, read as the run hands the column on; a host checks the Table as the node asks. A folder a node writes into keeps its [folder grant](#wired-paths).
+**A path a Table's column hands on asks once for the column.** When the zone's list is a [`loadTableRows`](flow-nodes.md#loadtablerows) whose Table the graph names, or a [`button`](flow-nodes.md#button)'s `rows` in a run started from a Table, and a [`getField`](flow-nodes.md#getfield) on the zone's `item` wires a column by its id straight into a node's path, that node asks for `readColumn:<Table address>#<column id>`, or `writeColumn:` for a write, in place of each file's key: derived as a declaration is, and asked for with the run's other grants before any node starts. A Button's Table is the one clicked in, which the graph never names, so a host accepts such a key for any Table of the space while a Button's zone wires that column into a pin of that access. Its grant covers every path the column holds, whatever the value, rows added later included, read as the run hands the column on; a host checks the Table as the node asks. A folder a node writes into keeps its [folder grant](#wired-paths).
 
 #### Run result reuse
 
@@ -1007,7 +1011,7 @@ The fields exposed in [App mode](#app-mode) define a run's public inputs and res
 
 ### Toolkit resolution
 
-Toolkit resolution runs on every read of a text document in the space; a library's documents have none. Each [Class](#classes) holding the document as a row contributes the Flows it links, in its links' order, the Classes taken in path order: natural, ignoring case. A Flow reached twice is one toolkit, at its first place, and a link that is not an existing `.flow.html` file in the space gives none. A Flow's buttons are its Button nodes (see [Actions](#actions)). No toolkit means no buttons; several are presented in that order.
+Toolkit resolution runs on every read of a text document in the space; a library's documents have none. Each [Class](#classes) holding the document as a row contributes the Flows it links, in its links' order, the Classes taken in path order: natural, ignoring case. A Flow reached twice is one toolkit, at its first place, and a link that is not an existing `.flow.html` file in the space gives none. A Flow's buttons are its Button nodes (see [Actions](#actions)). No toolkit means no buttons; several are presented in that order. A Table's toolkits are the Flows its own [links](#table-links) name, in their order, by the same rules; a Table in a library has none.
 
 ### Actions
 
@@ -1019,7 +1023,7 @@ A Flow a document's [toolkit resolution](#toolkit-resolution) reaches is a toolk
 
 **Where a click's work goes is an ending**: an ordinary node with no rule of its own, such as [`replaceSelection`](flow-nodes.md#replaceselection), which proposes text in place of the bound selection, [`showResult`](flow-nodes.md#showresult), which shows text under the button, and [`openToSide`](flow-nodes.md#opentoside), which opens a file beside the bound document. A click may end in several places; each ending acts when it runs, and a rejected proposal undoes no other. An ending that shows something does nothing when no one is present, and fails nothing. No ending moves the writer off the document the click was made in.
 
-**A run is bound to the document the button was clicked in**, as it stood at the click: the whole file, unsaved edits included, and its selection. A later edit or selection change moves neither what `currentDocument` reads nor where `replaceSelection` proposes; a change the writer makes inside the text being replaced drops that proposal. A private document is refused. Switching documents stops the run. A run started anywhere else — the canvas, or a caller outside the host — has no document bound. Its results are its exposed outputs within the part that ran.
+**A run is bound to the document the button was clicked in**, as it stood at the click: the whole file, unsaved edits included, and its selection, or in a Table the rows ticked there. A later edit or selection change moves neither what `currentDocument` reads nor where `replaceSelection` proposes; a change the writer makes inside the text being replaced drops that proposal. A private document is refused. Switching documents stops the run. A run started anywhere else — the canvas, or a caller outside the host — has no document bound. Its results are its exposed outputs within the part that ran.
 
 ### Patch
 

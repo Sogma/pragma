@@ -373,6 +373,9 @@ export interface TableFile {
   /** The tiles of the card a cards view draws. Absent composes it from the
    * parts rule. */
   smallCard?: SmallCardTile[];
+  /** The Flows the Table links, whose buttons are its toolkits, as a Class's
+   * links are. Absent or empty links none. */
+  links?: string[];
 }
 
 /** A Table with no columns or rows, at the version this build writes: what

@@ -135,6 +135,15 @@ export interface DocumentPort {
   replaceSelection(alternatives: readonly string[]): void;
   /** Shows lines under the button the run was started from. */
   showResult(lines: readonly string[]): void;
+  /** The rows ticked where the click was made, when that is a Table, as
+   * they stood at the click. Absent for any other document. */
+  readonly rows?: { columns: readonly TableColumn[]; rows: readonly TableRow[] };
+}
+
+/** The Table a run's Button rows come from, by its address: the document
+ * the click was made in, when that is a Table. */
+export function rowsTableOf(document: DocumentPort | undefined): string | undefined {
+  return document?.rows ? formatDeclaredPath(parseRootedPath(document.path)) : undefined;
 }
 
 export type PortValue =
@@ -170,9 +179,16 @@ export interface NodeExecutionContext {
    * every file the column names, in place of the file's. */
   pathColumn?: FlowReadColumnCapability | FlowWriteColumnCapability;
   /** Asked once a For Each zone holding a Generate node has generated for an
-   * item, before any other item starts (docs/protocol.md, For Each zones):
-   * true runs the rest. Absent where no one is present, and the rest run. */
-  confirmRest?: (ask: { forEach: string; done: number; rest: number; word: "Row" | "Item" }) => Promise<boolean>;
+   * item, before any other item starts (docs/protocol.md, For Each zones),
+   * with the paths the item's Generate nodes handed on: true runs the rest.
+   * Absent where no one is present, and the rest run. */
+  confirmRest?: (ask: {
+    forEach: string;
+    done: number;
+    rest: number;
+    word: "Row" | "Item";
+    files: readonly string[];
+  }) => Promise<boolean>;
   /** The status-bar model indicator. The generate executor wraps just its
    * own request, not the whole run, so it tracks only the in-flight call. */
   beginLlmActivity: (model: string) => void;
@@ -1366,12 +1382,17 @@ export function buttonStop(
   wired: ReadonlySet<string> | undefined,
 ): string | undefined {
   if (wired?.size === 0) return "Nothing is wired from it, so a click would run nothing";
+  if (wired?.has("rows") && !document.rows) return "Its rows come from a Table: click it in one, with rows ticked";
+  if (wired?.has("rows") && document.rows?.rows.length === 0) return "Tick some rows first";
   if (configBoolean(node, "requireSelection") && !document.hasSelection) return "Select some text first";
   return undefined;
 }
 
-// The document is read only when a wire takes its selection or text, so a
-// Button that hands on just its path asks for nothing.
+// The document is read only when a wire takes its selection, text or rows,
+// so a Button that hands on just its path asks for nothing. Rows pass the
+// same read, which refuses a private document. A Table's ticked rows go on
+// as Load Table hands on its rows: keyed by column id, a `media` or `path`
+// value from the root.
 const button: NodeExecutor = async (node, _inputs, context, wired) => {
   const document = boundDocument(context);
   const stop = buttonStop(node, document, wired);
@@ -1379,13 +1400,25 @@ const button: NodeExecutor = async (node, _inputs, context, wired) => {
   const outputs: Record<string, PortValue> = {
     path: { type: "text", value: formatRootPath(parseRootedPath(document.path)) },
   };
-  if (wired && !wired.has("selection") && !wired.has("raw")) return outputs;
+  const reads = (port: string) => !wired || wired.has(port);
+  if (!reads("selection") && !reads("raw") && !reads("rows")) return outputs;
   if (!(await context.ensureCapability({ type: "readCurrentDocument" }))) {
     throw new Error("Permission denied to read the open document");
   }
   const { content, selection } = document.read();
-  outputs.selection = { type: "text", value: selection };
-  outputs.raw = { type: "text", value: content };
+  const ticked = document.rows;
+  const table = rowsTableOf(document);
+  if (ticked && table && reads("rows")) {
+    const value = documentValues(context.flowPath, table);
+    const handed = ticked.rows.map((row) =>
+      Object.fromEntries(ticked.columns.map((column) => [column.id, value(column.type, row.values[column.id] ?? "")])),
+    );
+    outputs.rows = { type: "object", value: handed };
+  }
+  if (reads("selection") || reads("raw")) {
+    outputs.selection = { type: "text", value: selection };
+    outputs.raw = { type: "text", value: content };
+  }
   return outputs;
 };
 

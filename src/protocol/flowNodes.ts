@@ -1398,8 +1398,9 @@ const showResult: FlowNodeTypeDefinition = {
 
 /** Where a toolkit click starts: each instance is a button, and a click runs
  * it before anything else, then what its wires reach and what those need.
- * It hands on the document the click was made in. Only `selection` and
- * `raw` read it, so a Button that passes on just its path asks for nothing. */
+ * It hands on the document the click was made in. Only `selection`, `raw`
+ * and `rows` read it, so a Button that passes on just its path asks for
+ * nothing. */
 const button: FlowNodeTypeDefinition = {
   type: "button",
   label: "Button",
@@ -1408,7 +1409,12 @@ const button: FlowNodeTypeDefinition = {
   keywords: ["trigger", "run", "click", "press", "action", "toolkit", "start", "selection"],
   version: "2.0",
   inputs: [],
-  outputs: [textPort("selection"), ...NOTE_OUTPUTS.filter((port) => port.id === "raw"), textPort("path")],
+  outputs: [
+    textPort("selection"),
+    ...NOTE_OUTPUTS.filter((port) => port.id === "raw"),
+    objectPort("rows", "The rows ticked where it was clicked in a Table, each keyed by column id."),
+    textPort("path"),
+  ],
   configFields: [
     {
       key: "requireSelection",
@@ -1419,7 +1425,9 @@ const button: FlowNodeTypeDefinition = {
   ],
   configKeys: ["requireSelection"],
   capabilityFor: (_config, wired) =>
-    !wired || wired.has("selection") || wired.has("raw") ? { type: "readCurrentDocument" } : undefined,
+    !wired || wired.has("selection") || wired.has("raw") || wired.has("rows")
+      ? { type: "readCurrentDocument" }
+      : undefined,
   action: true,
 };
 
@@ -1656,6 +1664,7 @@ export function runCapabilities(
   graph: FlowGraph,
   flowPath: string,
   skip?: { has(nodeId: string): boolean },
+  rowsTable?: string,
 ): { nodeId: string; capability: FlowCapabilityDeclaration }[] {
   const needs: { nodeId: string; capability: FlowCapabilityDeclaration }[] = [];
   const leftOut = nodesLeftOut(graph);
@@ -1672,28 +1681,34 @@ export function runCapabilities(
     const capability = FLOW_NODE_REGISTRY[node.type]?.capabilityFor?.(node.config, wired.get(node.id) ?? new Set());
     if (capability) declared(node.id, capability);
   }
-  for (const [nodeId, capability] of pathColumns(graph)) {
+  for (const [nodeId, capability] of pathColumns(graph, rowsTable)) {
     if (!leftOut.has(nodeId) && !skip?.has(nodeId)) declared(nodeId, capability);
   }
   return needs;
 }
 
-/** Each node a Table column hands its wired path, with the column grant it
- * asks for in place of each file's (docs/protocol.md, For Each zones): a Get
- * Field on a zone's item wires the column straight in, and the zone's rows
- * come from a Load Table whose Table the graph names. A key that isn't a
- * column id, or a folder written into, names no column. */
-export function pathColumns(graph: FlowGraph): Map<string, FlowReadColumnCapability | FlowWriteColumnCapability> {
-  const columns = new Map<string, FlowReadColumnCapability | FlowWriteColumnCapability>();
+interface ColumnUse {
+  nodeId: string;
+  access: WiredAccess;
+  column: string;
+  // The Load Table's own Table, or none where a Button's rows feed the zone.
+  table?: string;
+}
+
+// Each node a Table column hands its wired path, and where the zone's rows
+// come from: a Load Table whose Table the graph names, or a Button.
+function columnUses(graph: FlowGraph): ColumnUse[] {
+  const uses: ColumnUse[] = [];
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const into = (nodeId: string, portId: string) =>
     graph.edges.find((edge) => edge.target === nodeId && edge.targetPort === portId);
   for (const zone of flowZones(graph).values()) {
     const list = into(zone.forEach, "list");
     const rows = list && nodesById.get(list.source);
-    if (rows?.type !== "loadTableRows" || list?.sourcePort !== "rows" || into(rows.id, PATH_PORT)) continue;
-    const table = configString(rows.config, "tablePath");
-    if (!table) continue;
+    const fromButton = rows?.type === "button" && list?.sourcePort === "rows";
+    const fromTable = rows?.type === "loadTableRows" && list?.sourcePort === "rows" && !into(rows.id, PATH_PORT);
+    const table = fromTable ? configString(rows.config, "tablePath") : "";
+    if (!fromButton && !table) continue;
     for (const edge of graph.edges) {
       const getter = nodesById.get(edge.source);
       const target = nodesById.get(edge.target);
@@ -1707,8 +1722,45 @@ export function pathColumns(graph: FlowGraph): Map<string, FlowReadColumnCapabil
       const slot = Number(/^field_(\d+)$/.exec(edge.sourcePort)?.[1]);
       const column = slot ? configString(getter.config, `field${slot}Key`) : "";
       if (!column || columnIdOf(column) !== column) continue;
-      columns.set(target.id, { type: spec.access === "read" ? "readColumn" : "writeColumn", path: table, column });
+      uses.push({ nodeId: target.id, access: spec.access, column, ...(table ? { table } : {}) });
     }
+  }
+  return uses;
+}
+
+/** The columns a Button's rows hand a node in a zone, by the access they're
+ * read or written with: the keys a host accepts for whichever Table a
+ * toolkit runs in, though the graph names none. */
+export function rowColumnUses(graph: FlowGraph): { access: WiredAccess; column: string }[] {
+  return columnUses(graph).flatMap(({ access, column, table }) => (table === undefined ? [{ access, column }] : []));
+}
+
+/** A column grant's key read back: `readColumn:<address>#<column id>` or
+ * `writeColumn:…`, split at its first colon and its last `#`. */
+export function columnCapabilityOfKey(key: string): FlowReadColumnCapability | FlowWriteColumnCapability | undefined {
+  const colon = key.indexOf(":");
+  const hash = key.lastIndexOf("#");
+  const type = key.slice(0, colon);
+  if (colon === -1 || hash <= colon || (type !== "readColumn" && type !== "writeColumn")) return undefined;
+  const capability = { type, path: key.slice(colon + 1, hash), column: key.slice(hash + 1) } as const;
+  return columnIdOf(capability.column) === capability.column && flowCapabilityKey(capability) === key
+    ? capability
+    : undefined;
+}
+
+/** Each node a Table column hands its wired path, with the column grant it
+ * asks for in place of each file's (docs/protocol.md, For Each zones): a Get
+ * Field on a zone's item wires the column straight in, and the zone's rows
+ * come from a Load Table whose Table the graph names, or from a Button
+ * clicked in `rowsTable`. A key that isn't a column id names no column. */
+export function pathColumns(
+  graph: FlowGraph,
+  rowsTable?: string,
+): Map<string, FlowReadColumnCapability | FlowWriteColumnCapability> {
+  const columns = new Map<string, FlowReadColumnCapability | FlowWriteColumnCapability>();
+  for (const { nodeId, access, column, table } of columnUses(graph)) {
+    const path = table ?? rowsTable;
+    if (path) columns.set(nodeId, { type: access === "read" ? "readColumn" : "writeColumn", path, column });
   }
   return columns;
 }

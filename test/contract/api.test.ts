@@ -4395,6 +4395,24 @@ describe("API contract — toolkits", () => {
     await testServer.close();
   });
 
+  it("gives a Table the toolkits its own links name, dropping a Flow that isn't there", async () => {
+    await writeFile(
+      path.join(testServer.spaceRoot, "tools", "shots.table.html"),
+      serializeTableFile({
+        version: "1.0",
+        columns: [{ id: "title", type: "text", label: "Title" }],
+        rows: [],
+        links: ["rewrite.flow.html", "missing.flow.html"],
+      }),
+    );
+    const body = await (await fetch(`${testServer.baseUrl}/api/file?path=tools/shots.table.html`)).json();
+    expect(body.links).toEqual(["rewrite.flow.html", "missing.flow.html"]);
+    expect(
+      body.toolkits.map((toolkit: { path: string; classPath: string }) => [toolkit.path, toolkit.classPath]),
+    ).toEqual([["tools/rewrite.flow.html", "tools/shots.table.html"]]);
+    expect(body.toolkits[0].actions.map((action: { label: string }) => action.label)).toEqual(["Tighten", "Expand"]);
+  });
+
   // Its tags can't be read, but it has to open for the writer to fix it.
   it("opens a document whose frontmatter doesn't parse, with no toolkits", async () => {
     const broken = "---\ntags: [rewrite]\ntitle: Chapter 1: The Start\n---\n\nSome text.\n";

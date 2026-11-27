@@ -13,6 +13,7 @@ import {
   FOR_EACH_PAIR_KEY,
   FOR_EACH_TYPE,
   flowZones,
+  itemWord,
   zonePartners,
 } from "../../src/protocol/flowZones.ts";
 import type { FlowGraph, FlowNodeInstance } from "../../src/protocol/types.ts";
@@ -68,13 +69,6 @@ export function withEnd(node: FlowNodeInstance, endId: () => string): FlowNodeIn
  * node alone. */
 export function pairOf(graph: FlowGraph, nodeId: string): Set<string> {
   return new Set([nodeId, ...zonePartners(graph, nodeId)]);
-}
-
-/** What a zone's items are called: a Table's rows, else items. */
-export function itemWord(graph: FlowGraph, forEach: string): "row" | "item" {
-  const list = graph.edges.find((edge) => edge.target === forEach && edge.targetPort === "list");
-  const source = list && graph.nodes.find((node) => node.id === list.source);
-  return source?.type === "loadTableRows" ? "row" : "item";
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {

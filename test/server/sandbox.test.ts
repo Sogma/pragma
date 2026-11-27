@@ -809,3 +809,62 @@ describe("a Table column a zone reads or writes", () => {
     expect(await statusOf(performSandboxWrite(space, flow, "space:notes/z.md", "x"))).toBe(403);
   });
 });
+
+describe("a column a toolkit's Table hands a zone", () => {
+  const ROWS = "projects/rows.flow.html";
+  const rowsFlow = serializeFlowFile({
+    version: "1.0",
+    name: "Rows",
+    graph: {
+      nodes: [
+        { id: "click", type: "button", position: { x: 0, y: 0 }, config: {} },
+        { id: "each", type: "forEach", position: { x: 0, y: 0 }, config: {} },
+        { id: "field", type: "getField", position: { x: 0, y: 0 }, config: { field1Key: "image" } },
+        { id: "use", type: "loadImage", position: { x: 0, y: 0 }, config: {} },
+      ],
+      edges: [
+        { id: "e1", source: "click", sourcePort: "rows", target: "each", targetPort: "list" },
+        { id: "e2", source: "each", sourcePort: "item", target: "field", targetPort: "object" },
+        { id: "e3", source: "field", sourcePort: "field_1", target: "use", targetPort: "path" },
+      ],
+    },
+  });
+  const pictures = (images: string[]) =>
+    serializeTableFile({
+      version: "1.0",
+      columns: [{ id: "image", label: "Image", type: "media" }],
+      rows: images.map((image) => ({ values: { image } })),
+    });
+
+  beforeEach(() => {
+    saveGlobalConfig(rememberSpace(loadGlobalConfig(), space));
+    mkdirSync(path.join(space, "projects"), { recursive: true });
+    mkdirSync(path.join(space, "refs"), { recursive: true });
+    for (const name of ["a", "b"]) writeFileSync(path.join(space, "refs", `${name}.png`), PNG);
+    writeFileSync(path.join(space, "shots.table.html"), pictures(["refs/a.png"]));
+    writeFileSync(path.join(space, "others.table.html"), pictures(["refs/b.png"]));
+    writeFileSync(path.join(space, ROWS), rowsFlow);
+  });
+
+  it("is a key a person may grant for any Table of the space, by a column the graph's Button zone uses", async () => {
+    const flow = await readSandboxDocument(space, "flow", ROWS);
+    expect(declaresCapability(flow, "readColumn:space:shots.table.html#image")).toBe(true);
+    expect(declaresCapability(flow, "readColumn:space:others.table.html#image")).toBe(true);
+    for (const key of [
+      "readColumn:space:shots.table.html#title",
+      "writeColumn:space:shots.table.html#image",
+      "readColumn:space:notes/a.md#image",
+      "readColumn:space:.hidden.table.html#image",
+    ]) {
+      expect(declaresCapability(flow, key), key).toBe(false);
+    }
+  });
+
+  it("reads only what the granted Table's column names", async () => {
+    const flow = await readSandboxDocument(space, "flow", ROWS);
+    expect(await statusOf(performSandboxRead(space, flow, "space:refs/a.png"))).toBe(403);
+    await grantCapability(space, flow.subject, "readColumn:space:shots.table.html#image");
+    await expect(performSandboxRead(space, flow, "space:refs/a.png")).resolves.toMatchObject({ kind: "image" });
+    expect(await statusOf(performSandboxRead(space, flow, "space:refs/b.png"))).toBe(403);
+  });
+});

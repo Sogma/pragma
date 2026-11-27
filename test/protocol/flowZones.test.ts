@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SandboxReadResult } from "../../src/protocol/api.ts";
 import { columnAddresses, type NodeExecutionContext } from "../../src/protocol/flowExecutors.ts";
-import { pathColumns, refusesWire, runCapabilities } from "../../src/protocol/flowNodes.ts";
+import {
+  columnCapabilityOfKey,
+  pathColumns,
+  refusesWire,
+  rowColumnUses,
+  runCapabilities,
+} from "../../src/protocol/flowNodes.ts";
 import { runFlow } from "../../src/protocol/flowRuntime.ts";
 import { flowZones, zonePartners, zoneProblems } from "../../src/protocol/flowZones.ts";
 import {
@@ -191,7 +197,7 @@ describe("a zone with a Generate node", () => {
     const result = await runFlow(zone("title", generating), ctx);
 
     expect(ctx.sandbox.generate).toHaveBeenCalledTimes(1);
-    expect(confirmRest).toHaveBeenCalledWith({ forEach: "each", done: 1, rest: 2, word: "Row" });
+    expect(confirmRest).toHaveBeenCalledWith({ forEach: "each", done: 1, rest: 2, word: "Row", files: [] });
     expect(result.zones?.get("each")?.stopped).toBe(true);
     expect(result.zones?.get("each")?.items.filter(Boolean)).toHaveLength(1);
     expect(result.skipped.get("end")).toBe("each");
@@ -225,7 +231,26 @@ describe("a zone with a Generate node", () => {
     };
     const confirmRest = vi.fn(async () => true);
     await runFlow(graph, context(reads(["A", "B", "C"]), { confirmRest }), undefined, undefined, recall);
-    expect(confirmRest).toHaveBeenCalledWith({ forEach: "each", done: 2, rest: 1, word: "Row" });
+    expect(confirmRest).toHaveBeenCalledWith({ forEach: "each", done: 2, rest: 1, word: "Row", files: [] });
+  });
+
+  it("asks with the files the row's Generate nodes made", async () => {
+    const graph = zone("title", {
+      nodes: [node("gen", "generateImage", { outputFolderPath: "renders" })],
+      edges: [wire("field", "field_1", "gen", "prompt"), wire("gen", "path", "end", "value_1")],
+    });
+    const generateImage = vi.fn(async () => ({
+      path: "renders/A.png",
+      image: { mediaType: "image/png" as const, data: "" },
+      model: "m",
+      take: "1",
+      warnings: [],
+    }));
+    const confirmRest = vi.fn(async () => false);
+    const ctx = context(reads(["A", "B"]), { confirmRest });
+    ctx.sandbox.generateImage = generateImage as never;
+    await runFlow(graph, ctx);
+    expect(confirmRest).toHaveBeenCalledWith(expect.objectContaining({ done: 1, rest: 1, files: ["/renders/A.png"] }));
   });
 });
 
@@ -361,5 +386,45 @@ describe("the wires an editor refuses around a zone", () => {
     expect(zonePartners(graph(), "each")).toEqual(["end"]);
     expect(zonePartners(graph(), "end")).toEqual(["each"]);
     expect(zonePartners(graph(), "field")).toEqual([]);
+  });
+});
+
+describe("a column grant from a toolkit's Table", () => {
+  const buttonZone = () => ({
+    nodes: [
+      node("click", "button"),
+      node("each", "forEach"),
+      node("field", "getField", { field1Key: "image" }),
+      node("use", "loadImage"),
+    ],
+    edges: [
+      wire("click", "rows", "each", "list"),
+      wire("each", "item", "field", "object"),
+      wire("field", "field_1", "use", "path"),
+    ],
+  });
+
+  it("is asked for the Table the toolkit runs in, and names none without one", () => {
+    expect(pathColumns(buttonZone()).size).toBe(0);
+    expect(runCapabilities(buttonZone(), "t.flow.html", undefined, "space:shots.table.html")).toEqual([
+      { nodeId: "click", capability: { type: "readCurrentDocument" } },
+      { nodeId: "use", capability: { type: "readColumn", path: "space:shots.table.html", column: "image" } },
+    ]);
+  });
+
+  it("names the column and its access a host accepts, whichever Table it is", () => {
+    expect(rowColumnUses(buttonZone())).toEqual([{ access: "read", column: "image" }]);
+    expect(rowColumnUses(zone("note", loadNote))).toEqual([]);
+  });
+
+  it("reads a column key back, refusing one that isn't a column id or spelled otherwise", () => {
+    expect(columnCapabilityOfKey("readColumn:space:a#b.table.html#image")).toEqual({
+      type: "readColumn",
+      path: "space:a#b.table.html",
+      column: "image",
+    });
+    for (const key of ["readColumn:space:s.table.html#Image", "readFile:space:s.table.html#image", "readColumn:x"]) {
+      expect(columnCapabilityOfKey(key), key).toBeUndefined();
+    }
   });
 });

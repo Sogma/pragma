@@ -5,29 +5,59 @@
 // runner's broker, as the canvas asks through its own.
 import type { FileResponse } from "../../src/protocol/api.ts";
 import { actionGraph, flowActions, runAction } from "../../src/protocol/flowActions.ts";
-import { buttonStop, type DocumentPort, type PortValue } from "../../src/protocol/flowExecutors.ts";
+import { buttonStop, type DocumentPort, type PortValue, rowsTableOf } from "../../src/protocol/flowExecutors.ts";
 import { flowRunOutputs, nodeLabel } from "../../src/protocol/flowInputs.ts";
 import { FLOW_NODE_REGISTRY, runCapabilities, wiredOutputs } from "../../src/protocol/flowNodes.ts";
 import type { RunResult } from "../../src/protocol/flowRuntime.ts";
 import { withSetupNeed } from "../../src/protocol/setupNeed.ts";
-import type { FlowGraph } from "../../src/protocol/types.ts";
+import type { FlowGraph, TableColumn, TableRow } from "../../src/protocol/types.ts";
 import { proposeReplacement } from "../editProposal.ts";
 import type { BrokerSubject, CapabilityBroker } from "../services/capabilityBroker.ts";
-import type { DialogService } from "../services/dialog.ts";
-import type { DocumentAccess, DocumentSnapshot } from "../services/documentAccess.ts";
+import type { DocumentAccess } from "../services/documentAccess.ts";
 import type { FileNotices } from "../services/fileNotices.ts";
 import { failedCallEntry, type ModelConsole } from "../services/modelConsole.ts";
-import { confirmRestDialog, createFlowContext, type JobStarting } from "./browserEnvironment.ts";
-import { brokerCapability, flowBrokerCapabilities } from "./flowPermissions.ts";
+import { createFlowContext, type JobStarting } from "./browserEnvironment.ts";
+import { flowTreePath } from "./flowPaths.ts";
+import { brokerCapability, flowBrokerCapabilities, withColumnsShown } from "./flowPermissions.ts";
+
+/** A Table as a click in it leaves it: the whole file as a save would write
+ * it, its columns, the rows ticked, copied in the Table's order, and whether
+ * it is private. */
+export interface TableAtClick {
+  content: string;
+  columns: readonly TableColumn[];
+  rows: readonly TableRow[];
+  private: boolean;
+}
+
+/** Where a button was clicked: a text document, read through its live
+ * editor, or a Table, as its pane held it at the click. */
+export type ToolkitSource = { kind: "text"; access: DocumentAccess } | { kind: "table"; at: TableAtClick };
 
 export interface ToolkitInvocation {
   flow: { path: string; name: string };
-  // The document the button was clicked in, and its live-editor surface.
+  // The document the button was clicked in.
   path: string;
-  access: DocumentAccess;
+  source: ToolkitSource;
   // Opens a file beside the group the button was clicked in, focus staying
   // in the document.
   openToSide(path: string): Promise<void>;
+}
+
+/** The ask after a For Each zone's first generation, as a run's row shows
+ * it: what the item made, by tree path, and how many items are left. */
+export interface ToolkitAsk {
+  title: string;
+  files: readonly string[];
+  rest: number;
+}
+
+/** A run's row in the Tools tab: what hears of its async jobs, and where it
+ * asks before a zone's other items start, answering false once `signal`
+ * stops the run. */
+export interface ToolkitRow {
+  jobStarting?: JobStarting;
+  ask?(ask: ToolkitAsk, signal: AbortSignal): Promise<boolean>;
 }
 
 /** What a click leaves under its button: the lines its Show Result nodes
@@ -40,8 +70,6 @@ export interface ToolkitRun {
 
 export interface ToolkitActionDeps {
   broker: CapabilityBroker;
-  // Asks before a For Each zone's other items start, once one has generated.
-  dialog: Pick<DialogService, "confirm">;
   loadFile(path: string): Promise<FileResponse>;
   modelConsole: Pick<ModelConsole, "logLlmCall" | "beginLlmActivity" | "endLlmActivity">;
   // A model call that failed, as an error on the document the button ran on
@@ -49,12 +77,22 @@ export interface ToolkitActionDeps {
   notices: Pick<FileNotices, "begin" | "add">;
 }
 
+// The document a run reads, and why a Replace Selection in it is refused
+// before anything runs or asks, when it is.
+interface BoundDocument {
+  port: DocumentPort;
+  refusesProposal?: string;
+}
+
 // The run reads and replaces the document as the writer left it at the
 // click, wherever the cursor goes meanwhile. What a Show Result node shows
-// is collected into `shown`, drawn under the button when the run ends.
-function documentPort({ path, access, flow }: ToolkitInvocation, at: DocumentSnapshot, shown: string[]): DocumentPort {
+// is collected into `shown`, drawn under the button when the run ends. A
+// read-only editor, as reading view makes it, can't accept a proposal, and a
+// selection made in reading view never reaches the run.
+function textPort(path: string, flowPath: string, access: DocumentAccess, shown: string[]): BoundDocument {
+  const at = access.snapshot(path);
   const selection = at.text.slice(at.from, at.to);
-  return {
+  const port: DocumentPort = {
     path,
     hasSelection: at.from !== at.to,
     read() {
@@ -63,7 +101,7 @@ function documentPort({ path, access, flow }: ToolkitInvocation, at: DocumentSna
     },
     replaceSelection(alternatives) {
       const range = { base: at.text, from: at.from, to: at.to };
-      const shown = proposeReplacement(access.editor(path), range, alternatives, flow.path);
+      const shown = proposeReplacement(access.editor(path), range, alternatives, flowPath);
       if (!shown && alternatives.some((text) => text !== selection)) {
         throw new Error("The selected text was edited while the flow ran, so its result wasn't proposed");
       }
@@ -72,6 +110,28 @@ function documentPort({ path, access, flow }: ToolkitInvocation, at: DocumentSna
       shown.push(...lines);
     },
   };
+  return at.readOnly ? { port, refusesProposal: "requires editing. Switch the document to editing mode." } : { port };
+}
+
+// A Table holds no text to select or replace: a run reads its file and the
+// rows ticked, as they stood at the click.
+function tablePort(path: string, at: TableAtClick, shown: string[]): BoundDocument {
+  const port: DocumentPort = {
+    path,
+    hasSelection: false,
+    rows: { columns: at.columns, rows: at.rows },
+    read() {
+      if (at.private) throw new Error("This Table is `visibility: private`, so a toolkit can't read or change it.");
+      return { content: at.content, selection: "" };
+    },
+    replaceSelection() {
+      throw new Error("A Table has no selected text to replace");
+    },
+    showResult(lines) {
+      shown.push(...lines);
+    },
+  };
+  return { port, refusesProposal: "needs a text document, and this button is a Table's." };
 }
 
 // A node whose own inputs all ran is where the run went wrong; everything
@@ -112,14 +172,19 @@ export async function runToolkitAction(
   actionId: string,
   deps: ToolkitActionDeps,
   signal: AbortSignal,
-  jobStarting?: JobStarting,
+  row: ToolkitRow = {},
 ): Promise<ToolkitRun> {
   const shown: string[] = [];
   const warnings: string[] = [];
   // Taken at the click, before anything awaits.
-  const at = invocation.access.snapshot(invocation.path);
-  const document = documentPort(invocation, at, shown);
-  deps.notices.begin(invocation.path, "toolkit");
+  const { path, source } = invocation;
+  const { ask } = row;
+  const bound =
+    source.kind === "text"
+      ? textPort(path, invocation.flow.path, source.access, shown)
+      : tablePort(path, source.at, shown);
+  const document = bound.port;
+  deps.notices.begin(path, "toolkit");
   const file = await deps.loadFile(invocation.flow.path);
   // Stopped while the file loaded: the shared broker may belong to whatever
   // started since, so this run must not mount on it.
@@ -132,13 +197,10 @@ export async function runToolkitAction(
   if (!action) {
     throw new Error("This Flow no longer has that button. Reopen the document to refresh its buttons.");
   }
-  // Refused before anything runs or asks: a read-only editor, as reading view
-  // makes it, can't accept a proposal, and a selection made in reading view
-  // never reaches the run.
   const graph = actionGraph(file.graph, actionId);
   const { replaceSelection } = FLOW_NODE_REGISTRY;
-  if (at.readOnly && graph.nodes.some((node) => node.type === replaceSelection.type)) {
-    throw new Error(`${replaceSelection.label} requires editing. Switch the document to editing mode.`);
+  if (bound.refusesProposal && graph.nodes.some((node) => node.type === replaceSelection.type)) {
+    throw new Error(`${replaceSelection.label} ${bound.refusesProposal}`);
   }
   // A click about to stop asks for nothing, as the Button checks before any grant.
   const clicked = graph.nodes.find((node) => node.id === actionId);
@@ -159,19 +221,24 @@ export async function runToolkitAction(
     beginLlmActivity: (model) => deps.modelConsole.beginLlmActivity(model),
     endLlmActivity: (model) => deps.modelConsole.endLlmActivity(model),
     signal,
-    jobStarting,
+    jobStarting: row.jobStarting,
     document,
     openToSide: invocation.openToSide,
-    confirmRest: confirmRestDialog(deps.dialog),
+    confirmRest:
+      ask &&
+      (({ done, rest, word, files }) => {
+        const made = files.map((each) => flowTreePath(file.path, each));
+        return ask({ title: `${word} ${done} done`, files: made, rest }, signal);
+      }),
     generations: {
       // A failure is an error on the document until a button runs on it
       // again, its entry written by the notice.
       log: (id, outcome) => {
         const node = graph.nodes.find((each) => each.id === id);
-        const label = `${file.name || file.path} · ${node ? nodeLabel(node) : id} on ${invocation.path}`;
+        const label = `${file.name || file.path} · ${node ? nodeLabel(node) : id} on ${path}`;
         if (outcome.failed) {
           const entry = failedCallEntry(label, outcome);
-          deps.notices.add(invocation.path, "toolkit", { level: "error", count: 1, ...entry });
+          deps.notices.add(path, "toolkit", { level: "error", count: 1, ...entry });
         } else {
           deps.modelConsole.logLlmCall(label, outcome);
         }
@@ -182,9 +249,15 @@ export async function runToolkitAction(
   deps.broker.mount(subject);
   try {
     // Asked for together, before the Button runs: a refusal leaves nothing
-    // spent or written.
-    const needs = runCapabilities(graph, file.path).map((need) => brokerCapability(need.capability, file.path));
-    if (!(await deps.broker.ensureAll(needs, subject)).allowed) throw new Error("Permission denied, so nothing ran.");
+    // spent or written. A Table's column grants name the Table clicked in.
+    const needs = runCapabilities(graph, file.path, undefined, rowsTableOf(document));
+    const described = await withColumnsShown(
+      needs.map((need) => need.capability),
+      file.path,
+    );
+    signal.throwIfAborted();
+    const asked = described.map((capability) => brokerCapability(capability, file.path));
+    if (!(await deps.broker.ensureAll(asked, subject)).allowed) throw new Error("Permission denied, so nothing ran.");
     const result = await runAction(graph, actionId, context);
     const failure = rootFailure(graph, result);
     if (failure) throw failure;

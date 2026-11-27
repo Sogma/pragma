@@ -40,7 +40,6 @@ import { createCollapsedFolders } from "./services/collapsedFolders.ts";
 import { type CommandContext, createCommands } from "./services/commands.ts";
 import { createDescriptions } from "./services/descriptions.ts";
 import { createDialogService } from "./services/dialog.ts";
-import { createDocumentAccess } from "./services/documentAccess.ts";
 import { publishDocument } from "./services/documentPublish.ts";
 import { createDocuments } from "./services/documents.ts";
 import { createEditorPanes, registerPaneDismiss } from "./services/editorPanes.ts";
@@ -63,6 +62,7 @@ import * as settings from "./services/settings.ts";
 import { createSidebarViews } from "./services/sidebarViews.ts";
 import { switchSpace } from "./services/spaceSwitch.ts";
 import { createTabs, type OpenSource } from "./services/tabs.ts";
+import { createToolkitTargets } from "./toolkitTargets.ts";
 import { mountAnimatedMark } from "./view/animatedMark.ts";
 import { wireApiPanel } from "./view/apiPanel.ts";
 import { wireAssistantPanel } from "./view/assistantPanel.ts";
@@ -531,30 +531,21 @@ async function main(): Promise<void> {
   });
 
   // The Tools tab's toolkits (view/toolkitPanel.ts). A button runs its Flow on
-  // the focused group's document; its Allow/Deny prompt is a host dialog.
+  // the focused group's document or Table; its Allow/Deny prompt is a host dialog.
+  const toolkitTargets = createToolkitTargets({
+    focusedPane: () => editorArea.focusedPane(),
+    tabs: () => tabs,
+    show: (toolkits, path) => toolkitPanel.setToolkits(toolkits, path),
+  });
   const toolkitPanel = createToolkitPanel(
     { buttons: buttonList, results: actionResults },
     {
-      // A model has frontmatter only for a note (.md) — exactly the
-      // scope `visibility: private` applies to (docs/architecture.md, Privacy).
-      target: () => {
-        const pane = editorArea.focusedDocumentPane();
-        const path = tabs.activePath();
-        const model = tabs.activeDocument();
-        if (!pane || !path) return undefined;
-        const access = createDocumentAccess({
-          getView: () => pane.view,
-          getActivePath: () => pane.path(),
-          getActiveDocument: () => model,
-          getContent: () => model?.content() ?? pane.view.state.doc.toString(),
-        });
-        return { path, access, group: workspace.focusedGroup().id };
-      },
-      activePath: (group) => tabs.activePath(group),
+      target: toolkitTargets.target,
+      activePath: toolkitTargets.activePath,
       tabs: () => tabs,
       confirm: (options) => dialog.confirm(options),
       reveal: () => inspector.show("tools"),
-      start: (invocation, actionId, jobStarting) => toolkitRunner.start(invocation, actionId, jobStarting),
+      start: (invocation, actionId, row) => toolkitRunner.start(invocation, actionId, row),
       contextMenu,
       modelLists,
     },
@@ -678,7 +669,7 @@ async function main(): Promise<void> {
     metadataProperties: () =>
       createMetadataProperties({ createPropertyEditor, contextMenu, dialog, tags: tagVocabulary }),
   };
-  editorPanes.register(tablePane(dataPaneDeps));
+  editorPanes.register(tablePane({ ...dataPaneDeps, toolkitsRead: toolkitTargets.follow }));
   editorPanes.register(classPane({ ...dataPaneDeps, menus, editProperties: documents.editProperties }));
   editorPanes.register(
     flowPane({
@@ -767,9 +758,7 @@ async function main(): Promise<void> {
   tabs.onFocus((tab) => {
     contextMenu.close();
 
-    // Everything a toolkit button needs arrived on the document's own fetch
-    // (docs/protocol.md, Tags), so this is a redraw, not a request.
-    toolkitPanel.setToolkits(tabs.activeDocument()?.toolkits ?? [], tabs.activePath());
+    toolkitTargets.follow();
     inspector.setTab(tab);
     // Publish/Update only ever applies to a note (Markdown) — Sogma's
     // `content_format` is markdown or html, with no fountain/table/applet counterpart.

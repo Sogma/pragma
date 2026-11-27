@@ -121,6 +121,20 @@ async function headerDetails(filePath: string): Promise<{ clip: ClipDetails } | 
 // A Table, Class or Flow is re-serialized whole on save, so one this build
 // couldn't fully read goes out locked, never as a document to save over.
 // `undefined` is a parse that failed on non-blank text.
+// Each Flow the files linking it give a document, read for its name and
+// buttons: the Classes holding a note, or a Table's own links.
+async function toolkitsOf(
+  spaceRoot: string,
+  linking: readonly { classPath: string; links: readonly string[] }[],
+): Promise<TextToolkitInfo[]> {
+  return Promise.all(
+    resolveToolkits(spaceRoot, linking).map(async ({ classPath, path: flowPath }): Promise<TextToolkitInfo> => {
+      const { name, graph } = await readFlowFile(path.join(spaceRoot, flowPath));
+      return { classPath, path: flowPath, name: name ?? "", actions: flowActions(graph) };
+    }),
+  );
+}
+
 function lockFor(parsed: { version: string } | undefined): DocumentLock | undefined {
   if (!parsed) return "unreadable";
   return isNewerFormatVersion(parsed.version) ? "newer-format" : undefined;
@@ -461,6 +475,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
         const parsed = parseTableFile(text);
         const table = parsed ?? emptyTable();
         const localLayout = (await readTableLayouts(spaceRoot))[formatWithinRoot(resolved, filePath)];
+        const links = table.links ?? [];
+        const toolkits = inSpace ? await toolkitsOf(spaceRoot, [{ classPath: rooted.path, links }]) : [];
         return c.json<TableFileResponse>({
           kind: "table",
           path: relativePath,
@@ -474,6 +490,8 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
           ...(localLayout ? { localLayout } : {}),
           ...(table.card ? { card: table.card } : {}),
           ...(table.smallCard ? { smallCard: table.smallCard } : {}),
+          ...(links.length > 0 ? { links } : {}),
+          toolkits,
           locked: lockFor(parsed),
           ...(bytes === undefined ? { missing: true as const } : {}),
         });
@@ -560,12 +578,7 @@ export function mountFileRoutes(app: Hono, { spaceRoot, thumbnails }: RouteConte
       // Classes, and a library document has none, nor any use for buttons
       // that would write to a root it can't write to.
       const classes = inSpace ? await classesHolding(spaceRoot, { path: rooted.path, filePath }) : [];
-      const toolkits = await Promise.all(
-        resolveToolkits(spaceRoot, classes).map(async ({ classPath, path: flowPath }): Promise<TextToolkitInfo> => {
-          const { name, graph } = await readFlowFile(path.join(spaceRoot, flowPath));
-          return { classPath, path: flowPath, name: name ?? "", actions: flowActions(graph) };
-        }),
-      );
+      const toolkits = await toolkitsOf(spaceRoot, classes);
 
       return c.json<TextFileResponse>({
         kind: "text",

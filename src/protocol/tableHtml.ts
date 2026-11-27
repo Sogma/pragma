@@ -82,6 +82,14 @@ export function smallCardBlock(tiles: readonly SmallCardTile[] | undefined): str
 
 /** Serializes a TableFile back to `.table.html` text. Column/row order is
  * exactly the order of the `columns`/`rows` arrays passed in. */
+// Left out when empty, so a Class or Table with no links is written as it
+// was before there were any.
+export function linksBlock(paths: readonly string[]): string {
+  if (paths.length === 0) return "";
+  const items = paths.map((path) => `    <li>${escapeHtml(path)}</li>\n`).join("");
+  return `\n  <ul data-role="links">\n${items}  </ul>\n`;
+}
+
 export function serializeTableFile(file: TableFile): string {
   const title = file.name ?? "";
   const metadata = metadataBlock(file.metadata);
@@ -115,7 +123,7 @@ ${headerCells}      </tr>
     <tbody>
 ${bodyRows}    </tbody>
   </table>
-${cardBlock(file.card)}${smallCardBlock(file.smallCard)}
+${cardBlock(file.card)}${smallCardBlock(file.smallCard)}${linksBlock(file.links ?? [])}
 </body>
 </html>
 `;

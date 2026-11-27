@@ -6,7 +6,7 @@ import type { FlowFileResponse } from "../../../src/protocol/api.ts";
 import { setupNeedOf } from "../../../src/protocol/setupNeed.ts";
 import type { FlowGraph, FlowNodeInstance } from "../../../src/protocol/types.ts";
 import { acceptAll, editProposal, pendingChanges } from "../../../web/editProposal.ts";
-import { runToolkitAction } from "../../../web/flow/toolkitAction.ts";
+import { runToolkitAction, type TableAtClick, type ToolkitAsk } from "../../../web/flow/toolkitAction.ts";
 import type { BrokerCapability, CapabilityBroker } from "../../../web/services/capabilityBroker.ts";
 import { createDocumentAccess } from "../../../web/services/documentAccess.ts";
 import { polyfillRangeRects } from "../support/codemirrorJsdom.ts";
@@ -84,12 +84,11 @@ function setup(options: { granted?: boolean; refused?: boolean; isPrivate?: bool
     loadFile: vi.fn(async () => file),
     modelConsole: { logLlmCall: vi.fn(), beginLlmActivity: vi.fn(), endLlmActivity: vi.fn() },
     notices: { begin: vi.fn(), add: vi.fn() },
-    dialog: { confirm: vi.fn(async () => true) },
   };
   const invocation = {
     flow: { path: file.path, name: "Prefix" },
     path: "draft.md",
-    access,
+    source: { kind: "text" as const, access },
     openToSide: vi.fn(async () => {}),
   };
   const run = (actionId: string) => runToolkitAction(invocation, actionId, deps, new AbortController().signal);
@@ -422,6 +421,133 @@ describe("runToolkitAction", () => {
       expect(broker.ensure).not.toHaveBeenCalled();
       expect(broker.ensureAll).not.toHaveBeenCalled();
       expect(pendingChanges(view.state)).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("runToolkitAction in a Table", () => {
+  // The rows a click hands on, through a zone, into one exposed line.
+  const perRow: FlowGraph = {
+    nodes: [
+      node("go", "button", 0, { label: "Titles" }),
+      node("each", "forEach", 0),
+      node("field", "getField", 0, { config: { field1Key: "title" } }),
+      node("end", "forEachEnd", 0, { config: { forEach: "each" } }),
+      node("join", "joinText", 0, { config: { separator: ", " }, exposed: ["text"] }),
+    ],
+    edges: [
+      edge("go", "rows", "each", "list"),
+      edge("each", "item", "field", "object"),
+      edge("field", "field_1", "end", "value_1"),
+      edge("end", "list_1", "join", "list"),
+    ],
+  };
+
+  function inTable(graph: FlowGraph, at: Partial<TableAtClick> = {}) {
+    const ran = setup();
+    ran.deps.loadFile.mockResolvedValueOnce({ ...ran.file, graph });
+    const invocation = {
+      flow: { path: ran.file.path, name: "Prefix" },
+      path: "shots.table.html",
+      source: {
+        kind: "table" as const,
+        at: {
+          content: "<table></table>",
+          columns: [{ id: "title", label: "Title", type: "text" as const }],
+          rows: [{ values: { title: "Dawn" } }, { values: { title: "Dusk" } }],
+          private: false,
+          ...at,
+        },
+      },
+      openToSide: vi.fn(async () => {}),
+    };
+    const row = { ask: vi.fn(async (_ask: ToolkitAsk, _signal: AbortSignal) => false) };
+    const run = (id: string) => runToolkitAction(invocation, id, ran.deps, new AbortController().signal, row);
+    return { ...ran, run, row };
+  }
+
+  it("hands the Button the rows ticked at the click, keyed by column id", async () => {
+    const { run } = inTable(perRow);
+    expect(await run("go")).toEqual({ lines: ["Join Text · text: Dawn, Dusk"], warnings: [] });
+  });
+
+  it("stops a click with no row ticked before asking anything", async () => {
+    const { run, broker } = inTable(perRow, { rows: [] });
+    await expect(run("go")).rejects.toThrow("Titles: Tick some rows first");
+    expect(broker.ensureAll).not.toHaveBeenCalled();
+  });
+
+  it("never reads a private Table's rows", async () => {
+    const { run } = inTable(perRow, { private: true });
+    await expect(run("go")).rejects.toThrow("visibility: private");
+  });
+
+  it("refuses a button that proposes text, before anything runs or asks", async () => {
+    const { run, broker } = inTable(graph);
+    await expect(run("btn-a")).rejects.toThrow(
+      "Replace Selection needs a text document, and this button is a Table's.",
+    );
+    expect(broker.ensureAll).not.toHaveBeenCalled();
+  });
+
+  it("asks once for a column whose paths a zone reads, on the Table clicked in", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
+    try {
+      const { run, broker } = inTable(
+        {
+          nodes: [
+            node("go", "button", 0, { label: "Notes" }),
+            node("each", "forEach", 0),
+            node("field", "getField", 0, { config: { field1Key: "script" } }),
+            node("load", "loadNote", 0),
+            node("end", "forEachEnd", 0, { config: { forEach: "each" } }),
+          ],
+          edges: [
+            edge("go", "rows", "each", "list"),
+            edge("each", "item", "field", "object"),
+            edge("field", "field_1", "load", "path"),
+            edge("load", "raw", "end", "value_1"),
+          ],
+        },
+        { columns: [{ id: "script", label: "Script", type: "path" }], rows: [{ values: { script: "a.md" } }] },
+      );
+      await run("go").catch(() => undefined);
+      const [asked] = vi.mocked(broker.ensureAll).mock.calls[0];
+      expect(asked.map((capability) => capability.key)).toContain("readColumn:space:shots.table.html#script");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("asks in the run's row once the first row generated, and runs no other on Stop", async () => {
+    answer(200, { reply: "made", model: "m" });
+    try {
+      const { run, row } = inTable({
+        nodes: [
+          node("go", "button", 0, { label: "Write" }),
+          node("each", "forEach", 0),
+          node("field", "getField", 0, { config: { field1Key: "title" } }),
+          node("gen", "generateText", 0, { config: { model: "anthropic/claude-haiku-4-5" } }),
+          node("end", "forEachEnd", 0, { config: { forEach: "each" } }),
+        ],
+        edges: [
+          edge("go", "rows", "each", "list"),
+          edge("each", "item", "field", "object"),
+          edge("field", "field_1", "gen", "prompt"),
+          edge("gen", "text", "end", "value_1"),
+        ],
+      });
+      await run("go");
+      expect(row.ask).toHaveBeenCalledTimes(1);
+      expect(row.ask.mock.calls[0][0]).toEqual({ title: "Row 1 done", files: [], rest: 1 });
+      expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("generate"))).toHaveLength(1);
     } finally {
       vi.unstubAllGlobals();
     }
