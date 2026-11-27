@@ -1,0 +1,408 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CLASS_EXTENSION, FLOW_EXTENSION, TABLE_EXTENSION } from "../../../src/protocol/types.ts";
+import {
+  postCreateEntry,
+  postDeleteEntry,
+  postDuplicateEntry,
+  type SpaceTreeNode,
+  type Tab,
+} from "../../../web/core/apiClient.ts";
+import { type CommandContext, createCommands } from "../../../web/services/commands.ts";
+import type { ConfirmOptions, DialogService } from "../../../web/services/dialog.ts";
+import { createKeybindings } from "../../../web/services/keybindings.ts";
+import { importDroppedFiles } from "../../../web/services/mediaImport.ts";
+import { createMenus } from "../../../web/services/menus.ts";
+import { createTreeActions, type TreeHost, type TreeTarget } from "../../../web/services/treeActions.ts";
+import { fakeDrag } from "../support/drag.ts";
+
+vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../web/core/apiClient.ts")>()),
+  postCreateEntry: vi.fn(async (parentPath: string, name: string, type: "file" | "directory") => ({
+    path: parentPath ? `${parentPath}/${name}` : name,
+    type,
+  })),
+  postDeleteEntry: vi.fn(async () => ({ pendingUnpublish: 0 })),
+  postDuplicateEntry: vi.fn(async () => ({ path: "notes/a 2.md", type: "file" })),
+  fetchFolderRows: vi.fn(async () => []),
+}));
+
+vi.mock("../../../web/services/mediaImport.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../web/services/mediaImport.ts")>()),
+  importDroppedFiles: vi.fn(async (files: readonly File[], dir: string) => ({
+    imported: files.map((file) => `${dir}/${file.name}`),
+    refused: [],
+    failed: [],
+    cancelled: false,
+  })),
+}));
+
+const file = (path: string): SpaceTreeNode => ({ name: path.split("/").at(-1) ?? path, path, type: "file" });
+const folder = (path: string, children: SpaceTreeNode[] = []): SpaceTreeNode => ({
+  name: path.split("/").at(-1) ?? path,
+  path,
+  type: "directory",
+  children,
+});
+
+const note = file("notes/a.md");
+const notes = folder("notes", [note, file("notes/b.md")]);
+const other = folder("other", [file("other/c.md")]);
+const listing = [notes, other];
+
+function find(nodes: readonly SpaceTreeNode[], path: string): SpaceTreeNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    const inside = node.children && find(node.children, path);
+    if (inside) return inside;
+  }
+  return undefined;
+}
+
+const emptyContext: CommandContext = { tab: { kind: "empty" }, pane: undefined };
+const tabOn = (path: string): CommandContext => ({
+  tab: { kind: "document", path, documentType: "note" } as Tab,
+  pane: undefined,
+});
+
+// A dialog that answers the way the real one does: a confirm with an action
+// runs it, stays open on a throw (then cancelled here), and resolves true once
+// it succeeds. `confirmed` answers a confirm without one.
+function harness(host: Partial<TreeHost> = {}, { confirmed = true } = {}) {
+  const commands = createCommands();
+  const menus = createMenus(commands);
+  const keybindings = createKeybindings(commands);
+  const thrown: unknown[] = [];
+  const confirm = vi.fn(async (options: ConfirmOptions) => {
+    if (!options.action) return confirmed;
+    try {
+      await options.action();
+      return true;
+    } catch (error) {
+      thrown.push(error);
+      return false;
+    }
+  });
+  const trash = { on: true };
+  const tree: TreeHost = {
+    findEntry: (path) => find(listing, path),
+    children: (path) => find(listing, path)?.children,
+    hasRow: vi.fn(() => true),
+    render: vi.fn(),
+    refresh: vi.fn(async () => undefined),
+    bringIntoView: vi.fn(),
+    expand: vi.fn(),
+    ...host,
+  };
+  const deps = {
+    commands,
+    menus,
+    keybindings,
+    dialog: () => ({ confirm }) as unknown as DialogService,
+    moveToTrash: { get: () => trash.on },
+    open: vi.fn(async () => undefined),
+    openBeside: vi.fn(async () => undefined),
+    move: vi.fn(async (moves: readonly { from: string; to: string }[]) => moves.map(({ to }) => ({ path: to }))),
+    onDeleted: vi.fn(),
+    templateSources: () => [],
+  };
+  const actions = createTreeActions(tree, deps);
+  return { actions, tree, deps, commands, menus, confirm, thrown, trash };
+}
+
+const alert = vi.fn();
+beforeEach(() => {
+  vi.stubGlobal("alert", alert);
+});
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe("creating", () => {
+  it("opens the folder it is typed in, then draws the name field there", () => {
+    const { actions, tree } = harness();
+    actions.startCreate("notes", "file", "note");
+    expect(tree.expand).toHaveBeenCalledWith("notes");
+    expect(tree.render).toHaveBeenCalled();
+    expect(actions.editing().pendingCreate).toEqual({ parentPath: "notes", type: "file", kind: "note" });
+  });
+
+  it("titles a note by a typed name no file can carry, and names the file from it", async () => {
+    const { actions } = harness();
+    actions.startCreate("notes", "file", "note");
+    const { pendingCreate, onCreateSubmit } = actions.editing();
+    if (!pendingCreate) throw new Error("no name field");
+    onCreateSubmit(pendingCreate, "Part 1: Intro");
+    await vi.waitFor(() =>
+      expect(postCreateEntry).toHaveBeenCalledWith("notes", "Part 1 - Intro.md", "file", "# Part 1: Intro\n"),
+    );
+    expect(actions.editing().pendingCreate).toBeUndefined();
+  });
+
+  it("makes a note with a legal name as typed, trimmed, and nothing for an empty one", async () => {
+    const { actions } = harness();
+    actions.startCreate("notes", "file", "note");
+    const { pendingCreate, onCreateSubmit } = actions.editing();
+    if (!pendingCreate) throw new Error("no name field");
+    onCreateSubmit(pendingCreate, "   ");
+    onCreateSubmit(pendingCreate, "  Plain  ");
+    await vi.waitFor(() => expect(postCreateEntry).toHaveBeenCalledWith("notes", "Plain", "file", undefined));
+    expect(postCreateEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a Table, a Flow and a Class their extensions", async () => {
+    const { commands, actions } = harness();
+    for (const [command, name] of [
+      ["tree.newTable", "Shots"],
+      ["tree.newFlow", "Run"],
+      ["tree.newClass", "People"],
+    ]) {
+      commands.run(command, emptyContext, { node: notes } satisfies TreeTarget);
+      const { pendingCreate, onCreateSubmit } = actions.editing();
+      if (!pendingCreate) throw new Error("no name field");
+      onCreateSubmit(pendingCreate, name);
+    }
+    await vi.waitFor(() => expect(postCreateEntry).toHaveBeenCalledTimes(3));
+    const names = vi.mocked(postCreateEntry).mock.calls.map(([, name]) => name);
+    expect(names).toEqual([`Shots${TABLE_EXTENSION}`, `Run${FLOW_EXTENSION}`, `People${CLASS_EXTENSION}`]);
+  });
+
+  it("opens the new file beside, but only once its tree drew a row for it", async () => {
+    const drawn = harness();
+    drawn.actions.startCreate("notes", "file", "note");
+    const field = drawn.actions.editing();
+    if (!field.pendingCreate) throw new Error("no name field");
+    field.onCreateSubmit(field.pendingCreate, "New");
+    await vi.waitFor(() => expect(drawn.deps.openBeside).toHaveBeenCalledWith("notes/New"));
+    expect(drawn.tree.refresh).toHaveBeenCalled();
+
+    const hidden = harness({ hasRow: () => false });
+    hidden.actions.startCreate("notes", "file", "note");
+    const unseen = hidden.actions.editing();
+    if (!unseen.pendingCreate) throw new Error("no name field");
+    unseen.onCreateSubmit(unseen.pendingCreate, "New");
+    await vi.waitFor(() => expect(hidden.tree.refresh).toHaveBeenCalled());
+    expect(hidden.deps.openBeside).not.toHaveBeenCalled();
+  });
+
+  it("creates in the focused file's folder when no row is named, bringing that folder into view", () => {
+    const { commands, actions, tree } = harness();
+    commands.run("tree.newNote", tabOn("notes/a.md"));
+    expect(tree.bringIntoView).toHaveBeenCalledWith("notes");
+    expect(actions.editing().pendingCreate).toEqual({ parentPath: "notes", type: "file", kind: "note" });
+  });
+});
+
+describe("renaming", () => {
+  it("draws the name field on the row, and moves the entry to the trimmed name", async () => {
+    const { actions, deps } = harness();
+    actions.startRename(note);
+    expect(actions.editing().editingPath).toBe("notes/a.md");
+    actions.editing().onRenameSubmit(note, "  b2.md ");
+    expect(actions.editing().editingPath).toBeUndefined();
+    await vi.waitFor(() => expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "notes/b2.md" }]));
+  });
+
+  it("writes nothing for an emptied or unchanged name", async () => {
+    const { actions, deps } = harness();
+    actions.editing().onRenameSubmit(note, "   ");
+    actions.editing().onRenameSubmit(note, "a.md");
+    await Promise.resolve();
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("refuses a note name no file can carry, pointing at the heading", async () => {
+    const { actions, deps } = harness();
+    actions.editing().onRenameSubmit(note, "Part 1: Intro");
+    await vi.waitFor(() => expect(alert).toHaveBeenCalled());
+    expect(alert.mock.calls[0][0]).toMatch(/A note's title can hold any text: edit its heading instead\.$/);
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("leaves a folder's name to the server's rule", async () => {
+    const { actions, deps } = harness();
+    actions.editing().onRenameSubmit(notes, "Part 1: Intro");
+    await vi.waitFor(() => expect(deps.move).toHaveBeenCalledWith([{ from: "notes", to: "Part 1: Intro" }]));
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("renames the focused file from a key, bringing its row into view", () => {
+    const { commands, actions, tree } = harness();
+    expect(commands.get("tree.rename")?.when?.(tabOn("notes/a.md"), undefined)).toBe(true);
+    expect(commands.get("tree.rename")?.when?.(tabOn("elsewhere.md"), undefined)).toBe(false);
+    commands.run("tree.rename", tabOn("notes/a.md"));
+    expect(tree.bringIntoView).toHaveBeenCalledWith("notes/a.md");
+    expect(actions.editing().editingPath).toBe("notes/a.md");
+  });
+});
+
+describe("duplicating", () => {
+  it("opens the copy beside, then names it in place", async () => {
+    const copy = file("notes/a 2.md");
+    const { commands, actions, deps, tree } = harness({
+      children: (path) => (path === "notes" ? [...(notes.children ?? []), copy] : undefined),
+    });
+    commands.run("tree.duplicate", emptyContext, { node: note } satisfies TreeTarget);
+    await vi.waitFor(() => expect(actions.editing().editingPath).toBe("notes/a 2.md"));
+    expect(postDuplicateEntry).toHaveBeenCalledWith("notes/a.md");
+    expect(tree.refresh).toHaveBeenCalled();
+    expect(deps.openBeside).toHaveBeenCalledWith("notes/a 2.md");
+  });
+});
+
+describe("dropping", () => {
+  const drop = (files: File[] = []) => fakeDrag("drop", { files }).event;
+
+  it("imports desktop files into the folder, opening the last once its row is drawn", async () => {
+    const { actions, deps, tree } = harness();
+    const photo = new File(["x"], "photo.png");
+    actions.editing().onDrop(drop([photo]), notes, "into");
+    await vi.waitFor(() => expect(deps.open).toHaveBeenCalledWith("notes/photo.png"));
+    expect(tree.expand).toHaveBeenCalledWith("notes");
+    expect(vi.mocked(importDroppedFiles).mock.calls[0][1]).toBe("notes");
+  });
+
+  it("lets the tree's owner take a drop of its own before the rows' drag", () => {
+    const takeDrop = vi.fn(() => true);
+    const { actions, deps } = harness({ takeDrop });
+    actions.editing().onDragStart([note]);
+    actions.editing().onDrop(drop(), other, "into");
+    expect(takeDrop).toHaveBeenCalledWith(expect.anything(), "other");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("moves only the entries not already in the folder dropped into", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDragStart([note, file("other/c.md")]);
+    actions.editing().onDrop(drop(), other, "into");
+    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "other/a.md" }]);
+  });
+
+  it("refuses a folder dropped into itself or below it, the whole drop", () => {
+    const inner = folder("notes/inner");
+    const { actions, deps } = harness();
+    actions.editing().onDragStart([notes, file("other/c.md")]);
+    actions.editing().onDrop(drop(), inner, "into");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("hands a before or after drop in the rows' own folder to the owner's reorder", () => {
+    const reorder = vi.fn();
+    const { actions, deps } = harness({ reorder });
+    const b = file("notes/b.md");
+    actions.editing().onDragStart([note]);
+    actions.editing().onDrop(drop(), b, "after");
+    expect(reorder).toHaveBeenCalledWith([note], b, "after");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("moves a drop on the empty area into the tree's top folder", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDragStart([note]);
+    actions.dropInto(drop(), "");
+    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "a.md" }]);
+  });
+
+  it("forgets a drag that ended without a drop", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDragStart([note]);
+    document.dispatchEvent(new Event("dragend"));
+    actions.editing().onDrop(drop(), other, "into");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleting", () => {
+  it("names a file and where it goes, after the trash setting", async () => {
+    const { actions, confirm, trash } = harness();
+    await actions.confirmDelete([note]);
+    expect(confirm.mock.calls[0][0]).toMatchObject({
+      title: 'Move "a.md" to Trash',
+      message: "This file will be moved to the Trash.",
+      confirmLabel: "Move to Trash",
+      danger: true,
+    });
+    trash.on = false;
+    await actions.confirmDelete([note]);
+    expect(confirm.mock.calls[1][0]).toMatchObject({
+      title: 'Delete "a.md"',
+      message: "This permanently deletes the file. This cannot be undone.",
+      confirmLabel: "Delete",
+    });
+  });
+
+  it("warns what a folder holds, with the owner's own line after", async () => {
+    const { actions, confirm } = harness({ removalWarning: async () => "It is published." });
+    await actions.confirmDelete([notes]);
+    expect(confirm.mock.calls[0][0]).toMatchObject({
+      title: 'Move "notes" folder to Trash',
+      warning:
+        "This folder is not empty. If you continue, the 2 files inside this folder will be moved to the Trash too. It is published.",
+    });
+  });
+
+  it("names the first ten of several, then how many more", async () => {
+    const many = Array.from({ length: 12 }, (_, index) => file(`notes/${index}.md`));
+    const { actions, confirm } = harness();
+    await actions.confirmDelete(many);
+    const { title, message } = confirm.mock.calls[0][0];
+    expect(title).toBe("Move 12 Items to Trash");
+    expect(message).toBe(
+      `These 12 items will be moved to the Trash: ${many
+        .slice(0, 10)
+        .map((node) => `"${node.name}"`)
+        .join(", ")} and 2 more.`,
+    );
+  });
+
+  it("deletes the way the dialog said, re-lists, then lets go of each path", async () => {
+    const { actions, tree, deps, trash } = harness();
+    trash.on = false;
+    await actions.confirmDelete([note]);
+    expect(postDeleteEntry).toHaveBeenCalledWith("notes/a.md", false);
+    expect(tree.refresh).toHaveBeenCalled();
+    expect(deps.onDeleted).toHaveBeenCalledWith("notes/a.md");
+  });
+
+  it("closes once some are gone and reports the rest", async () => {
+    vi.mocked(postDeleteEntry)
+      .mockResolvedValueOnce({ path: "notes/a.md", pendingUnpublish: 0 })
+      .mockRejectedValueOnce(new Error("nope"));
+    const { actions, deps } = harness();
+    await actions.confirmDelete([note, file("notes/b.md")]);
+    expect(deps.onDeleted).toHaveBeenCalledWith("notes/a.md");
+    expect(deps.onDeleted).not.toHaveBeenCalledWith("notes/b.md");
+    expect(alert).toHaveBeenCalledWith("Couldn't move everything to the Trash.\n\nb.md: nope");
+  });
+
+  it("stays open on why when nothing went", async () => {
+    vi.mocked(postDeleteEntry).mockRejectedValueOnce(new Error("locked")).mockRejectedValueOnce(new Error("locked"));
+    const { actions, deps, thrown } = harness();
+    await actions.confirmDelete([note, file("notes/b.md")]);
+    expect(thrown).toHaveLength(1);
+    expect(deps.onDeleted).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("counts a selection in its menu's one item", () => {
+    const { menus } = harness();
+    const selection = [note, file("notes/b.md"), file("other/c.md")];
+    const [item] = menus.resolve("tree-selection", emptyContext, { node: note, selection } satisfies TreeTarget);
+    expect(item.label).toBe("Move 3 Items to Trash");
+  });
+
+  it("moves to the Trash for chat's Undo, asking only when the owner warns", async () => {
+    const plain = harness();
+    expect(await plain.actions.trash("notes/a.md")).toEqual({ unpublishNote: undefined });
+    expect(plain.confirm).not.toHaveBeenCalled();
+    expect(postDeleteEntry).toHaveBeenCalledWith("notes/a.md", true);
+    expect(plain.deps.onDeleted).toHaveBeenCalledWith("notes/a.md");
+
+    vi.mocked(postDeleteEntry).mockClear();
+    const warned = harness({ removalWarning: async () => "It is published." }, { confirmed: false });
+    expect(await warned.actions.trash("notes/a.md")).toBeUndefined();
+    expect(warned.confirm).toHaveBeenCalled();
+    expect(postDeleteEntry).not.toHaveBeenCalled();
+  });
+});

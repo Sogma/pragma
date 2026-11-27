@@ -1,17 +1,15 @@
-// The Space view: the space tree and everything done to it in place —
-// create, from scratch or from a template, duplicate, rename, drag to move or
-// reorder, drop files in from the desktop, sort by, delete, folder
-// properties, Find in context — and the Trash, Tags and Presets sections
-// pinned under it.
+// The Space view: the space tree, what only the space does to its rows
+// (reorder a folder kept in manual order, folder properties, Find in
+// context), and the Trash, Tags, Presets and History sections pinned under
+// it. Create, rename, duplicate, drag, drop and delete are the shared tree
+// actions, which this view hosts for the space.
 //
 // The tree knows files and folders; it does not know tabs. Opening a row,
 // moving an entry (which re-points every tab on it), and what happens to
 // tabs after a delete all arrive as dependencies, so this view stays
 // correct whatever the editor does with the paths it hands over.
-import type { CreateEntryResponse, FindContextResponse, SpaceInfoResponse } from "../../../src/protocol/api.ts";
-import { suggestedFields, THIS_FOLDER } from "../../../src/protocol/class.ts";
-import { serializeClassFile } from "../../../src/protocol/classHtml.ts";
-import { entryNameForTitle, entryNameKey, illegalEntryNameReason, isNamed } from "../../../src/protocol/entryName.ts";
+import type { FindContextResponse, SpaceInfoResponse } from "../../../src/protocol/api.ts";
+import { entryNameKey, isNamed } from "../../../src/protocol/entryName.ts";
 import { toSortValue } from "../../../src/protocol/folderSort.ts";
 import { editFrontmatter, isPrivate, readFrontmatter } from "../../../src/protocol/frontmatter.ts";
 import { PRESET_KINDS, type PresetKind, presetFolderOf } from "../../../src/protocol/presets.ts";
@@ -33,38 +31,19 @@ import {
 } from "../../../src/protocol/scopeSettings.ts";
 import { isAgentsFile, opensScope } from "../../../src/protocol/scopes.ts";
 import { setupNeedOf } from "../../../src/protocol/setupNeed.ts";
-import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
 import type { TemplateEntry } from "../../../src/protocol/templates.ts";
-import {
-  CLASS_EXTENSION,
-  type ClassRule,
-  emptyClass,
-  emptyTable,
-  FLOW_EXTENSION,
-  isClassFile,
-  isFlowFile,
-  isLutFile,
-  isMarkdownFile,
-  isTableFile,
-  TABLE_EXTENSION,
-} from "../../../src/protocol/types.ts";
+import { isLutFile, isMarkdownFile } from "../../../src/protocol/types.ts";
 import {
   fetchFile,
-  fetchFolderRows,
   fetchLibraryTree,
   fetchPragmaTemplates,
   fetchSpaceInfo,
-  fetchTemplateStartingName,
   fetchTrash,
   postCreateEntry,
-  postCreateFromTemplate,
-  postDeleteEntry,
   postDeleteFromTrash,
-  postDuplicateEntry,
   postEmptyTrash,
   postFindContext,
   postMoveFromTrash,
-  postUploadFile,
   type SpaceTreeNode,
   type TrashEntry,
 } from "../../core/apiClient.ts";
@@ -72,8 +51,6 @@ import { splitDocumentProperties } from "../../core/documentContent.ts";
 import { ownSortOf } from "../../core/folderOrder.ts";
 import { isLibraryLocated, libraryIds, libraryName } from "../../core/libraries.ts";
 import {
-  carriesDesktopFiles,
-  desktopFiles,
   displayName,
   type EntryIcon,
   entryIcon,
@@ -81,20 +58,16 @@ import {
   fileTypeLabel,
   flattenTreeFilePaths,
   hasScope,
-  joinSpacePath,
-  removalLabel,
   TRASH_DRAG_TYPE,
-  treeTakesDrag,
   treeTotalsLabel,
 } from "../../core/paths.ts";
-import { changePresets, isPresetPath, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
+import { changePresets, onPresetsChanged, presetFoldersOf, presets } from "../../core/presets.ts";
 import * as spaceTree from "../../core/spaceTree.ts";
 import { onWritten } from "../../core/written.ts";
-import { copyPathItem } from "../../lib/copyPath.ts";
 import { countText, must, renderTreeIcon } from "../../lib/dom.ts";
+import { createDragHold } from "../../lib/dragHold.ts";
 import { Emitter } from "../../lib/emitter.ts";
 import { flash } from "../../lib/flash.ts";
-import type { CreateKind, NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
 import { oneAtATime } from "../../lib/oneAtATime.ts";
 import { createPathLabel } from "../../lib/pathLabel.ts";
 import { createSectionAction, createSectionStack } from "../../lib/sectionStack.ts";
@@ -105,12 +78,10 @@ import type { CollapsedFolders } from "../../services/collapsedFolders.ts";
 import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
 import { contextSettingsGroups, inheritedSetting, type SettingRow } from "../../services/contextSettings.ts";
 import type { DialogService } from "../../services/dialog.ts";
-import type { EntryMove } from "../../services/entryMove.ts";
 import { openFolderChooser } from "../../services/folderChooser.ts";
 import { onFolderSortChanged, setOwnArrangement } from "../../services/folderSorts.ts";
 import type { ScopeSettingWords } from "../../services/formats.ts";
 import type { KeybindingRegistry } from "../../services/keybindings.ts";
-import { describeImportProblems, importDroppedFiles as importDropped } from "../../services/mediaImport.ts";
 import { COMMAND_PALETTE, type MenuItem, type MenuRegistry } from "../../services/menus.ts";
 import type { ModelConsole } from "../../services/modelConsole.ts";
 import { createPathField } from "../../services/pathField.ts";
@@ -120,18 +91,24 @@ import {
   type PresetRow,
   type PresetSource,
   pragmaTemplateRows,
-  presetFolderItems,
-  presetMenuItems,
-  presetSearch,
   presetSources,
 } from "../../services/presetMenu.ts";
 import type { Setting } from "../../services/settings.ts";
 import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import { spaceChanges } from "../../services/spaceChanges.ts";
-import type { OpenOptions } from "../../services/tabs.ts";
+import {
+  amongPresets,
+  createTreeActions,
+  isDirectory,
+  notFile,
+  parentPathOf,
+  type TreeActions,
+  type TreeActionsDeps,
+  type TreeTarget,
+} from "../../services/treeActions.ts";
 import type { ContextMenu } from "../contextMenu.ts";
-import type { DropZone, TreeRenderContext, TreeView } from "../fileTreeView.ts";
+import type { TreeRenderContext, TreeView } from "../fileTreeView.ts";
 import type { ActiveRowMarker } from "../treeRows.ts";
 import type { HistorySection, HistorySectionDeps } from "./history.ts";
 import type { TagsSection } from "./tags.ts";
@@ -149,7 +126,7 @@ export interface SpaceViewElements {
   refresh: HTMLButtonElement;
 }
 
-export interface SpaceViewDeps {
+export interface SpaceViewDeps extends Pick<TreeActionsDeps, "open" | "openBeside" | "move" | "onDeleted"> {
   collapsed: CollapsedFolders;
   /** The open file's row highlight, which the tree follows into view. */
   active: Pick<ActiveRowMarker, "subscribe">;
@@ -168,19 +145,7 @@ export interface SpaceViewDeps {
   /** Edits a note's frontmatter through its open model when it has one, as
    * the Context switch does a folder's AGENTS.md. */
   editProperties(path: string, edit: (properties: Record<string, unknown>) => void): Promise<void>;
-  open(path: string, options?: OpenOptions): Promise<void>;
-  /** Where a file just made opens: a new tab after the current one, so the
-   * file the writer was in stays open (docs/architecture.md, Files and views). */
-  openBeside(path: string): Promise<void>;
   openDirectory(path: string): void;
-  /** The whole move of each entry, as one action — the server rename, and
-   * every tab and model displaced by it. Resolves once the tree has been
-   * refreshed, to where each entry landed, or undefined for one that didn't
-   * move. */
-  move(moves: readonly EntryMove[]): Promise<({ path: string } | undefined)[]>;
-  /** After `path` is gone from disk and the tree: whatever the editor has to
-   * do about tabs that pointed at it. */
-  onDeleted(path: string): void;
   /** Whether Delete offers the trash, read as each menu and confirmation
    * opens, and followed by the Trash section. */
   moveToTrash: Pick<Setting<boolean>, "get" | "subscribe">;
@@ -204,7 +169,8 @@ export interface SpaceViewDeps {
   onChanged(): void;
 }
 
-export interface SpaceView {
+export interface SpaceView
+  extends Pick<TreeActions, "revealCreated" | "startCreate" | "startRename" | "confirmDelete" | "trash"> {
   view: SidebarView;
   render(): void;
   refresh(): Promise<void>;
@@ -220,51 +186,14 @@ export interface SpaceView {
   reveal(path: string): boolean;
   /** Brings this view up with the folder at `path` open, its row in view. */
   revealFolder(path: string): void;
-  /** Refreshes and opens the new file — only if the refreshed tree actually
-   * drew a row for it: a create into a collapsed folder draws none, and that
-   * file isn't pulled onto screen behind the writer's back. */
-  revealCreated(created: CreateEntryResponse): Promise<void>;
-  startCreate(parentPath: string, type: "file" | "directory", kind?: CreateKind): void;
-  startRename(node: SpaceTreeNode): void;
   /** A write just landed: redraws the tree if it moved the document within a
    * folder ordered by property, or changed an AGENTS.md's icon. */
   noteSaved(path: string, content: string): void;
-  confirmDelete(nodes: readonly SpaceTreeNode[]): Promise<void>;
-  /** Moves `path` to the Trash for an action whose own click was the
-   * confirmation: chat's Undo of something the copilot created. It asks first
-   * only when the move would also unpublish, since the click named the Trash,
-   * not taking a page offline, and resolves undefined when the writer says no. */
-  trash(path: string): Promise<{ unpublishNote?: string } | undefined>;
   openFindContext(dirPath: string): void;
   openFolderContext(node: SpaceTreeNode, focus?: string): void;
   /** The Context dialog of the space folder at `folder`, focused on the
    * setting with this id and flashing it, as a reveal does. */
   openContext(folder: string, setting?: string): void;
-}
-
-// New ▸ Table/Class/Flow's seed content. A table gets one starter "Name"
-// text column, written by the same serializer every real save uses. A
-// Class's depends on its folder, so it is made as the Class is, and a flow's
-// empty file is already a valid canvas.
-function seedForKind(kind: CreateKind | undefined, name: string): { fileName: string; content?: string } {
-  if (kind === "table") {
-    return {
-      fileName: isTableFile(name) ? name : `${name}${TABLE_EXTENSION}`,
-      content: serializeTableFile({ ...emptyTable(), columns: [{ id: "name", type: "text", label: "Name" }] }),
-    };
-  }
-  if (kind === "class") return { fileName: isClassFile(name) ? name : `${name}${CLASS_EXTENSION}` };
-  if (kind === "flow") {
-    return { fileName: isFlowFile(name) ? name : `${name}${FLOW_EXTENSION}` };
-  }
-  // A note's typed name that no file can carry (`Part 1: Intro`) is its
-  // title: the heading keeps it verbatim and the file takes a name derived
-  // from it. Only then — a legal name still makes an empty note titled by its
-  // filename, not a heading that repeats it. Nothing derivable leaves the
-  // name as typed, for the server to refuse with the rule it broke.
-  const derived = illegalEntryNameReason(name) ? entryNameForTitle(name) : "";
-  if (derived) return { fileName: `${derived}.md`, content: `# ${name}\n` };
-  return { fileName: name };
 }
 
 // The Context dialog's words: what the switch is for, and what a context
@@ -322,36 +251,30 @@ function contextEffect(icon: HTMLElement, title: HTMLElement, text: readonly (st
 export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps): SpaceView {
   const { collapsed } = deps;
 
-  // One per source of drags, so a drop takes only what its own tree started:
-  // the Trash's is read by the space tree's drops alone. Cleared once the drag
-  // ends, so one that landed elsewhere is never replayed onto the next drop.
-  function createDrag<T>() {
-    let dragged: T | undefined;
-    document.addEventListener("dragend", () => {
-      dragged = undefined;
-    });
-    return {
-      start(item: T): void {
-        dragged = item;
-      },
-      take(): T | undefined {
-        const item = dragged;
-        dragged = undefined;
-        return item;
-      },
-    };
-  }
-  type Drag = ReturnType<typeof createDrag<SpaceTreeNode[]>>;
-  const drag = createDrag<SpaceTreeNode[]>();
-  const trashDrag = createDrag<TrashEntry>();
-  // Inline-edit state — at most one of these is active at a time, driving
-  // the input row the renderer draws in place of a normal label.
-  let editingPath: string | undefined;
-  let pendingCreate: PendingCreate | undefined;
+  // Read by the space tree's drops alone, apart from the rows' own drag.
+  const trashDrag = createDragHold<TrashEntry>();
   let trashEntries: TrashEntry[] = [];
 
   const tree = deps.createTree("");
   elements.nodes.appendChild(tree.element);
+  const actions = createTreeActions(
+    {
+      findEntry: (path) => spaceTree.findEntry(path),
+      children: (path) => spaceTree.findDirectoryChildren(path),
+      hasRow,
+      render,
+      refresh,
+      bringIntoView: (path) => {
+        deps.show();
+        collapsed.reveal(path);
+      },
+      expand: (path) => collapsed.expand(path),
+      takeDrop: takeTrashDrop,
+      reorder,
+      removalWarning: unpublishWarningForAll,
+    },
+    { ...deps, templateSources: () => presetSources("templates", pragmaRows("templates")) },
+  );
 
   // The Trash, then Tags, then Presets, pinned under the tree. The Trash
   // shows while Delete moves things there or it still holds any: with
@@ -455,19 +378,10 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       onOpen: (filePath, label) => void deps.open(filePath, { from: { anchor: label, marked: true } }),
       onOpenDirectory: (path) => deps.openDirectory(path),
       onContextMenu: openMenu,
-      onDragStart: drag.start,
-      onDrop: handleDrop,
-      selectsMany: true,
-      onDelete: (nodes) => void confirmDelete(nodes),
+      ...actions.editing(),
       isCollapsed: collapsed.isCollapsed,
       onToggleCollapse: collapsed.setCollapsed,
       showExtensions: settings.showExtensions.get(),
-      editingPath,
-      onRenameSubmit: commitRename,
-      onRenameCancel: cancelRename,
-      pendingCreate,
-      onCreateSubmit: commitCreate,
-      onCreateCancel: cancelCreate,
       countsFolders: true,
     };
   }
@@ -750,7 +664,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   function newTemplate(folder: string): void {
     deps.show();
     collapsed.reveal(folder);
-    beginCreate({ parentPath: folder, type: "file", kind: "note" });
+    actions.startCreate(folder, "file", "note");
   }
 
   function chooseFolder(kind: PresetKind, anchor: HTMLElement): void {
@@ -882,161 +796,13 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     render();
   }
 
-  // `shown` says whether the writer can see where the new file landed: the
-  // tree drew a row for it, or another surface drew the name field.
-  async function revealCreated(created: CreateEntryResponse, shown = hasRow): Promise<void> {
-    await refresh();
-    if (created.type !== "file") return;
-    if (shown(created.path)) void deps.openBeside(created.path);
-  }
-
-  // ---- create ------------------------------------------------------------
-
-  function startCreate(parentPath: string, type: "file" | "directory", kind?: CreateKind): void {
-    beginCreate({ parentPath, type, kind });
-  }
-
-  function beginCreate(pending: PendingCreate): void {
-    // The input row is drawn as a child of `parentPath`'s list, so a
-    // collapsed target needs expanding first or the row is created invisibly.
-    collapsed.expand(pending.parentPath);
-    pendingCreate = pending;
-    render();
-  }
-
-  function cancelCreate(): void {
-    pendingCreate = undefined;
-    render();
-  }
-
-  async function commitCreate(pending: PendingCreate, rawValue: string): Promise<void> {
-    pendingCreate = undefined;
-    render();
-    await createNamed(pending, rawValue, hasRow);
-  }
-
-  // The write behind a create, whichever surface its name was typed on.
-  async function createNamed(
-    { parentPath, type, kind, template }: PendingCreate,
-    rawValue: string,
-    shown: (path: string) => boolean,
-  ): Promise<void> {
-    const name = rawValue.trim();
-    if (!name) return;
-
-    try {
-      if (template) {
-        const created = await postCreateFromTemplate(template.path, parentPath, name, template.source);
-        await refresh();
-        // A folder opens at its README, the one file every folder template has.
-        const opened = created.type === "file" ? created.path : `${created.path}/README.md`;
-        if (shown(created.path)) void deps.openBeside(opened);
-        return;
-      }
-      const seeded = type === "file" ? seedForKind(kind, name) : { fileName: name, content: undefined };
-      const { fileName } = seeded;
-      const content = type === "file" && kind === "class" ? await classSeed(parentPath) : seeded.content;
-      const created = await postCreateEntry(parentPath, fileName, type, content);
-      await revealCreated(created, shown);
-    } catch (error) {
-      const kindLabel = template ? template.label : (kind ?? (type === "file" ? "note" : "folder"));
-      window.alert(error instanceof Error ? error.message : `Failed to create ${kindLabel}.`);
-    }
-  }
-
-  // A Class made in a folder reads its own folder, its fields the keys the
-  // folder's notes already use. It names it `this.file.folder`, not by path,
-  // so a moved Class or a template's copy reads the folder it lands in. One
-  // made at the space's top reads the whole space, so it starts with no
-  // field: the top folder's keys say little of it.
-  async function classSeed(parentPath: string): Promise<string> {
-    const filter: ClassRule[] =
-      parentPath === "" ? [] : [{ property: "file.folder", test: "is", values: [THIS_FOLDER] }];
-    const fields = parentPath === "" ? [] : suggestedFields(await fetchFolderRows(parentPath).catch(() => []));
-    return serializeClassFile({ ...emptyClass(), filter, fields });
-  }
-
-  // ---- rename ------------------------------------------------------------
-
-  function startRename(node: SpaceTreeNode): void {
-    editingPath = node.path;
-    render();
-  }
-
-  function cancelRename(): void {
-    editingPath = undefined;
-    render();
-  }
-
-  function commitRename(node: SpaceTreeNode, rawValue: string): void {
-    editingPath = undefined;
-    // Closes the input immediately rather than waiting on the network — the
-    // label reverts to its old name until (if the rename succeeds) the
-    // move's own refresh shows the new one.
-    render();
-    void renameNamed(node, rawValue);
-  }
-
-  // The write behind a rename, whichever surface its name was typed on.
-  // Resolves to where the entry is afterwards, moved or not.
-  async function renameNamed(node: SpaceTreeNode, rawValue: string): Promise<string> {
-    const newName = rawValue.trim();
-    if (!newName || newName === node.name) return node.path;
-
-    // Refused here rather than left to the server, whose message can't know
-    // the entry is a note — and so can't point at the heading, which takes
-    // the characters the name can't.
-    const illegal = node.type === "file" && isMarkdownFile(node.name) ? illegalEntryNameReason(newName) : null;
-    if (illegal) {
-      window.alert(`${illegal}. A note's title can hold any text: edit its heading instead.`);
-      return node.path;
-    }
-
-    const [moved] = await deps.move([{ from: node.path, to: joinSpacePath(dirnameOf(node.path), newName) }]);
-    return moved?.path ?? node.path;
-  }
-
-  // ---- duplicate ---------------------------------------------------------
-
-  // The copy opens straight into rename: the server's `name 2` is a
-  // placeholder, and naming the copy is nearly always the next step. The
-  // rename starts after the open settles, or the editor takes focus from it.
-  //
-  // Named on another surface, the copy opens once named instead: opened
-  // first, it would hide the field it is being named in.
-  async function duplicate(node: SpaceTreeNode, naming?: NamingSurface): Promise<void> {
-    try {
-      const created = await postDuplicateEntry(node.path);
-      await refresh();
-      if (naming) {
-        const listed = spaceTree.findEntry(created.path);
-        if (listed) naming.rename(listed.path, (name) => void renameNamed(listed, name).then(deps.openBeside));
-        return;
-      }
-      if (!hasRow(created.path)) return;
-      await deps.openBeside(created.path);
-      const copy = spaceTree.findDirectoryChildren(dirnameOf(created.path))?.find((row) => row.path === created.path);
-      if (copy) startRename(copy);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to duplicate.");
-    }
-  }
-
-  // ---- drag: move, reorder, import ---------------------------------------
+  // ---- drag: reorder, out of the Trash -----------------------------------
 
   // Only a folder whose own order is manual takes a drag's arrangement. The
   // space root has no node of its own to carry an order, so it never does.
   function showsManual(dirPath: string): boolean {
     const node = dirPath === "" ? undefined : spaceTree.findDirectoryNode(dirPath);
     return node !== undefined && ownSortOf(node).by === "manual";
-  }
-
-  // An entry already in the folder stays where it is.
-  function moveEntries(nodes: readonly SpaceTreeNode[], destinationParentPath: string): Promise<unknown> {
-    const moves = nodes
-      .filter((node) => dirnameOf(node.path) !== destinationParentPath)
-      .map((node) => ({ from: node.path, to: joinSpacePath(destinationParentPath, basenameOf(node.path)) }));
-    return deps.move(moves);
   }
 
   async function reorderEntries(
@@ -1063,6 +829,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to reorder.");
     }
+  }
+
+  // Only a folder shown in manual order takes an arrangement; any other
+  // ignores a before/after drop rather than switching its sort.
+  function reorder(dragged: readonly SpaceTreeNode[], target: SpaceTreeNode, position: "before" | "after"): void {
+    if (showsManual(dirnameOf(target.path))) void reorderEntries(dragged, target, position);
   }
 
   // Every sort change is a fresh listing: Set as default or a drag here
@@ -1099,105 +871,24 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     }
   }
 
-  // OS-file counterpart to create: a drop from the desktop delivers real
-  // `File` objects rather than a tree node's text/plain path. Only `.md` is
-  // accepted — the one extension a bare drop can adopt without guessing at
-  // frontmatter. A name collision (409) is reported but doesn't abort the
-  // rest of the drop.
-  async function importDroppedFiles(files: readonly File[], parentPath: string): Promise<void> {
-    collapsed.expand(parentPath);
-    const result = await importDropped(files, parentPath, {
-      dialog: deps.dialog(),
-      createEntry: postCreateEntry,
-      upload: postUploadFile,
-    });
-    await refresh();
-    const last = result.imported.at(-1);
-    if (last && hasRow(last)) void deps.open(last);
-    const problems = describeImportProblems(result);
-    if (problems) window.alert(problems);
-  }
-
-  function handleDrop(event: DragEvent, node: SpaceTreeNode, zone: DropZone, state: Drag = drag): void {
-    // "into" only ever applies to a directory target — the destination is
-    // the directory itself. Otherwise the drop is a sibling placement next
-    // to `node`, so the destination is the folder containing `node`, even
-    // when `node` is a directory — it is not its own container here.
-    const destinationParentPath = zone === "into" ? node.path : dirnameOf(node.path);
-
-    // A drop carrying real OS files is unrelated to the in-tree drag state
-    // below, which only the tree's own dragstart ever sets.
-    const files = desktopFiles(event);
-    if (files.length) {
-      void importDroppedFiles(files, destinationParentPath);
-      return;
-    }
-
-    const trashed = takeTrashed(event, state);
-    if (trashed) {
-      void moveOutOfTrash(trashed, destinationParentPath);
-      return;
-    }
-
-    const dragged = state.take();
-    if (!dragged || dragged.some((entry) => entry.path === node.path)) return;
-
-    // Refuse to drop a folder into itself or one of its own descendants,
-    // whichever zone got us to that destination: the whole drop, never the
-    // rest of what was dragged without it.
-    const intoItself = (entry: SpaceTreeNode) =>
-      entry.type === "directory" &&
-      (destinationParentPath === entry.path || destinationParentPath.startsWith(`${entry.path}/`));
-    if (dragged.some(intoItself)) return;
-
-    if (zone !== "into" && dragged.every((entry) => dirnameOf(entry.path) === destinationParentPath)) {
-      // Only a folder shown in manual order takes an arrangement; any other
-      // ignores a before/after drop rather than switching its sort.
-      if (showsManual(destinationParentPath)) void reorderEntries(dragged, node, zone);
-      return;
-    }
-
-    void moveEntries(dragged, destinationParentPath);
-  }
-
-  // The empty area below a tree's last row takes a drop into the tree's top
-  // folder, by the rule its rows follow: a confined drag only on the
-  // Templates tree, any other only on the space tree, files from either.
-  function acceptDrag(event: DragEvent, confined: boolean): void {
-    if (!treeTakesDrag(event, confined)) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = carriesDesktopFiles(event) ? "copy" : "move";
-  }
-  function dropInto(event: DragEvent, state: Drag, folder: string): void {
-    event.preventDefault();
-    const files = desktopFiles(event);
-    if (files.length) {
-      void importDroppedFiles(files, folder);
-      return;
-    }
-    const trashed = takeTrashed(event, state);
-    if (trashed) {
-      void moveOutOfTrash(trashed, folder);
-      return;
-    }
-    const dragged = state.take();
-    if (dragged) void moveEntries(dragged, folder);
-  }
-  // A Trash row lands in the space tree and nowhere else: only this check
-  // keeps a row out of a drop another tree's drag state answers.
+  // A Trash row lands in the space tree and nowhere else: no other tree's
+  // drop asks for one.
   //
   // The drop's own type is asked too: a Trash list redrawn mid-drag takes the
   // dragged row off the page, its dragend never reaches the document, and the
   // row would be left over for the next drag dropped on the tree.
-  function takeTrashed(event: DragEvent, state: Drag): TrashEntry | undefined {
-    if (state !== drag || !event.dataTransfer?.types.includes(TRASH_DRAG_TYPE)) return undefined;
-    return trashDrag.take();
+  function takeTrashDrop(event: DragEvent, folder: string): boolean {
+    if (!event.dataTransfer?.types.includes(TRASH_DRAG_TYPE)) return false;
+    const trashed = trashDrag.take();
+    if (!trashed) return false;
+    void moveOutOfTrash(trashed, folder);
+    return true;
   }
-  elements.nodes.addEventListener("dragover", (event) => acceptDrag(event, false));
-  elements.nodes.addEventListener("drop", (event) => dropInto(event, drag, ""));
+  elements.nodes.addEventListener("dragover", (event) => actions.acceptDrag(event));
+  elements.nodes.addEventListener("drop", (event) => actions.dropInto(event, ""));
   elements.nodes.addEventListener("contextmenu", (event) => openMenu(event, null));
-  elements.newFile.addEventListener("click", () => startCreate("", "file", "note"));
-  elements.newFolder.addEventListener("click", () => startCreate("", "directory"));
+  elements.newFile.addEventListener("click", () => actions.startCreate("", "file", "note"));
+  elements.newFolder.addEventListener("click", () => actions.startCreate("", "directory"));
   elements.refresh.addEventListener("click", () => void refresh());
   must<HTMLButtonElement>("#tree-collapse-all", elements.panel).addEventListener("click", collapseAll);
   deps.moveToTrash.subscribe(() => renderTrash());
@@ -1316,90 +1007,10 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
 
   // ---- the right-click menu ---------------------------------------------
 
-  // A directory is its own target; a file's is its parent, so right-clicking
-  // a file acts on the folder it is already in.
-  function parentPathOf(node: SpaceTreeNode | null): string {
-    if (!node) return "";
-    return node.type === "directory" ? node.path : dirnameOf(node.path);
-  }
-
-  // The argument is the row under the pointer — null for empty tree space. A
-  // document can't contain children, so the create actions give way to
-  // Duplicate and Rename; only a directory sorts, has properties, or scopes
-  // Find in context; only an actual row renames or deletes. The disruptive actions sit last:
-  // a rename can break links into a note, and the other two destroy.
-  //
-  // `naming` is set when another surface opened this menu on its own drawing
-  // of the entry (a gallery tile): a name asked for is typed there.
-  // `selection` is set when the row is one of several selected together.
-  type TreeTarget = { node: SpaceTreeNode | null; naming?: NamingSurface; selection?: SpaceTreeNode[] };
-  const notFile = (_: CommandContext, arg?: TreeTarget) => arg?.node?.type !== "file";
-  const isDirectory = (_: CommandContext, arg: TreeTarget) => arg.node?.type === "directory";
-  const isRow = (_: CommandContext, arg: TreeTarget) => arg.node !== null;
-  // A copy made in a preset folder would count as a preset, never as the
-  // space's content.
-  const amongPresets = (arg?: TreeTarget) => isPresetPath(parentPathOf(arg?.node ?? null));
-  // A key, the palette or the menu bar hands no row, so the entry open in the
-  // focused group stands in: a create lands in its folder (the space root for
-  // a tab outside the tree), and Rename and Delete take it when it is a file.
-  // For a name, the Space view comes up, since it is typed into a row there.
-  const focusedEntry = (context: CommandContext): SpaceTreeNode | null =>
-    (context.tab.kind === "empty" ? undefined : spaceTree.findEntry(context.tab.path)) ?? null;
-  const bringIntoView = (path: string) => {
-    deps.show();
-    collapsed.reveal(path);
-  };
-  const isListed = (path: string) => spaceTree.findEntry(path) !== undefined;
-  const creates = (type: "file" | "directory", kind?: CreateKind) => (context: CommandContext, arg?: TreeTarget) => {
-    const parentPath = parentPathOf(arg ? arg.node : focusedEntry(context));
-    if (arg?.naming) {
-      const pending = { parentPath, type, kind };
-      arg.naming.create(pending, (name) => void createNamed(pending, name, isListed));
-      return;
-    }
-    if (!arg) bringIntoView(parentPath);
-    startCreate(parentPath, type, kind);
-  };
   const onRow = (act: (node: SpaceTreeNode) => void) => (_: CommandContext, arg: TreeTarget) => {
     if (arg.node) act(arg.node);
   };
-  // New ▸ Template's items, as the templates hold them: a group is a
-  // submenu, and each template is made where New was chosen.
-  // A template's row in New ▸ Template: a copy of it made where New was
-  // chosen, a folder template copied whole.
-  function templateLeaf(row: PresetRow, target: TreeTarget): MenuItem {
-    const type = row.icon.glyph === "folder" ? "directory" : "file";
-    const source = row.pragma ? "pragma" : undefined;
-    return {
-      label: row.label,
-      run: () => void createFromTemplate({ path: row.path, label: row.label, source }, type, target),
-    };
-  }
-  const templateSources = () => presetSources("templates", pragmaRows("templates"));
-  // The name a copy starts with is asked for before the field is drawn, so
-  // nothing typed is ever replaced by its arrival.
-  async function createFromTemplate(
-    template: { path: string; label: string; source?: "pragma" },
-    type: "file" | "directory",
-    target: TreeTarget,
-  ): Promise<void> {
-    const initialName = await fetchTemplateStartingName(template.path, template.source).catch(() => "");
-    const pending: PendingCreate = { parentPath: parentPathOf(target.node), type, template };
-    if (initialName) pending.initialName = initialName;
-    if (target.naming) target.naming.create(pending, (name) => void createNamed(pending, name, isListed));
-    else beginCreate(pending);
-  }
   const { commands, menus } = deps;
-  commands.register({ id: "tree.newNote", label: "New Note", when: notFile, run: creates("file", "note") });
-  commands.register({ id: "tree.newFolder", label: "New Folder", when: notFile, run: creates("directory") });
-  commands.register({ id: "tree.newTable", label: "New Table", when: notFile, run: creates("file", "table") });
-  commands.register({ id: "tree.newFlow", label: "New Flow", when: notFile, run: creates("file", "flow") });
-  commands.register({
-    id: "tree.newClass",
-    label: "New Class",
-    when: notFile,
-    run: creates("file", "class"),
-  });
   commands.register({
     id: "tree.newSite",
     label: "New Site…",
@@ -1442,7 +1053,9 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   const revealedEntry = (arg: unknown): string | undefined => {
     if (typeof arg !== "object" || arg === null) return undefined;
     const path = "file" in arg ? arg.file : "folder" in arg ? arg.folder : undefined;
-    return typeof path === "string" && !isLibraryPath(path) && isListed(path) ? path : undefined;
+    return typeof path === "string" && !isLibraryPath(path) && spaceTree.findEntry(path) !== undefined
+      ? path
+      : undefined;
   };
   commands.register({
     id: "space.reveal",
@@ -1453,112 +1066,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       if (path !== undefined) revealEntry(path);
     },
   });
-  commands.register({
-    id: "tree.duplicate",
-    label: "Duplicate",
-    when: (_, arg: TreeTarget) => arg.node?.type === "file",
-    run: (_, arg: TreeTarget) => {
-      if (arg.node) void duplicate(arg.node, arg.naming);
-    },
-  });
-  commands.register({
-    id: "tree.rename",
-    label: "Rename…",
-    when: (context, arg?: TreeTarget) => (arg ? isRow(context, arg) : focusedEntry(context)?.type === "file"),
-    run: (context, arg?: TreeTarget) => {
-      const node = arg ? arg.node : focusedEntry(context);
-      if (!node) return;
-      if (arg?.naming) {
-        arg.naming.rename(node.path, (name) => void renameNamed(node, name));
-        return;
-      }
-      if (!arg) bringIntoView(node.path);
-      startRename(node);
-    },
-  });
-  commands.register({
-    id: "tree.delete",
-    label: "Delete",
-    when: (context, arg?: TreeTarget) => {
-      if (!arg) return focusedEntry(context)?.type === "file";
-      return arg.selection ? arg.selection.length > 0 : isRow(context, arg);
-    },
-    run: (context, arg?: TreeTarget) => {
-      const node = arg ? arg.node : focusedEntry(context);
-      void confirmDelete(arg?.selection ?? (node ? [node] : []));
-    },
-  });
-  const isFolderRow = (context: CommandContext, arg: unknown) => isDirectory(context, arg as TreeTarget);
-  const notFolderRow = (context: CommandContext, arg: unknown) => !isFolderRow(context, arg);
-  menus.register("tree", [
-    { command: "editor.openInNewTab", group: "open" },
-    { command: "editor.openToSide", group: "open" },
-    { command: "editor.editToSide", group: "open" },
-    // A file's Duplicate, Rename… and Bookmark sit after the ways to open it,
-    // and a folder's Rename… and Bookmark after its own.
-    { command: "tree.duplicate", group: "bookmark" },
-    { command: "tree.rename", group: "bookmark", when: notFolderRow },
-    { command: "bookmarks.add", group: "bookmark", when: notFolderRow },
-    { command: "bookmarks.remove", group: "bookmark", when: notFolderRow },
-    { command: "tree.newNote", group: "create" },
-    { command: "tree.newFolder", group: "create" },
-    {
-      label: "New",
-      group: "new",
-      // No Applet here: an Applet is code, written or copied in, so there is
-      // no empty one worth seeding.
-      submenu: [
-        { command: "tree.newTable", label: "Table" },
-        { command: "tree.newFlow", label: "Flow" },
-        { command: "tree.newClass", label: "Class" },
-        {
-          label: "Template",
-          group: "template",
-          when: (context, arg) => notFile(context, arg as TreeTarget) && !amongPresets(arg as TreeTarget),
-          search: (_, arg) =>
-            presetSearch(templateSources(), "Search templates", (row) => templateLeaf(row, arg as TreeTarget)),
-          submenu: (_, arg) => presetMenuItems(templateSources(), (row) => templateLeaf(row, arg as TreeTarget)),
-        },
-      ],
-    },
-    { command: "tree.newSite", group: "site" },
-    { command: "gallery.openFolder", group: "view", when: isDirectory },
-    { command: "gallery.openFolderInNewTab", group: "view" },
-    { command: "gallery.openFolderToSide", group: "view" },
-    { command: "tree.rename", group: "folder-bookmark", when: isFolderRow },
-    { command: "bookmarks.add", group: "folder-bookmark", when: isFolderRow },
-    { command: "bookmarks.remove", group: "folder-bookmark", when: isFolderRow },
-    ...presetFolderItems(
-      (arg) => {
-        const node = (arg as TreeTarget | undefined)?.node;
-        return node?.type === "directory" ? node.path : undefined;
-      },
-      (message) => window.alert(message),
-      "folder-bookmark",
-    ),
-    { command: "tree.context", group: "folder" },
-    { command: "search.inFolder", group: "folder" },
-    { command: "tree.findContext", group: "folder" },
-    copyPathItem({ group: "copy" }),
-    {
-      command: "tree.delete",
-      group: "delete",
-      label: () => removalLabel(deps.moveToTrash.get()),
-      danger: true,
-    },
-  ]);
-  // A right-click on one of several selected rows: only what acts on them all.
-  menus.register("tree-selection", [
-    {
-      command: "tree.delete",
-      label: (_, arg) => {
-        const count = (arg as TreeTarget).selection?.length ?? 0;
-        const items = countText(count, "Item");
-        return deps.moveToTrash.get() ? `Move ${items} to Trash` : `Delete ${items}`;
-      },
-      danger: true,
-    },
-  ]);
   type TrashTarget = { entry: TrashEntry | null };
   commands.register({
     id: "trash.deletePermanently",
@@ -1584,19 +1091,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       when: (_, arg) => !(arg as TrashTarget).entry,
     },
   ]);
-  deps.keybindings.register({ key: "F2", command: "tree.rename" });
-  // A browser opens a window of its own on Mod+N and never hands it to the
-  // page, so only the desktop app binds it.
-  if (window.pragmaElectron) deps.keybindings.register({ key: "Mod+N", command: "tree.newNote" });
-  menus.register(COMMAND_PALETTE, [
-    { command: "tree.newNote" },
-    { command: "tree.newFolder" },
-    { command: "tree.newTable" },
-    { command: "tree.newFlow" },
-    { command: "tree.newClass" },
-    { command: "tree.rename", label: "Rename File…" },
-    { command: "trash.empty" },
-  ]);
+  menus.register(COMMAND_PALETTE, [{ command: "trash.empty" }]);
 
   function openMenu(event: MouseEvent, node: SpaceTreeNode | null, selection?: SpaceTreeNode[]): void {
     event.preventDefault();
@@ -1610,10 +1105,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   }
 
   // ---- the node dialogs --------------------------------------------------
-
-  // Bumped on every request so a slower, earlier pre-check can't open a
-  // dialog for a node the user has since moved on from.
-  let deleteConfirmToken = 0;
 
   // What removing `node` would unpublish, as the line its confirmation warns
   // with, or undefined when it unpublishes nothing. Cheap where it can be: a
@@ -1652,118 +1143,6 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
     if (!warned.some(Boolean)) return undefined;
     const removing = trash ? "moving them to the Trash" : "deleting them";
     return `Some of these are published, so ${removing} will also attempt to unpublish them from their sites.`;
-  }
-
-  // The removal itself already succeeded: Unpublish just didn't go through
-  // for some documents, which stay queued in their site's _queue.json.
-  function queuedUnpublishNote(pending: number): string {
-    return pending === 1
-      ? "1 published document couldn't be unpublished from its site yet. It remains queued for later."
-      : `${pending} published documents couldn't be unpublished from their sites yet. They remain queued for later.`;
-  }
-
-  // The entries a removal names, quoted as its title quotes one: the first
-  // ten, then how many more.
-  function quotedNames(nodes: readonly SpaceTreeNode[]): string {
-    const names = nodes.slice(0, 10).map((node) => `"${node.name}"`);
-    const more = nodes.length - names.length;
-    if (more > 0) return `${names.join(", ")} and ${more.toLocaleString()} more`;
-    return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-  }
-
-  // What removing `nodes` asks before they go, the same from the delete
-  // dialog and from chat's Undo.
-  function removalPrompt(nodes: readonly SpaceTreeNode[], trash: boolean, unpublishWarning: string | undefined) {
-    const [node] = nodes;
-    const count = `${nodes.length.toLocaleString()} Items`;
-    let message: string;
-    const warnings: string[] = [];
-    if (nodes.length > 1) {
-      const names = quotedNames(nodes);
-      message = trash
-        ? `These ${count.toLowerCase()} will be moved to the Trash: ${names}.`
-        : `This permanently deletes these ${count.toLowerCase()}: ${names}. This cannot be undone.`;
-      const folders = nodes.filter((each) => each.type === "directory");
-      const fileCount = folders.reduce((sum, folder) => sum + flattenTreeFilePaths(folder.children ?? []).length, 0);
-      if (fileCount > 0) {
-        const holds = folders.length === 1 ? "The folder among them holds" : "The folders among them hold";
-        const files = countText(fileCount, "file");
-        warnings.push(`${holds} ${files}, which will be ${trash ? "moved to the Trash" : "deleted"} too.`);
-      }
-    } else if (node.type === "directory") {
-      const fileCount = flattenTreeFilePaths(node.children ?? []).length;
-      message = trash ? "This folder will be moved to the Trash." : "Are you sure you want to delete this folder?";
-      if (fileCount > 0) {
-        warnings.push(
-          trash
-            ? `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be moved to the Trash too.`
-            : `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be deleted.`,
-        );
-      }
-    } else {
-      message = trash
-        ? "This file will be moved to the Trash."
-        : "This permanently deletes the file. This cannot be undone.";
-    }
-    if (unpublishWarning) warnings.push(unpublishWarning);
-    const target = nodes.length > 1 ? count : node.type === "directory" ? `"${node.name}" folder` : `"${node.name}"`;
-    return {
-      title: trash ? `Move ${target} to Trash` : `Delete ${target}`,
-      message,
-      warning: warnings.join(" ") || undefined,
-      confirmLabel: trash ? "Move to Trash" : "Delete",
-      busyLabel: trash ? "Moving…" : "Deleting…",
-      danger: true,
-      failureMessage: trash ? "Failed to move to the Trash." : "Failed to delete.",
-    };
-  }
-
-  // Async only because of the published-document pre-check.
-  async function confirmDelete(nodes: readonly SpaceTreeNode[]): Promise<void> {
-    if (nodes.length === 0) return;
-    const token = ++deleteConfirmToken;
-    const trash = deps.moveToTrash.get();
-    const unpublishWarning = await unpublishWarningForAll(nodes, trash);
-    if (token !== deleteConfirmToken) return; // a newer delete request has since started
-
-    let pendingUnpublish = 0;
-    let failed: string[] = [];
-    const deleted = await deps.dialog().confirm({
-      ...removalPrompt(nodes, trash, unpublishWarning),
-      action: async () => {
-        pendingUnpublish = 0;
-        failed = [];
-        const removed: string[] = [];
-        for (const node of nodes) {
-          try {
-            // The setting as read when the dialog opened, so the action is the one its labels name.
-            const result = await postDeleteEntry(node.path, trash);
-            removed.push(node.path);
-            pendingUnpublish += result.pendingUnpublish;
-          } catch (error) {
-            if (nodes.length === 1) throw error;
-            const reason =
-              error instanceof Error ? error.message : trash ? "Failed to move to the Trash." : "Failed to delete.";
-            failed.push(`${node.name}: ${reason}`);
-          }
-        }
-        // With nothing gone the dialog stays open on why, to try again; with
-        // some gone, it closes and the rest are reported after.
-        if (removed.length === 0) throw new Error(failed.join("; "));
-        await refresh();
-        for (const path of removed) deps.onDeleted(path);
-      },
-    });
-    if (!deleted) return;
-    const notes: string[] = [];
-    if (failed.length > 0) {
-      const heading = trash ? "Couldn't move everything to the Trash." : "Couldn't delete everything.";
-      notes.push(`${heading}\n\n${failed.join("\n")}`);
-    }
-    if (pendingUnpublish > 0) {
-      notes.push(`${trash ? "Moved to the Trash." : "Deleted."} ${queuedUnpublishNote(pendingUnpublish)}`);
-    }
-    if (notes.length > 0) window.alert(notes.join("\n\n"));
   }
 
   // Find in context: a paragraph of prose
@@ -2088,22 +1467,12 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
       return hasRow(path);
     },
     revealFolder: revealEntry,
-    revealCreated,
-    startCreate,
-    startRename,
+    revealCreated: actions.revealCreated,
+    startCreate: actions.startCreate,
+    startRename: actions.startRename,
     noteSaved,
-    confirmDelete,
-    async trash(path) {
-      const node = spaceTree.findEntry(path);
-      const unpublishWarning = node && (await unpublishWarningFor(node, true));
-      if (node && unpublishWarning && !(await deps.dialog().confirm(removalPrompt([node], true, unpublishWarning)))) {
-        return undefined;
-      }
-      const result = await postDeleteEntry(path, true);
-      await refresh();
-      deps.onDeleted(path);
-      return { unpublishNote: result.pendingUnpublish > 0 ? queuedUnpublishNote(result.pendingUnpublish) : undefined };
-    },
+    confirmDelete: actions.confirmDelete,
+    trash: actions.trash,
     openFindContext,
     openFolderContext,
     openContext,
