@@ -631,7 +631,7 @@ describe("a previewed file's Info section", () => {
 
     preview.show(0);
     expect([section?.hidden, title(section)]).toEqual([false, "Selected Image"]);
-    expect(rows(section)).toEqual({ Name: "a.png", "Color mode": "…", "Bit depth": "…" });
+    expect(rows(section)).toEqual({ Name: "a.png", Path: "…", "Color mode": "…", "Bit depth": "…" });
     const img = overlay.querySelector(".file-preview-frame img") as HTMLImageElement;
     Object.defineProperty(img, "naturalWidth", { value: 4000 });
     Object.defineProperty(img, "naturalHeight", { value: 3000 });
@@ -639,6 +639,7 @@ describe("a previewed file's Info section", () => {
     await settle();
     expect(rows(section)).toEqual({
       Name: "a.png",
+      Path: "/home/me/space/stills",
       Dimensions: "4000 × 3000px (4:3)",
       "Color mode": "RGB",
       "Bit depth": "8 bits per channel",
@@ -652,6 +653,7 @@ describe("a previewed file's Info section", () => {
     expect(title(section)).toBe("Selected Video");
     expect(rows(section)).toEqual({
       Name: "b.mp4",
+      Path: "/home/me/space/clips",
       Dimensions: "1920 × 1080px (16:9)",
       Duration: "0:12",
       "Frame rate": "24 fps",
@@ -691,11 +693,48 @@ describe("a previewed file's Info section", () => {
     first.dispatchEvent(new Event("load"));
     answers.get("stills/a.png")?.(9_000_000);
     await settle();
-    expect(rows(section)).toEqual({ Name: "b.png", "Color mode": "RGB", "Bit depth": "8 bits per channel" });
+    expect(rows(section)).toEqual({ Name: "b.png", Path: "…", "Color mode": "RGB", "Bit depth": "8 bits per channel" });
 
     answers.get("stills/b.png")?.(2048);
     await settle();
     expect(rows(section)).toMatchObject({ Name: "b.png", Size: "2.0 KB" });
+  });
+
+  // Below Name, as in the open file's facts: the folder on disk, a piece per
+  // folder, so a wrapped path breaks between folders.
+  it("names the folder holding the file on disk below its name", async () => {
+    const { preview, section } = setup({ details: true });
+    preview.show(0);
+    await settle();
+    expect(Object.keys(rows(section)).slice(0, 2)).toEqual(["Name", "Path"]);
+    const path = section?.querySelector(".meta-path");
+    expect([...(path?.children ?? [])].map((piece) => piece.textContent)).toEqual([
+      "/",
+      "home/",
+      "me/",
+      "space/",
+      "stills",
+    ]);
+  });
+
+  it("leaves Path out where the engine names no folder on disk, or the read fails", async () => {
+    const { preview, section } = setup({
+      details: true,
+      sources: (held) => ({
+        ...testPreviewSources(held),
+        fileInfo: vi.fn(async (path: string): Promise<FileInfoResponse> => {
+          if (path === "stills/b.png") throw new Error("Not found");
+          return { kind: "file", name: path, size: 2048, modified: "2026-11-01T09:30:00.000Z" };
+        }),
+      }),
+    });
+    preview.show(0);
+    await settle();
+    expect(Object.keys(rows(section))).not.toContain("Path");
+    preview.key("ArrowRight");
+    await settle();
+    expect(rows(section)).toMatchObject({ Name: "b.png" });
+    expect(Object.keys(rows(section))).not.toContain("Path");
   });
 
   it("reads nothing for it where the pane shows its own selection", async () => {

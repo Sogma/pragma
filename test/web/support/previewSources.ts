@@ -1,13 +1,13 @@
 import { vi } from "vitest";
-import { basenameOf } from "../../../src/protocol/rootedPath.ts";
+import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
 import type { PreviewSources, SelectedReads } from "../../../web/filePreview.ts";
 import { memorySetting, memoryViews } from "./editorLayout.ts";
 
-// What a pane's file preview and its Info section read, faked: a file's raw
-// URL by its path, readable line length on, Loop off, the volume full, each
-// context's guides and look as `held` keeps them, none until set, every clip
-// a 24 fps H.264 1920 × 1080 header, every still 8-bit RGB, every file 2 KB
-// changed on 1 November 2026, and every folder holding 5 files and 2 folders.
+// What a pane's file preview and its Info section read, faked: raw URLs by
+// path, readable line length on, Loop off, full volume, each context's guides
+// and look as `held` keeps them (none until set), every clip a 24 fps H.264
+// 1920 × 1080 header, every still 8-bit RGB, every file 2 KB, changed on 1
+// November 2026, under /home/me/space, every folder 5 files and 2 folders.
 export function testPreviewSources(held = memoryViews()): PreviewSources & SelectedReads {
   return {
     rawFileUrl: (path) => `/raw?path=${path}`,
@@ -30,6 +30,7 @@ export function testPreviewSources(held = memoryViews()): PreviewSources & Selec
       name: basenameOf(path),
       size: 2048,
       modified: "2026-11-01T09:30:00.000Z",
+      systemFolder: `/home/me/space/${dirnameOf(path)}`,
     })),
     pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: false, bitDepth: 8, sourceType: null })),
     folderTotals: vi.fn(() => "5 files, 2 folders"),

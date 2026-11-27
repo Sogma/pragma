@@ -170,14 +170,14 @@
 /* One click selects the whole name or path. display: block because Chromium
    copies each item of the value rule's flex box as a line of its own. */
 .inspector-facts .meta-name,
-.inspector-facts .meta-path {
+.inspector-section .meta-path {
   display: block;
   user-select: all;
 }
 
 /* Each folder is an inline-block, so a wrapped path breaks between folders,
    never at a hyphen inside one that fits on its line. */
-.inspector-facts .meta-path > span {
+.inspector-section .meta-path > span {
   display: inline-block;
 }
 

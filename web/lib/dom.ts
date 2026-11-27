@@ -145,6 +145,27 @@ export function appendCodeRow(container: HTMLElement, key: string, value: string
   return valueEl;
 }
 
+/** The "Path" row: the folder holding an entry on disk, "…" until it is
+ * given. A span per folder (web/styles/assistant.css), so a wrapped path
+ * breaks between folders, never at a hyphen inside a name that fits. */
+export function appendSystemFolderRow(container: HTMLElement, folder?: string): HTMLElement {
+  const valueEl = appendMetaRow(container, "Path", "…");
+  valueEl.classList.add("meta-path");
+  if (folder !== undefined) showSystemFolder(valueEl, folder);
+  return valueEl;
+}
+
+/** Fills a "Path" row once its folder is known. */
+export function showSystemFolder(valueEl: HTMLElement, folder: string): void {
+  valueEl.replaceChildren(
+    ...folder.split(/(?<=[/\\])/).map((piece) => {
+      const span = document.createElement("span");
+      span.textContent = piece;
+      return span;
+    }),
+  );
+}
+
 /** A block in the assistant's Info tab, under `title` when one is given.
  * Every pane that supplies one builds it here, so they share one heading
  * style and one hidden-when-empty convention: the section starts hidden, and

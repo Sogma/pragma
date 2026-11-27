@@ -10,7 +10,16 @@ import { type FileInfoResponse, getFileInfo, getFileSha256, type Tab } from "../
 import { isForeignRootTab } from "../core/paths.ts";
 import { folderTotalsAt } from "../core/spaceTree.ts";
 import { dateTimeLabel } from "../lib/dateText.ts";
-import { appendCodeRow, appendMetaRow, createInspectorSection, formatFileSize, iconButton, must } from "../lib/dom.ts";
+import {
+  appendCodeRow,
+  appendMetaRow,
+  appendSystemFolderRow,
+  createInspectorSection,
+  formatFileSize,
+  iconButton,
+  must,
+  showSystemFolder,
+} from "../lib/dom.ts";
 import { pixelToken, wirePanelResize } from "../lib/panelResize.ts";
 import type { CommandRegistry } from "../services/commands.ts";
 import type { EditorPane } from "../services/editorPanes.ts";
@@ -53,16 +62,6 @@ export interface Inspector {
   noteSpaceChanged(): void;
   // Shows the assistant, unfolds the inspector and selects `view`.
   show(view: InspectorView): void;
-}
-
-// A path on disk, a span per folder (web/styles/assistant.css), so a wrapped
-// path breaks between folders, never at a hyphen inside a name that fits.
-function pathPieces(path: string): HTMLElement[] {
-  return path.split(/(?<=[/\\])/).map((piece) => {
-    const span = document.createElement("span");
-    span.textContent = piece;
-    return span;
-  });
 }
 
 export function createInspector(deps: InspectorDeps): Inspector {
@@ -226,7 +225,7 @@ export function createInspector(deps: InspectorDeps): Inspector {
         if (!current()) return;
         if (entryName) entryName.textContent = info.name;
         if (systemFolder && info.systemFolder !== undefined) {
-          systemFolder.replaceChildren(...pathPieces(info.systemFolder));
+          showSystemFolder(systemFolder, info.systemFolder);
         } else {
           systemFolder?.parentElement?.remove();
         }
@@ -373,8 +372,7 @@ export function createInspector(deps: InspectorDeps): Inspector {
     const isFolder = tab.kind === "gallery";
     entryName = appendMetaRow(facts.body, "Name", "…");
     entryName.classList.add("meta-name");
-    systemFolder = appendMetaRow(facts.body, "Path", "…");
-    systemFolder.classList.add("meta-path");
+    systemFolder = appendSystemFolderRow(facts.body);
     if (isFolder) contains = appendMetaRow(facts.body, "Contains", "");
     else size = appendMetaRow(facts.body, "Size", "…");
     modified = appendMetaRow(facts.body, "Modified", "…");

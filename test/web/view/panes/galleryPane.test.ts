@@ -147,7 +147,13 @@ function setup(listing: FolderEntry[], overrides: Partial<GalleryPaneDeps> = {})
       duration: null,
     })),
     pixelFormat: vi.fn(async () => ({ colorModel: "rgb" as const, alpha: true, bitDepth: 8, sourceType: null })),
-    fileInfo: vi.fn(async (path: string) => ({ kind: "file" as const, name: path, size: 1, modified: "" })),
+    fileInfo: vi.fn(async (path: string) => ({
+      kind: "file" as const,
+      name: path,
+      size: 1,
+      modified: "",
+      systemFolder: "/home/me/footage",
+    })),
     folderTotals: vi.fn(() => undefined),
     clipFacts: vi.fn(async () => ({ width: 1188, height: 2112, duration: 26.8, clip: proresDetails })),
     loadFile: vi.fn(async (path: string) => textFile(path, "# A note\n\nIts text.\n")),
@@ -686,18 +692,22 @@ describe("the gallery pane", () => {
     pane.dismissTransient?.();
     tileNamed(pane, "still").click();
     expect(title()).toBe("Selected Image");
-    // In the image tab's order and words, from what the listing holds.
+    await settle();
+    // In the image tab's order and words, from what the listing holds. Only
+    // the folder on disk, which no listing gives, is read.
     expect(infoRows(pane)).toEqual({
       Name: "still.png",
+      Path: "/home/me/footage",
       Dimensions: "1024 × 1024px (1:1)",
       "Color mode": "RGBA",
       "Bit depth": "16 bits per channel",
       Source: "Made by AI",
-      Size: expect.any(String),
+      Size: "100 B",
       Modified: expect.any(String),
     });
     expect(Object.keys(infoRows(pane))).toEqual([
       "Name",
+      "Path",
       "Dimensions",
       "Color mode",
       "Bit depth",
@@ -706,7 +716,7 @@ describe("the gallery pane", () => {
       "Modified",
     ]);
     expect(deps.pixelFormat).not.toHaveBeenCalled();
-    expect(deps.fileInfo).not.toHaveBeenCalled();
+    expect(deps.fileInfo).toHaveBeenCalledWith("lib:footage/still.png");
   });
 
   // A thumbnail this browser made leaves the listing without the header's
@@ -784,10 +794,10 @@ describe("the gallery pane", () => {
     await open(pane, "footage");
     await settle();
     tileNamed(pane, "takes").click();
-    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Contains", "Modified"]);
+    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Path", "Contains", "Modified"]);
     expect(infoRows(pane).Contains).toBe("5 files, 2 folders");
     tileNamed(pane, "stills").click();
-    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Modified"]);
+    expect(Object.keys(infoRows(pane))).toEqual(["Name", "Path", "Modified"]);
     tileNamed(pane, "scene").click();
     pane.dismissTransient?.();
     expect(folderTotals).not.toHaveBeenCalledWith("footage/scene.md");
@@ -1593,7 +1603,6 @@ describe("the gallery pane", () => {
     // No name, and no length, which the pill shows.
     expect(deps.videoFormat).toHaveBeenCalledWith("lib:footage/take.mp4");
     await vi.waitFor(() => expect(bars()).toEqual(["1920 × 1080 (16:9) |  | ", "23.976 fps · H.264 · 8-bit | 2.0 KB"]));
-    expect(deps.fileInfo).not.toHaveBeenCalled();
   });
 });
 

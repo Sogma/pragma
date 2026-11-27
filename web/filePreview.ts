@@ -32,6 +32,7 @@ import { type ContextView, createViewBinding } from "./lib/contextView.ts";
 import { dateTimeLabel } from "./lib/dateText.ts";
 import {
   appendMetaRow,
+  appendSystemFolderRow,
   createInspectorSection,
   formatDimensions,
   formatDuration,
@@ -118,7 +119,7 @@ export interface PreviewSources {
 
 /** What a "Selected …" section reads of an entry whose facts it lacks. */
 export interface SelectedReads {
-  /** A file's size and date. */
+  /** A file's size and date, and the folder holding it on disk. */
   fileInfo(path: string): Promise<FileInfoResponse>;
   /** A raster still's color mode, bit depth and source, read from its
    * header by the server. */
@@ -147,20 +148,23 @@ export function servedPreviewSources(): PreviewSources & SelectedReads {
 }
 
 /** What a "Selected …" section knows of an entry: a listing's facts, or
- * what a preview learns as it shows the file. A fact it lacks gets no row,
- * but a raster still's color mode and bit depth read "…" until its
- * `picture` arrives. */
+ * what a preview learns as it shows the file, and the folder holding it on
+ * disk, which no listing gives (null where none is known). A fact it lacks
+ * gets no row, but its folder, and a raster still's color mode and bit
+ * depth, read "…" until they arrive. */
 export type SelectedEntry = Pick<FolderEntry, "path" | "name" | "type"> &
-  Partial<Pick<FolderEntry, "size" | "modified" | "width" | "height" | "duration" | "clip" | "picture">>;
+  Partial<Pick<FolderEntry, "size" | "modified" | "width" | "height" | "duration" | "clip" | "picture">> & {
+    systemFolder?: string | null;
+  };
 
 /** The Info tab's "Selected …" section: the file a pane points at apart
  * from its own, in the same rows and words on every pane. */
 export interface SelectedSection {
   /** Hidden while nothing is selected. */
   readonly section: HTMLElement;
-  /** Shows `entry`, or hides the section. A file's size and date, or a
-   * raster still's pixels, that it lacks are read once and kept on it, so
-   * showing it again reads nothing. */
+  /** Shows `entry`, or hides the section. Its folder, and a file's size and
+   * date or a raster still's pixels that it lacks, are read once and kept
+   * on it, so showing it again reads nothing. */
   show(entry: SelectedEntry | undefined): void;
 }
 
@@ -180,6 +184,7 @@ export function createSelectedSection(reads: SelectedReads): SelectedSection {
     title.textContent =
       entry.type === "directory" ? "Selected Folder" : `Selected ${fileTypeLabel(fileTypeAt(entry.path)) ?? "File"}`;
     appendMetaRow(body, "Name", entry.name);
+    if (entry.systemFolder !== null) appendSystemFolderRow(body, entry.systemFolder);
     if (entry.width && entry.height) appendMetaRow(body, "Dimensions", formatDimensions(entry.width, entry.height));
     if (entry.duration !== undefined) appendMetaRow(body, "Duration", formatDuration(entry.duration));
     const still = isRasterStill(entry);
@@ -210,12 +215,17 @@ export function createSelectedSection(reads: SelectedReads): SelectedSection {
   function readWhatItLacks(entry: SelectedEntry): void {
     if (asked.has(entry)) return;
     asked.add(entry);
-    if (entry.size === undefined || entry.modified === undefined) {
-      reads.fileInfo(entry.path).then(
-        ({ size, modified }) => keep(entry, { size, modified }),
-        () => undefined,
-      );
-    }
+    // Read for every entry, for its folder. A listing's size and date stay
+    // as it gave them: its own tiles show them too.
+    reads.fileInfo(entry.path).then(
+      ({ size, modified, systemFolder }) =>
+        keep(entry, {
+          size: entry.size ?? size,
+          modified: entry.modified ?? modified,
+          systemFolder: systemFolder ?? null,
+        }),
+      () => keep(entry, { systemFolder: null }),
+    );
     if (isRasterStill(entry) && !entry.picture) {
       reads.pixelFormat(entry.path).then(
         ({ sourceType, ...pixels }) => keep(entry, { picture: { sourceType, pixels } }),
