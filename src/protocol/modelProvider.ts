@@ -596,14 +596,26 @@ async function listGatewayModels(
   const headers: Record<string, string> = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
   const response = await fetch(`${baseURLOf(provider).replace(/\/+$/, "")}/v1/models`, { headers });
   if (!response.ok) throw new ProviderHttpError(provider.id, response.status);
-  const body = (await response.json()) as { data?: Array<{ id?: unknown; type?: unknown }> };
+  const body = (await response.json()) as { data?: Array<{ id?: unknown; type?: unknown; released?: unknown }> };
+  // By `released`, never `created`: the gateway gives every model the same `created`.
+  const models = newestFirst(body.data ?? [], (model) => model.released);
   const ofType = (type: string) =>
-    (body.data ?? [])
+    models
       .filter((model) => model.type === type)
       .map((model) => model.id)
-      .filter((id): id is string => typeof id === "string")
-      .sort();
+      .filter((id): id is string => typeof id === "string");
   return { textModels: ofType("language"), imageModels: ofType("image"), videoModels: ofType("video") };
+}
+
+// Newest first by the unix date `dateOf` reads; equal dates, and entries with
+// none, keep the endpoint's order, so an endpoint that dates nothing is left
+// as it listed.
+function newestFirst<T>(entries: readonly T[], dateOf: (entry: T) => unknown): T[] {
+  const date = (entry: T) => {
+    const value = dateOf(entry);
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  };
+  return [...entries].sort((a, b) => date(b) - date(a));
 }
 
 // `GET {baseURL}/models` on the anthropic and openai kinds, differing only in
@@ -622,9 +634,12 @@ async function listModels(provider: ResolvedProvider, apiKey: string | undefined
   // every model it serves. OpenAI-compatible servers ignore the parameter.
   const response = await fetch(`${baseURL}/models${isAnthropic ? "?limit=1000" : ""}`, { headers });
   if (!response.ok) throw new ProviderHttpError(provider.id, response.status);
-  const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
-  const ids = (body.data ?? []).map((model) => model.id).filter((id): id is string => typeof id === "string");
-  return isAnthropic ? ids : ids.sort();
+  const body = (await response.json()) as { data?: Array<{ id?: unknown; created?: unknown }> };
+  // OpenAI's own order isn't newest first, so its `created` dates sort it.
+  // Anthropic gives no `created` and lists newest first already, so it keeps its order.
+  return newestFirst(body.data ?? [], (model) => model.created)
+    .map((model) => model.id)
+    .filter((id): id is string => typeof id === "string");
 }
 
 // Gemini lists models by resource name (`models/gemini-2.5-flash`), with the
@@ -651,8 +666,7 @@ async function listGoogleModels(provider: ResolvedProvider, apiKey: string | und
     )
     .map((model) => model.name)
     .filter((name): name is string => typeof name === "string")
-    .map((name) => name.replace(/^models\//, ""))
-    .sort();
+    .map((name) => name.replace(/^models\//, ""));
 }
 
 /**

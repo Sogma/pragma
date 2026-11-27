@@ -1162,7 +1162,9 @@ export interface DefaultModelRequestBody {
 
 // What a provider's endpoint serves, split by how Pragma calls a model:
 // `imageModels` and `videoModels` are the ids its kind makes images and
-// videos with, `textModels` the rest.
+// videos with, `textModels` the rest. Each list is in the order the endpoint
+// means: newest first by its dates, or by its catalog's priority, else as it
+// lists them; never A–Z.
 export interface DiscoverModelsResponse {
   textModels: string[];
   imageModels: string[];

@@ -221,8 +221,11 @@ export function wireProvidersPanel(root: HTMLElement, deps: ProvidersPanelDeps):
         const box = document.createElement("input");
         box.type = "checkbox";
         box.checked = list.enabled.includes(id);
+        // Saved in the checklist's order, which is the listing's: the pickers
+        // show the list as saved, so a model ticked later still belongs among
+        // its neighbors, not at the end.
         box.addEventListener("change", () => {
-          list.enabled = box.checked ? [...new Set([...list.enabled, id])] : list.enabled.filter((m) => m !== id);
+          list.enabled = ids.filter((m) => (m === id ? box.checked : list.enabled.includes(m)));
           void saveModels(list);
         });
         label.append(box, document.createTextNode(id));

@@ -253,6 +253,33 @@ describe("Settings → AI Models' Set", () => {
     expect(byId("providers-form-video-models").hidden).toBe(true);
   });
 
+  it("saves the ticked models in the listing's order, so a late tick doesn't land last", async () => {
+    vi.mocked(fetchProviders).mockResolvedValue({
+      providers: [
+        row({ id: "lmstudio", label: "LM Studio", kind: "openai", textModels: ["typed-model", "model-old"] }),
+      ],
+      store,
+      signInAllowed: true,
+    });
+    vi.mocked(postDiscoverProviderModels).mockResolvedValueOnce({
+      textModels: ["model-new", "model-mid", "model-old"],
+      imageModels: [],
+      videoModels: [],
+    });
+    wire();
+    await setOn(0);
+    const box = (id: string) =>
+      [...byId("providers-form-models-list").querySelectorAll("label")]
+        .find((label) => label.textContent === id)
+        ?.querySelector("input") as HTMLInputElement;
+    box("model-new").click();
+    expect(postSaveProviderModels).toHaveBeenLastCalledWith("lmstudio", {
+      textModels: ["model-new", "model-old", "typed-model"],
+    });
+    box("model-old").click();
+    expect(postSaveProviderModels).toHaveBeenLastCalledWith("lmstudio", { textModels: ["model-new", "typed-model"] });
+  });
+
   it("turns the line red when the next attempt fails", async () => {
     vi.mocked(postDiscoverProviderModels)
       .mockResolvedValueOnce({ textModels: ["claude-sonnet-5"], imageModels: [], videoModels: [] })

@@ -251,6 +251,27 @@ describe("a ChatGPT plan's models", () => {
     expect(standIn.modelRequests[0].get("authorization")).toBe("Bearer at-0");
   });
 
+  it("come in the catalog's priority order, lowest first, whatever order it sends them in", async () => {
+    standIn.modelsAnswer = () =>
+      Response.json({
+        models: [
+          { slug: "gpt-6-luna", visibility: "list", priority: 8 },
+          { slug: "gpt-6-unranked", visibility: "list" },
+          { slug: "gpt-6.2-astra", visibility: "list", priority: 2 },
+          { slug: "gpt-reserve", visibility: "hide", priority: 1 },
+          { slug: "gpt-6.1-terra", visibility: "list", priority: 3 },
+          { slug: "gpt-6.2-sol", visibility: "list", priority: 1 },
+        ],
+      });
+    expect((await discoverModels(provider, undefined)).textModels).toEqual([
+      "gpt-6.2-sol",
+      "gpt-6.2-astra",
+      "gpt-6.1-terra",
+      "gpt-6-luna",
+      "gpt-6-unranked",
+    ]);
+  });
+
   it("make no images", () => {
     expect(() => imageModelFor(provider, "gpt-image-2", undefined)).toThrow(/makes no images/);
   });

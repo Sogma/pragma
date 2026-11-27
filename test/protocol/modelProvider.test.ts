@@ -627,19 +627,20 @@ describe("discoverModels / verifyProviderKey", () => {
     vi.unstubAllGlobals();
   });
 
-  it("sorts the gateway's models into text, image and video lists by the type it gives each", async () => {
+  it("sorts the gateway's models into text, image and video lists by the type it gives each, newest released first", async () => {
     fetchMock.mockResolvedValue(
       Response.json({
         data: [
-          { id: "maker/still-1", type: "image" },
-          { id: "maker/clip-2", type: "video" },
-          { id: "maker/chat-1", type: "language" },
-          { id: "maker/embed-1", type: "embedding" },
+          { id: "maker/still-1", type: "image", created: 1, released: 100 },
+          { id: "maker/clip-2", type: "video", created: 1, released: 100 },
+          { id: "maker/chat-1", type: "language", created: 1, released: 100 },
+          { id: "maker/embed-1", type: "embedding", created: 1, released: 100 },
+          { id: "other/chat-9", type: "language", created: 1, released: 200 },
         ],
       }),
     );
     expect(await discoverModels(provider({ id: "vercel", kind: "vercel" }), "k")).toEqual({
-      textModels: ["maker/chat-1"],
+      textModels: ["other/chat-9", "maker/chat-1"],
       imageModels: ["maker/still-1"],
       videoModels: ["maker/clip-2"],
     });
@@ -668,41 +669,50 @@ describe("discoverModels / verifyProviderKey", () => {
     expect(init.headers).toEqual({ "anthropic-version": "2023-06-01", "x-api-key": "sk" });
   });
 
-  it("lists an openai-compatible provider's models, sorted, from its baseURL", async () => {
+  it("lists an openai-compatible provider's models from its baseURL, in its own order when it dates none", async () => {
     fetchMock.mockResolvedValue(Response.json({ data: [{ id: "b" }, { id: "a" }] }));
     const found = await discoverModels(provider({ kind: "openai", baseURL: "http://localhost:1234/v1/" }), "t");
-    expect(found).toEqual({ textModels: ["a", "b"], imageModels: [], videoModels: [] });
+    expect(found).toEqual({ textModels: ["b", "a"], imageModels: [], videoModels: [] });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:1234/v1/models");
     expect(init.headers).toEqual({ authorization: "Bearer t" });
   });
 
-  it("splits OpenAI's image models from the rest", async () => {
+  it("splits OpenAI's image models from the rest, each list newest first by `created`", async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ data: [{ id: "gpt-image-1" }, { id: "gpt-5" }, { id: "dall-e-3" }, { id: "gpt-image-1-mini" }] }),
+      Response.json({
+        data: [
+          { id: "gpt-image-1", created: 300 },
+          { id: "dall-e-3", created: 100 },
+          { id: "gpt-5", created: 500 },
+          { id: "local-model" },
+          { id: "gpt-image-1-mini", created: 400 },
+          { id: "gpt-4o", created: 100 },
+        ],
+      }),
     );
     expect(await discoverModels(provider({ kind: "openai" }), "t")).toEqual({
-      textModels: ["dall-e-3", "gpt-5"],
-      imageModels: ["gpt-image-1", "gpt-image-1-mini"],
+      textModels: ["gpt-5", "dall-e-3", "gpt-4o", "local-model"], // equal dates, and none, keep the endpoint's order
+      imageModels: ["gpt-image-1-mini", "gpt-image-1"],
       videoModels: [],
     });
   });
 
-  it("lists Gemini's generateContent models by id, its image models apart", async () => {
+  it("lists Gemini's generateContent models by id in its own order, its image models apart", async () => {
     fetchMock.mockResolvedValue(
       Response.json({
         models: [
+          { name: "models/gemma-3-27b-it", supportedGenerationMethods: ["generateContent"] },
           { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent", "countTokens"] },
           { name: "models/gemini-2.5-flash-image", supportedGenerationMethods: ["generateContent"] },
           { name: "models/gemini-nano-banana-2.1", supportedGenerationMethods: ["generateContent"] },
           { name: "models/text-embedding-004", supportedGenerationMethods: ["embedContent"] },
           { name: "models/imagen-4.0-generate-001", supportedGenerationMethods: ["predict"] },
-          { name: "models/gemma-3-27b-it", supportedGenerationMethods: ["generateContent"] },
         ],
       }),
     );
     expect(await discoverModels(provider({ kind: "google" }), "g")).toEqual({
-      textModels: ["gemini-2.5-flash", "gemma-3-27b-it"],
+      textModels: ["gemma-3-27b-it", "gemini-2.5-flash"],
       imageModels: ["gemini-2.5-flash-image", "gemini-nano-banana-2.1"],
       videoModels: [],
     });

@@ -237,8 +237,14 @@ export async function listChatGptModels(providerId: string, options: AccessToken
   if (!isObject(body) || !Array.isArray(body.models)) {
     throw new ChatGptPlanError("catalog_failed", "ChatGPT's model list was unreadable.");
   }
+  // The catalog's `priority` is the order it means its models shown in,
+  // lowest first. One without a priority, and equal priorities, keep the
+  // catalog's order after the rest.
+  const rank = (model: Record<string, unknown>) =>
+    typeof model.priority === "number" && Number.isFinite(model.priority) ? model.priority : Number.MAX_SAFE_INTEGER;
   return body.models
-    .filter((model) => isObject(model) && model.visibility === "list")
-    .map((model) => (model as Record<string, unknown>).slug)
+    .filter((model): model is Record<string, unknown> => isObject(model) && model.visibility === "list")
+    .sort((a, b) => rank(a) - rank(b))
+    .map((model) => model.slug)
     .filter((slug): slug is string => typeof slug === "string" && slug.trim() !== "");
 }
