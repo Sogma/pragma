@@ -119,7 +119,7 @@ describe("capabilityPrompt", () => {
   // Which provider gets the images isn't known when the grant is asked.
   it("says in a paragraph after an image or video generation's sentence that it spends credits and images leave for the provider", () => {
     const note =
-      "Each generation consumes AI credits. Images are sent to the model provider for processing. Each provider handles them according to its own data retention and privacy policies. Review the provider's terms before sending sensitive or confidential images.";
+      "Each generation consumes AI credits. Images are sent to the model provider for processing. Each provider handles them according to its own data retention and privacy policies.";
     const [sentence, ...rest] = capabilityPrompt(flow("Art"), {
       key: "k",
       type: "generateImage",

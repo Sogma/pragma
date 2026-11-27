@@ -89,10 +89,10 @@ const PROMPT_ACTIONS: Record<string, string> = {
 
 // A paragraph after the prompt's sentence, for a kind that spends credits or
 // sends files out. Which provider gets them isn't known when the grant is
-// asked (a wired model picks it), and each keeps them on its own terms, so
-// the writer is pointed at those terms.
+// asked (a wired model picks it), so the note names none and says each keeps
+// them on its own terms.
 const GENERATION_NOTE =
-  "Each generation consumes AI credits. Images are sent to the model provider for processing. Each provider handles them according to its own data retention and privacy policies. Review the provider's terms before sending sensitive or confidential images.";
+  "Each generation consumes AI credits. Images are sent to the model provider for processing. Each provider handles them according to its own data retention and privacy policies.";
 const CONTEXT_NOTE =
   "Each run sends the model provider this folder's AGENTS.md, the README nearest the connected document and the notes that document names. The model may also search the folder and read any other file in it. Private files are never sent.";
 const PROMPT_NOTES: Record<string, string> = {
