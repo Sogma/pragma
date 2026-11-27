@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SandboxReadResult } from "../../src/protocol/api.ts";
 import { columnAddresses, type NodeExecutionContext } from "../../src/protocol/flowExecutors.ts";
-import { pathColumns, runCapabilities } from "../../src/protocol/flowNodes.ts";
+import { pathColumns, refusesWire, runCapabilities } from "../../src/protocol/flowNodes.ts";
 import { runFlow } from "../../src/protocol/flowRuntime.ts";
-import { flowZones, zoneProblems } from "../../src/protocol/flowZones.ts";
+import { flowZones, zonePartners, zoneProblems } from "../../src/protocol/flowZones.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowEdgeInstance,
@@ -334,5 +334,32 @@ describe("Join Text's list", () => {
     graph.edges = graph.edges.map((edge) => (edge.target === "join" ? wire("rows", "rows", "join", "list") : edge));
     const result = await runFlow(graph, context(reads(["A"])));
     expect(result.errors.get("join")).toBe("Join Text joins texts, and item 1 of its list isn't one.");
+  });
+});
+
+describe("the wires an editor refuses around a zone", () => {
+  const graph = () => zone("title");
+
+  it("refuses a wire from inside a zone into a node after its End", () => {
+    expect(refusesWire(graph(), "field", "join")).toBe(true);
+  });
+
+  it("refuses a wire that puts another For Each inside the zone", () => {
+    const nested = graph();
+    nested.nodes.push(node("inner", "forEach"));
+    expect(refusesWire(nested, "field", "inner")).toBe(true);
+  });
+
+  it("takes a wire that brings a free node into the zone, and still refuses a loop", () => {
+    const free = graph();
+    free.nodes.push(node("show", "showText"));
+    expect(refusesWire(free, "field", "show")).toBe(false);
+    expect(refusesWire(free, "end", "field")).toBe(true);
+  });
+
+  it("pairs a For Each with its End, from either one", () => {
+    expect(zonePartners(graph(), "each")).toEqual(["end"]);
+    expect(zonePartners(graph(), "end")).toEqual(["each"]);
+    expect(zonePartners(graph(), "field")).toEqual([]);
   });
 });

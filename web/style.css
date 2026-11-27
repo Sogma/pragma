@@ -64,6 +64,7 @@
 @import "./styles/flow/nodes.css" layer(components);
 @import "./styles/flow/node-icons.css" layer(components);
 @import "./styles/flow/ports.css" layer(components);
+@import "./styles/flow/zones.css" layer(components);
 @import "./styles/flow/config.css" layer(components);
 @import "./styles/flow/model-settings.css" layer(components);
 @import "./styles/flow/widgets.css" layer(components);

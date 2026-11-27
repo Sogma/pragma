@@ -16,7 +16,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 // Line ceilings, counted the way `wc -l` counts (newline characters).
 const LINE_CEILINGS: Record<string, number> = {
   "web/main.ts": 837,
-  "web/flow/xyflowAdapter.ts": 778,
+  "web/flow/xyflowAdapter.ts": 775,
 };
 
 // Mutable state declared directly in web/main.ts's bootstrap closure. Every

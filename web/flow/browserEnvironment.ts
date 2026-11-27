@@ -216,7 +216,9 @@ export function createFlowContext(
 /** The ask a For Each zone makes once an item has generated, before the
  * rest start (docs/protocol.md, For Each zones): what the item made is
  * already where its results land, and Stop ends the run there. */
-export function confirmRestDialog(dialog: Pick<DialogService, "confirm">): NodeExecutionContext["confirmRest"] {
+export function confirmRestDialog(
+  dialog: Pick<DialogService, "confirm">,
+): NonNullable<NodeExecutionContext["confirmRest"]> {
   return ({ done, rest, word }) => {
     const noun = word.toLowerCase();
     return dialog.confirm({

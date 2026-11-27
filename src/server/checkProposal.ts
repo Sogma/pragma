@@ -13,7 +13,13 @@ import { parseClassFile } from "../protocol/classFile.ts";
 import { columnPinsConfig, recordColumns } from "../protocol/columnPins.ts";
 import { parseFlowFile } from "../protocol/flowFile.ts";
 import { serializeFlowFile } from "../protocol/flowHtml.ts";
-import { FLOW_NODE_REGISTRY, GET_FIELD_SLOTS, type SlotSpec, TEMPLATE_VARIABLE_SLOTS } from "../protocol/flowNodes.ts";
+import {
+  FLOW_NODE_REGISTRY,
+  FOR_EACH_END_SLOTS,
+  GET_FIELD_SLOTS,
+  type SlotSpec,
+  TEMPLATE_VARIABLE_SLOTS,
+} from "../protocol/flowNodes.ts";
 import { flowAuthoringProblems, nodeName } from "../protocol/flowProblems.ts";
 import { MAKE_OBJECT_NODE_TYPE } from "../protocol/makeObjectNode.ts";
 import { resolveDeclaredPath } from "../protocol/relativeReference.ts";
@@ -200,6 +206,7 @@ async function readTable(
 const SLOTTED: Record<string, SlotSpec> = {
   templateVariables: TEMPLATE_VARIABLE_SLOTS,
   getField: GET_FIELD_SLOTS,
+  forEachEnd: FOR_EACH_END_SLOTS,
 };
 
 // The slots past the floor an editor shows: every one named, keyed or wired,

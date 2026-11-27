@@ -26,6 +26,8 @@ function setup(overrides: Partial<FlowMenuDeps> = {}) {
       close: vi.fn(),
       isOpen: () => false,
     },
+    pane: document.createElement("div"),
+    transform: () => [0, 0, 1],
     locked: () => false,
     graph: () => graph,
     cards: () => cards,
@@ -39,6 +41,25 @@ function setup(overrides: Partial<FlowMenuDeps> = {}) {
   };
   return { menus: createFlowMenus(deps), deps, cards, graph, flowNodeById, opened };
 }
+
+describe("flowMenus: the pane's own right-click", () => {
+  it("opens Add Node where empty canvas is clicked, and leaves a card's parts and text fields alone", () => {
+    const { deps, opened } = setup();
+    const card = document.createElement("div");
+    card.className = "flow-node";
+    const field = document.createElement("input");
+    deps.pane.append(card, field);
+    const click = (target: Element) =>
+      target.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 30, clientY: 40 }),
+      );
+    expect(click(field)).toBe(true);
+    expect(click(card)).toBe(false);
+    expect(opened).toHaveLength(0);
+    expect(click(deps.pane)).toBe(false);
+    expect(opened).toHaveLength(1);
+  });
+});
 
 const labels = (items: MenuItem[] = []): (string | undefined)[] =>
   items.map((item) => (typeof item.label === "string" ? item.label : undefined));

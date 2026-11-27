@@ -4,11 +4,12 @@
 // The canvas (xyflowAdapter.ts) owns the graph and the node DOM; this owns
 // what a right-click offers over them and calls back. services/menus.ts
 // draws the rows and owns placement, dismissal and Escape.
+import type { Transform } from "@xyflow/system";
 import { FLOW_NODE_REGISTRY } from "../../src/protocol/flowNodes.ts";
 import type { FlowEdgeInstance, FlowGraph, FlowNodeInstance, FlowPortType } from "../../src/protocol/types.ts";
 import type { ContextMenuService, MenuItem } from "../services/menus.ts";
 import { openAddNodeMenu } from "./addNodeMenu.ts";
-import type { NodeConfig } from "./canvasDrop.ts";
+import { type NodeConfig, paneFlowPosition } from "./canvasDrop.ts";
 
 // A Load node's chip menu, registered with the editor's open commands, and
 // what it opens on: the chip's path as the space tree spells it.
@@ -37,6 +38,9 @@ export interface FlowMenuCards {
 
 export interface FlowMenuDeps {
   contextMenu: ContextMenuService;
+  // The canvas, whose empty right-click opens Add Node where it lands.
+  pane: HTMLElement;
+  transform: () => Transform;
   // A flow whose format this build can't write: every menu that would start
   // an edit refuses. Expose stays open — it only toggles a field's own flag
   // through a callback the caller has already gated.
@@ -90,6 +94,20 @@ export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
     if (deps.locked()) return;
     openAddNodeMenu(deps.contextMenu, { clientX, clientY, flowX, flowY }, deps.createNode);
   }
+
+  deps.pane.addEventListener("contextmenu", (event) => {
+    // Text that selects, a config field's or a Prompt/Note box's, is left to
+    // the text menu (lib/textMenu.ts) rather than suppressed below.
+    if ((event.target as HTMLElement).closest("input, textarea, .cm-content")) return;
+    // Suppress the browser's own menu everywhere else in the pane, node
+    // cards included — a native menu over a card reads as a bug.
+    event.preventDefault();
+    // The title bar and pins have their own menus and the rest of a card
+    // has none; this pane-level listener only ever handles empty canvas.
+    if ((event.target as HTMLElement).closest(".flow-node")) return;
+    const position = paneFlowPosition(deps.pane, deps.transform(), event);
+    openContextMenu(event.clientX, event.clientY, position.x, position.y);
+  });
 
   // A handle's right-click — left-click-drag is reserved for drawing
   // connections, even from a connected handle. `edges` is every edge on the

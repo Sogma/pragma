@@ -14,7 +14,7 @@ import {
   type HandleType as XYHandleType,
 } from "@xyflow/system";
 import type { GenerationSpend } from "../../src/protocol/flowExecutors.ts";
-import { closesLoop, FLOW_NODE_REGISTRY, nodePorts } from "../../src/protocol/flowNodes.ts";
+import { FLOW_NODE_REGISTRY, nodePorts, refusesWire } from "../../src/protocol/flowNodes.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowEdgeInstance,
@@ -40,7 +40,7 @@ import type { ModelConsole } from "../services/modelConsole.ts";
 import type { ModelLists } from "../services/modelLists.ts";
 import { injectAppletNodeRuntime } from "../services/sandboxHost.ts";
 import { type AppMode, createAppMode } from "./appMode.ts";
-import { type NodeConfig, paneFlowPosition, wireCanvasDrop } from "./canvasDrop.ts";
+import { type NodeConfig, wireCanvasDrop } from "./canvasDrop.ts";
 import { type CanvasRunHost, type CanvasRunInfo, createCanvasRun } from "./canvasRun.ts";
 import { createCanvasView } from "./canvasView.ts";
 import { createCanvasZoom } from "./canvasZoom.ts";
@@ -55,6 +55,7 @@ import { createModelFields } from "./modelOptions.ts";
 import { createNodeCards, markLeftOut, NODE_WIDTH, type NodeCardDeps } from "./nodeCard.ts";
 import { createNodeSelection } from "./nodeSelection.ts";
 import { createWires } from "./wires.ts";
+import { createZones, pairOf, withEnd } from "./zones.ts";
 
 export type CanvasEdit = "undo" | "redo" | "remove" | "disable" | "unusedPins";
 
@@ -302,7 +303,11 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     connectionPath: elements.connectionPath,
     locked,
   });
-  const renderEdges = (): void => markLeftOut(nodeEls, wires.render());
+  const zones = createZones({ viewport: elements.viewport, graph: () => graph, nodeLookup, flowPath });
+  const renderEdges = (): void => {
+    markLeftOut(nodeEls, wires.render());
+    zones.render();
+  };
   const renderConnectionLine = (): void => wires.drawConnection(connectionState, canvasView.transform());
 
   function addEdge(connection: Connection): void {
@@ -385,7 +390,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
         renderConnectionLine();
       },
       isValidConnection: (edgeOrConnection) => {
-        if (closesLoop(graph, edgeOrConnection.source, edgeOrConnection.target)) return false;
+        if (refusesWire(graph, edgeOrConnection.source, edgeOrConnection.target)) return false;
         const sourceType = portTypeOf(edgeOrConnection.source, edgeOrConnection.sourceHandle ?? null, "source");
         const targetType = portTypeOf(edgeOrConnection.target, edgeOrConnection.targetHandle ?? null, "target");
         return sourceType !== null && targetType !== null && flowPortTypesCompatible(sourceType, targetType);
@@ -404,6 +409,8 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
   // created below, take these menus as their own deps.
   const menus = createFlowMenus({
     contextMenu: deps.contextMenu,
+    pane: elements.pane,
+    transform: canvasView.transform,
     locked,
     graph: () => graph,
     cards: () => cards,
@@ -479,6 +486,7 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     pickedImages,
     ensureCapability: (capability) => ensureFlowCapability(capability),
     ensureCapabilities: (needs) => broker.ensureAll(needs.map((need) => brokerCapability(need, flowPath()))),
+    zones,
   });
 
   function remountNodes(nodeIds: readonly string[]): void {
@@ -534,13 +542,15 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
       if (widget.defaultValue !== undefined) config[widget.portId] ??= widget.defaultValue;
     }
     const flowNode: FlowNodeInstance = { id, type, typeVersion: definition.version, position: { x, y }, config };
-    graph.nodes.push(flowNode);
+    const added = withEnd(flowNode, () => `forEachEnd-${nextNodeSuffix++}`);
+    graph.nodes.push(...added);
     // A seeded path is a file the writer just dragged in. The grant and the
     // picker's first read are both checked against the graph on disk, so the
     // file must name this node first; the drag is the consent (protocol.md).
     const dragged = seed !== undefined && (await saveGraphNow()) ? definition.capabilityFor?.(config) : undefined;
     if (dragged) await ensureFlowCapability(dragged, true);
-    mountNode(flowNode);
+    for (const node of added) mountNode(node);
+    renderEdges();
     persistGraph();
   }
 
@@ -598,19 +608,20 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     saves.removed(nodeId);
   }
 
-  // Tears a node out of the graph with every edge touching it in either
-  // direction. A surviving node whose widget input just lost its only edge
-  // gets its fallback control back, as flowMenus.ts's Disconnect does for a
-  // single edge.
+  // Tears a node out of the graph, a For Each's End or an End's For Each
+  // with it, and every edge touching them in either direction. A surviving
+  // node whose widget input just lost its only edge gets its fallback control
+  // back, as flowMenus.ts's Disconnect does for a single edge.
   function removeNode(nodeId: string): void {
-    unmountNode(nodeId);
-    graph.nodes = graph.nodes.filter((n) => n.id !== nodeId);
-    const removedEdges = graph.edges.filter((e) => e.source === nodeId || e.target === nodeId);
-    graph.edges = graph.edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+    const ids = pairOf(graph, nodeId);
+    for (const id of ids) unmountNode(id);
+    graph.nodes = graph.nodes.filter((n) => !ids.has(n.id));
+    const removedEdges = graph.edges.filter((e) => ids.has(e.source) || ids.has(e.target));
+    graph.edges = graph.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target));
     renderEdges();
     persistGraph();
     for (const edge of removedEdges) {
-      if (edge.target === nodeId) {
+      if (ids.has(edge.target)) {
         // The removed node was this edge's target — its own port entries are
         // already gone above, but the edge's *source* is a surviving node
         // whose output pin may have just lost its last connection.
@@ -655,20 +666,6 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     const focused = document.activeElement;
     return !locked() && !appMode.isActive() && !!focused && elements.pane.contains(focused) && !takesTyping(focused);
   }
-
-  elements.pane.addEventListener("contextmenu", (event) => {
-    // Text that selects, a config field's or a Prompt/Note box's, is left to
-    // the text menu (lib/textMenu.ts) rather than suppressed below.
-    if ((event.target as HTMLElement).closest("input, textarea, .cm-content")) return;
-    // Suppress the browser's own menu everywhere else in the pane, node
-    // cards included — a native menu over a card reads as a bug.
-    event.preventDefault();
-    // The title bar and pins have their own menus and the rest of a card
-    // has none; this pane-level listener only ever handles empty canvas.
-    if ((event.target as HTMLElement).closest(".flow-node")) return;
-    const position = paneFlowPosition(elements.pane, canvasView.transform(), event);
-    menus.openContextMenu(event.clientX, event.clientY, position.x, position.y);
-  });
 
   // ---- Capabilities ----
   // Derived from the graph as it is now, never stored; the server digests it.

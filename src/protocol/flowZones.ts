@@ -87,6 +87,33 @@ export function zoneProblems(graph: FlowGraph, zones: ReadonlyMap<string, FlowZo
   return problems;
 }
 
+/** Whether a wire from `source` into `target` would leave a zone unrunnable
+ * where it runs now: an editor refuses that wire. Ports play no part in
+ * which nodes a zone holds, so the wire's are left blank. */
+export function breaksZone(graph: FlowGraph, source: string, target: string): boolean {
+  const before = zoneProblems(graph, flowZones(graph));
+  const wired: FlowGraph = {
+    ...graph,
+    edges: [...graph.edges, { id: "", source, sourcePort: "", target, targetPort: "" }],
+  };
+  const after = zoneProblems(wired, flowZones(wired));
+  return [...after].some(([id, problem]) => before.get(id) !== problem);
+}
+
+/** The other half of a For Each and its End, which an editor adds and
+ * removes with it: an End's For Each, or a For Each's End. */
+export function zonePartners(graph: FlowGraph, nodeId: string): string[] {
+  const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+  if (node?.type === FOR_EACH_TYPE) {
+    return graph.nodes
+      .filter((candidate) => candidate.type === FOR_EACH_END_TYPE && candidate.config[FOR_EACH_PAIR_KEY] === nodeId)
+      .map((candidate) => candidate.id);
+  }
+  const pair = node?.type === FOR_EACH_END_TYPE ? node.config[FOR_EACH_PAIR_KEY] : undefined;
+  const forEach = graph.nodes.find((candidate) => candidate.id === pair && candidate.type === FOR_EACH_TYPE);
+  return forEach ? [forEach.id] : [];
+}
+
 // Whether `from` feeds `to`, however far, or is it.
 function feeds(graph: FlowGraph, from: string, to: string): boolean {
   const reached = new Set([from]);

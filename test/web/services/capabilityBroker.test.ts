@@ -559,6 +559,26 @@ describe("ensureAll", () => {
     buttonNamed(panel() as HTMLElement, "Deny").click();
   });
 
+  it("names the column by its label and type where the asker read them", async () => {
+    const { broker, host } = setup();
+    broker.mount(subjectOf(), host);
+    void broker.ensureAll([
+      {
+        key: "readColumn:space:shots.table.html#image",
+        type: "readColumn",
+        path: "space:shots.table.html",
+        column: "image",
+        columnShown: { label: "Image", type: "media" },
+      },
+      { key: "generateText", type: "generateText" },
+    ]);
+    await tick();
+    const target = panel()?.querySelector(".run-permission-row .run-permission-target");
+    expect(target?.textContent).toBe("shots.table.html > Image");
+    expect(target?.querySelector(".type-icon")?.getAttribute("data-field-type")).toBe("media");
+    buttonNamed(panel() as HTMLElement, "Deny").click();
+  });
+
   it("grants none of them on Deny", async () => {
     const { broker, deps, host } = setup();
     broker.mount(subjectOf(), host);

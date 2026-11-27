@@ -134,6 +134,12 @@
   --node-glyph: var(--icon-merge);
 }
 
+/* A loop's arrow, on both halves of a For Each zone. */
+[data-node-type="forEach"],
+[data-node-type="forEachEnd"] {
+  --node-glyph: var(--icon-repeat);
+}
+
 /* A turn from where a path starts to where it leads, as a tree indents a
    file under its folder. */
 [data-node-type="resolvePath"] {

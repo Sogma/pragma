@@ -64,6 +64,51 @@ function setup(edges: FlowEdgeInstance[] = []) {
 const contextMenuOn = (el: Element) =>
   el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 5, clientY: 6 }));
 
+describe("For Each End's slots", () => {
+  const lists = (el: HTMLElement) =>
+    [...el.querySelectorAll(".flow-node-outputs .flow-port-row.output")].map((row) => [
+      (row.querySelector(".handle.source") as HTMLElement).dataset.handleid,
+      row.querySelector(".flow-port-label")?.textContent,
+    ]);
+
+  it("names a slot's pin, and gives its list the name in the plural", () => {
+    const { cards, deps } = setup();
+    const flowNode = node("forEachEnd", { forEach: "forEach-1", value1Name: "path" });
+    const el = cards.build(flowNode);
+    expect(lists(el)).toEqual([["list_1", "paths"]]);
+
+    const input = el.querySelector(".flow-variable-name-input") as HTMLInputElement;
+    input.value = "text";
+    input.dispatchEvent(new Event("input"));
+    expect(lists(el)).toEqual([["list_1", "texts"]]);
+    expect(flowNode.config.value1Name).toBe("text");
+    expect(deps.persistGraph).toHaveBeenCalledTimes(1);
+    input.value = "";
+    input.dispatchEvent(new Event("input"));
+    expect(lists(el)).toEqual([["list_1", "list_1"]]);
+  });
+
+  it("grows a slot on both sides with +, and removing it drops its wires in and out", () => {
+    const { cards, graph } = setup();
+    const flowNode = node("forEachEnd", { forEach: "forEach-1" });
+    const el = cards.build(flowNode);
+    const named = () => [...el.querySelectorAll(".flow-port-row.has-label")];
+    (el.querySelector(".flow-add-variable-button") as HTMLElement).click();
+    expect(named()).toHaveLength(2);
+    expect(lists(el).map(([id]) => id)).toEqual(["list_1", "list_2"]);
+
+    graph.edges.push(
+      { id: "in", source: "p", sourcePort: "text", target: "forEachEnd-1", targetPort: "value_2" },
+      { id: "out", source: "forEachEnd-1", sourcePort: "list_2", target: "j", targetPort: "list" },
+    );
+    (named()[1].querySelector(".flow-remove-variable-button") as HTMLElement).click();
+    expect(named()).toHaveLength(1);
+    expect(lists(el).map(([id]) => id)).toEqual(["list_1"]);
+    expect(graph.edges).toEqual([]);
+    expect(flowNode.config.valueSlots).toEqual([]);
+  });
+});
+
 describe("a Generate node's reference pins", () => {
   const rows = (el: HTMLElement) =>
     [...el.querySelectorAll(".flow-reference-row")].map((row) => row.querySelector(".flow-port-label")?.textContent);

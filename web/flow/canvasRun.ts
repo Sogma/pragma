@@ -14,6 +14,7 @@ import {
   writeTake,
 } from "../../src/protocol/flowNodes.ts";
 import { type RunHooks, type RunResult, runFlow } from "../../src/protocol/flowRuntime.ts";
+import { type FlowZone, flowZones } from "../../src/protocol/flowZones.ts";
 import {
   type FlowCapabilityDeclaration,
   type FlowGraph,
@@ -27,10 +28,12 @@ import type { RunAsk } from "../services/capabilityBroker.ts";
 import type { AppMode } from "./appMode.ts";
 import { confirmRestDialog, createFlowContext } from "./browserEnvironment.ts";
 import type { FlowHistory } from "./flowHistory.ts";
+import { withColumnsShown } from "./flowPermissions.ts";
 import type { FlowSaves } from "./flowSaves.ts";
 import type { NodeCards } from "./nodeCard.ts";
 import { createRunMemory } from "./runMemory.ts";
 import type { FlowViewDeps } from "./xyflowAdapter.ts";
+import { itemWord, type Zones, type ZoneView } from "./zones.ts";
 
 /** One run going, as the Tools tab lists it. */
 export interface CanvasRunInfo {
@@ -62,7 +65,9 @@ export interface CanvasRunDeps
   node(nodeId: string): FlowNodeInstance | undefined;
   nodeEls: ReadonlyMap<string, HTMLElement>;
   cards: Pick<NodeCards, "clearRunState" | "showRunResult">;
-  appMode: Pick<AppMode, "clearResults" | "showResults" | "showConfig">;
+  appMode: Pick<AppMode, "clearResults" | "showResults" | "showConfig" | "isActive">;
+  // Each For Each zone's label: its run's items, stepper and ask.
+  zones: Pick<Zones, "show">;
   saves: Pick<FlowSaves, "compose" | "persist">;
   history: Pick<FlowHistory, "settled">;
   remountNodes(nodeIds: readonly string[]): void;
@@ -102,6 +107,20 @@ interface RunState {
   claimed: string[];
   controller: AbortController;
   cancelled: boolean;
+}
+
+// Every node `from` feeds, however far: what waits on a zone's End.
+function downstreamOf(graph: FlowGraph, from: string): string[] {
+  const reached = new Set<string>();
+  const pending = [from];
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    for (const edge of graph.edges) {
+      if (edge.source !== id || reached.has(edge.target)) continue;
+      reached.add(edge.target);
+      pending.push(edge.target);
+    }
+  }
+  return [...reached];
 }
 
 export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
@@ -175,6 +194,17 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     if (node && moveOnAfterRun(node)) settle(id);
   }
 
+  // The nodes after a zone wait while its items run, dimmed and saying so.
+  function waiting(ids: readonly string[] | undefined, says: string | undefined): void {
+    for (const id of ids ?? []) {
+      const card = deps.nodeEls.get(id);
+      if (!card) continue;
+      card.classList.toggle("flow-node-waiting", says !== undefined);
+      if (says === undefined) delete card.dataset.waits;
+      else card.dataset.waits = says;
+    }
+  }
+
   async function run(regenerate?: string): Promise<void> {
     const flow = deps.flow();
     if (!flow) return;
@@ -208,6 +238,9 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     };
     active.add(state);
     report();
+    // Each For Each zone the run holds, and the nodes waiting on its End.
+    const zones = new Map<string, FlowZone>();
+    const afterZone = new Map<string, string[]>();
     try {
       const regenerated = regenerate ? deps.node(regenerate) : undefined;
       const rerun = regenerated ? [regenerated.id] : undefined;
@@ -252,7 +285,9 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         },
         wrote: deps.documentWritten,
         openToSide: deps.openToSide,
-        confirmRest: confirmRestDialog(deps.dialog),
+        // On the zone's label, where its first item's results already show; App
+        // mode keeps the canvas out of sight, so it asks in a dialog.
+        confirmRest: (ask) => (deps.appMode.isActive() || !latest ? askInDialog(ask) : askOnLabel(ask)),
         signal: state.controller.signal,
         regenerating: regenerated?.id,
         madeTake: (id, take) => {
@@ -272,12 +307,81 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         },
       });
       const target = regenerated ? upstreamGraph(graph, regenerated.id) : graph;
+      const zoneOf = new Map<string, string>();
+      for (const [forEach, zone] of flowZones(target)) {
+        zones.set(forEach, zone);
+        for (const id of zone.members) zoneOf.set(id, forEach);
+        if (zone.end) afterZone.set(forEach, downstreamOf(target, zone.end));
+      }
+      // What each zone's label shows: the item its cards show, the person's
+      // pick over the latest to finish, and the ask while one waits.
+      const pinned = new Map<string, number>();
+      const latestItem = new Map<string, number>();
+      const asking = new Map<string, NonNullable<ZoneView["ask"]>>();
+      let latest: RunResult | undefined;
+      let zonesRunning = true;
+      // Whether this run is the newest to hold a node of the Flow, shown or not:
+      // a label waits for the person to come back to its Flow.
+      const owns = (id: string) => !state.cancelled && claims.get(nodeKey(state.flowPath, id))?.at(-1) === state.id;
+      const showZones = (progress: RunResult | undefined) => {
+        for (const [forEach, zone] of progress?.zones ?? []) {
+          if (!owns(forEach)) continue;
+          const ask = asking.get(forEach);
+          deps.zones.show(state.flowPath, forEach, {
+            total: zone.items.length,
+            shown: pinned.get(forEach) ?? latestItem.get(forEach),
+            settled: zone.items.filter((item) => item?.done).length,
+            failed: zone.items.flatMap((item, index) => (item?.done && item.errors.size > 0 ? [index] : [])),
+            running: zonesRunning,
+            ...(ask ? { ask } : {}),
+            step: (index) => stepTo(forEach, index),
+          });
+        }
+      };
+      // The stepper: the zone's cards show the picked item's results, and stay
+      // on it while later items land.
+      const stepTo = (forEach: string, index: number) => {
+        const item = latest?.zones?.get(forEach)?.items[index];
+        if (!item || !owns(forEach)) return;
+        pinned.set(forEach, index);
+        if (showing(state.flowPath)) {
+          const members = [...(zones.get(forEach)?.members ?? [])];
+          const none = { needs: new Map(), fingerprints: new Map(), skipped: new Map() };
+          deps.cards.showRunResult({ outputs: item.outputs, errors: item.errors, ...none, reports }, members);
+        }
+        showZones(latest);
+      };
+      // A zone done: what waited goes on, and its cards show its last item,
+      // which is also what a Regenerate of one of them is given.
+      const settleZone = (forEach: string, progress: RunResult) => {
+        waiting(afterZone.get(forEach), undefined);
+        const last = progress.zones?.get(forEach)?.items.findLastIndex((item) => item !== undefined) ?? -1;
+        if (last !== -1) latestItem.set(forEach, last);
+        const members = [...(zones.get(forEach)?.members ?? [])];
+        if (!pinned.has(forEach) && newest(forEach)) deps.cards.showRunResult({ ...progress, reports }, members);
+      };
+      const askInDialog = confirmRestDialog(deps.dialog);
+      const askOnLabel = (ask: { forEach: string; rest: number }) =>
+        new Promise<boolean>((resolve) => {
+          const answer = (go: boolean) => {
+            if (!asking.delete(ask.forEach)) return;
+            resolve(go);
+            showZones(latest);
+          };
+          asking.set(ask.forEach, { rest: ask.rest, answer });
+          state.controller.signal.addEventListener("abort", () => answer(false), { once: true });
+          showZones(latest);
+        });
       const memory = runMemory(flow.file.path, regenerated?.id);
       const known = regenerated ? memory.known() : undefined;
       // Asked for together, before any node starts: a refusal leaves nothing
       // spent or written, where a prompt partway through leaves half a run.
       const needs = runCapabilities(target, flow.file.path, known);
-      const ask = await deps.ensureCapabilities(needs.map((need) => need.capability));
+      const described = await withColumnsShown(
+        needs.map((need) => need.capability),
+        flow.file.path,
+      );
+      const ask = await deps.ensureCapabilities(described);
       if (state.cancelled || deps.flow() !== flow) return;
       if (!ask.allowed) {
         const refused = new Set(ask.asked);
@@ -308,12 +412,18 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
         state.claimed.push(key);
       }
       const hooks: RunHooks = {
-        onNodeStart: (id) => {
+        onNodeStart: (id, item) => {
           state.running.set(id, (state.running.get(id) ?? 0) + 1);
           glow(id);
           report();
+          if (item === undefined && afterZone.has(id)) {
+            waiting(afterZone.get(id), `Waits for every ${itemWord(target, id)}`);
+          }
         },
-        onNodeFinish: (id, progress) => {
+        onNodeFinish: (id, progress, item) => {
+          latest = progress;
+          const zone = zoneOf.get(id);
+          if (zone !== undefined && item !== undefined) latestItem.set(zone, item);
           // Fresh: it ran, where a result held from the last run finishes
           // without starting, and gave a result it didn't find on disk.
           const fresh = state.running.has(id) && progress.outputs.has(id) && !reused.has(id);
@@ -323,7 +433,9 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
           glow(id);
           report();
           shown.add(id);
-          const lands = newest(id);
+          // A zone's card follows its items, unless the person picked one on
+          // the zone's label.
+          const lands = newest(id) && !(zone !== undefined && pinned.has(zone));
           if (lands) {
             deps.cards.showRunResult({ ...progress, reports }, [id]);
             deps.appMode.showResults(progress, [id]);
@@ -334,9 +446,14 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
           // drawn now: a redraw replaces the card, and the sweep stops with it.
           const card = deps.nodeEls.get(id);
           if (card && lands && fresh && FLOW_NODE_REGISTRY[deps.node(id)?.type ?? ""]?.category === "AI") sweep(card);
+          if (zones.has(id)) settleZone(id, progress);
+          if (zone !== undefined || zones.has(id)) showZones(progress);
         },
       };
       const ran = await runFlow(target, context, hooks, known, memory.recall);
+      latest = ran;
+      zonesRunning = false;
+      showZones(ran);
       if (state.cancelled) return;
       if (state.id > (newestRecorded.get(state.flowPath) ?? 0)) {
         newestRecorded.set(state.flowPath, state.id);
@@ -349,6 +466,13 @@ export function createCanvasRun(deps: CanvasRunDeps): CanvasRun {
     } finally {
       active.delete(state);
       for (const id of state.running.keys()) glow(id);
+      for (const ids of afterZone.values()) waiting(ids, undefined);
+      // A cancelled run's labels go back to rest where no run holds the zone.
+      for (const forEach of zones.keys()) {
+        if (state.cancelled && !claims.get(nodeKey(state.flowPath, forEach))?.length) {
+          deps.zones.show(state.flowPath, forEach, undefined);
+        }
+      }
       report();
     }
   }

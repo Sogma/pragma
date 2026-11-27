@@ -1082,6 +1082,8 @@ export interface FlowReadColumnCapability {
   type: "readColumn";
   path: string;
   column: string;
+  // The column as the Table names it, which a prompt shows; never the key.
+  shown?: ColumnShown;
 }
 
 /** The same grant for writing every file one column of a Table names. */
@@ -1089,6 +1091,13 @@ export interface FlowWriteColumnCapability {
   type: "writeColumn";
   path: string;
   column: string;
+  shown?: ColumnShown;
+}
+
+/** A column's label and type, as a prompt draws a column grant. */
+export interface ColumnShown {
+  label: string;
+  type: FieldValueType;
 }
 
 export type FlowCapabilityDeclaration =

@@ -20,8 +20,10 @@ import {
   FLOW_NODE_REGISTRY,
   type FlowNodeConfigField,
   type FlowNodeInputWidget,
+  FOR_EACH_END_SLOTS,
   FRAME_KINDS,
   type FrameKind,
+  forEachEndListPort,
   GET_FIELD_SLOTS,
   holdsNewNodeValue,
   intValue,
@@ -178,6 +180,14 @@ function configPinValues(node: FlowNodeInstance): Record<string, string | undefi
 
 const TEMPLATE_VARIABLE_VIEW: SlotView = { ...TEMPLATE_VARIABLE_SLOTS, noun: "variable" };
 const GET_FIELD_VIEW: SlotView = { ...GET_FIELD_SLOTS, noun: "field" };
+const FOR_EACH_END_VIEW: SlotView = { ...FOR_EACH_END_SLOTS, noun: "value" };
+
+// A For Each End list's label: its slot's name in the plural, or the pin's
+// own id while the slot has no name.
+function listLabel(name: string, portId: string): string {
+  if (!name) return portId;
+  return name.endsWith("s") ? name : `${name}s`;
+}
 const MIN_NODE_WIDTH = 160;
 
 // The `.collapsed` class does the hiding in CSS; this handles what CSS
@@ -1344,6 +1354,72 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     return row;
   }
 
+  // For Each End's per-slot rows: a plain pin, named as a Template Variables
+  // slot is, and the list of the same slot on the output side, which takes
+  // the name in the plural. Removing the slot takes its list's wires too.
+  function createCollectRow(
+    node: FlowNodeInstance,
+    index: number,
+    inputsEl: HTMLDivElement,
+    outputsEl: HTMLDivElement,
+  ): HTMLDivElement {
+    const portId = FOR_EACH_END_SLOTS.portId(index);
+    const listId = forEachEndListPort(index);
+    const nameKey = `value${index}Name`;
+    const row = document.createElement("div");
+    row.className = "flow-port-row input has-label";
+    row.dataset.slot = String(index);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "flow-variable-name-input";
+    input.placeholder = "name";
+    input.value = typeof node.config[nameKey] === "string" ? (node.config[nameKey] as string) : "";
+    const field = document.createElement("span");
+    field.className = "flow-variable-name-field";
+    field.append(input);
+    const name = document.createElement("label");
+    name.className = "flow-variable-name nodrag";
+    name.append(field);
+    const listPort = nodePorts(node).outputs.find((port) => port.id === listId);
+    const list = createPortRow(node, listPort ?? { id: listId, type: "object", label: listId }, "source");
+    list.dataset.slot = String(index);
+    const label = list.querySelector(".flow-port-label");
+    const named = () => {
+      field.dataset.text = input.value || input.placeholder;
+      if (label) label.textContent = listLabel(input.value, listId);
+    };
+    named();
+    input.addEventListener("input", () => {
+      named();
+      node.config[nameKey] = input.value;
+      persistGraph();
+    });
+    describePin(
+      nodePorts(node).inputs.find((port) => port.id === portId),
+      input,
+    );
+    row.append(createHandleEl(node.id, portId, "target", "text"), name);
+    const after = [...outputsEl.children].find(
+      (child) => child instanceof HTMLElement && Number(child.dataset.slot) > index,
+    );
+    outputsEl.insertBefore(list, after ?? null);
+    if (index !== 1) {
+      const removeList = () => {
+        const graph = deps.graph();
+        const fed = (e: FlowEdgeInstance) => e.source === node.id && e.sourcePort === listId;
+        const gone = graph.edges.filter(fed);
+        graph.edges = graph.edges.filter((e) => !fed(e));
+        list.remove();
+        for (const edge of gone) {
+          updateInputWidgetVisibility(edge.target, edge.targetPort);
+          updateSourceDependents(edge.target);
+        }
+      };
+      row.appendChild(createRemoveSlotButton(node, FOR_EACH_END_VIEW, index, row, inputsEl, removeList));
+    }
+    return row;
+  }
+
   // Every slot but the first gets one, so a card never shrinks to zero rows.
   // Removing a slot drops its edges, in or out, and its config value.
   function createRemoveSlotButton(
@@ -2299,6 +2375,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       // to however many slots are currently revealed — not by this generic
       // loop, which would otherwise render all TEMPLATE_VARIABLES_MAX at once.
       if (flowNode.type === "templateVariables" && port.id.startsWith("var")) continue;
+      // For Each End's slots are drawn with their lists, below.
+      if (flowNode.type === "forEachEnd") continue;
       const widget = definition.inputWidgets?.find((w) => w.portId === port.id);
       const row = widget ? createWidgetPortRow(flowNode, port, widget) : createPortRow(flowNode, port, "target");
       if (port.id === definition.pathInput?.portId) pathPin = { port, row };
@@ -2328,7 +2406,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     let pathOutput: PlacedPin | undefined;
     for (const port of ports.outputs) {
       // Get Field's field1-field10 are its slot rows, rendered below.
-      if (flowNode.type === "getField") continue;
+      if (flowNode.type === "getField" || flowNode.type === "forEachEnd") continue;
       const row = createPortRow(flowNode, port, "source");
       if (port.id === "selected") selectedPortLabelEl = row.querySelector(".flow-port-label") as HTMLElement;
       if (port.id === "rows") rowsPortLabelEl = row.querySelector(".flow-port-label") as HTMLElement;
@@ -2342,6 +2420,11 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       const buildRow = (i: number) => createFieldPortRow(flowNode, i, picker, outputsEl);
       for (const i of revealedSlots(flowNode, GET_FIELD_VIEW)) outputsEl.appendChild(buildRow(i));
       outputsEl.appendChild(createAddSlotRow(flowNode, GET_FIELD_VIEW, outputsEl, buildRow));
+    }
+    if (flowNode.type === "forEachEnd") {
+      const buildRow = (i: number) => createCollectRow(flowNode, i, inputsEl, outputsEl);
+      for (const i of revealedSlots(flowNode, FOR_EACH_END_VIEW)) inputsEl.appendChild(buildRow(i));
+      inputsEl.appendChild(createAddSlotRow(flowNode, FOR_EACH_END_VIEW, inputsEl, buildRow));
     }
     outputsEl.append(...createMissingPinRows(flowNode, "source"));
     bodyEl.append(inputsEl, outputsEl);

@@ -8,12 +8,14 @@
 
 import { localDay, localDayAfter, parseLocalDay } from "../../src/protocol/localDay.ts";
 import { basenameOf, isLibraryPath } from "../../src/protocol/rootedPath.ts";
+import type { ColumnShown } from "../../src/protocol/types.ts";
 import type { SandboxKind } from "../core/apiClient.ts";
 import { type EntryIcon, folderTitle, stripExtension, treePath } from "../core/paths.ts";
 import { pathNames } from "../core/spaceTree.ts";
 import { dateLabel } from "../lib/dateText.ts";
 import { type Disposable, listen } from "../lib/disposable.ts";
 import { el } from "../lib/dom.ts";
+import { fieldTypeIcon } from "../lib/fieldTypeIcon.ts";
 import { createPathLabel } from "../lib/pathLabel.ts";
 import type { DialogHandle, DialogService } from "./dialog.ts";
 import type { ContextMenuService, MenuItem } from "./menus.ts";
@@ -24,8 +26,10 @@ export interface BrokerCapability {
   key: string;
   type: string;
   path?: string;
-  // A column grant's column id, beside its Table's `path`.
+  // A column grant's column id, beside its Table's `path`, and the column as
+  // the Table names it, where the asker read it.
   column?: string;
+  columnShown?: ColumnShown;
   description?: string;
 }
 
@@ -155,7 +159,10 @@ function drawnPath(capability: BrokerCapability, path: string): (string | Node)[
   const label = rootTitle(capability.path) ?? createPathLabel(path, pathNames);
   if (capability.column !== undefined && label instanceof HTMLElement) {
     const box = label.querySelector(".path-label-box") ?? label;
-    box.append(el("span", "path-label-separator", " > "), el("span", "path-label-name", capability.column));
+    const shown = capability.columnShown;
+    box.append(el("span", "path-label-separator", " > "));
+    if (shown) box.append(fieldTypeIcon(shown.type), el("span", "path-label-name", shown.label));
+    else box.append(el("span", "path-label-name", capability.column));
   }
   return [label, description];
 }

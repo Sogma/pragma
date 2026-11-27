@@ -1,0 +1,153 @@
+/* For Each zones on the canvas (web/flow/zones.ts): a zone tinted in the
+   Flow's own cyan behind its nodes, its label on its top edge. */
+
+/* A layer of the viewport, under the cards, at its origin: each zone is
+   placed in flow space, as a card is. It takes no pointer, so a zone's area
+   stays the canvas's and the wires under it stay grabbable. */
+.flow-zone-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.flow-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  border: 1.5px dashed color-mix(in srgb, var(--kind-flow) 50%, var(--border-color));
+  border-radius: calc(var(--panel-radius) * 2);
+  background: color-mix(in srgb, var(--kind-flow) 5%, transparent);
+}
+
+/* The one part of a zone that takes clicks: its stepper and its ask. */
+.flow-zone-label {
+  position: absolute;
+  top: -14px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid color-mix(in srgb, var(--kind-flow) 40%, var(--border-color));
+  border-radius: var(--pill-radius);
+  background: var(--bg-primary);
+  color: var(--kind-flow);
+  font-size: var(--small-font-size);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.flow-zone-label:not(:has(button)) {
+  padding-right: 10px;
+}
+
+.flow-zone-status {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.flow-zone-progress {
+  width: 64px;
+  height: 4px;
+  border-radius: var(--pill-radius);
+  background: color-mix(in srgb, var(--kind-flow) 18%, transparent);
+  overflow: hidden;
+}
+
+.flow-zone-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--kind-flow);
+}
+
+.flow-zone-failed {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-danger);
+  font: inherit;
+  cursor: pointer;
+}
+
+.flow-zone-failed:hover {
+  text-decoration: underline;
+}
+
+.flow-zone-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--pill-radius);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.flow-zone-step::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--icon-chevron-left) center / contain no-repeat;
+}
+
+.flow-zone-step.is-next::before {
+  mask-image: var(--icon-chevron-right);
+}
+
+.flow-zone-step:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.flow-zone-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.flow-zone-ask {
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--pill-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.flow-zone-ask:hover {
+  background: var(--bg-hover);
+}
+
+/* Continue, the high-contrast default, as a dialog's default button is. */
+.flow-zone-ask.is-primary {
+  border-color: var(--text-primary);
+  background: var(--tooltip-bg);
+  color: var(--bg-primary);
+}
+
+.flow-zone-ask.is-primary:hover {
+  background: color-mix(in srgb, var(--tooltip-bg) 85%, var(--bg-primary));
+}
+
+/* A node after a zone while its items run: dimmed, saying what it waits for
+   on a row of its own under the card's content. */
+.flow-node.flow-node-waiting {
+  opacity: 0.55;
+}
+
+.flow-node.flow-node-waiting::after {
+  content: attr(data-waits);
+  padding: 0 10px 8px;
+  color: var(--text-muted);
+  font-size: var(--small-font-size);
+}

@@ -57,11 +57,13 @@ function missingPort(
 }
 
 /** One item of a For Each zone: what each of the zone's nodes gave or failed
- * with for it, and the fingerprints a host keeps to recall them. */
+ * with for it, the fingerprints a host keeps to recall them, and whether
+ * every node has settled for it. */
 export interface ItemRun {
   outputs: Map<string, Record<string, PortValue>>;
   errors: Map<string, string>;
   fingerprints: Map<string, string>;
+  done: boolean;
 }
 
 /** A For Each zone's run: its items in list order, one that never started
@@ -359,7 +361,7 @@ export async function runFlow(
     // One item through the zone's nodes. True when a Generate node ran for
     // it rather than being answered from memory.
     async function runItem(index: number): Promise<boolean> {
-      const item: ItemRun = { outputs: new Map(), errors: new Map(), fingerprints: new Map() };
+      const item: ItemRun = { outputs: new Map(), errors: new Map(), fingerprints: new Map(), done: false };
       run.items[index] = item;
       item.outputs.set(forEachId, {
         item: { type: "object", value: items[index] },
@@ -428,6 +430,7 @@ export async function runFlow(
           hooks?.onNodeFinish?.(id, progress(), index);
         }
       }
+      item.done = true;
       return generated;
     }
 

@@ -43,6 +43,8 @@ const CATEGORY_COLORS: Partial<Record<FlowNodeCategory, string>> = {
 export function defaultNodeColor(type: string): string | undefined {
   const definition = FLOW_NODE_REGISTRY[type];
   if (definition?.configKeys.includes("tablePath")) return "var(--kind-table)";
+  // A For Each and its End wear their zone's cyan, the Flow's own.
+  if (type === "forEach" || type === "forEachEnd") return "var(--kind-flow)";
   return definition && CATEGORY_COLORS[definition.category];
 }
 

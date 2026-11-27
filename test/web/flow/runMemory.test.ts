@@ -26,6 +26,7 @@ describe("runMemory", () => {
       outputs: new Map([["gen-1", text(value)]]),
       errors: new Map(),
       fingerprints: new Map([["gen-1", fingerprint]]),
+      done: true,
     });
     memoryOf("a.flow.html").record({
       ...ran([["gen-1", "second", "fp2"]]),

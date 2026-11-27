@@ -6,8 +6,10 @@ import {
   type FlowFileResponse,
   sandboxGenerate,
   sandboxGenerateVideo,
+  sandboxRead,
 } from "../../../web/core/apiClient.ts";
 import { type CanvasRunDeps, type CanvasRunInfo, createCanvasRun } from "../../../web/flow/canvasRun.ts";
+import type { ZoneView } from "../../../web/flow/zones.ts";
 import { sweep } from "../../../web/lib/sweep.ts";
 import type { RunAsk } from "../../../web/services/capabilityBroker.ts";
 import { createDialogService } from "../../../web/services/dialog.ts";
@@ -21,6 +23,7 @@ vi.mock("../../../web/core/apiClient.ts", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   sandboxGenerate: vi.fn(),
   sandboxGenerateVideo: vi.fn(),
+  sandboxRead: vi.fn(),
   cancelJob: vi.fn(async () => undefined),
   fetchJobs: vi.fn(async () => ({ jobs: [] })),
   markJobsShown: vi.fn(async () => undefined),
@@ -117,7 +120,7 @@ function setUp(graph: FlowGraph, path = "flows/a.flow.html") {
     node: (id: string) => shown.nodes.find((each) => each.id === id),
     nodeEls,
     cards: { clearRunState: vi.fn(), showRunResult: vi.fn() },
-    appMode: { clearResults: vi.fn(), showResults: vi.fn(), showConfig: vi.fn() },
+    appMode: { clearResults: vi.fn(), showResults: vi.fn(), showConfig: vi.fn(), isActive: () => false },
     saves: { compose: () => "<html></html>", persist: vi.fn() },
     history: { settled: vi.fn() },
     remountNodes: vi.fn(),
@@ -126,6 +129,7 @@ function setUp(graph: FlowGraph, path = "flows/a.flow.html") {
     ensureCapabilities: vi.fn(async (): Promise<RunAsk> => ({ allowed: true, asked: [] })),
     openToSide: vi.fn(async () => {}),
     dialog: createDialogService(),
+    zones: { show: vi.fn() },
   } satisfies CanvasRunDeps;
   const canvasRun = createCanvasRun(deps);
   return {
@@ -487,5 +491,94 @@ describe("canvasRun permissions", () => {
     expect((outcome as { errors: Map<string, string> }).errors).toEqual(
       new Map([["generate-2", "Permission denied, so nothing ran."]]),
     );
+  });
+});
+
+describe("canvasRun For Each zones", () => {
+  // Three rows, each summarized by a model call, joined after the zone.
+  const summaries = (): FlowGraph => ({
+    nodes: [
+      node("rows-1", "loadTableRows", { tablePath: "shots.table.html" }),
+      node("each-2", "forEach"),
+      node("field-3", "getField", { field1Key: "title" }),
+      node("gen-4", "generateText"),
+      node("end-5", "forEachEnd", { forEach: "each-2" }),
+      node("join-6", "joinText", { separator: ", " }),
+    ],
+    edges: [
+      { id: "e1", source: "rows-1", sourcePort: "rows", target: "each-2", targetPort: "list" },
+      { id: "e2", source: "each-2", sourcePort: "item", target: "field-3", targetPort: "object" },
+      { id: "e3", source: "field-3", sourcePort: "field_1", target: "gen-4", targetPort: "prompt" },
+      { id: "e4", source: "gen-4", sourcePort: "text", target: "end-5", targetPort: "value_1" },
+      { id: "e5", source: "end-5", sourcePort: "list_1", target: "join-6", targetPort: "list" },
+    ],
+  });
+  const rows = () =>
+    vi.mocked(sandboxRead).mockResolvedValue({
+      kind: "table",
+      columns: [{ id: "title", type: "text", label: "Title" }],
+      rows: ["A", "B", "C"].map((title) => ({ values: { title } })),
+    });
+  const lastView = (deps: CanvasRunDeps) => vi.mocked(deps.zones.show).mock.calls.at(-1)?.[2] as ZoneView | undefined;
+
+  it("asks on the zone's label once a row has generated, and runs the rest on Continue", async () => {
+    rows();
+    const { replies } = heldReplies();
+    const { canvasRun, deps, nodeEls } = setUp(summaries());
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(replies).toHaveLength(1));
+    expect(nodeEls.get("join-6")?.classList.contains("flow-node-waiting")).toBe(true);
+    expect(nodeEls.get("join-6")?.dataset.waits).toBe("Waits for every row");
+
+    replies[0]("one");
+    await vi.waitFor(() => expect(lastView(deps)?.ask).toBeDefined());
+    expect([lastView(deps)?.ask?.rest, lastView(deps)?.shown]).toEqual([2, 0]);
+    lastView(deps)?.ask?.answer(true);
+    await vi.waitFor(() => expect(replies).toHaveLength(3));
+    replies[1]("two");
+    replies[2]("three");
+    await running;
+
+    const done = lastView(deps);
+    expect([done?.total, done?.shown, done?.settled, done?.running, done?.ask]).toEqual([3, 2, 3, false, undefined]);
+    expect(nodeEls.get("join-6")?.classList.contains("flow-node-waiting")).toBe(false);
+  });
+
+  it("ends the run at Stop, running nothing after the zone", async () => {
+    rows();
+    const { replies } = heldReplies();
+    const { canvasRun, deps } = setUp(summaries());
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(replies).toHaveLength(1));
+    replies[0]("one");
+    await vi.waitFor(() => expect(lastView(deps)?.ask).toBeDefined());
+    lastView(deps)?.ask?.answer(false);
+    await running;
+
+    expect(replies).toHaveLength(1);
+    const result = vi.mocked(deps.cards.showRunResult).mock.calls.at(-1)?.[0];
+    expect(result?.skipped.get("join-6")).toBe("each-2");
+  });
+
+  it("steps the zone's cards to the row its label picks, and keeps them there", async () => {
+    rows();
+    const { replies } = heldReplies();
+    const { canvasRun, deps } = setUp(summaries());
+    const running = canvasRun.run();
+    await vi.waitFor(() => expect(replies).toHaveLength(1));
+    replies[0]("one");
+    await vi.waitFor(() => expect(lastView(deps)?.ask).toBeDefined());
+    lastView(deps)?.ask?.answer(true);
+    await vi.waitFor(() => expect(replies).toHaveLength(3));
+    replies[1]("two");
+    replies[2]("three");
+    await running;
+
+    vi.mocked(deps.cards.showRunResult).mockClear();
+    lastView(deps)?.step(0);
+    const [shown, ids] = vi.mocked(deps.cards.showRunResult).mock.calls[0] ?? [];
+    expect(ids).toEqual(["field-3", "gen-4"]);
+    expect(shown?.outputs.get("gen-4")?.text).toEqual({ type: "text", value: "one" });
+    expect(lastView(deps)?.shown).toBe(0);
   });
 });

@@ -2,7 +2,7 @@ import { ADD_ROW_NODE_TYPE, ADD_ROW_PATH_INPUT, addRowPorts } from "./addRowNode
 import type { ModelSettingValue } from "./api.ts";
 import { APPLET_NODE_TYPE, appletNodeConfig } from "./appletNode.ts";
 import { columnIdOf } from "./columnId.ts";
-import { FOR_EACH_PAIR_KEY, flowZones } from "./flowZones.ts";
+import { breaksZone, FOR_EACH_PAIR_KEY, flowZones } from "./flowZones.ts";
 import { MAKE_OBJECT_NODE_TYPE, makeObjectPorts } from "./makeObjectNode.ts";
 import { isDeclaredAddress, isHiddenPath, resolveDeclaredPath } from "./relativeReference.ts";
 import { dirnameOf, formatDeclaredPath, parseRootedPath } from "./rootedPath.ts";
@@ -1629,6 +1629,12 @@ export function closesLoop(graph: FlowGraph, source: string, target: string): bo
     }
   }
   return false;
+}
+
+/** Whether an editor refuses a wire from `source` into `target`: one that
+ * would close a loop, or leave a For Each zone unrunnable. */
+export function refusesWire(graph: FlowGraph, source: string, target: string): boolean {
+  return closesLoop(graph, source, target) || breaksZone(graph, source, target);
 }
 
 /** Derives a Flow graph's capability set from its nodes' config, resolved
