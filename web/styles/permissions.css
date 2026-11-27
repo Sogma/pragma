@@ -34,6 +34,18 @@
   gap: 6px;
 }
 
+/* The Flow a prompt's sentence names, in inline code's chip and a path
+   name's color, so it reads as the paths below it do. */
+.permission-prompt-name {
+  padding: var(--code-chip-padding);
+  border: var(--code-chip-border);
+  border-radius: var(--code-chip-radius);
+  background: var(--code-chip-bg);
+  color: var(--text-primary);
+  font-family: var(--code-chip-font-family);
+  font-size: var(--code-chip-font-size);
+}
+
 /* A run's prompt for several grants: a row each, the path first and the
    permission at the row's end, a hairline between rows to carry the eye
    across the gap. Its spans lay out as rows because the dialog's message is

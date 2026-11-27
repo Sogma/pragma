@@ -27,7 +27,7 @@ describe("a Flow's capabilities in the broker's terms", () => {
       description: "a path from a connected node",
     });
     expect(asked(wired)).toEqual({
-      text: "Grant permission to write:\nprojects/out/scene.md (a path from a connected node)",
+      text: "Grant Lyrics permission to write:\nprojects/out/scene.md (a path from a connected node)",
       path: "projects/out/scene.md",
     });
   });
@@ -41,7 +41,7 @@ describe("a Flow's capabilities in the broker's terms", () => {
     });
     expect(asked(dragged).path).toBe("tags.table.html");
     expect(asked(brokerCapability({ type: "readFile", path: "lib:footage/a.png" }, FLOW))).toEqual({
-      text: "Grant permission to read from a library:\nfootage/a.png",
+      text: "Grant Lyrics permission to read from a library:\nfootage/a.png",
       path: "lib:footage/a.png",
     });
   });

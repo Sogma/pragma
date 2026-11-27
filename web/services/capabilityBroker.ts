@@ -75,8 +75,8 @@ const rootTitle = (path: string | undefined): string | undefined =>
   path !== undefined && treePath(path) === "" ? folderTitle(path) : undefined;
 
 // What each capability asks for, in the writer's terms: the words after
-// "Grant permission to". A path it names goes on the line below. A kind adds
-// its vocabulary here, not a prompt of its own.
+// "Grant <Flow> permission to". A path it names goes on the line below. A
+// kind adds its vocabulary here, not a prompt of its own.
 const PROMPT_ACTIONS: Record<string, string> = {
   readFile: "read",
   writeDocument: "write",
@@ -145,9 +145,19 @@ function drawnPath(capability: BrokerCapability, path: string): (string | Node)[
   return [rootTitle(capability.path) ?? createPathLabel(path, pathNames), description];
 }
 
-/** A grant's prompt: the subject asking in the title, after its icon. Then
- * the sentence, any path on a line of its own drawn as every path in running
- * text is, and any note as a paragraph of its own. */
+// Every prompt's title. Only a Flow asks, and the sentence under the title
+// names which one.
+const PROMPT_TITLE = "Flow permissions";
+
+// A prompt's sentence opens on the Flow it asks for, its name in a chip of
+// its own, so a name of several words doesn't run into the words around it.
+function grantOpening(subject: Pick<BrokerSubject, "name" | "path">): (string | Node)[] {
+  return ["Grant ", el("span", "permission-prompt-name", subjectName(subject))];
+}
+
+/** A grant's prompt: the title after the Flow's icon, then the sentence
+ * naming the Flow, any path on a line of its own drawn as every path in
+ * running text is, and any note as a paragraph of its own. */
 export function capabilityPrompt(
   subject: Pick<BrokerSubject, "name" | "path">,
   capability: BrokerCapability,
@@ -159,23 +169,29 @@ export function capabilityPrompt(
   const path = shown(capability.path);
   if (path === undefined) {
     const description = capability.description ? ` (${capability.description})` : "";
-    message.append(`Grant permission to ${action}${description}.`);
-  } else message.append(`Grant permission to ${action}:`, document.createElement("br"), ...drawnPath(capability, path));
+    message.append(...grantOpening(subject), ` permission to ${action}${description}.`);
+  } else
+    message.append(
+      ...grantOpening(subject),
+      ` permission to ${action}:`,
+      document.createElement("br"),
+      ...drawnPath(capability, path),
+    );
   const note = PROMPT_NOTES[capability.type];
   return {
-    title: `${subjectName(subject)} needs permission`,
+    title: PROMPT_TITLE,
     icon: subjectIcon(subject),
     message: note ? [message, note] : [message],
   };
 }
 
-/** A run's prompt for several grants at once: the title a single grant's
- * prompt has, a row per grant with its path first and the permission at the
- * row's end, and each note its kinds carry, once. */
+/** A run's prompt for several grants at once: the title and the opening a
+ * single grant's prompt has, a row per grant with its path first and the
+ * permission at the row's end, and each note its kinds carry, once. */
 export function capabilityListPrompt(
   subject: Pick<BrokerSubject, "name" | "path">,
   capabilities: readonly BrokerCapability[],
-): { title: string; icon?: EntryIcon; message: [string, HTMLElement, ...string[]] } {
+): { title: string; icon?: EntryIcon; message: [HTMLElement, HTMLElement, ...string[]] } {
   // Spans, though they lay out as rows: the dialog puts each part of a
   // message in a paragraph, which holds no block.
   const list = el("span", "run-permission-list");
@@ -195,10 +211,12 @@ export function capabilityListPrompt(
     list.append(row);
   }
   const notes = [...new Set(capabilities.flatMap((capability) => PROMPT_NOTES[capability.type] ?? []))];
+  const opening = document.createElement("span");
+  opening.append(...grantOpening(subject), " these permissions:");
   return {
-    title: `${subjectName(subject)} needs permission`,
+    title: PROMPT_TITLE,
     icon: subjectIcon(subject),
-    message: ["Grant permission for this run:", list, ...notes],
+    message: [opening, list, ...notes],
   };
 }
 

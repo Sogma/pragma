@@ -75,33 +75,35 @@ describe("capabilityPrompt", () => {
   const text = (name: string, capability: Parameters<typeof capabilityPrompt>[1]) =>
     lines(capabilityPrompt(flow(name), capability).message[0]);
 
-  it("names the document in its title after its icon, then the action, the path below it and the description", () => {
+  it("titles itself Flow permissions after the Flow's icon, then names the Flow in a chip, the action, the path below it and the description", () => {
     const prompt = capabilityPrompt(flow("Hello"), {
       key: "k",
       type: "readFile",
       path: "n.md",
       description: "needs it",
     });
-    expect(prompt.title).toBe("Hello needs permission");
-    // A Flow and an Applet can share a name; the icon says which is asking.
+    expect(prompt.title).toBe("Flow permissions");
     expect(prompt.icon?.glyph).toBe("flow");
-    const applet = capabilityPrompt(
-      { name: "", path: "space:tools/stage.applet.html" },
+    expect(prompt.message).toHaveLength(1);
+    expect(lines(prompt.message[0])).toBe("Grant Hello permission to read:\nn.md (needs it)");
+    expect(prompt.message[0].querySelector(".permission-prompt-name")?.textContent).toBe("Hello");
+    // An unnamed Flow goes by its file name, as the editor's title calls it.
+    const unnamed = capabilityPrompt(
+      { name: "", path: "space:tools/stage.flow.html" },
       { key: "k", type: "generateText" },
     );
-    expect(applet.title).toBe("stage needs permission");
-    expect(applet.icon?.glyph).toBe("applet");
-    expect(prompt.message).toHaveLength(1);
-    expect(lines(prompt.message[0])).toBe("Grant permission to read:\nn.md (needs it)");
-    expect(text("Hello", { key: "k", type: "writeDocument", path: "o.md" })).toBe("Grant permission to write:\no.md");
+    expect(lines(unnamed.message[0])).toBe("Grant stage permission to run an AI generation.");
+    expect(text("Hello", { key: "k", type: "writeDocument", path: "o.md" })).toBe(
+      "Grant Hello permission to write:\no.md",
+    );
     expect(text("Hello", { key: "k", type: "generateText", description: "needs it" })).toBe(
-      "Grant permission to run an AI generation (needs it).",
+      "Grant Hello permission to run an AI generation (needs it).",
     );
-    expect(text("Hello", { key: "k", type: "generateText" })).toBe("Grant permission to run an AI generation.");
+    expect(text("Hello", { key: "k", type: "generateText" })).toBe("Grant Hello permission to run an AI generation.");
     expect(text("Tools", { key: "k", type: "readCurrentDocument" })).toBe(
-      "Grant permission to read the currently open document.",
+      "Grant Tools permission to read the currently open document.",
     );
-    expect(text("Tools", { key: "k", type: "mystery" })).toBe("Grant permission to mystery.");
+    expect(text("Tools", { key: "k", type: "mystery" })).toBe("Grant Tools permission to mystery.");
   });
 
   it("draws the path as a path label on a line of its own, the full path in its tooltip", () => {
@@ -110,7 +112,7 @@ describe("capabilityPrompt", () => {
       type: "generateVideo",
       path: "space:projects/pre-prod/casting",
     }).message;
-    expect(lines(message)).toBe("Grant permission to Generate Video in:\nprojects/pre-prod/casting");
+    expect(lines(message)).toBe("Grant Casting permission to Generate Video in:\nprojects/pre-prod/casting");
     const label = message.querySelector<HTMLElement>(".path-label");
     expect(label?.dataset.tooltip).toBe("projects/pre-prod/casting");
     expect(label?.textContent).toBe("projects/pre-prod/casting");
@@ -125,7 +127,7 @@ describe("capabilityPrompt", () => {
       type: "generateImage",
       path: "renders",
     }).message;
-    expect(lines(sentence)).toBe("Grant permission to Generate Image in:\nrenders");
+    expect(lines(sentence)).toBe("Grant Art permission to Generate Image in:\nrenders");
     expect(rest).toEqual([note]);
     expect(
       capabilityPrompt(flow("Shots"), { key: "k", type: "generateVideo", path: "clips" }).message.slice(1),
@@ -138,12 +140,12 @@ describe("capabilityPrompt", () => {
       type: "searchContext",
       path: "space:projects/story",
     }).message;
-    expect(lines(sentence)).toBe("Grant permission to send files to an AI model from:\nprojects/story");
+    expect(lines(sentence)).toBe("Grant Shots permission to send files to an AI model from:\nprojects/story");
     expect(rest).toEqual([
       "Each run sends the model provider this folder's AGENTS.md, the README nearest the connected document and the notes that document names. The model may also search the folder and read any other file in it. Private files are never sent.",
     ]);
     const [root] = capabilityPrompt(flow("Shots"), { key: "k", type: "searchContext", path: "space:" }).message;
-    expect(lines(root)).toBe("Grant permission to send files to an AI model from:\nSpace");
+    expect(lines(root)).toBe("Grant Shots permission to send files to an AI model from:\nSpace");
   });
 });
 
@@ -159,9 +161,9 @@ describe("ensure", () => {
     await tick();
     expect(panel()?.parentElement?.classList.contains("dialog-scoped")).toBe(true);
     expect(host.contains(panel())).toBe(true);
-    expect(panel()?.querySelector(".dialog-title")?.textContent).toBe("Hello needs permission");
+    expect(panel()?.querySelector(".dialog-title")?.textContent).toBe("Flow permissions");
     expect(panel()?.querySelector<HTMLElement>(".dialog-title .dialog-title-icon")?.dataset.entryIcon).toBe("flow");
-    expect(message()).toBe("Grant permission to read:\nn.md (needs it)");
+    expect(message()).toBe("Grant Hello permission to read:\nn.md (needs it)");
     expect(buttonNamed(panel() as HTMLElement, "Allow").classList.contains("danger")).toBe(true);
 
     buttonNamed(panel() as HTMLElement, "Allow").click();
@@ -196,11 +198,11 @@ describe("ensure", () => {
     const second = broker.ensure({ key: "generateText", type: "generateText" });
     await tick();
     expect(document.querySelectorAll(".dialog-panel")).toHaveLength(1);
-    expect(message()).toBe("Grant permission to read:\nn.md");
+    expect(message()).toBe("Grant Hello permission to read:\nn.md");
     buttonNamed(panel() as HTMLElement, "Allow").click();
     await expect(first).resolves.toBe(true);
     await tick();
-    expect(message()).toBe("Grant permission to run an AI generation.");
+    expect(message()).toBe("Grant Hello permission to run an AI generation.");
     buttonNamed(panel() as HTMLElement, "Deny").click();
     await expect(second).resolves.toBe(false);
   });
@@ -237,7 +239,7 @@ describe("ensure", () => {
     scrim.click();
     await tick();
     await tick();
-    expect(message()).toBe("Grant permission to run an AI generation.");
+    expect(message()).toBe("Grant Hello permission to run an AI generation.");
     buttonNamed(panel() as HTMLElement, "Deny").click();
     await expect(second).resolves.toBe(false);
   });
@@ -488,7 +490,7 @@ describe("ensureAll", () => {
       { key: "readFile:n.md", type: "readFile", path: "n.md" },
     ]);
     await tick();
-    expect(message()).toBe("Grant permission to read:\nn.md");
+    expect(message()).toBe("Grant Hello permission to read:\nn.md");
     buttonNamed(panel() as HTMLElement, "Allow").click();
     await expect(pending).resolves.toEqual({ allowed: true, asked: ["readFile:n.md"] });
   });
@@ -507,7 +509,7 @@ describe("ensureAll", () => {
     await tick();
 
     expect(document.querySelectorAll(".dialog-panel")).toHaveLength(1);
-    expect(panel()?.querySelector(".dialog-title")?.textContent).toBe("Hello needs permission");
+    expect(panel()?.querySelector(".dialog-title")?.textContent).toBe("Flow permissions");
     const rows = [...(panel()?.querySelectorAll(".run-permission-row") ?? [])].map((row) => [
       row.querySelector(".run-permission-target")?.textContent,
       row.querySelector(".run-permission-action")?.textContent,
@@ -519,7 +521,8 @@ describe("ensureAll", () => {
       ["Generate with AI", ""],
     ]);
     const paragraphs = [...(panel()?.querySelectorAll(".dialog-message") ?? [])].map((p) => p.textContent ?? "");
-    expect(paragraphs[0]).toBe("Grant permission for this run:");
+    expect(paragraphs[0]).toBe("Grant Hello these permissions:");
+    expect(panel()?.querySelector(".dialog-message .permission-prompt-name")?.textContent).toBe("Hello");
     expect(paragraphs.filter((text) => text.startsWith("Each generation consumes AI credits"))).toHaveLength(1);
     expect(buttonNamed(panel() as HTMLElement, "Allow").classList.contains("danger")).toBe(true);
 
