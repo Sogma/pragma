@@ -32,6 +32,7 @@ export interface FlowMenuCards {
   updateInputWidgetVisibility(nodeId: string, handleId: string): void;
   updateOutputHandleVisibility(nodeId: string, handleId: string): void;
   updateSourceDependents(nodeId: string): void;
+  syncUnusedPins(nodeId: string): void;
 }
 
 export interface FlowMenuDeps {
@@ -72,6 +73,9 @@ export interface FlowMenus {
   openChipMenu(clientX: number, clientY: number, target: ChipTarget, clear?: () => void): void;
   // The node menu's Disable or Enable, which Mod+M gives the selected node.
   toggleDisabled(nodeId: string): void;
+  // The node menu's Hide or Show unused pins, which Ctrl+H gives the selected
+  // node and the card's count of hidden pins gives its own.
+  toggleUnusedPins(nodeId: string): void;
 }
 
 export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
@@ -180,6 +184,10 @@ export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
         { label: "Rename…", run: onRename },
         { label: "Comment…", run: onComment },
         {
+          label: flowNode?.unusedPinsHidden ? "Show unused pins" : "Hide unused pins",
+          run: () => toggleUnusedPins(nodeId),
+        },
+        {
           label: "Info",
           group: "info",
           submenu: [
@@ -217,6 +225,17 @@ export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
     deps.persistGraph();
   }
 
+  // Display only: the card hides or shows the pins nothing flows through
+  // (nodeCard.ts), and the run is the same either way.
+  function toggleUnusedPins(nodeId: string): void {
+    const flowNode = deps.flowNodeById.get(nodeId);
+    if (!flowNode || deps.locked()) return;
+    if (flowNode.unusedPinsHidden) delete flowNode.unusedPinsHidden;
+    else flowNode.unusedPinsHidden = true;
+    deps.cards().syncUnusedPins(nodeId);
+    deps.persistGraph();
+  }
+
   // Opening or copying edits nothing in the Flow, so a locked one still
   // offers them; Clear edits it, so a locked one leaves it out.
   function openChipMenu(clientX: number, clientY: number, target: ChipTarget, clear?: () => void): void {
@@ -228,5 +247,13 @@ export function createFlowMenus(deps: FlowMenuDeps): FlowMenus {
     });
   }
 
-  return { openContextMenu, openHandleMenu, openExposeMenu, openNodeMenu, openChipMenu, toggleDisabled };
+  return {
+    openContextMenu,
+    openHandleMenu,
+    openExposeMenu,
+    openNodeMenu,
+    openChipMenu,
+    toggleDisabled,
+    toggleUnusedPins,
+  };
 }

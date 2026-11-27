@@ -942,6 +942,10 @@ export interface FlowNodeInstance {
   // The card's set-once settings, a Generate node's model and its settings,
   // folded to one summary line, where the wires into them meet.
   settingsFolded?: boolean;
+  // The card hides each pin nothing flows through (docs/protocol.md, Graph
+  // shape). Display only, like collapsed, so the capability digest leaves
+  // it out.
+  unusedPinsHidden?: boolean;
   // "disabled": a run leaves the node out, and every node it feeds
   // (docs/protocol.md, Execution). Absent, it runs. It changes what a run
   // does, so the capability digest covers it.

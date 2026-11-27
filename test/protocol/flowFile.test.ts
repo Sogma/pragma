@@ -43,6 +43,7 @@ describe(".flow.html round-tripping", () => {
             color: "#0b6e99",
             collapsed: true,
             settingsFolded: true,
+            unusedPinsHidden: true,
             mode: "disabled",
             appModeSize: { columns: 3, rows: 2 },
           },
@@ -414,6 +415,7 @@ describe("capabilityDigest", () => {
     expect(capabilityDigest(withNode({ color: "#ff0000" }))).toBe(digest);
     expect(capabilityDigest(withNode({ collapsed: true }))).toBe(digest);
     expect(capabilityDigest(withNode({ settingsFolded: true }))).toBe(digest);
+    expect(capabilityDigest(withNode({ unusedPinsHidden: true }))).toBe(digest);
     expect(capabilityDigest(withNode({ appModeOrder: 3 }))).toBe(digest);
     expect(capabilityDigest(withNode({ appModeSize: { columns: 4, rows: 3 } }))).toBe(digest);
     expect(capabilityDigest({ ...base, viewport: { x: 500, y: 500, zoom: 2 } })).toBe(digest);

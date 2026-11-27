@@ -46,4 +46,19 @@ describe("joinedPins", () => {
       height: 0,
     });
   });
+
+  // A hidden pin left in the measure would catch a connection drag ending near it.
+  it("leaves out a pin of the card's own that doesn't show", () => {
+    const card = document.createElement("div");
+    const pin = (id: string, shows: boolean) => {
+      const el = document.createElement("span");
+      el.className = "handle source";
+      el.dataset.handleid = id;
+      Object.defineProperty(el, "checkVisibility", { value: () => shows });
+      return el;
+    };
+    card.append(pin("image", true), pin("width", false), pin("height", true));
+    const bounds = measureHandles(card, card.getBoundingClientRect(), 1, "l1", "source");
+    expect(bounds.map((bound) => bound.id)).toEqual(["image", "height"]);
+  });
 });

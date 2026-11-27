@@ -331,6 +331,13 @@
   opacity: 1;
 }
 
+/* A card hiding its unused pins drops each pin and emptied group nodeCard.ts
+   marks. A field being edited stays until focus leaves it, or its row would
+   vanish under the cursor as its value reached a new node's. */
+.flow-node.unused-pins-hidden .unused:not(:focus-within) {
+  display: none;
+}
+
 /* Add Row's note of what an unwired timestamp gets, where another column's
    row has its control: the Table's default, set on the Table. */
 .flow-port-hint {

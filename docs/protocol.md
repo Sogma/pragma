@@ -816,12 +816,12 @@ A run follows [Execution and authority](#execution-and-authority); a toolkit but
 </html>
 ```
 
-- **`<html data-format>`** must be `"flow"`, or the file reads as an empty graph — read-only, as is one whose graph block isn't valid JSON (see [Format versions and safe writes](#format-versions-and-safe-writes)). A missing or blank file, or a blank graph block, reads as an empty graph and opens editable — a zero-byte `.flow.html` is a valid, buildable canvas. **`data-format-version`** is the format version.
+- **`<html data-format>`** must be `"flow"`, or the file reads as an empty graph — read-only, as is one whose graph block isn't valid JSON (see [Format versions and safe writes](#format-versions-and-safe-writes)). A missing or blank file, or a blank graph block, reads as an empty graph and opens editable. **`data-format-version`** is the format version.
 - **`<head><title>`** is the Flow's display name — the only place it is stored.
 - **`<dl data-role="metadata">`** is the Flow's [metadata](#metadata). No `created`/`modified` counterpart.
 - **`data-role="graph"`** — the graph, in Pragma's own canonical shape, never a graph library's. Serialization is deterministic and byte-stable for unchanged content; node and edge order is array order.
 
-A Flow has **no manifest and no `capabilities` field**: it carries no script of its own, so there is nothing for one to declare, and its [capabilities](#capabilities-and-grants) are derived from its graph.
+A Flow has **no manifest and no `capabilities` field**: it carries no script of its own, and its [capabilities](#capabilities-and-grants) are derived from its graph.
 
 #### Graph shape
 
@@ -847,6 +847,7 @@ FlowNodeInstance {
   color?: string                // "#rrggbb" node color; absent = default
   collapsed?: boolean
   settingsFolded?: boolean      // the card's set-once settings folded to a summary
+  unusedPinsHidden?: boolean    // the card's unused pins hidden
   mode?: "disabled"             // a run leaves the node out (see Execution); absent = it runs
   exposed?: string[]            // port ids / config keys shown in App mode
   appModeOrder?: number
@@ -857,6 +858,8 @@ FlowEdgeInstance { id, source, sourcePort, target, targetPort }
 ```
 
 **`viewport` and `appModeActive` are the Flow's default view**: where its canvas opens, and whether in App mode. A host writes them only when asked to make its view the default, never with a pan, zoom, switch of view or other save.
+
+**`unusedPinsHidden`** hides each unwired output, optional input, and widget input at a new node's value, unless exposed.
 
 `config` is an unvalidated bag per node type. **Port ids and config keys are wire identifiers**: a saved edge references a port by id, so renaming a port id or config key orphans every saved graph that uses it. A built-in port's id is lowercase snake_case (`aspect_ratio`, `image_1`) and is also the name its pin shows; a form for a Flow's users may show it as words. Node labels, categories, and keywords may change freely; ids may not. `typeVersion` and `data-format-version` do not trigger migrations. The file's `data-format-version` still governs the [safe-write guard](#format-versions-and-safe-writes).
 
@@ -894,7 +897,7 @@ A Flow has two views over the same graph: the **graph canvas** and **App mode**,
 - The grid has six columns, or two when narrower than 650 CSS pixels. Three columns span half the six-column row. A width at or beyond the grid's column count spans the whole row.
 - Both dimensions are positive integers. Any other value reads as absent; an absent size uses the host's default for that item.
 - The host determines cell heights, gaps, and defaults, and may cap `rows`. A host presenting App mode as a list may ignore sizes.
-- Sizes never reorder a run's inputs or results. The [capability digest](#capability-digest) excludes them, so resizing does not require renewed consent.
+- Sizes never reorder a run's inputs or results.
 
 ### LUTs
 
@@ -938,7 +941,7 @@ A run asks for every grant it will use in one prompt before any node starts, and
 
 A grant's `contentHash` is its **capability digest** (see [Grant storage](#grant-storage)): a hash over only the part of the graph that decides what a run can do — which nodes exist, how they are wired, and every config value a node reads. A Flow cannot pin its raw file: dragging a node or resizing a card rewrites the file, and a grant has to survive that. Hashing behaviour instead of bytes means a match says the graph still does what a human approved, whoever wrote the file last.
 
-What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color, collapsed and folded state, App mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
+What the digest ignores is therefore contract, not an implementation detail: node position and size, per-instance label, comment, color, collapsed, folded and hidden-pin state, App mode ordering and sizes, and the viewport. A reader classifying a field it does not recognize includes it — over-prompting is a cost, and an unhashed capability-relevant field is a hole.
 
 Which changes may carry an entry to a new digest is set in [Grant storage](#grant-storage) and [Applet nodes](#applet-nodes).
 

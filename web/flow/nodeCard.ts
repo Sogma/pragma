@@ -16,12 +16,14 @@ import {
   affixModeOf,
   blankAsDefault,
   choiceOptions,
+  EFFORT_KEY,
   FLOW_NODE_REGISTRY,
   type FlowNodeConfigField,
   type FlowNodeInputWidget,
   FRAME_KINDS,
   type FrameKind,
   GET_FIELD_SLOTS,
+  holdsNewNodeValue,
   intValue,
   nodePorts,
   type SlotSpec,
@@ -285,7 +287,8 @@ export interface NodeCardDeps {
   // re-measure it and redraw its edges.
   onLayoutChange(nodeId: string): void;
   // A card's right-click menus: its title bar, a pin, a field, a Load chip.
-  menus: Pick<FlowMenus, "openNodeMenu" | "openHandleMenu" | "openExposeMenu" | "openChipMenu">;
+  // And the node menu's Hide or Show unused pins, which the title's count runs.
+  menus: Pick<FlowMenus, "openNodeMenu" | "openHandleMenu" | "openExposeMenu" | "openChipMenu" | "toggleUnusedPins">;
   // A locked Flow takes no edits, so a missing pin offers none.
   locked(): boolean;
   // A file a node names, read from the Flow's folder: an Applet node's, a
@@ -355,6 +358,9 @@ export interface NodeCards {
   updateInputWidgetVisibility(nodeId: string, portId: string): void;
   updateOutputHandleVisibility(nodeId: string, portId: string): void;
   updateSourceDependents(nodeId: string): void;
+  // Hides or shows the card's unused pins as its node's unusedPinsHidden
+  // now says, and measures the card again.
+  syncUnusedPins(nodeId: string): void;
   // Before a run: every result box hidden, every result textbox emptied.
   // Every node's run state, or only these nodes'.
   clearRunState(only?: readonly string[]): void;
@@ -435,9 +441,65 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // Pins drawn for wires naming a port their node lacks, keyed
   // `${nodeId}:${type}:${portId}`.
   const missingPinEls = new Map<string, HTMLElement>();
+  // A field's row, and whether the field holds what a new node starts with.
+  const fieldDefaults = new WeakMap<HTMLElement, () => boolean>();
+  // Per node, what marks its card's unused pins again; `measure` lets one
+  // that changed what shows tell the canvas.
+  const unusedSyncers = new Map<string, (measure: boolean) => void>();
+
+  // Every edit a card makes. An edit can put a field back to its new-node
+  // value or take it off, so every card's unused pins are marked again.
+  function persistGraph(): void {
+    deps.persistGraph();
+    for (const sync of unusedSyncers.values()) sync(true);
+  }
+
+  // Marks the pins nothing flows through (docs/protocol.md, Graph shape),
+  // and each group of rows they leave empty, whether or not the node hides
+  // them, so hiding is one class on the card. Answers how many pins it
+  // marked, and whether any mark changed.
+  function markUnused(node: FlowNodeInstance, el: HTMLElement): { count: number; changed: boolean } {
+    const { edges } = deps.graph();
+    const inputs = nodePorts(node).inputs;
+    const exposed = new Set(node.exposed ?? []);
+    let count = 0;
+    let changed = false;
+    const mark = (target: Element, unused: boolean): void => {
+      if (target.classList.contains("unused") !== unused) changed = true;
+      target.classList.toggle("unused", unused);
+    };
+    for (const handle of el.querySelectorAll<HTMLElement>(".handle.connectable")) {
+      const row = handle.closest<HTMLElement>(".flow-port-row");
+      if (!row) continue;
+      const portId = handle.dataset.handleid ?? "";
+      const output = handle.classList.contains("source");
+      const wired = edges.some((e) =>
+        output ? e.source === node.id && e.sourcePort === portId : e.target === node.id && e.targetPort === portId,
+      );
+      const atDefault = fieldDefaults.get(row);
+      const unused =
+        !wired &&
+        !exposed.has(portId) &&
+        (output || (atDefault ? atDefault() : inputs.find((port) => port.id === portId)?.required === false));
+      // A pin beside its file goes alone: the file is the node's own.
+      const target = row.classList.contains("flow-path-row") ? handle : row;
+      mark(target, unused);
+      if (unused && !target.closest("[hidden]")) count++;
+    }
+    for (const group of el.querySelectorAll<HTMLElement>(".flow-node-body, .flow-model-settings")) {
+      const rows = [
+        ...group.querySelectorAll<HTMLElement>(
+          ":scope > .flow-node-inputs > *, :scope > .flow-node-outputs > *, :scope > .flow-model-settings-body > *",
+        ),
+      ];
+      const emptied = rows.length > 0 && rows.every((row) => row.hidden || row.classList.contains("unused"));
+      mark(group, emptied && !group.classList.contains("folded"));
+    }
+    return { count, changed };
+  }
 
   const pickers = createPickers({
-    persistGraph: deps.persistGraph,
+    persistGraph,
     saveGraphNow: deps.saveGraphNow,
     ensureCapability: deps.ensureCapability,
     read: deps.read,
@@ -690,7 +752,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       label.textContent = field.label;
       input.addEventListener("change", () => {
         node.config[field.key] = input.checked ? "true" : "false";
-        deps.persistGraph();
+        persistGraph();
         heldViews.get(node.id)?.sync();
       });
       wrap.append(input, label);
@@ -708,7 +770,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     wrap.appendChild(label);
     const save = (value: string) => {
       node.config[field.key] = value;
-      deps.persistGraph();
+      persistGraph();
       showConfigPinValues(node);
     };
 
@@ -761,6 +823,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     // and a frame wired or unwired shows or hides with it.
     if (portId === "model" || frameRows.get(nodeId)) followModel(nodeId);
     else if (SET_ONCE_PORTS.includes(portId)) modelSettingsViews.get(nodeId)?.refresh();
+    unusedSyncers.get(nodeId)?.(true);
     syncJoinedPins(nodeId);
   }
 
@@ -781,6 +844,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const key = `${nodeId}:${portId}`;
     const connected = deps.graph().edges.some((e) => e.source === nodeId && e.sourcePort === portId);
     outputHandleEls.get(key)?.classList.toggle("unconnected", !connected);
+    unusedSyncers.get(nodeId)?.(true);
     syncJoinedPins(nodeId);
   }
 
@@ -874,7 +938,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         node.exposed = exposed.size > 0 ? Array.from(exposed) : undefined;
         if (firstExposed) placeExposedNode(deps.graph(), node);
         setExposedClass(labelEl, portType, isExposed(node, id));
-        deps.persistGraph();
+        persistGraph();
       };
       deps.menus.openExposeMenu(event.clientX, event.clientY, portType, isExposed(node, id), toggle, actions());
     });
@@ -910,9 +974,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         currentValue,
         (ref) => {
           node.config[port.id] = ref;
-          deps.persistGraph();
+          persistGraph();
         },
-        { onRedraw: () => followModel(node.id), effort: effortFieldOf(node, deps.persistGraph) },
+        { onRedraw: () => followModel(node.id), effort: effortFieldOf(node, persistGraph) },
       );
     } else if (
       widget.type === "select" &&
@@ -923,7 +987,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     } else if (widget.type === "select") {
       control = createSelectPicker(deps.contextMenu, widget, currentValue(), (value) => {
         node.config[port.id] = value;
-        deps.persistGraph();
+        persistGraph();
       });
     } else if (widget.type === "checkbox") {
       const input = document.createElement("input");
@@ -931,7 +995,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       input.checked = currentValue() === "true";
       input.addEventListener("change", () => {
         node.config[port.id] = input.checked ? "true" : "false";
-        deps.persistGraph();
+        persistGraph();
       });
       control = input;
     } else {
@@ -942,7 +1006,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       input.placeholder = widget.placeholder ?? "";
       input.addEventListener("input", () => {
         node.config[port.id] = input.value;
-        deps.persistGraph();
+        persistGraph();
       });
       attachPlaceholderSuggestions(input, () => dateChoices(new Date()));
       control = input;
@@ -959,6 +1023,11 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     // (unlike a plain socket), so it's always exposable — e.g. toggleText's
     // "true" checkbox, the example this feature was built around.
     bindExposeToggle(node, port.id, port.type, label, row);
+    // A model's effort is picked in its row, so it counts with the model.
+    fieldDefaults.set(
+      row,
+      () => holdsNewNodeValue(node.type, port.id, node.config) && !(modelKind && node.config[EFFORT_KEY]),
+    );
 
     row.append(handle, label, control);
     return row;
@@ -992,6 +1061,8 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       inputWidgetEls.set(key, control);
       row.appendChild(control);
     }
+    // A new node holds no column values, and a run leaves an empty one out.
+    fieldDefaults.set(row, () => !columnPinsConfig(node.config).values[column.id]);
     return row;
   }
 
@@ -1002,7 +1073,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const stored = columnPinsConfig(node.config).values[column.id];
     const save = (value: string) => {
       node.config.values = { ...columnPinsConfig(node.config).values, [column.id]: value };
-      deps.persistGraph();
+      persistGraph();
     };
 
     switch (column.type) {
@@ -1104,7 +1175,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const graph = deps.graph();
     const dropped = graph.edges.filter((edge) => edge.target === node.id && !kept.has(edge.targetPort));
     graph.edges = graph.edges.filter((edge) => !dropped.includes(edge));
-    deps.persistGraph();
+    persistGraph();
     deps.remount(node.id);
     for (const edge of dropped) updateOutputHandleVisibility(edge.source, edge.sourcePort);
   }
@@ -1150,7 +1221,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       ],
       (value) => {
         node.config.affixMode = value;
-        deps.persistGraph();
+        persistGraph();
       },
     );
     if (whileWired) sourceDependentEls.set(node.id, { el: select, portId: port.id });
@@ -1259,7 +1330,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       }
       sizeToName();
       node.config[nameKey] = input.value;
-      deps.persistGraph();
+      persistGraph();
     });
     describePin(
       nodePorts(node).inputs.find((port) => port.id === portId),
@@ -1298,7 +1369,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       onRemove?.();
       slotAddRefreshers.get(node.id)?.();
       deps.onLayoutChange(node.id);
-      deps.persistGraph();
+      persistGraph();
       for (const edge of removedEdges) {
         if (edge.target === node.id) {
           updateOutputHandleVisibility(edge.source, edge.sourcePort);
@@ -1349,6 +1420,16 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   ): HTMLDivElement {
     const row = document.createElement("div");
     row.className = "flow-add-variable-row";
+    // A card hiding its unused pins would hide the pin this adds at once, an
+    // output or an optional input, so the "+" goes with them.
+    const first = spec.portId(1);
+    const ports = nodePorts(node);
+    if (
+      ports.outputs.some((port) => port.id === first) ||
+      ports.inputs.find((port) => port.id === first)?.required === false
+    ) {
+      row.classList.add("unused");
+    }
     const button = document.createElement("button");
     button.type = "button";
     const icon = document.createElement("span");
@@ -1384,7 +1465,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       container.insertBefore(added, after ?? choices?.endsBefore?.() ?? row);
       refresh();
       deps.onLayoutChange(node.id);
-      deps.persistGraph();
+      persistGraph();
     };
     const available = (): AddChoice[] => [
       ...(choices?.others() ?? []),
@@ -1443,7 +1524,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         current(),
         (value) => {
           node.config.resolution = value;
-          deps.persistGraph();
+          persistGraph();
         },
         sends,
       );
@@ -1571,7 +1652,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         container.insertBefore(added, after ?? addRow ?? null);
         slotAddRefreshers.get(node.id)?.();
         deps.onLayoutChange(node.id);
-        deps.persistGraph();
+        persistGraph();
       };
       return [{ label: "Video reference", add }];
     };
@@ -1627,7 +1708,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
           if (removed.length) node.config.removedFrames = removed;
           else delete node.config.removedFrames;
           frameSyncers.get(node.id)?.();
-          deps.persistGraph();
+          persistGraph();
         },
       }));
   }
@@ -1646,7 +1727,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       node.config.removedFrames = [...new Set([...removedFrames(node), kind])];
       frameSyncers.get(node.id)?.();
       for (const edge of cut) updateOutputHandleVisibility(edge.source, edge.sourcePort);
-      deps.persistGraph();
+      persistGraph();
     });
     row.appendChild(remove);
     row.hidden = !shownFrames(node).includes(kind);
@@ -1757,7 +1838,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             node.config.text = update.state.doc.toString();
-            deps.persistGraph();
+            persistGraph();
             showConfigPinValues(node);
           }),
         ],
@@ -1793,7 +1874,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     pickLabel.textContent = "Pick";
     const select = createSelectControl("", [], (value) => {
       node.config.text = value;
-      deps.persistGraph();
+      persistGraph();
       showConfigPinValues(node);
     });
     pickField.append(pickLabel, select);
@@ -1825,7 +1906,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       node.config.options = textarea.value;
       if (picked() && !choiceOptions(node.config).includes(picked())) delete node.config.text;
       renderPick();
-      deps.persistGraph();
+      persistGraph();
       showConfigPinValues(node);
     });
     attachPlaceholderSuggestions(textarea, () => dateChoices(new Date()));
@@ -1848,7 +1929,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const frame = createAppletFrame(node, {
       loadFile: deps.loadFile,
       injectRuntime: deps.injectAppletRuntime,
-      persist: deps.persistGraph,
+      persist: persistGraph,
       onLoaded: (file) => syncAppletNode(node, file),
     });
     appletFrames.get(node.id)?.dispose();
@@ -1869,7 +1950,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     node.config.appletHash = file.contentHash;
     node.config.ports = ports;
     if (title) node.label = title;
-    deps.persistGraph();
+    persistGraph();
     if (portsChanged || title) deps.remount(node.id);
   }
 
@@ -1995,7 +2076,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         flowNode.size = { width, height: el.offsetHeight };
-        deps.persistGraph();
+        persistGraph();
       }
 
       document.addEventListener("mousemove", onMove);
@@ -2034,7 +2115,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       applyCollapsedState(flowNode, el, collapseEl);
       syncJoinedPins(flowNode.id, false);
       deps.onLayoutChange(flowNode.id);
-      deps.persistGraph();
+      persistGraph();
     });
     const nameEl = document.createElement("span");
     nameEl.className = "flow-node-name";
@@ -2044,7 +2125,16 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const disabledTag = document.createElement("span");
     disabledTag.className = "flow-node-disabled-tag";
     disabledTag.textContent = "Disabled";
-    titleEl.append(collapseEl, nameEl, disabledTag);
+    // How many pins the card hides, which a click shows again.
+    const unusedCountEl = document.createElement("button");
+    unusedCountEl.type = "button";
+    unusedCountEl.className = "flow-node-unused-count nodrag";
+    unusedCountEl.hidden = true;
+    unusedCountEl.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deps.menus.toggleUnusedPins(flowNode.id);
+    });
+    titleEl.append(collapseEl, nameEl, disabledTag, unusedCountEl);
     titleEls.set(flowNode.id, { title: titleEl, node: flowNode });
     applyNodeColor(el, nodeColor(flowNode));
 
@@ -2068,7 +2158,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       flowNode.label = trimmed && trimmed !== definition.label ? trimmed : undefined;
       nameEl.textContent = flowNode.label || definition.label;
       describeTitle();
-      deps.persistGraph();
+      persistGraph();
     }
 
     function startRename(): void {
@@ -2107,7 +2197,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         onPick: (hex) => {
           flowNode.color = hex || undefined;
           applyNodeColor(el, nodeColor(flowNode));
-          deps.persistGraph();
+          persistGraph();
         },
       });
     }
@@ -2130,7 +2220,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         saves: "end",
         save: (text) => {
           flowNode.comment = text || undefined;
-          deps.persistGraph();
+          persistGraph();
         },
       });
       field.classList.add("flow-node-comment-field", "nodrag");
@@ -2306,8 +2396,12 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
           details: () => settingsDetails(flowNode),
           inputs: () => wiredInputs(flowNode),
           joined: () => joinsOf(flowNode, "target", SET_ONCE_PORTS),
-          persist: deps.persistGraph,
-          layoutChanged: () => deps.onLayoutChange(flowNode.id),
+          persist: persistGraph,
+          // Drawn again, folded or not, so its rows are marked again first.
+          layoutChanged: () => {
+            unusedSyncers.get(flowNode.id)?.(false);
+            deps.onLayoutChange(flowNode.id);
+          },
         });
         modelSettingsViews.set(flowNode.id, settings);
         contentEl.appendChild(settings.el);
@@ -2383,6 +2477,33 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     el.append(titleEl, bodyEl, contentEl, createResizeHandle(flowNode, el), commentEl);
     applyCollapsedState(flowNode, el, collapseEl);
     syncJoinedPins(flowNode.id, false);
+
+    const syncUnused = (measure: boolean): void => {
+      const hides = flowNode.unusedPinsHidden === true;
+      const toggled = el.classList.contains("unused-pins-hidden") !== hides;
+      el.classList.toggle("unused-pins-hidden", hides);
+      const { count, changed } = markUnused(flowNode, el);
+      const pins = `${count} unused pin${count === 1 ? "" : "s"}`;
+      const locked = deps.locked();
+      unusedCountEl.hidden = !hides || count === 0;
+      unusedCountEl.textContent = String(count);
+      unusedCountEl.setAttribute("aria-label", locked ? `${pins} hidden` : `Show ${pins}`);
+      unusedCountEl.dataset.tooltip = locked
+        ? `${pins} hidden.`
+        : `${pins} hidden. Click to show ${count === 1 ? "it" : "them"}.`;
+      if (measure && (toggled || (hides && changed))) deps.onLayoutChange(flowNode.id);
+    };
+    unusedSyncers.set(flowNode.id, syncUnused);
+    // A field being edited stays shown (ports.css) until focus leaves it, so
+    // the card is measured once focus has settled, with whatever went.
+    el.addEventListener("focusout", () => {
+      if (!flowNode.unusedPinsHidden) return;
+      window.setTimeout(() => {
+        syncUnused(false);
+        deps.onLayoutChange(flowNode.id);
+      });
+    });
+    syncUnused(false);
     return el;
   }
 
@@ -2396,6 +2517,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     updateInputWidgetVisibility,
     updateOutputHandleVisibility,
     updateSourceDependents,
+    syncUnusedPins(nodeId) {
+      unusedSyncers.get(nodeId)?.(true);
+    },
     clearRunState(only) {
       const included = (id: string) => !only || only.includes(id);
       for (const id of resultEls.keys()) if (included(id)) showError(id, undefined);
@@ -2478,6 +2602,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
       frameRows.delete(nodeId);
       frameSyncers.delete(nodeId);
       titleDescribers.delete(nodeId);
+      unusedSyncers.delete(nodeId);
       for (const map of [inputWidgetEls, pathPickerEls, optionalHandleEls, outputHandleEls, missingPinEls]) {
         for (const key of Array.from(map.keys())) {
           if (key.startsWith(`${nodeId}:`)) map.delete(key);
@@ -2507,6 +2632,7 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
         titleDescribers,
         heldViews,
         contextReports,
+        unusedSyncers,
       ]) {
         map.clear();
       }

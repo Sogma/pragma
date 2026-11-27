@@ -24,8 +24,15 @@ export function joinedPins(pins: readonly JoinedPin[], side: XYHandleType): HTML
   });
 }
 
-/** A card's pins as the canvas places wire ends, its joined pins first: a
- * port's own pin, hidden, measures as an empty box at the card's corner. */
+// Whether a pin shows. One the card hides stays out of the measure, or a
+// connection drag ending near where it measures would snap to it.
+// checkVisibility is missing where nothing is laid out, as in jsdom.
+function shows(pin: Element): boolean {
+  return typeof pin.checkVisibility !== "function" || pin.checkVisibility();
+}
+
+/** A card's pins as the canvas places wire ends: its joined pins first, then
+ * each of its own that shows, so a wire never ends on a hidden pin. */
 export function measureHandles(
   el: HTMLDivElement,
   rect: DOMRect,
@@ -46,7 +53,10 @@ export function measureHandles(
       height: box.height / scale,
     };
   });
-  return [...joined, ...(getHandleBounds(type, el, rect, scale, nodeId) ?? [])];
+  // getHandleBounds measures the same query, so its entries line up with it.
+  const pins = el.querySelectorAll(`.${type}`);
+  const own = (getHandleBounds(type, el, rect, scale, nodeId) ?? []).filter((_, index) => shows(pins[index]));
+  return [...joined, ...own];
 }
 
 /** One point per side where every wire into a collapsed card meets when no

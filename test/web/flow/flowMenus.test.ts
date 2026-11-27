@@ -16,6 +16,7 @@ function setup(overrides: Partial<FlowMenuDeps> = {}) {
     updateInputWidgetVisibility: vi.fn(),
     updateOutputHandleVisibility: vi.fn(),
     updateSourceDependents: vi.fn(),
+    syncUnusedPins: vi.fn(),
   };
   const deps: FlowMenuDeps = {
     contextMenu: {
@@ -66,6 +67,7 @@ describe("flowMenus: node menu", () => {
       "Color…",
       "Rename…",
       "Comment…",
+      "Hide unused pins",
       "Info",
       "Disable",
       "Clone",
@@ -106,6 +108,39 @@ describe("flowMenus: node menu", () => {
     expect(deps.persistGraph).not.toHaveBeenCalled();
   });
 
+  // Display only, so the card is told and the Flow saved, and no wire is redrawn.
+  it("hides a node's unused pins from Hide unused pins and shows them again from Show unused pins", () => {
+    const { menus, deps, cards, flowNodeById, opened } = setup();
+    const node = { id: "loadImage-1", type: "loadImage", position: { x: 0, y: 0 }, config: {} } as FlowNodeInstance;
+    flowNodeById.set(node.id, node);
+    const pick = (label: string) =>
+      opened
+        .at(-1)
+        ?.items?.find((item) => item.label === label)
+        ?.run?.({} as never, undefined);
+
+    menus.openNodeMenu(0, 0, node.id, vi.fn(), vi.fn(), vi.fn());
+    pick("Hide unused pins");
+    expect(node.unusedPinsHidden).toBe(true);
+    menus.openNodeMenu(0, 0, node.id, vi.fn(), vi.fn(), vi.fn());
+    pick("Show unused pins");
+    expect(node).not.toHaveProperty("unusedPinsHidden");
+    expect(cards.syncUnusedPins).toHaveBeenCalledTimes(2);
+    expect(cards.syncUnusedPins).toHaveBeenCalledWith(node.id);
+    expect(deps.persistGraph).toHaveBeenCalledTimes(2);
+    expect(deps.renderEdges).not.toHaveBeenCalled();
+  });
+
+  it("hides no pins in a locked Flow", () => {
+    const { menus, deps, cards, flowNodeById } = setup({ locked: () => true });
+    const node = { id: "showText-1", type: "showText", position: { x: 0, y: 0 }, config: {} } as FlowNodeInstance;
+    flowNodeById.set(node.id, node);
+    menus.toggleUnusedPins(node.id);
+    expect(node.unusedPinsHidden).toBeUndefined();
+    expect(cards.syncUnusedPins).not.toHaveBeenCalled();
+    expect(deps.persistGraph).not.toHaveBeenCalled();
+  });
+
   it("starts the card's comment edit from Comment…", () => {
     const { menus, flowNodeById, opened } = setup();
     flowNodeById.set("toggleText-1", {
@@ -139,6 +174,7 @@ describe("flowMenus: node menu", () => {
       ["Color…", undefined],
       ["Rename…", undefined],
       ["Comment…", undefined],
+      ["Hide unused pins", undefined],
       ["Info", "info"],
       ["Disable", "graph"],
       ["Clone", "graph"],

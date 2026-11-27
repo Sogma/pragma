@@ -56,7 +56,7 @@ import { createNodeCards, markLeftOut, NODE_WIDTH, type NodeCardDeps } from "./n
 import { createNodeSelection } from "./nodeSelection.ts";
 import { createWires } from "./wires.ts";
 
-export type CanvasEdit = "undo" | "redo" | "remove" | "disable";
+export type CanvasEdit = "undo" | "redo" | "remove" | "disable" | "unusedPins";
 
 export interface FlowViewDeps {
   dialog: DialogService;
@@ -745,12 +745,13 @@ export function createFlowView(elements: FlowElements, deps: FlowViewDeps & Canv
     selectedNode: () => (appMode.isActive() ? undefined : (selection.id ?? undefined)),
     canEdit(edit) {
       if (!canvasHasKeys()) return false;
-      if (edit === "remove" || edit === "disable") return selection.id !== null;
+      if (edit !== "undo" && edit !== "redo") return selection.id !== null;
       return edit === "undo" ? history.canUndo() : history.canRedo();
     },
     edit(edit) {
       if (edit === "undo" || edit === "redo") restore(edit === "undo" ? history.undo() : history.redo());
-      else if (selection.id) (edit === "remove" ? removeNode : menus.toggleDisabled)(selection.id);
+      else if (selection.id)
+        ({ remove: removeNode, disable: menus.toggleDisabled, unusedPins: menus.toggleUnusedPins })[edit](selection.id);
     },
     toggleAppMode(): void {
       if (!activeFlow) return;

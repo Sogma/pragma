@@ -104,6 +104,16 @@ export function blankAsDefault(type: string, portId: string, value: string): str
   return widget?.type === "select" && !widget.options?.includes("") ? (widget.defaultValue ?? "") : "";
 }
 
+/** Whether a widget input holds what a new node starts with: its widget's
+ * value, else empty, or unchecked for a checkbox, read as a run reads it. */
+export function holdsNewNodeValue(type: string, portId: string, config: Record<string, unknown>): boolean {
+  const widget = FLOW_NODE_REGISTRY[type]?.inputWidgets?.find((each) => each.portId === portId);
+  if (!widget) return false;
+  const value = blankAsDefault(type, portId, typeof config[portId] === "string" ? (config[portId] as string) : "");
+  if (widget.type === "checkbox") return (value === "true") === (widget.defaultValue === "true");
+  return value === (widget.defaultValue ?? "");
+}
+
 // The add-node menu's category order: dataflow, not alphabetical — the kinds
 // of value a Flow reads and shapes, then generation, then the open document,
 // and the Applet container last, where node editors put groups. A list rather

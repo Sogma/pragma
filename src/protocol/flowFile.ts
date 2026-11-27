@@ -81,6 +81,7 @@ function readNodes(value: unknown): FlowNodeInstance[] {
       color: readColor(candidate.color),
       collapsed: typeof candidate.collapsed === "boolean" ? candidate.collapsed : undefined,
       settingsFolded: candidate.settingsFolded === true ? true : undefined,
+      unusedPinsHidden: candidate.unusedPinsHidden === true ? true : undefined,
       mode: candidate.mode === "disabled" ? "disabled" : undefined,
       exposed: readExposed(candidate.exposed),
       appModeOrder: readAppModeOrder(candidate.appModeOrder),
@@ -203,8 +204,19 @@ function byId(left: { id: string }, right: { id: string }): number {
 export function capabilityDigest(graph: FlowGraph): string {
   const nodes = graph.nodes
     .map(
-      ({ position, size, label, comment, color, collapsed, settingsFolded, appModeOrder, appModeSize, ...rest }) =>
-        rest,
+      ({
+        position,
+        size,
+        label,
+        comment,
+        color,
+        collapsed,
+        settingsFolded,
+        unusedPinsHidden,
+        appModeOrder,
+        appModeSize,
+        ...rest
+      }) => rest,
     )
     .sort(byId);
   const { viewport, runAppModeOrder, runAppModeSize, appModeActive, ...rest } = graph;

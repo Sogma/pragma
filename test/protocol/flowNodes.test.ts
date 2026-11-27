@@ -5,6 +5,7 @@ import {
   closesLoop,
   computeFlowCapabilities,
   FLOW_NODE_REGISTRY,
+  holdsNewNodeValue,
   intValue,
   modelSettingValues,
   moveOnAfterRun,
@@ -150,6 +151,36 @@ describe("blankAsDefault", () => {
     expect(blankAsDefault("joinText", "separator", "")).toBe("");
     expect(blankAsDefault("generateVideo", "prefix", "")).toBe("");
     expect(blankAsDefault("noSuchType", "duration", "")).toBe("");
+  });
+});
+
+describe("holdsNewNodeValue", () => {
+  it("says a field holds a new node's value when it reads as that value, a blank select as its preset", () => {
+    expect(holdsNewNodeValue("generateVideo", "resolution", { resolution: "480p" })).toBe(true);
+    expect(holdsNewNodeValue("generateVideo", "resolution", { resolution: "" })).toBe(true);
+    expect(holdsNewNodeValue("generateVideo", "resolution", {})).toBe(true);
+    expect(holdsNewNodeValue("generateVideo", "resolution", { resolution: "720p" })).toBe(false);
+    expect(holdsNewNodeValue("generateVideo", "prefix", { prefix: "{{$date:%y%m%d}}" })).toBe(true);
+    expect(holdsNewNodeValue("generateVideo", "model", {})).toBe(true);
+    expect(holdsNewNodeValue("generateVideo", "model", { model: "studio:clip-2" })).toBe(false);
+  });
+
+  // A text widget's blank is a value of its own, so a cleared separator holds
+  // no new node's value, and a missing one reads blank.
+  it("reads a text field's blank and a checkbox's blank as they run", () => {
+    expect(holdsNewNodeValue("joinText", "separator", { separator: ", " })).toBe(true);
+    expect(holdsNewNodeValue("joinText", "separator", { separator: "" })).toBe(false);
+    expect(holdsNewNodeValue("joinText", "separator", {})).toBe(false);
+    expect(holdsNewNodeValue("joinText", "text_2", {})).toBe(true);
+    expect(holdsNewNodeValue("joinText", "text_2", { text_2: "draft" })).toBe(false);
+    expect(holdsNewNodeValue("toggleText", "true", { true: "false" })).toBe(true);
+    expect(holdsNewNodeValue("toggleText", "true", {})).toBe(true);
+    expect(holdsNewNodeValue("toggleText", "true", { true: "true" })).toBe(false);
+  });
+
+  it("holds nothing for a port with no field", () => {
+    expect(holdsNewNodeValue("generateVideo", "prompt", {})).toBe(false);
+    expect(holdsNewNodeValue("noSuchType", "duration", {})).toBe(false);
   });
 });
 

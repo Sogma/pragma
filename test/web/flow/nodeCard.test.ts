@@ -41,7 +41,13 @@ function setup(edges: FlowEdgeInstance[] = []) {
     zoom: () => 1,
     startConnection: vi.fn(),
     onLayoutChange: vi.fn(),
-    menus: { openNodeMenu: vi.fn(), openHandleMenu: vi.fn(), openExposeMenu: vi.fn(), openChipMenu: vi.fn() },
+    menus: {
+      openNodeMenu: vi.fn(),
+      openHandleMenu: vi.fn(),
+      openExposeMenu: vi.fn(),
+      openChipMenu: vi.fn(),
+      toggleUnusedPins: vi.fn(),
+    },
     locked: () => false,
     loadFile: vi.fn(async () => {
       throw new Error("no files in this test");
@@ -1717,7 +1723,7 @@ describe("a node's path pin", () => {
     const zone = el.querySelector(".flow-dropzone:not(.flow-space-drop)") as HTMLElement;
     expect(row.querySelector(":scope > .flow-space-drop")).not.toBeNull();
     expect(row.nextElementSibling).toBe(zone);
-    expect(el.querySelector("button")).toBeNull();
+    expect(el.querySelector(".flow-node-content button")).toBeNull();
   });
 
   it("sits beside a drop target on every node with one", () => {
@@ -2113,5 +2119,127 @@ describe("a node's color", () => {
     expect(flowNode.color).toBeUndefined();
     expect(color(el)).toBe("");
     expect(el.classList.contains("tinted")).toBe(false);
+  });
+});
+
+// What a card hiding its unused pins keeps: a wire, a required pin, an
+// exposed field, and a field off a new node's value.
+describe("a card hiding its unused pins", () => {
+  const rowOf = (card: HTMLElement, portId: string, side: "target" | "source" = "target") =>
+    (card.querySelector(`.handle.${side}[data-handleid="${portId}"]`) as HTMLElement).closest(
+      ".flow-port-row",
+    ) as HTMLElement;
+  const unused = (el: Element) => el.classList.contains("unused");
+  const wire = (target: string, targetPort: string): FlowEdgeInstance => ({
+    id: `e-${target}-${targetPort}`,
+    source: "prompt-9",
+    sourcePort: "text",
+    target,
+    targetPort,
+  });
+
+  it("marks unwired outputs and optional pins, never a wired, required or exposed one", () => {
+    const { cards } = setup([wire("generateText-1", "context")]);
+    const wired = cards.build(node("generateText", {}, { exposed: ["text"] }));
+    expect(unused(rowOf(wired, "prompt"))).toBe(false);
+    expect(unused(rowOf(wired, "context"))).toBe(false);
+    expect(unused(rowOf(wired, "text", "source"))).toBe(false);
+    const bare = cards.build({ ...node("generateText"), id: "generateText-2" });
+    expect(unused(rowOf(bare, "context"))).toBe(true);
+    expect(unused(rowOf(bare, "text", "source"))).toBe(true);
+    const shown = cards.build(node("showText"));
+    expect(unused(rowOf(shown, "text"))).toBe(false);
+  });
+
+  it("marks a field only while it holds a new node's value, a model's with its effort", () => {
+    const { cards } = setup();
+    const video = cards.build(
+      node("generateVideo", { aspect_ratio: "1:1", resolution: "720p", duration: "3", prefix: "{{$date:%y%m%d}}" }),
+    );
+    expect(["model", "aspect_ratio", "resolution", "duration", "prefix"].map((id) => unused(rowOf(video, id)))).toEqual(
+      [true, true, false, true, true],
+    );
+    const join = cards.build(node("joinText", { text_1: "", text_2: "draft", text_3: "", separator: "" }));
+    expect(["text_1", "text_2", "text_3", "separator"].map((id) => unused(rowOf(join, id)))).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
+    const text = cards.build(node("generateText", { effort: "high" }));
+    expect(unused(rowOf(text, "model"))).toBe(false);
+  });
+
+  it("takes a group whose every row goes, and a + adding pins that would go", () => {
+    const { cards } = setup();
+    const settings = (card: HTMLElement) => card.querySelector(".flow-model-settings") as HTMLElement;
+    expect(unused(settings(cards.build(node("generateVideo"))))).toBe(true);
+    const folded = cards.build({ ...node("generateVideo", {}, { settingsFolded: true }), id: "generateVideo-2" });
+    expect(unused(settings(folded))).toBe(false);
+    const set = cards.build({ ...node("generateVideo", { resolution: "720p" }), id: "generateVideo-3" });
+    expect(unused(settings(set))).toBe(false);
+    const add = (card: HTMLElement) => card.querySelector(".flow-add-variable-row") as HTMLElement;
+    expect(unused(add(cards.build(node("generateText"))))).toBe(true);
+    expect(unused(add(cards.build(node("templateVariables"))))).toBe(false);
+  });
+
+  it("takes a path pin alone, leaving the file beside it", () => {
+    const { cards } = setup();
+    const card = cards.build(node("loadNote", { notePath: "space:notes/a.md" }));
+    const pin = card.querySelector('.handle.target[data-handleid="path"]') as HTMLElement;
+    expect(unused(pin)).toBe(true);
+    expect(unused(pin.closest(".flow-path-row") as HTMLElement)).toBe(false);
+  });
+
+  it("counts what it hides in its title while its node hides them, a click there showing them", () => {
+    const { cards, deps } = setup();
+    const flowNode = node("showText", {}, { unusedPinsHidden: true });
+    const card = cards.build(flowNode);
+    const count = card.querySelector(".flow-node-title .flow-node-unused-count") as HTMLButtonElement;
+    expect(card.classList.contains("unused-pins-hidden")).toBe(true);
+    expect([count.hidden, count.textContent, count.dataset.tooltip]).toEqual([
+      false,
+      "1",
+      "1 unused pin hidden. Click to show it.",
+    ]);
+    count.click();
+    expect(deps.menus.toggleUnusedPins).toHaveBeenCalledWith("showText-1");
+
+    delete flowNode.unusedPinsHidden;
+    cards.syncUnusedPins("showText-1");
+    expect(card.classList.contains("unused-pins-hidden")).toBe(false);
+    expect(count.hidden).toBe(true);
+    expect(deps.onLayoutChange).toHaveBeenCalledWith("showText-1");
+  });
+
+  it("marks again as wires and values change, measuring the card while it hides them", () => {
+    const { cards, deps, graph } = setup();
+    const flowNode = node(
+      "joinText",
+      { text_1: "", text_2: "draft", text_3: "", separator: ", " },
+      { unusedPinsHidden: true },
+    );
+    const card = cards.build(flowNode);
+    graph.edges.push(wire("joinText-1", "text_1"));
+    cards.updateInputWidgetVisibility("joinText-1", "text_1");
+    expect(unused(rowOf(card, "text_1"))).toBe(false);
+    expect(deps.onLayoutChange).toHaveBeenCalledTimes(1);
+
+    const field = rowOf(card, "text_2").querySelector("input") as HTMLInputElement;
+    field.value = "";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(flowNode.config.text_2).toBe("");
+    expect(unused(rowOf(card, "text_2"))).toBe(true);
+    expect(card.querySelector(".flow-node-unused-count")?.textContent).toBe("4");
+  });
+
+  // A field being edited stays until focus leaves it, so the card is measured then.
+  it("measures the card once focus has left one of its fields", async () => {
+    const { cards, deps } = setup();
+    const card = cards.build(node("joinText", {}, { unusedPinsHidden: true }));
+    card.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    expect(deps.onLayoutChange).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(deps.onLayoutChange).toHaveBeenCalledWith("joinText-1");
   });
 });

@@ -1,7 +1,7 @@
-// The Flow canvas's keys: Undo, Redo, and removing or disabling the
-// selected node. Each command acts on whichever Flow view the keyboard is
-// in, and only while focus is on its canvas, so the same key anywhere else
-// keeps its own job.
+// The Flow canvas's keys: Undo, Redo, and removing or disabling the selected
+// node or hiding its unused pins. Each command acts on whichever Flow view
+// the keyboard is in, and only while focus is on its canvas, so the same key
+// anywhere else keeps its own job.
 import type { CommandRegistry } from "../services/commands.ts";
 import { currentPlatform, type KeybindingRegistry } from "../services/keybindings.ts";
 import type { CanvasEdit, FlowView } from "./xyflowAdapter.ts";
@@ -23,6 +23,8 @@ export function registerFlowKeys(
     // Backspace is what a Mac's Delete key sends.
     { id: "flow.removeNode", label: "Remove node", edit: "remove", keys: ["Delete", "Backspace"] },
     { id: "flow.disableNode", label: "Disable or enable node", edit: "disable", keys: ["Mod+M"] },
+    // Ctrl on a Mac too: Cmd+H hides the app there.
+    { id: "flow.toggleUnusedPins", label: "Hide or show unused pins", edit: "unusedPins", keys: ["Ctrl+H"] },
   ];
   for (const { id, label, edit, keys } of edits) {
     commands.register({
