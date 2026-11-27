@@ -1,13 +1,21 @@
 // What a tree's rows take besides opening: create, from scratch or from a
 // template, duplicate, rename, drag to move or reorder, drop files in from
 // the desktop, and delete with its confirmation, with the commands and
-// right-click menu that run them. The tree's owner draws the rows and answers
-// what it lists; the name field and the drag in flight are held here.
+// right-click menu that run them, for every root. Each tree's owner draws its
+// rows and answers what it lists; one name field and one drag are held here.
 import type { CreateEntryResponse } from "../../src/protocol/api.ts";
 import { suggestedFields, THIS_FOLDER } from "../../src/protocol/class.ts";
 import { serializeClassFile } from "../../src/protocol/classHtml.ts";
 import { entryNameForTitle, illegalEntryNameReason } from "../../src/protocol/entryName.ts";
-import { basenameOf, dirnameOf } from "../../src/protocol/rootedPath.ts";
+import {
+  basenameOf,
+  dirnameOf,
+  formatRootedPath,
+  isLibraryRoot,
+  type PathRoot,
+  parseRootedPath,
+  sameRoot,
+} from "../../src/protocol/rootedPath.ts";
 import { serializeTableFile } from "../../src/protocol/tableHtml.ts";
 import {
   CLASS_EXTENSION,
@@ -31,11 +39,15 @@ import {
   postUploadFile,
   type SpaceTreeNode,
 } from "../core/apiClient.ts";
+import { isWritableRoot } from "../core/libraries.ts";
 import {
   carriesDesktopFiles,
+  DRAGGED_ENTRY_TYPE,
   desktopFiles,
   flattenTreeFilePaths,
+  isEntryDrop,
   joinSpacePath,
+  readDraggedPath,
   removalLabel,
   treeTakesDrag,
 } from "../core/paths.ts";
@@ -71,6 +83,12 @@ export interface TreeHost {
   bringIntoView(path: string): void;
   /** Opens a folder, so a create row drawn in it shows. */
   expand(path: string): void;
+  /** Whether every folder's entries are listed, so a folder's files can be
+   * counted and an entry the listing lacks isn't there. A tree listed a
+   * folder at a time can say neither. */
+  listsWhole: boolean;
+  /** Where a trashed entry goes, as the delete confirmation says it. */
+  trashName: string;
   /** A drop only this tree takes: true once it has taken it. */
   takeDrop?(event: DragEvent, folder: string): boolean;
   /** Rows dropped before or after a row of the folder they are already in. */
@@ -92,10 +110,9 @@ export interface TreeActionsDeps {
    * file the writer was in stays open (docs/architecture.md, Files and views). */
   openBeside(path: string): Promise<void>;
   /** The whole move of each entry, as one action — the server rename, and
-   * every tab and model displaced by it. Resolves once the tree has been
-   * refreshed, to where each entry landed, or undefined for one that didn't
-   * move. */
-  move(moves: readonly EntryMove[]): Promise<({ path: string } | undefined)[]>;
+   * every tab and model displaced by it. Resolves once `refreshTree` has
+   * run, to where each entry landed, or undefined for one that didn't move. */
+  move(moves: readonly EntryMove[], refreshTree: () => Promise<unknown>): Promise<({ path: string } | undefined)[]>;
   /** After `path` is gone from disk and the tree: whatever the editor has to
    * do about tabs that pointed at it. */
   onDeleted(path: string): void;
@@ -119,7 +136,11 @@ export type TreeEditing = Pick<
 >;
 
 export interface TreeActions {
-  editing(): TreeEditing;
+  /** The tree listing every root `owns` answers true for: its rows' writes,
+   * and the commands run on them, go through `host`. */
+  attach(owns: (root: PathRoot) => boolean, host: TreeHost): void;
+  /** For a tree of `root`, whose nodes' paths are relative to it. */
+  editing(root?: PathRoot): TreeEditing;
   startCreate(parentPath: string, type: "file" | "directory", kind?: CreateKind): void;
   startRename(node: SpaceTreeNode): void;
   /** Refreshes and opens the new file — only if the refreshed tree actually
@@ -146,21 +167,36 @@ export interface TreeActions {
 // `naming` is set when another surface opened this menu on its own drawing
 // of the entry (a gallery tile): a name asked for is typed there.
 // `selection` is set when the row is one of several selected together.
-export type TreeTarget = { node: SpaceTreeNode | null; naming?: NamingSurface; selection?: SpaceTreeNode[] };
+// `root` is the tree's, absent for the space; every path is rooted.
+export type TreeTarget = {
+  root?: PathRoot;
+  node: SpaceTreeNode | null;
+  naming?: NamingSurface;
+  selection?: SpaceTreeNode[];
+};
 
 // A directory is its own target; a file's is its parent, so right-clicking
 // a file acts on the folder it is already in.
-export function parentPathOf(node: SpaceTreeNode | null): string {
-  if (!node) return "";
+export function parentPathOf(node: SpaceTreeNode | null, root: PathRoot = "space"): string {
+  if (!node) return formatRootedPath({ root, path: "" });
   return node.type === "directory" ? node.path : dirnameOf(node.path);
 }
 
+/** A node a tree of `root` hands over, its path rooted. */
+export function rootedNode(root: PathRoot, node: SpaceTreeNode): SpaceTreeNode {
+  return isLibraryRoot(root) ? { ...node, path: formatRootedPath({ root, path: node.path }) } : node;
+}
+
+const rootOf = (arg?: TreeTarget): PathRoot => arg?.root ?? "space";
 export const notFile = (_: CommandContext, arg?: TreeTarget) => arg?.node?.type !== "file";
 export const isDirectory = (_: CommandContext, arg: TreeTarget) => arg.node?.type === "directory";
 const isRow = (_: CommandContext, arg: TreeTarget) => arg.node !== null;
+// Space bookkeeping refuses a library whatever its access, so what only the
+// space keeps (New Site, a folder's context, kinds made from a seed) asks this.
+export const inSpace = (arg?: TreeTarget) => !isLibraryRoot(rootOf(arg));
 // A copy made in a preset folder would count as a preset, never as the
 // space's content.
-export const amongPresets = (arg?: TreeTarget) => isPresetPath(parentPathOf(arg?.node ?? null));
+export const amongPresets = (arg?: TreeTarget) => isPresetPath(parentPathOf(arg?.node ?? null, rootOf(arg)));
 
 // New ▸ Table/Class/Flow's seed content. A table gets one starter "Name"
 // text column, written by the same serializer every real save uses. A
@@ -187,21 +223,40 @@ function seedForKind(kind: CreateKind | undefined, name: string): { fileName: st
   return { fileName: name };
 }
 
-export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeActions {
+export function createTreeActions(deps: TreeActionsDeps): TreeActions {
+  const hosts: { owns: (root: PathRoot) => boolean; host: TreeHost }[] = [];
+  const hostOf = (root: PathRoot): TreeHost | undefined => hosts.find((entry) => entry.owns(root))?.host;
+  const hostFor = (path: string): TreeHost | undefined => hostOf(parseRootedPath(path).root);
+  // A command runs only where a tree answers for the root, and writes only
+  // where the root's access allows it.
+  const writable = (arg?: TreeTarget) => hostOf(rootOf(arg)) !== undefined && isWritableRoot(rootOf(arg));
+
   const drag = createDragHold<SpaceTreeNode[]>();
   // Inline-edit state — at most one of these is active at a time, driving
   // the input row the renderer draws in place of a normal label.
   let editingPath: string | undefined;
   let pendingCreate: PendingCreate | undefined;
+  // The tree drawing that row, redrawn when it moves to another.
+  let fieldHost: TreeHost | undefined;
 
-  function editing(): TreeEditing {
+  function showField(host: TreeHost | undefined, field: { editingPath?: string; pendingCreate?: PendingCreate }) {
+    const before = fieldHost;
+    editingPath = field.editingPath;
+    pendingCreate = field.pendingCreate;
+    fieldHost = host;
+    if (before && before !== host) before.render();
+    host?.render();
+  }
+
+  function editing(root: PathRoot = "space"): TreeEditing {
+    const rooted = (node: SpaceTreeNode) => rootedNode(root, node);
     return {
-      onDragStart: drag.start,
-      onDrop: handleDrop,
+      onDragStart: (nodes) => drag.start(nodes.map(rooted)),
+      onDrop: (event, node, zone) => handleDrop(event, rooted(node), zone, root),
       selectsMany: true,
-      onDelete: (nodes) => void confirmDelete(nodes),
+      onDelete: (nodes) => void confirmDelete(nodes.map(rooted)),
       editingPath,
-      onRenameSubmit: commitRename,
+      onRenameSubmit: (node, rawValue) => commitRename(rooted(node), rawValue),
       onRenameCancel: cancelRename,
       pendingCreate,
       onCreateSubmit: commitCreate,
@@ -211,11 +266,20 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
 
   // `shown` says whether the writer can see where the new file landed: the
   // tree drew a row for it, or another surface drew the name field.
-  async function revealCreated(created: CreateEntryResponse, shown = host.hasRow): Promise<void> {
+  async function revealCreated(created: CreateEntryResponse, shown?: (path: string) => boolean): Promise<void> {
+    const host = hostFor(created.path);
+    if (!host) return;
     await host.refresh();
     if (created.type !== "file") return;
-    if (shown(created.path)) void deps.openBeside(created.path);
+    if (shown ? shown(created.path) : host.hasRow(created.path)) void deps.openBeside(created.path);
   }
+
+  // A name typed on another surface drew no row: the file shows wherever the
+  // listing holds it, and a tree listed a folder at a time can't tell.
+  const isListed = (path: string) => {
+    const host = hostFor(path);
+    return host !== undefined && (!host.listsWhole || host.findEntry(path) !== undefined);
+  };
 
   // ---- create ------------------------------------------------------------
 
@@ -224,22 +288,22 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   }
 
   function beginCreate(pending: PendingCreate): void {
+    const host = hostFor(pending.parentPath);
+    if (!host) return;
     // The input row is drawn as a child of `parentPath`'s list, so a
     // collapsed target needs expanding first or the row is created invisibly.
     host.expand(pending.parentPath);
-    pendingCreate = pending;
-    host.render();
+    showField(host, { pendingCreate: pending });
   }
 
   function cancelCreate(): void {
-    pendingCreate = undefined;
-    host.render();
+    showField(undefined, {});
   }
 
   async function commitCreate(pending: PendingCreate, rawValue: string): Promise<void> {
-    pendingCreate = undefined;
-    host.render();
-    await createNamed(pending, rawValue, host.hasRow);
+    const host = hostFor(pending.parentPath);
+    showField(undefined, {});
+    await createNamed(pending, rawValue, (path) => host?.hasRow(path) ?? false);
   }
 
   // The write behind a create, whichever surface its name was typed on.
@@ -254,7 +318,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     try {
       if (template) {
         const created = await postCreateFromTemplate(template.path, parentPath, name, template.source);
-        await host.refresh();
+        await hostFor(parentPath)?.refresh();
         // A folder opens at its README, the one file every folder template has.
         const opened = created.type === "file" ? created.path : `${created.path}/README.md`;
         if (shown(created.path)) void deps.openBeside(opened);
@@ -286,21 +350,18 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // ---- rename ------------------------------------------------------------
 
   function startRename(node: SpaceTreeNode): void {
-    editingPath = node.path;
-    host.render();
+    showField(hostFor(node.path), { editingPath: node.path });
   }
 
   function cancelRename(): void {
-    editingPath = undefined;
-    host.render();
+    showField(undefined, {});
   }
 
   function commitRename(node: SpaceTreeNode, rawValue: string): void {
-    editingPath = undefined;
     // Closes the input immediately rather than waiting on the network — the
     // label reverts to its old name until (if the rename succeeds) the
     // move's own refresh shows the new one.
-    host.render();
+    showField(undefined, {});
     void renameNamed(node, rawValue);
   }
 
@@ -319,7 +380,10 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
       return node.path;
     }
 
-    const [moved] = await deps.move([{ from: node.path, to: joinSpacePath(dirnameOf(node.path), newName) }]);
+    const host = hostFor(node.path);
+    if (!host) return node.path;
+    const to = joinSpacePath(dirnameOf(node.path), newName);
+    const [moved] = await deps.move([{ from: node.path, to }], () => host.refresh());
     return moved?.path ?? node.path;
   }
 
@@ -332,6 +396,8 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // Named on another surface, the copy opens once named instead: opened
   // first, it would hide the field it is being named in.
   async function duplicate(node: SpaceTreeNode, naming?: NamingSurface): Promise<void> {
+    const host = hostFor(node.path);
+    if (!host) return;
     try {
       const created = await postDuplicateEntry(node.path);
       await host.refresh();
@@ -352,11 +418,11 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // ---- drag: move, reorder, import ---------------------------------------
 
   // An entry already in the folder stays where it is.
-  function moveEntries(nodes: readonly SpaceTreeNode[], destinationParentPath: string): Promise<unknown> {
+  function moveEntries(host: TreeHost, nodes: readonly SpaceTreeNode[], destinationParentPath: string) {
     const moves = nodes
       .filter((node) => dirnameOf(node.path) !== destinationParentPath)
       .map((node) => ({ from: node.path, to: joinSpacePath(destinationParentPath, basenameOf(node.path)) }));
-    return deps.move(moves);
+    return deps.move(moves, () => host.refresh());
   }
 
   // OS-file counterpart to create: a drop from the desktop delivers real
@@ -364,7 +430,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // accepted — the one extension a bare drop can adopt without guessing at
   // frontmatter. A name collision (409) is reported but doesn't abort the
   // rest of the drop.
-  async function importDroppedFiles(files: readonly File[], parentPath: string): Promise<void> {
+  async function importDroppedFiles(host: TreeHost, files: readonly File[], parentPath: string): Promise<void> {
     host.expand(parentPath);
     const result = await importDropped(files, parentPath, {
       dialog: deps.dialog(),
@@ -378,7 +444,26 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     if (problems) window.alert(problems);
   }
 
-  function handleDrop(event: DragEvent, node: SpaceTreeNode, zone: DropZone): void {
+  // What a drop on a tree of `root` moves: the rows a tree's own drag holds,
+  // else the entry another surface's drag names (a gallery tile, a
+  // bookmark), never text that only reads as a path. Entries of another root
+  // stay where they are: carried across, a move would be a copy.
+  function draggedInto(event: DragEvent, root: PathRoot): SpaceTreeNode[] | undefined {
+    const dragged = drag.take() ?? entryDragged(event);
+    if (!dragged?.length) return undefined;
+    return dragged.every((entry) => sameRoot(parseRootedPath(entry.path).root, root)) ? dragged : undefined;
+  }
+
+  function entryDragged(event: DragEvent): SpaceTreeNode[] | undefined {
+    const named = isEntryDrop(event) ? readDraggedPath(event) : undefined;
+    if (!named?.path) return undefined;
+    const type = event.dataTransfer?.getData(DRAGGED_ENTRY_TYPE) === "directory" ? "directory" : "file";
+    return [{ name: basenameOf(named.path), path: formatRootedPath(named), type }];
+  }
+
+  function handleDrop(event: DragEvent, node: SpaceTreeNode, zone: DropZone, root: PathRoot): void {
+    const host = hostOf(root);
+    if (!host) return;
     // "into" only ever applies to a directory target — the destination is
     // the directory itself. Otherwise the drop is a sibling placement next
     // to `node`, so the destination is the folder containing `node`, even
@@ -389,13 +474,13 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     // below, which only the tree's own dragstart ever sets.
     const files = desktopFiles(event);
     if (files.length) {
-      void importDroppedFiles(files, destinationParentPath);
+      void importDroppedFiles(host, files, destinationParentPath);
       return;
     }
 
     if (host.takeDrop?.(event, destinationParentPath)) return;
 
-    const dragged = drag.take();
+    const dragged = draggedInto(event, root);
     if (!dragged || dragged.some((entry) => entry.path === node.path)) return;
 
     // Refuse to drop a folder into itself or one of its own descendants,
@@ -411,7 +496,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
       return;
     }
 
-    void moveEntries(dragged, destinationParentPath);
+    void moveEntries(host, dragged, destinationParentPath);
   }
 
   // By the rule the rows follow: the tree's own drags, and files.
@@ -423,14 +508,17 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
 
   function dropInto(event: DragEvent, folder: string): void {
     event.preventDefault();
+    const { root } = parseRootedPath(folder);
+    const host = hostOf(root);
+    if (!host) return;
     const files = desktopFiles(event);
     if (files.length) {
-      void importDroppedFiles(files, folder);
+      void importDroppedFiles(host, files, folder);
       return;
     }
     if (host.takeDrop?.(event, folder)) return;
-    const dragged = drag.take();
-    if (dragged) void moveEntries(dragged, folder);
+    const dragged = draggedInto(event, root);
+    if (dragged) void moveEntries(host, dragged, folder);
   }
 
   // ---- the right-click menu ---------------------------------------------
@@ -438,18 +526,18 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // A key, the palette or the menu bar hands no row, so the entry open in the
   // focused group stands in: a create lands in its folder (the space root for
   // a tab outside the tree), and Rename and Delete take it when it is a file.
-  // For a name, the tree comes up, since it is typed into a row there.
+  // For a name, the tree comes up, since it is typed into a row there. Only
+  // the space's tree answers for a tab.
   const focusedEntry = (context: CommandContext): SpaceTreeNode | null =>
-    (context.tab.kind === "empty" ? undefined : host.findEntry(context.tab.path)) ?? null;
-  const isListed = (path: string) => host.findEntry(path) !== undefined;
+    (context.tab.kind === "empty" ? undefined : hostOf("space")?.findEntry(context.tab.path)) ?? null;
   const creates = (type: "file" | "directory", kind?: CreateKind) => (context: CommandContext, arg?: TreeTarget) => {
-    const parentPath = parentPathOf(arg ? arg.node : focusedEntry(context));
+    const parentPath = parentPathOf(arg ? arg.node : focusedEntry(context), rootOf(arg));
     if (arg?.naming) {
       const pending = { parentPath, type, kind };
       arg.naming.create(pending, (name) => void createNamed(pending, name, isListed));
       return;
     }
-    if (!arg) host.bringIntoView(parentPath);
+    if (!arg) hostFor(parentPath)?.bringIntoView(parentPath);
     startCreate(parentPath, type, kind);
   };
   // New ▸ Template's items, as the templates hold them: a group is a
@@ -472,26 +560,28 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     target: TreeTarget,
   ): Promise<void> {
     const initialName = await fetchTemplateStartingName(template.path, template.source).catch(() => "");
-    const pending: PendingCreate = { parentPath: parentPathOf(target.node), type, template };
+    const pending: PendingCreate = { parentPath: parentPathOf(target.node, rootOf(target)), type, template };
     if (initialName) pending.initialName = initialName;
     if (target.naming) target.naming.create(pending, (name) => void createNamed(pending, name, isListed));
     else beginCreate(pending);
   }
   const { commands, menus } = deps;
-  commands.register({ id: "tree.newNote", label: "New Note", when: notFile, run: creates("file", "note") });
-  commands.register({ id: "tree.newFolder", label: "New Folder", when: notFile, run: creates("directory") });
-  commands.register({ id: "tree.newTable", label: "New Table", when: notFile, run: creates("file", "table") });
-  commands.register({ id: "tree.newFlow", label: "New Flow", when: notFile, run: creates("file", "flow") });
+  const createsHere = (context: CommandContext, arg?: TreeTarget) => notFile(context, arg) && writable(arg);
+  const seedsHere = (context: CommandContext, arg?: TreeTarget) => notFile(context, arg) && inSpace(arg);
+  commands.register({ id: "tree.newNote", label: "New Note", when: createsHere, run: creates("file", "note") });
+  commands.register({ id: "tree.newFolder", label: "New Folder", when: createsHere, run: creates("directory") });
+  commands.register({ id: "tree.newTable", label: "New Table", when: seedsHere, run: creates("file", "table") });
+  commands.register({ id: "tree.newFlow", label: "New Flow", when: seedsHere, run: creates("file", "flow") });
   commands.register({
     id: "tree.newClass",
     label: "New Class",
-    when: notFile,
+    when: seedsHere,
     run: creates("file", "class"),
   });
   commands.register({
     id: "tree.duplicate",
     label: "Duplicate",
-    when: (_, arg: TreeTarget) => arg.node?.type === "file",
+    when: (_, arg: TreeTarget) => arg.node?.type === "file" && inSpace(arg),
     run: (_, arg: TreeTarget) => {
       if (arg.node) void duplicate(arg.node, arg.naming);
     },
@@ -499,7 +589,8 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   commands.register({
     id: "tree.rename",
     label: "Rename…",
-    when: (context, arg?: TreeTarget) => (arg ? isRow(context, arg) : focusedEntry(context)?.type === "file"),
+    when: (context, arg?: TreeTarget) =>
+      arg ? isRow(context, arg) && writable(arg) : focusedEntry(context)?.type === "file",
     run: (context, arg?: TreeTarget) => {
       const node = arg ? arg.node : focusedEntry(context);
       if (!node) return;
@@ -507,7 +598,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
         arg.naming.rename(node.path, (name) => void renameNamed(node, name));
         return;
       }
-      if (!arg) host.bringIntoView(node.path);
+      if (!arg) hostFor(node.path)?.bringIntoView(node.path);
       startRename(node);
     },
   });
@@ -516,6 +607,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     label: "Delete",
     when: (context, arg?: TreeTarget) => {
       if (!arg) return focusedEntry(context)?.type === "file";
+      if (!writable(arg)) return false;
       return arg.selection ? arg.selection.length > 0 : isRow(context, arg);
     },
     run: (context, arg?: TreeTarget) => {
@@ -549,7 +641,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
         {
           label: "Template",
           group: "template",
-          when: (context, arg) => notFile(context, arg as TreeTarget) && !amongPresets(arg as TreeTarget),
+          when: (context, arg) => seedsHere(context, arg as TreeTarget) && !amongPresets(arg as TreeTarget),
           search: (_, arg) =>
             presetSearch(deps.templateSources(), "Search templates", (row) => templateLeaf(row, arg as TreeTarget)),
           submenu: (_, arg) => presetMenuItems(deps.templateSources(), (row) => templateLeaf(row, arg as TreeTarget)),
@@ -572,7 +664,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
       "folder-bookmark",
     ),
     { command: "tree.context", group: "folder" },
-    { command: "search.inFolder", group: "folder" },
+    { command: "search.inFolder", group: "folder", when: (_, arg) => inSpace(arg as TreeTarget) },
     { command: "tree.findContext", group: "folder" },
     copyPathItem({ group: "copy" }),
     {
@@ -631,37 +723,49 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   }
 
   // What removing `nodes` asks before they go, the same from the delete
-  // dialog and from chat's Undo.
-  function removalPrompt(nodes: readonly SpaceTreeNode[], trash: boolean, unpublishWarning: string | undefined) {
+  // dialog and from chat's Undo. A tree listed a folder at a time can't count
+  // a folder's files, so it says what goes without a number.
+  function removalPrompt(
+    host: TreeHost,
+    nodes: readonly SpaceTreeNode[],
+    trash: boolean,
+    unpublishWarning: string | undefined,
+  ) {
     const [node] = nodes;
+    const { trashName, listsWhole } = host;
     const count = `${nodes.length.toLocaleString()} Items`;
     let message: string;
     const warnings: string[] = [];
     if (nodes.length > 1) {
       const names = quotedNames(nodes);
       message = trash
-        ? `These ${count.toLowerCase()} will be moved to the Trash: ${names}.`
+        ? `These ${count.toLowerCase()} will be moved to ${trashName}: ${names}.`
         : `This permanently deletes these ${count.toLowerCase()}: ${names}. This cannot be undone.`;
       const folders = nodes.filter((each) => each.type === "directory");
       const fileCount = folders.reduce((sum, folder) => sum + flattenTreeFilePaths(folder.children ?? []).length, 0);
-      if (fileCount > 0) {
+      if (listsWhole && fileCount > 0) {
         const holds = folders.length === 1 ? "The folder among them holds" : "The folders among them hold";
         const files = countText(fileCount, "file");
-        warnings.push(`${holds} ${files}, which will be ${trash ? "moved to the Trash" : "deleted"} too.`);
+        warnings.push(`${holds} ${files}, which will be ${trash ? `moved to ${trashName}` : "deleted"} too.`);
+      } else if (!listsWhole && folders.length > 0) {
+        const inside = folders.length === 1 ? "the folder" : "the folders";
+        warnings.push(`Everything inside ${inside} among them will be ${trash ? "moved" : "deleted"} too.`);
       }
     } else if (node.type === "directory") {
       const fileCount = flattenTreeFilePaths(node.children ?? []).length;
-      message = trash ? "This folder will be moved to the Trash." : "Are you sure you want to delete this folder?";
-      if (fileCount > 0) {
+      message = trash ? `This folder will be moved to ${trashName}.` : "Are you sure you want to delete this folder?";
+      if (!listsWhole) {
+        warnings.push(trash ? "Everything inside it will be moved too." : "Everything inside it will be deleted.");
+      } else if (fileCount > 0) {
         warnings.push(
           trash
-            ? `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be moved to the Trash too.`
+            ? `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be moved to ${trashName} too.`
             : `This folder is not empty. If you continue, the ${countText(fileCount, "file")} inside this folder will be deleted.`,
         );
       }
     } else {
       message = trash
-        ? "This file will be moved to the Trash."
+        ? `This file will be moved to ${trashName}.`
         : "This permanently deletes the file. This cannot be undone.";
     }
     if (unpublishWarning) warnings.push(unpublishWarning);
@@ -680,6 +784,8 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   // Async only because of the published-document pre-check.
   async function confirmDelete(nodes: readonly SpaceTreeNode[]): Promise<void> {
     if (nodes.length === 0) return;
+    const host = hostFor(nodes[0].path);
+    if (!host) return;
     const token = ++deleteConfirmToken;
     const trash = deps.moveToTrash.get();
     const unpublishWarning = await host.removalWarning?.(nodes, trash);
@@ -688,7 +794,7 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
     let pendingUnpublish = 0;
     let failed: string[] = [];
     const deleted = await deps.dialog().confirm({
-      ...removalPrompt(nodes, trash, unpublishWarning),
+      ...removalPrompt(host, nodes, trash, unpublishWarning),
       action: async () => {
         pendingUnpublish = 0;
         failed = [];
@@ -726,18 +832,22 @@ export function createTreeActions(host: TreeHost, deps: TreeActionsDeps): TreeAc
   }
 
   async function trash(path: string): Promise<{ unpublishNote?: string } | undefined> {
-    const node = host.findEntry(path);
-    const unpublishWarning = node && (await host.removalWarning?.([node], true));
-    if (node && unpublishWarning && !(await deps.dialog().confirm(removalPrompt([node], true, unpublishWarning)))) {
-      return undefined;
+    const host = hostFor(path);
+    const node = host?.findEntry(path);
+    const unpublishWarning = host && node && (await host.removalWarning?.([node], true));
+    if (host && node && unpublishWarning) {
+      if (!(await deps.dialog().confirm(removalPrompt(host, [node], true, unpublishWarning)))) return undefined;
     }
     const result = await postDeleteEntry(path, true);
-    await host.refresh();
+    await host?.refresh();
     deps.onDeleted(path);
     return { unpublishNote: result.pendingUnpublish > 0 ? queuedUnpublishNote(result.pendingUnpublish) : undefined };
   }
 
   return {
+    attach: (owns, host) => {
+      hosts.push({ owns, host });
+    },
     editing,
     startCreate,
     startRename,

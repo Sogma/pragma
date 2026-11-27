@@ -201,7 +201,10 @@ describe("Bookmark and Remove from Bookmarks", () => {
   it("asks the list for the change", async () => {
     const { settle, commands, change } = setup({ bookmarks: [file("notes/a.md")] });
     settle();
-    await commands.run("bookmarks.add", none, { node: { type: "directory", path: "stills" }, libraryId: "refs" });
+    await commands.run("bookmarks.add", none, {
+      root: { library: "refs" },
+      node: { type: "directory", path: "lib:refs/stills" },
+    });
     await commands.run("bookmarks.remove", none, { bookmark: "notes/a.md", file: "notes/a.md" });
     expect(change.mock.calls).toEqual([[{ add: "lib:refs/stills" }], [{ remove: "notes/a.md" }]]);
   });

@@ -10,7 +10,7 @@
 // is a value, not a chip, and gets none.
 
 import { formatPragmaUrl } from "../../src/protocol/pragmaUrl.ts";
-import { formatRootedPath, isLibraryPath } from "../../src/protocol/rootedPath.ts";
+import { isLibraryPath } from "../../src/protocol/rootedPath.ts";
 import type { CommandRegistry } from "../services/commands.ts";
 import type { ContextMenuService, MenuItem, MenuRegistry } from "../services/menus.ts";
 import { type Disposable, DisposableStore, listen } from "./disposable.ts";
@@ -22,8 +22,7 @@ const PATH_CHIP_MENU = "pathChip";
 
 /** The entry a menu's argument names, as Copy path copies it: `{ file }` or
  * `{ folder }` (a chip, a tab, a Bookmarks row), or a tree row's `{ node }`,
- * a library's tree adding its `libraryId`. Undefined for a tree's empty area,
- * which hides the items. */
+ * its path rooted. Undefined for a tree's empty area, which hides the items. */
 export function copiedPathOf(arg: unknown): string | undefined {
   return copiedEntryOf(arg)?.path;
 }
@@ -42,11 +41,9 @@ export function copiedEntryOf(arg: unknown): { path: string; folder: boolean } |
 
 function rowOf(arg: object): { path: string; folder: boolean } | undefined {
   if (!("node" in arg)) return undefined;
-  const { node, libraryId } = arg as { node?: { path?: unknown; type?: unknown } | null; libraryId?: unknown };
+  const { node } = arg as { node?: { path?: unknown; type?: unknown } | null };
   if (typeof node?.path !== "string" || node.path === "") return undefined;
-  const path =
-    typeof libraryId === "string" ? formatRootedPath({ root: { library: libraryId }, path: node.path }) : node.path;
-  return { path, folder: node.type === "directory" };
+  return { path: node.path, folder: node.type === "directory" };
 }
 
 /** Copy path as an entry's menu holds it, in `group`. `arg` names the entry

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { type EntryMoveDeps, moveSpaceEntries, moveSpaceEntry } from "../../../web/services/entryMove.ts";
+import { type EntryMoveDeps, moveSpaceEntries } from "../../../web/services/entryMove.ts";
 
 function deps(overrides: Partial<EntryMoveDeps> = {}): EntryMoveDeps {
   return {
@@ -16,7 +16,7 @@ function deps(overrides: Partial<EntryMoveDeps> = {}): EntryMoveDeps {
   };
 }
 
-describe("moveSpaceEntry", () => {
+describe("a lone move", () => {
   // Any file's unsaved edit blocks a move, not just the moved one's, so the
   // refusal has to say which file — the one moved is usually not it.
   it("refuses while another file holds a save conflict, and names that file", async () => {
@@ -25,7 +25,7 @@ describe("moveSpaceEntry", () => {
       flushPendingSave: vi.fn(async () => ({ failedPaths: [], conflictPaths: ["blog/post.md"] })),
     });
 
-    expect(await moveSpaceEntry("logo.svg", "logo-light.svg", moveDeps)).toBeUndefined();
+    expect(await moveSpaceEntries([{ from: "logo.svg", to: "logo-light.svg" }], moveDeps)).toEqual([undefined]);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(moveDeps.notify).toHaveBeenCalledWith(
       'blog/post.md has a save conflict. Resolve it from "Save conflict" in the status bar before moving.',
@@ -49,7 +49,7 @@ describe("moveSpaceEntry", () => {
       },
     });
 
-    await moveSpaceEntry("flows", "flows-2", moveDeps);
+    await moveSpaceEntries([{ from: "flows", to: "flows-2" }], moveDeps);
     expect(moveDeps.tabs.repath).toHaveBeenCalledWith("flows", "flows-2");
     expect(moveDeps.tabs.followMove).toHaveBeenCalledWith("flows-2");
     expect(order).toEqual(["repath", "refresh", "follow"]);
@@ -62,7 +62,7 @@ describe("moveSpaceEntry", () => {
       .mockImplementation(async () => Response.json({ path: "b.flow.html", rewritten: [], warnings: [] }));
     const moveDeps = deps();
 
-    await moveSpaceEntry("other.flow.html", "b.flow.html", moveDeps);
+    await moveSpaceEntries([{ from: "other.flow.html", to: "b.flow.html" }], moveDeps);
     expect(moveDeps.tabs.followMove).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
@@ -102,7 +102,7 @@ describe("moveSpaceEntries", () => {
     const fetchSpy = serverMoving(["notes/b.md"]);
     const moveDeps = deps();
 
-    expect(await moveSpaceEntry("notes/b.md", "archive/b.md", moveDeps)).toBeUndefined();
+    expect(await moveSpaceEntries([{ from: "notes/b.md", to: "archive/b.md" }], moveDeps)).toEqual([undefined]);
     expect(moveDeps.notify).toHaveBeenCalledWith("Already exists");
     expect(moveDeps.refreshTree).not.toHaveBeenCalled();
     fetchSpy.mockRestore();

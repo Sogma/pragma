@@ -10,7 +10,7 @@ import { foldedRanges, unfoldEffect, unfoldAll as unfoldView } from "@codemirror
 import type { StateEffect } from "@codemirror/state";
 import type { ProposedFileEdit } from "../src/protocol/api.ts";
 import { isNamed } from "../src/protocol/entryName.ts";
-import { basenameOf, dirnameOf, formatRootedPath, parseRootedPath } from "../src/protocol/rootedPath.ts";
+import { basenameOf, dirnameOf, parseRootedPath } from "../src/protocol/rootedPath.ts";
 import { isAppletFile, isMarkdownFile } from "../src/protocol/types.ts";
 import { type FileResponse, putFile, type Tab } from "./core/apiClient.ts";
 import type { PaneSelection } from "./core/chatContext.ts";
@@ -69,7 +69,7 @@ import {
 } from "./view/panes/documentPane.ts";
 import { EMPTY_TAB_MENU } from "./view/panes/emptyPane.ts";
 import { isFlowPane } from "./view/panes/flowPane.ts";
-import { isGalleryPane, treeRowMenu } from "./view/panes/galleryPane.ts";
+import { isGalleryPane, treeRowTarget } from "./view/panes/galleryPane.ts";
 import { lutPane } from "./view/panes/lutPane.ts";
 import { versionPane } from "./view/panes/versionPane.ts";
 import { type AppIndicators, createStatusbar, PATH_FOLDER_MENU, type Statusbar } from "./view/statusbar.ts";
@@ -179,15 +179,14 @@ function stripContent(group: EditorGroup): string {
 /** The file a tree menu's argument names: a file row of the space's tree, a
  * site's, or a library's. Undefined for a folder or empty area, which hides
  * the item. */
-// A tree row's `{ node, libraryId }`, or `{ file }`, a rooted path named
-// some other way: a link in the text or a reply, a row in Links.
+// A tree row's `{ node }`, its path rooted, or `{ file }`, a rooted path
+// named some other way: a link in the text or a reply, a row in Links.
 function fileOf(arg: unknown): string | undefined {
   if (typeof arg !== "object" || arg === null) return undefined;
   if ("file" in arg && typeof arg.file === "string") return arg.file;
   if (!("node" in arg)) return undefined;
-  const { node, libraryId } = arg as { node?: { type: string; path: string } | null; libraryId?: string };
-  if (node?.type !== "file") return undefined;
-  return libraryId === undefined ? node.path : formatRootedPath({ root: { library: libraryId }, path: node.path });
+  const { node } = arg as { node?: { type: string; path: string } | null };
+  return node?.type === "file" ? node.path : undefined;
 }
 
 // A Backlinks row's `{ file, target }`: the document the note links to.
@@ -863,7 +862,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     if (!parseRootedPath(tab.path).path) return undefined;
     const type = tab.kind === "gallery" ? "directory" : "file";
     const entry = { name: basenameOf(tab.path), path: tab.path, type } as const;
-    return { type, ...treeRowMenu(entry, renameDialog(entry)) };
+    return { type, arg: treeRowTarget(entry, renameDialog(entry)) };
   };
   // The name shows as the entry's row shows it, and a hidden extension goes
   // back on.
@@ -900,8 +899,7 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
   // on a Class row's card and right-click, whose argument names the row's file.
   const removalCommand = (path: string): { command: string; arg: unknown } => {
     const entry = { name: basenameOf(path), path, type: "file" } as const;
-    const row = treeRowMenu(entry, renameDialog(entry));
-    return { command: row.menu === "tree" ? "tree.delete" : "libraryTree.delete", arg: row.arg };
+    return { command: "tree.delete", arg: treeRowTarget(entry, renameDialog(entry)) };
   };
   const removalOf = (path: string): MenuItem => ({
     ...removalCommand(path),
@@ -936,9 +934,8 @@ export function createEditorArea(deps: EditorAreaDeps): EditorArea {
     if (!tab || tab.kind === "empty" || tab.kind === "find-context" || tab.kind === "version") return [];
     const entry = tab.kind === "gallery" ? { folder: tab.path } : { file: tab.path };
     const row = rowOf(tab);
-    const tree = row?.menu === "tree";
     return [
-      ...(row ? [{ command: tree ? "tree.rename" : "libraryTree.rename", arg: row.arg, group: "file" }] : []),
+      ...(row ? [{ command: "tree.rename", arg: row.arg, group: "file" }] : []),
       { command: "bookmarks.add", arg: target, group: "file" },
       { command: "bookmarks.remove", arg: target, group: "file" },
       { command: "space.reveal", arg: entry, group: "file" },

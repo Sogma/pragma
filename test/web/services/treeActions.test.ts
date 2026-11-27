@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isLibraryRoot } from "../../../src/protocol/rootedPath.ts";
 import { CLASS_EXTENSION, FLOW_EXTENSION, TABLE_EXTENSION } from "../../../src/protocol/types.ts";
 import {
+  type LibraryRow,
   postCreateEntry,
   postDeleteEntry,
   postDuplicateEntry,
   type SpaceTreeNode,
   type Tab,
 } from "../../../web/core/apiClient.ts";
+import { setLibraryPermissions } from "../../../web/core/libraries.ts";
+import { DRAGGED_ENTRY_TYPE, noteDragInFlight } from "../../../web/core/paths.ts";
 import { type CommandContext, createCommands } from "../../../web/services/commands.ts";
 import type { ConfirmOptions, DialogService } from "../../../web/services/dialog.ts";
 import { createKeybindings } from "../../../web/services/keybindings.ts";
@@ -49,6 +53,11 @@ const note = file("notes/a.md");
 const notes = folder("notes", [note, file("notes/b.md")]);
 const other = folder("other", [file("other/c.md")]);
 const listing = [notes, other];
+// A library's tree lists a folder at a time, and answers in rooted paths.
+const libraryNote = file("lib:one/notes/a.md");
+const libraryNotes = folder("lib:one/notes", [libraryNote]);
+const libraryListing = [libraryNotes, folder("lib:one/batch")];
+const one = { library: "one" };
 
 function find(nodes: readonly SpaceTreeNode[], path: string): SpaceTreeNode | undefined {
   for (const node of nodes) {
@@ -68,7 +77,7 @@ const tabOn = (path: string): CommandContext => ({
 // A dialog that answers the way the real one does: a confirm with an action
 // runs it, stays open on a throw (then cancelled here), and resolves true once
 // it succeeds. `confirmed` answers a confirm without one.
-function harness(host: Partial<TreeHost> = {}, { confirmed = true } = {}) {
+function harness(host: Partial<TreeHost> = {}, { confirmed = true, library = {} as Partial<TreeHost> } = {}) {
   const commands = createCommands();
   const menus = createMenus(commands);
   const keybindings = createKeybindings(commands);
@@ -92,7 +101,21 @@ function harness(host: Partial<TreeHost> = {}, { confirmed = true } = {}) {
     refresh: vi.fn(async () => undefined),
     bringIntoView: vi.fn(),
     expand: vi.fn(),
+    listsWhole: true,
+    trashName: "the Trash",
     ...host,
+  };
+  const libraryTree: TreeHost = {
+    findEntry: (path) => find(libraryListing, path),
+    children: (path) => find(libraryListing, path)?.children,
+    hasRow: vi.fn(() => true),
+    render: vi.fn(),
+    refresh: vi.fn(async () => undefined),
+    bringIntoView: vi.fn(),
+    expand: vi.fn(),
+    listsWhole: false,
+    trashName: "the .trash folder inside this library",
+    ...library,
   };
   const deps = {
     commands,
@@ -102,12 +125,17 @@ function harness(host: Partial<TreeHost> = {}, { confirmed = true } = {}) {
     moveToTrash: { get: () => trash.on },
     open: vi.fn(async () => undefined),
     openBeside: vi.fn(async () => undefined),
-    move: vi.fn(async (moves: readonly { from: string; to: string }[]) => moves.map(({ to }) => ({ path: to }))),
+    move: vi.fn(async (moves: readonly { from: string; to: string }[], refreshTree: () => Promise<unknown>) => {
+      await refreshTree();
+      return moves.map(({ to }) => ({ path: to }));
+    }),
     onDeleted: vi.fn(),
     templateSources: () => [],
   };
-  const actions = createTreeActions(tree, deps);
-  return { actions, tree, deps, commands, menus, confirm, thrown, trash };
+  const actions = createTreeActions(deps);
+  actions.attach((root) => root === "space", tree);
+  actions.attach(isLibraryRoot, libraryTree);
+  return { actions, tree, libraryTree, deps, commands, menus, confirm, thrown, trash };
 }
 
 const alert = vi.fn();
@@ -201,7 +229,9 @@ describe("renaming", () => {
     expect(actions.editing().editingPath).toBe("notes/a.md");
     actions.editing().onRenameSubmit(note, "  b2.md ");
     expect(actions.editing().editingPath).toBeUndefined();
-    await vi.waitFor(() => expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "notes/b2.md" }]));
+    await vi.waitFor(() =>
+      expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "notes/b2.md" }], expect.any(Function)),
+    );
   });
 
   it("writes nothing for an emptied or unchanged name", async () => {
@@ -223,7 +253,9 @@ describe("renaming", () => {
   it("leaves a folder's name to the server's rule", async () => {
     const { actions, deps } = harness();
     actions.editing().onRenameSubmit(notes, "Part 1: Intro");
-    await vi.waitFor(() => expect(deps.move).toHaveBeenCalledWith([{ from: "notes", to: "Part 1: Intro" }]));
+    await vi.waitFor(() =>
+      expect(deps.move).toHaveBeenCalledWith([{ from: "notes", to: "Part 1: Intro" }], expect.any(Function)),
+    );
     expect(alert).not.toHaveBeenCalled();
   });
 
@@ -276,7 +308,7 @@ describe("dropping", () => {
     const { actions, deps } = harness();
     actions.editing().onDragStart([note, file("other/c.md")]);
     actions.editing().onDrop(drop(), other, "into");
-    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "other/a.md" }]);
+    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "other/a.md" }], expect.any(Function));
   });
 
   it("refuses a folder dropped into itself or below it, the whole drop", () => {
@@ -301,7 +333,7 @@ describe("dropping", () => {
     const { actions, deps } = harness();
     actions.editing().onDragStart([note]);
     actions.dropInto(drop(), "");
-    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "a.md" }]);
+    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "a.md" }], expect.any(Function));
   });
 
   it("forgets a drag that ended without a drop", () => {
@@ -404,5 +436,212 @@ describe("deleting", () => {
     expect(await warned.actions.trash("notes/a.md")).toBeUndefined();
     expect(warned.confirm).toHaveBeenCalled();
     expect(postDeleteEntry).not.toHaveBeenCalled();
+  });
+});
+
+// A library's tree runs the same actions on its own root: a writable one
+// takes what the space does, less what only the space keeps.
+describe("a library's tree", () => {
+  const writable = { id: "one", label: "One", path: "/media/one", access: "read-write", missing: false };
+  beforeEach(() => setLibraryPermissions([writable as LibraryRow]));
+  afterEach(() => setLibraryPermissions([]));
+  const onRow = (node: SpaceTreeNode | null, naming?: TreeTarget["naming"]): TreeTarget => ({
+    root: one,
+    node,
+    naming,
+  });
+
+  it("offers the writes a writable library takes, and none on a read-only one", () => {
+    const { commands, menus } = harness();
+    const labels = (target: TreeTarget) => menus.resolve("tree", emptyContext, target).map((item) => item.label);
+    expect(labels(onRow(libraryNotes))).toEqual([
+      "New Note",
+      "New Folder",
+      "Rename…",
+      "Add to Presets",
+      "Move to Trash",
+    ]);
+    expect(labels(onRow(libraryNote))).toEqual(["Rename…", "Move to Trash"]);
+    for (const id of ["tree.newTable", "tree.newFlow", "tree.newClass", "tree.duplicate"]) {
+      expect(
+        commands.isEnabled(id, emptyContext, onRow(id === "tree.duplicate" ? libraryNote : libraryNotes)),
+        id,
+      ).toBe(false);
+    }
+
+    // Adding a folder to Presets writes the space's list, not the library.
+    setLibraryPermissions([{ ...writable, access: "read-only" } as LibraryRow]);
+    expect(labels(onRow(libraryNotes))).toEqual(["Add to Presets"]);
+  });
+
+  it("names the library's own trash, and what a folder holds without a count", async () => {
+    const { actions, confirm, trash } = harness();
+    await actions.confirmDelete([libraryNote]);
+    expect(confirm.mock.calls[0][0]).toMatchObject({
+      title: 'Move "a.md" to Trash',
+      message: "This file will be moved to the .trash folder inside this library.",
+    });
+    await actions.confirmDelete([libraryNotes]);
+    expect(confirm.mock.calls[1][0]).toMatchObject({
+      title: 'Move "notes" folder to Trash',
+      message: "This folder will be moved to the .trash folder inside this library.",
+      warning: "Everything inside it will be moved too.",
+    });
+    trash.on = false;
+    await actions.confirmDelete([libraryNotes]);
+    expect(confirm.mock.calls[2][0]).toMatchObject({ warning: "Everything inside it will be deleted." });
+  });
+
+  it("deletes into the library, re-lists its tree, then lets go of the path", async () => {
+    const { actions, libraryTree, tree, deps } = harness();
+    await actions.confirmDelete([libraryNote]);
+    expect(postDeleteEntry).toHaveBeenCalledWith("lib:one/notes/a.md", true);
+    expect(libraryTree.refresh).toHaveBeenCalled();
+    expect(tree.refresh).not.toHaveBeenCalled();
+    expect(deps.onDeleted).toHaveBeenCalledWith("lib:one/notes/a.md");
+  });
+
+  it("roots the nodes its tree hands over, for a rename and a drop", async () => {
+    const { actions, libraryTree, deps } = harness();
+    const editing = actions.editing(one);
+    editing.onRenameSubmit(file("notes/a.md"), "b.md");
+    await vi.waitFor(() =>
+      expect(deps.move).toHaveBeenCalledWith(
+        [{ from: "lib:one/notes/a.md", to: "lib:one/notes/b.md" }],
+        expect.any(Function),
+      ),
+    );
+    expect(libraryTree.refresh).toHaveBeenCalled();
+
+    editing.onDragStart([file("notes/a.md")]);
+    editing.onDrop(fakeDrag("drop").event, folder("batch"), "into");
+    expect(deps.move).toHaveBeenLastCalledWith(
+      [{ from: "lib:one/notes/a.md", to: "lib:one/batch/a.md" }],
+      expect.any(Function),
+    );
+  });
+
+  it("draws the name field in the library's tree, and leaves the space's", () => {
+    const { actions, tree, libraryTree } = harness();
+    actions.startRename(note);
+    expect(tree.render).toHaveBeenCalledTimes(1);
+    actions.startCreate("lib:one/notes", "file", "note");
+    expect(libraryTree.expand).toHaveBeenCalledWith("lib:one/notes");
+    expect(tree.render).toHaveBeenCalledTimes(2);
+    expect(libraryTree.render).toHaveBeenCalledTimes(1);
+    expect(actions.editing(one)).toMatchObject({
+      editingPath: undefined,
+      pendingCreate: { parentPath: "lib:one/notes", type: "file", kind: "note" },
+    });
+  });
+
+  it("titles a note typed in its tree by a name no file can carry, and opens it once drawn", async () => {
+    const { actions, deps } = harness();
+    actions.startCreate("lib:one/notes", "file", "note");
+    const { pendingCreate, onCreateSubmit } = actions.editing(one);
+    if (!pendingCreate) throw new Error("no name field");
+    onCreateSubmit(pendingCreate, "Part 1: Intro");
+    await vi.waitFor(() => expect(deps.openBeside).toHaveBeenCalledWith("lib:one/notes/Part 1 - Intro.md"));
+    expect(postCreateEntry).toHaveBeenCalledWith("lib:one/notes", "Part 1 - Intro.md", "file", "# Part 1: Intro\n");
+  });
+
+  it("refuses a note name no file can carry, pointing at the heading", async () => {
+    const { actions, deps } = harness();
+    actions.editing(one).onRenameSubmit(file("notes/a.md"), "Part 1: Intro");
+    await vi.waitFor(() => expect(alert).toHaveBeenCalled());
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  // A tile's name is typed on the tile, and the library's tree may not list
+  // that folder, so the file opens wherever it landed.
+  it("types a rename or a create on the surface that opened the menu, and opens what it made", async () => {
+    const { commands, deps } = harness();
+    const naming = { rename: vi.fn(), create: vi.fn() };
+    await commands.run("tree.rename", emptyContext, onRow(libraryNote, naming));
+    expect(naming.rename).toHaveBeenCalledWith("lib:one/notes/a.md", expect.any(Function));
+    naming.rename.mock.calls[0][1]("b.md");
+    await vi.waitFor(() =>
+      expect(deps.move).toHaveBeenCalledWith(
+        [{ from: "lib:one/notes/a.md", to: "lib:one/notes/b.md" }],
+        expect.any(Function),
+      ),
+    );
+
+    await commands.run("tree.newNote", emptyContext, onRow(folder("lib:one/far"), naming));
+    expect(naming.create).toHaveBeenCalledWith(
+      { parentPath: "lib:one/far", type: "file", kind: "note" },
+      expect.any(Function),
+    );
+    naming.create.mock.calls[0][1]("take");
+    await vi.waitFor(() => expect(deps.openBeside).toHaveBeenCalledWith("lib:one/far/take"));
+  });
+
+  // The setting is the server's and can change while a confirmation is open:
+  // the delete does what that confirmation said.
+  it("deletes the way the confirmation said, even if the setting changed meanwhile", async () => {
+    const { actions, confirm, trash } = harness();
+    confirm.mockImplementationOnce(async (options: ConfirmOptions) => {
+      trash.on = false;
+      await options.action?.();
+      return true;
+    });
+    await actions.confirmDelete([libraryNote]);
+    expect(postDeleteEntry).toHaveBeenCalledWith("lib:one/notes/a.md", true);
+  });
+
+  it("lets go of no path when the delete itself failed", async () => {
+    vi.mocked(postDeleteEntry).mockRejectedValueOnce(new Error("Not found"));
+    const { actions, deps, thrown } = harness();
+    await actions.confirmDelete([libraryNote]);
+    expect(thrown).toHaveLength(1);
+    expect(deps.onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("lists Rename… directly above Bookmark, in one group", () => {
+    const { commands, menus } = harness();
+    commands.register({ id: "bookmarks.add", label: "Bookmark", run: vi.fn() });
+    const items = menus.resolve("tree", emptyContext, onRow(libraryNote));
+    expect(items.map((item) => [item.label, item.group])).toEqual([
+      ["Rename…", "bookmark"],
+      ["Bookmark", "bookmark"],
+      ["Move to Trash", "delete"],
+    ]);
+  });
+
+  it("keeps a row dragged from one root out of another's tree", () => {
+    const { actions, deps } = harness();
+    actions.editing(one).onDragStart([file("notes/a.md")]);
+    actions.editing().onDrop(fakeDrag("drop").event, other, "into");
+    actions.editing().onDragStart([note]);
+    actions.editing(one).onDrop(fakeDrag("drop").event, folder("batch"), "into");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+});
+
+describe("an entry another surface drags", () => {
+  // A gallery tile writes its rooted path and kind, as a tree row does.
+  function tileDrop(path: string, own = true): DragEvent {
+    const { event } = fakeDrag("drop", { data: { "text/plain": path, [DRAGGED_ENTRY_TYPE]: "file" } });
+    if (own) noteDragInFlight(path);
+    return event;
+  }
+  afterEach(() => noteDragInFlight(undefined));
+
+  it("moves into the folder of the space tree it is dropped on", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDrop(tileDrop("notes/a.md"), other, "into");
+    expect(deps.move).toHaveBeenCalledWith([{ from: "notes/a.md", to: "other/a.md" }], expect.any(Function));
+  });
+
+  it("never moves for text that only reads as a path", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDrop(tileDrop("notes/a.md", false), other, "into");
+    expect(deps.move).not.toHaveBeenCalled();
+  });
+
+  it("stays out of another root's tree", () => {
+    const { actions, deps } = harness();
+    actions.editing().onDrop(tileDrop("lib:one/notes/a.md"), other, "into");
+    expect(deps.move).not.toHaveBeenCalled();
   });
 });

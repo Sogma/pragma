@@ -12,7 +12,13 @@
 // Tiles come in the order the folder shows, the tree's, which a drag
 // arranges while that is manual order.
 import type { FolderLayout } from "../../../src/protocol/localSort.ts";
-import { dirnameOf, formatRootedPath, isLibraryRoot, parseRootedPath } from "../../../src/protocol/rootedPath.ts";
+import {
+  dirnameOf,
+  formatRootedPath,
+  isLibraryRoot,
+  type PathRoot,
+  parseRootedPath,
+} from "../../../src/protocol/rootedPath.ts";
 import { hasKnownKind } from "../../../src/protocol/types.ts";
 import {
   type ClipFactsResponse,
@@ -35,7 +41,6 @@ import {
   thumbnailUrl,
 } from "../../core/apiClient.ts";
 import { shownSort, showsManualOrder } from "../../core/folderOrder.ts";
-import { isWritableRoot } from "../../core/libraries.ts";
 import {
   CANT_OPEN,
   displayName,
@@ -75,6 +80,7 @@ import type { Setting } from "../../services/settings.ts";
 import * as settings from "../../services/settings.ts";
 import type { OpenSource, Tabs } from "../../services/tabs.ts";
 import { createThumbnailRenderer, type ThumbnailJob, type ThumbnailRenderer } from "../../services/thumbnails.ts";
+import type { TreeTarget } from "../../services/treeActions.ts";
 
 // The narrowest a tile may get; the columns that fit are then widened to
 // fill the row, so a resize never leaves a ragged gap at the right.
@@ -852,9 +858,9 @@ export function createGalleryPane(deps: GalleryPaneDeps): GalleryPane {
     }
   });
   // A tile drags like the tree row for the same file: into a note, a media
-  // field or a Load Image node. Never a move to another folder: the only
-  // drop a gallery takes is one of its own entries, or that entry's tree
-  // row, arranging a folder shown in manual order.
+  // field or a Load Image node, or onto a folder of its root's tree, which
+  // moves it. The only drop a gallery takes is one of its own entries, or
+  // that entry's tree row, arranging a folder shown in manual order.
   wireEntryDrag(canvas, (event) => {
     const index = tileIndexOf(event);
     return index === undefined ? undefined : entries[index];
@@ -1080,17 +1086,16 @@ export function galleryFolderOf(arg: unknown): string | undefined {
     kind?: string;
     id?: string;
     missing?: boolean;
-    libraryId?: string;
+    root?: PathRoot;
     node?: { type: string; path: string } | null;
   };
   if (target.kind === "library" && target.id !== undefined) {
     return target.missing ? undefined : formatRootedPath({ root: { library: target.id }, path: "" });
   }
   if (!("node" in target)) return undefined;
-  const { node, libraryId } = target;
-  if (node === null || node === undefined) return libraryId === undefined ? "" : undefined;
-  if (node.type !== "directory") return undefined;
-  return libraryId === undefined ? node.path : formatRootedPath({ root: { library: libraryId }, path: node.path });
+  const { node, root = "space" } = target;
+  if (node === null || node === undefined) return isLibraryRoot(root) ? undefined : "";
+  return node.type === "directory" ? node.path : undefined;
 }
 
 export interface GalleryWiring {
@@ -1104,21 +1109,16 @@ export interface GalleryWiring {
   formats: Pick<FormatRegistry, "get">;
 }
 
-/** The menu an entry's tree row has, and the argument that row passes, its
- * names typed on `naming`: a command run with it answers for the entry as
- * it does in the tree. */
-export function treeRowMenu(
-  entry: Pick<FolderEntry, "name" | "path" | "type">,
-  naming: NamingSurface,
-): { menu: "tree" | "libraryTree"; arg: unknown } {
+/** The argument an entry's tree row passes to the tree menu, its names typed
+ * on `naming`: a command run with it answers for the entry as it does in the
+ * tree. */
+export function treeRowTarget(entry: Pick<FolderEntry, "name" | "path" | "type">, naming: NamingSurface): TreeTarget {
   const { root, path } = parseRootedPath(entry.path);
-  const node = { name: entry.name, path, type: entry.type };
-  if (isLibraryRoot(root)) {
-    return { menu: "libraryTree", arg: { libraryId: root.library, node, writable: isWritableRoot(root), naming } };
-  }
+  const node = { name: entry.name, path: entry.path, type: entry.type };
+  if (isLibraryRoot(root)) return { root, node, naming };
   // The tree's own node where it lists one: Properties and a folder's delete
   // warning read what it carries.
-  return { menu: "tree", arg: { node: findEntry(path) ?? node, naming } };
+  return { node: findEntry(path) ?? node, naming };
 }
 
 /** What a right-click opens: on a tile, its tree row's menu; on the space
@@ -1129,8 +1129,8 @@ export function galleryMenu(tile?: { entry: FolderEntry; naming: NamingSurface }
   ariaLabel: string;
 } {
   if (!tile) return { menu: "editor.toolbar", ariaLabel: "More options" };
-  const row = treeRowMenu(tile.entry, tile.naming);
-  return { ...row, ariaLabel: row.menu === "tree" ? "Tree actions" : "Library actions" };
+  const arg = treeRowTarget(tile.entry, tile.naming);
+  return { menu: "tree", arg, ariaLabel: arg.root === undefined ? "Tree actions" : "Library actions" };
 }
 
 /** A folder's Open, Open in new tab and Open to the side, which folder menus

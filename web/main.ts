@@ -44,7 +44,7 @@ import { createDocumentAccess } from "./services/documentAccess.ts";
 import { publishDocument } from "./services/documentPublish.ts";
 import { createDocuments } from "./services/documents.ts";
 import { createEditorPanes, registerPaneDismiss } from "./services/editorPanes.ts";
-import { type EntryMoveDeps, moveSpaceEntries, moveSpaceEntry } from "./services/entryMove.ts";
+import { type EntryMoveDeps, moveSpaceEntries } from "./services/entryMove.ts";
 import { createFileNotices } from "./services/fileNotices.ts";
 import { createFormats } from "./services/formats.ts";
 import { gitStatusStore } from "./services/gitStatus.ts";
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
       open: (path, options) => tabs.openEntry(path, options),
       openBeside: (path) => tabs.openEntryBeside(path),
       openDirectory: (dir) => void tabs.openFolder(dir),
-      move: (moves) => moveSpaceEntries(moves, { ...entryMoveDeps(), refreshTree: () => space.refresh() }),
+      move: (moves, refreshTree) => moveSpaceEntries(moves, { ...entryMoveDeps(), refreshTree }),
       onDeleted: (path) => tabs.dropDeleted(path),
       moveToTrash: files.moveToTrash,
       openFindContextResults: (dirPath, result) => tabs.pushFindContext(dirPath, result),
@@ -350,10 +350,7 @@ async function main(): Promise<void> {
     showExtensions: () => settings.showExtensions.get(),
     contextMenu,
     tabs: () => tabs,
-    moveEntry: (from, to) =>
-      moveSpaceEntry(from, to, { ...entryMoveDeps(), refreshTree: () => librariesView.tree.reload() }),
-    onDeleted: (path) => tabs.dropDeleted(path),
-    moveToTrash: () => files.moveToTrash.get(),
+    treeActions: space.treeActions,
     show: () => sidebarViews.activate("library"),
     collapsed,
   });

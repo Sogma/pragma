@@ -5,7 +5,6 @@
 // after each.
 import type { SpaceBookmark, SpaceBookmarkChangeRequestBody, SpaceBookmarksResponse } from "../../src/protocol/api.ts";
 import { bookmarkPath, sameBookmark } from "../../src/protocol/bookmarks.ts";
-import { formatRootedPath } from "../../src/protocol/rootedPath.ts";
 import { fetchSpaceBookmarks, postSpaceBookmarkChange, type Tab } from "../core/apiClient.ts";
 import * as workspace from "../core/workspace.ts";
 import { Emitter } from "../lib/emitter.ts";
@@ -97,9 +96,6 @@ export function bookmarkTargetOf(arg: unknown, context: CommandContext): string 
   if (typeof arg !== "object" || arg === null) return undefined;
   if ("bookmark" in arg) return typeof arg.bookmark === "string" ? bookmarkPath(arg.bookmark) : undefined;
   if (!("node" in arg)) return undefined;
-  const { node, libraryId } = arg as { node?: { path: string } | null; libraryId?: string };
-  if (!node) return undefined;
-  return bookmarkPath(
-    libraryId === undefined ? node.path : formatRootedPath({ root: { library: libraryId }, path: node.path }),
-  );
+  const { node } = arg as { node?: { path: string } | null };
+  return node ? bookmarkPath(node.path) : undefined;
 }

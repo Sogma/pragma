@@ -100,6 +100,7 @@ import { spaceChanges } from "../../services/spaceChanges.ts";
 import {
   amongPresets,
   createTreeActions,
+  inSpace,
   isDirectory,
   notFile,
   parentPathOf,
@@ -172,6 +173,9 @@ export interface SpaceViewDeps extends Pick<TreeActionsDeps, "open" | "openBesid
 export interface SpaceView
   extends Pick<TreeActions, "revealCreated" | "startCreate" | "startRename" | "confirmDelete" | "trash"> {
   view: SidebarView;
+  /** The tree actions this view hosts for the space, which other trees
+   * register with for their own roots. */
+  treeActions: TreeActions;
   render(): void;
   refresh(): Promise<void>;
   /** Reads the space's name and folder for the header atop the tree, and
@@ -257,24 +261,27 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
 
   const tree = deps.createTree("");
   elements.nodes.appendChild(tree.element);
-  const actions = createTreeActions(
-    {
-      findEntry: (path) => spaceTree.findEntry(path),
-      children: (path) => spaceTree.findDirectoryChildren(path),
-      hasRow,
-      render,
-      refresh,
-      bringIntoView: (path) => {
-        deps.show();
-        collapsed.reveal(path);
-      },
-      expand: (path) => collapsed.expand(path),
-      takeDrop: takeTrashDrop,
-      reorder,
-      removalWarning: unpublishWarningForAll,
+  const actions = createTreeActions({
+    ...deps,
+    templateSources: () => presetSources("templates", pragmaRows("templates")),
+  });
+  actions.attach((root) => root === "space", {
+    findEntry: (path) => spaceTree.findEntry(path),
+    children: (path) => spaceTree.findDirectoryChildren(path),
+    hasRow,
+    render,
+    refresh,
+    bringIntoView: (path) => {
+      deps.show();
+      collapsed.reveal(path);
     },
-    { ...deps, templateSources: () => presetSources("templates", pragmaRows("templates")) },
-  );
+    expand: (path) => collapsed.expand(path),
+    listsWhole: true,
+    trashName: "the Trash",
+    takeDrop: takeTrashDrop,
+    reorder,
+    removalWarning: unpublishWarningForAll,
+  });
 
   // The Trash, then Tags, then Presets, pinned under the tree. The Trash
   // shows while Delete moves things there or it still holds any: with
@@ -1014,13 +1021,14 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   commands.register({
     id: "tree.newSite",
     label: "New Site…",
-    when: (context, arg: TreeTarget) => notFile(context, arg) && deps.hasPublishers() && !amongPresets(arg),
+    when: (context, arg: TreeTarget) =>
+      notFile(context, arg) && inSpace(arg) && deps.hasPublishers() && !amongPresets(arg),
     run: (_, arg: TreeTarget) => deps.newSite(parentPathOf(arg.node)),
   });
   commands.register({
     id: "tree.findContext",
     label: "Find in context…",
-    when: isDirectory,
+    when: (context, arg: TreeTarget) => isDirectory(context, arg) && inSpace(arg),
     run: onRow((node) => openFindContext(node.path)),
   });
   // A folder's AGENTS.md offers its folder's Context… too. The space root's
@@ -1030,7 +1038,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
   commands.register({
     id: "tree.context",
     label: "Context…",
-    when: (context, arg: TreeTarget) => isDirectory(context, arg) || isFolderAgentsFile(context, arg),
+    when: (context, arg: TreeTarget) => inSpace(arg) && (isDirectory(context, arg) || isFolderAgentsFile(context, arg)),
     run: onRow((node) => {
       const folder = node.type === "directory" ? node : spaceTree.findDirectoryNode(dirnameOf(node.path));
       if (folder) openFolderContext(folder);
@@ -1456,6 +1464,7 @@ export function createSpaceView(elements: SpaceViewElements, deps: SpaceViewDeps
 
   return {
     view: { id: "space", label: "Space", icon: SPACE_ICON, panel: elements.panel },
+    treeActions: actions,
     render,
     refresh,
     loadName,

@@ -5,11 +5,9 @@ import type {
   FileResponse,
   FolderEntry,
   FolderOrder,
-  LibraryRow,
   TableFileResponse,
   TextFileResponse,
 } from "../../../../web/core/apiClient.ts";
-import { setLibraryPermissions } from "../../../../web/core/libraries.ts";
 import { noteDragInFlight } from "../../../../web/core/paths.ts";
 import { refresh as refreshSpaceTree } from "../../../../web/core/spaceTree.ts";
 import { PREVIEW_PAGE_MENU } from "../../../../web/filePreview.ts";
@@ -261,7 +259,9 @@ describe("what a menu opens as a gallery", () => {
   it("reads a folder from each menu's argument", () => {
     expect(galleryFolderOf({ node: directory })).toBe("day 1");
     expect(galleryFolderOf({ node: null })).toBe("");
-    expect(galleryFolderOf({ libraryId: "footage", node: directory, writable: false })).toBe("lib:footage/day 1");
+    expect(galleryFolderOf({ root: { library: "footage" }, node: { ...directory, path: "lib:footage/day 1" } })).toBe(
+      "lib:footage/day 1",
+    );
     expect(galleryFolderOf({ kind: "library", id: "footage", missing: false })).toBe("lib:footage");
     expect(galleryFolderOf({ folder: "day 1" })).toBe("day 1");
     expect(galleryFolderOf({ folder: "" })).toBe("");
@@ -272,7 +272,7 @@ describe("what a menu opens as a gallery", () => {
     expect(galleryFolderOf({ file: "a.png" })).toBeUndefined();
     expect(galleryFolderOf({ kind: "library", id: "footage", missing: true })).toBeUndefined();
     expect(galleryFolderOf({ kind: "site", path: "site" })).toBeUndefined();
-    expect(galleryFolderOf({ libraryId: "footage", node: null })).toBeUndefined();
+    expect(galleryFolderOf({ root: { library: "footage" }, node: null })).toBeUndefined();
     expect(galleryFolderOf(undefined)).toBeUndefined();
   });
 });
@@ -305,7 +305,7 @@ describe("a folder's open commands", () => {
     return { commands, menus, tabs };
   }
   const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
-  const target = { libraryId: "footage", node: { type: "directory", path: "day 1" } };
+  const target = { root: { library: "footage" }, node: { type: "directory", path: "lib:footage/day 1" } };
 
   it("opens a gallery in place, in a new tab or to the side", async () => {
     const { commands, menus, tabs } = wired();
@@ -378,21 +378,17 @@ describe("what a right-click opens", () => {
     expect(galleryMenu()).toEqual({ menu: "editor.toolbar", ariaLabel: "More options" });
   });
 
-  it("opens a library row's menu on a library's tile, with the library's permission", () => {
+  it("opens the tree menu on a library's tile, naming the library and the rooted entry", () => {
     const entry = file("a.png", { path: "lib:footage/day 1/a.png" });
     expect(galleryMenu({ entry, naming })).toEqual({
-      menu: "libraryTree",
+      menu: "tree",
       arg: {
-        libraryId: "footage",
-        node: { name: "a.png", path: "day 1/a.png", type: "file" },
-        writable: false,
+        root: { library: "footage" },
+        node: { name: "a.png", path: "lib:footage/day 1/a.png", type: "file" },
         naming,
       },
       ariaLabel: "Library actions",
     });
-    setLibraryPermissions([{ id: "footage", label: "Footage", access: "read-write" } as LibraryRow]);
-    expect(galleryMenu({ entry, naming }).arg).toMatchObject({ writable: true });
-    setLibraryPermissions([]);
   });
 
   it("opens a space row's menu on a space tile", () => {

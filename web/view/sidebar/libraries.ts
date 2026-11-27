@@ -7,56 +7,52 @@
 // The tree is told its root rather than handed library-relative paths, so
 // collapse state can share the space tree's store: every key is rooted, so
 // same-named folders never clash.
+//
+// A row's writes are the shared tree actions; this view answers them for
+// library roots, from what the open library has listed.
 import {
-  basenameOf,
   dirnameOf,
   formatRootedPath,
   isLibraryPath,
   isLibraryRoot,
+  type PathRoot,
   parseRootedPath,
-  sameRoot,
 } from "../../../src/protocol/rootedPath.ts";
 import {
   type Access,
-  type CreateEntryResponse,
   deleteLibrary,
   fetchLibraryFolder,
   type LibraryEntry,
   type LibraryOffer,
-  postCreateEntry,
-  postDeleteEntry,
   postLibraryAccess,
   postLibraryDescription,
   postLibraryLabel,
-  postUploadFile,
   type SpaceLibrariesResponse,
   type SpaceTreeNode,
 } from "../../core/apiClient.ts";
 import { setLibraryPermissions } from "../../core/libraries.ts";
-import { desktopFiles, readDraggedPath, removalLabel } from "../../core/paths.ts";
+import { desktopFiles } from "../../core/paths.ts";
 import { onWritten, writesNotified } from "../../core/written.ts";
 import { buildAccordionRow, setRowExpanded } from "../../lib/accordion.ts";
-import { copyPathItem } from "../../lib/copyPath.ts";
 import { renderTreeLoading } from "../../lib/dom.ts";
 import { flash } from "../../lib/flash.ts";
-import type { NamingSurface, PendingCreate } from "../../lib/inlineEdit.ts";
 import { createInlineError } from "../../lib/inlineError.ts";
 import type { ListItemTarget } from "../../lib/listItemMenu.ts";
 import { createListItemMenuButton } from "../../lib/listItemMenu.ts";
 import { oneAtATime } from "../../lib/oneAtATime.ts";
 import type { CollapsedFolders } from "../../services/collapsedFolders.ts";
-import type { CommandContext, CommandRegistry } from "../../services/commands.ts";
+import type { CommandRegistry } from "../../services/commands.ts";
 import type { DialogService } from "../../services/dialog.ts";
 import { onFolderSortChanged } from "../../services/folderSorts.ts";
-import { type DroppedImportResult, describeImportProblems, importDroppedFiles } from "../../services/mediaImport.ts";
 import type { ContextMenuService, MenuRegistry } from "../../services/menus.ts";
 import { presetFolderItems } from "../../services/presetMenu.ts";
 import * as settings from "../../services/settings.ts";
 import type { SidebarView } from "../../services/sidebarViews.ts";
 import { spaceChanges } from "../../services/spaceChanges.ts";
 import type { Tabs } from "../../services/tabs.ts";
+import { rootedNode, type TreeActions, type TreeHost, type TreeTarget } from "../../services/treeActions.ts";
 import type { ContextMenu } from "../contextMenu.ts";
-import type { DropZone, TreeRenderContext, TreeView } from "../fileTreeView.ts";
+import type { TreeRenderContext, TreeView } from "../fileTreeView.ts";
 
 const ICON = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
   <path d="M12 2 21 6.5 12 11 3 6.5Z"/>
@@ -120,65 +116,20 @@ export interface LibrariesViewDeps {
   tabs(): Pick<Tabs, "openEntry" | "openEntryBeside" | "openFolder">;
   // The tree's own context menu. Opened for a read-only library too, which
   // still opens a folder as a gallery; every action that writes checks the
-  // target's `writable` itself.
-  openTreeMenu: (event: MouseEvent, target: LibraryTreeTarget) => void;
-  // The two writes the inline tree inputs commit. Injected rather than
-  // imported so the panel's tests drive them without a server, like the
-  // library list fetch.
-  createEntry: (parentPath: string, name: string, type: "file" | "directory") => Promise<CreateEntryResponse>;
-  // Moves the entry and settles everything that has to follow — the pending
-  // save flushed, open tabs and models re-pointed, this panel re-read — and
-  // reports its own refusals. The panel only clears its input; a tab left
-  // on the old path would recreate the file on its next save.
-  moveEntry: (from: string, to: string) => Promise<unknown>;
-  // Reports a failed write. A tree action has nowhere of its own to show
-  // one — the menu that started it is gone by the time the call settles.
+  // root's access itself.
+  openTreeMenu: (event: MouseEvent, target: TreeTarget) => void;
+  // Says what a listing or a drop came to. The menu or drag that started
+  // it has nowhere of its own to show it by the time the call settles.
   notify: (message: string) => void;
-  // Copies files dropped from outside pragma into a folder, with its own
-  // progress surface, and says what became of each.
-  importFiles: (files: readonly File[], dir: string) => Promise<DroppedImportResult>;
-}
-
-/** What a library tree's context menu acts on: the row under the pointer,
- * or null for the empty area below the rows, plus which library's tree it
- * was. The id is carried because a node's own `path` is relative to its
- * library, and every write names the rooted form. `writable` is the entry's
- * access as the tree was drawn; absent reads as read-only.
- *
- * `naming` is set when another surface opened the menu (a gallery tile),
- * which then takes the name a rename or create asks for. */
-export interface LibraryTreeTarget {
-  libraryId: string;
-  node: SpaceTreeNode | null;
-  writable?: boolean;
-  naming?: NamingSurface;
-}
-
-/** Where a create from `target` lands, rooted: inside a folder, beside a
- * file, at the library's top for the empty area. */
-function createParentOf({ libraryId, node }: LibraryTreeTarget): string {
-  const parent = node === null ? "" : node.type === "directory" ? node.path : dirnameOf(node.path);
-  return formatRootedPath({ root: { library: libraryId }, path: parent });
-}
-
-/** The tree actions the panel's own context menu drives. Exposed rather
- * than registered here because commands register once at startup while the
- * rows they act on are rebuilt on every refresh — the same split
- * createLibraryManager already draws. */
-export interface LibraryTreeActions {
-  startCreate(target: LibraryTreeTarget, type: "file" | "directory"): Promise<void>;
-  startRename(target: LibraryTreeTarget): void;
-  /** The writes the inline inputs commit, for a name typed elsewhere. The
-   * create's parent is rooted. */
-  create(parentPath: string, type: "file" | "directory", name: string): Promise<void>;
-  rename(target: LibraryTreeTarget, name: string): Promise<void>;
-  /** Re-lists the open library's listed folders after a write made elsewhere. */
-  reload(): Promise<void>;
+  // The tree actions this view answers for library roots.
+  treeActions: Pick<TreeActions, "attach" | "editing" | "startCreate" | "dropInto">;
 }
 
 export interface LibrariesView {
   view: SidebarView;
-  tree: LibraryTreeActions;
+  /** Opens a library, then its top's name field for a new folder: what its
+   * row's ⋮ starts, a library whose row may be shut. */
+  newFolder(id: string): Promise<void>;
   /** Shows this panel with that library expanded — what a library's name
    * elsewhere in the UI navigates to. */
   reveal(id: string): void;
@@ -263,9 +214,6 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   let revealing: { id: string; entry?: string } | undefined;
   // That entry, rooted, until the open library has listed down to it.
   let unrevealed: string | undefined;
-  // Both are rooted paths, matching what the tree compares them against.
-  let editingPath: string | undefined;
-  let pendingCreate: PendingCreate | undefined;
 
   const rootedIn = (libraryId: string, relativePath: string): string =>
     formatRootedPath({ root: { library: libraryId }, path: relativePath });
@@ -281,39 +229,26 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   // library root opens locked (web/core/paths.ts). The path arrives already
   // rooted, because the tree was told its root.
   function renderContext(libraryId: string, writable: boolean): TreeRenderContext {
+    const root: PathRoot = { library: libraryId };
     return {
-      root: { library: libraryId },
+      root,
       onOpen: (rootedPath) => void deps.tabs().openEntry(rootedPath),
       onOpenDirectory: (rootedPath) => void deps.tabs().openFolder(rootedPath),
       // A read-only library's file rows offer nothing, so only its folders
       // open a menu — the one that opens them as a gallery.
       onContextMenu: (event, node) => {
-        if (writable || node.type === "directory") deps.openTreeMenu(event, { libraryId, node, writable });
+        if (writable || node.type === "directory") deps.openTreeMenu(event, { root, node: rootedNode(root, node) });
       },
-      // Never reported: a move within a library is read off the drop's own
-      // payload, which names its root, so a row dragged from another library
-      // or the space can be told apart and refused — carrying an entry
-      // between roots is a copy, which the move route refuses.
-      onDragStart: () => undefined,
-      onDrop: writable ? (event, node, zone) => void handleDrop(libraryId, event, node, zone) : () => undefined,
+      ...deps.treeActions.editing(root),
+      // A library's rows are picked one at a time, and Delete takes none.
+      selectsMany: false,
+      onDelete: undefined,
       isCollapsed: deps.collapsed.isCollapsed,
       onToggleCollapse: (rootedPath, collapsed) => {
         deps.collapsed.setCollapsed(rootedPath, collapsed);
-        if (!collapsed) listOpenFolders(libraryId);
+        if (!collapsed) void listOpenFolders(libraryId);
       },
       showExtensions: deps.showExtensions(),
-      editingPath,
-      onRenameSubmit: (node, value) => void commitRename(libraryId, node, value),
-      onRenameCancel: () => {
-        editingPath = undefined;
-        renderExpanded();
-      },
-      pendingCreate,
-      onCreateSubmit: (pending, value) => void commitCreate(pending.parentPath, pending.type, value),
-      onCreateCancel: () => {
-        pendingCreate = undefined;
-        renderExpanded();
-      },
       readOnly: !writable,
     };
   }
@@ -344,7 +279,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     const [version] = versions;
     readAt = versions.size === 1 ? version : "";
     renderExpanded();
-    listOpenFolders(id);
+    await listOpenFolders(id);
   }
 
   const reloadOnce = oneAtATime(reload);
@@ -398,22 +333,25 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
       listing.delete(dir);
     }
     renderExpanded();
-    listOpenFolders(id);
+    await listOpenFolders(id);
   }
 
   // Lists every folder showing open whose entries are not here yet: one the
   // collapse store remembers open, or one just opened. Once none is left to
   // list, the folder a reveal asked for has its row, if it is there at all.
-  function listOpenFolders(id: string): void {
+  // Settles once those, and the folders they open, have listed.
+  async function listOpenFolders(id: string): Promise<void> {
+    const started: Promise<void>[] = [];
     const visit = (dir: string): void => {
       for (const node of listings.get(dir) ?? []) {
         if (node.type !== "directory" || deps.collapsed.isCollapsed(rootedIn(id, node.path))) continue;
         if (listings.has(node.path)) visit(node.path);
-        else void listFolder(id, node.path);
+        else started.push(listFolder(id, node.path));
       }
     };
     visit("");
     if (listing.size === 0) revealAsked();
+    await Promise.all(started);
   }
 
   // Not before every open folder has listed: one above the row listing later
@@ -426,88 +364,6 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     if (label) flash(label);
   }
 
-  async function commitCreate(parentPath: string, type: "file" | "directory", rawValue: string): Promise<void> {
-    pendingCreate = undefined;
-    renderExpanded();
-    await createNamed(parentPath, type, rawValue);
-  }
-
-  // The write behind a create, whichever surface its name was typed on.
-  async function createNamed(parentPath: string, type: "file" | "directory", rawValue: string): Promise<void> {
-    const name = rawValue.trim();
-    if (!name) return;
-
-    try {
-      const created = await deps.createEntry(parentPath, name, type);
-      await reload();
-      // In a new tab, as every file just made opens (docs/architecture.md, Files and views).
-      if (created.type === "file") void deps.tabs().openEntryBeside(created.path);
-    } catch (error) {
-      report(error, `Failed to create ${type === "file" ? "note" : "folder"}.`);
-    }
-  }
-
-  async function commitRename(libraryId: string, node: SpaceTreeNode, rawValue: string): Promise<void> {
-    editingPath = undefined;
-    renderExpanded();
-    await renameNamed(libraryId, node, rawValue);
-  }
-
-  // The write behind a rename, whichever surface its name was typed on.
-  async function renameNamed(libraryId: string, node: SpaceTreeNode, rawValue: string): Promise<void> {
-    const name = rawValue.trim();
-    if (!name || name === basenameOf(node.path)) return;
-
-    // Only the last segment changes: a rename keeps the entry where it is,
-    // and the move route refuses anything that would change root anyway.
-    const parent = dirnameOf(node.path);
-    try {
-      await deps.moveEntry(rootedIn(libraryId, node.path), rootedIn(libraryId, parent ? `${parent}/${name}` : name));
-    } catch (error) {
-      report(error, "Rename failed.");
-    }
-  }
-
-  async function handleDrop(libraryId: string, event: DragEvent, node: SpaceTreeNode, zone: DropZone): Promise<void> {
-    const folder = zone === "into" && node.type === "directory" ? node.path : dirnameOf(node.path);
-    const files = desktopFiles(event);
-    if (files.length) {
-      await importInto(libraryId, folder, files);
-      return;
-    }
-
-    await moveDraggedInto(libraryId, event, folder);
-  }
-
-  // A library keeps no binder order, so a drop inside the dragged entry's
-  // own folder changes nothing and is ignored. A folder never moves into
-  // itself or its own descendants.
-  async function moveDraggedInto(libraryId: string, event: DragEvent, folder: string): Promise<void> {
-    const dragged = readDraggedPath(event);
-    if (!dragged || !sameRoot(dragged.root, { library: libraryId }) || !dragged.path) return;
-    if (dirnameOf(dragged.path) === folder) return;
-    if (folder === dragged.path || folder.startsWith(`${dragged.path}/`)) return;
-    const name = basenameOf(dragged.path);
-    try {
-      await deps.moveEntry(rootedIn(libraryId, dragged.path), rootedIn(libraryId, folder ? `${folder}/${name}` : name));
-    } catch (error) {
-      report(error, "Move failed.");
-    }
-  }
-
-  async function importInto(libraryId: string, folder: string, files: readonly File[]): Promise<void> {
-    const dir = rootedIn(libraryId, folder);
-    // Opened first, so the rows about to land in it are visible when the
-    // tree is re-read.
-    deps.collapsed.expand(dir);
-    const result = await deps.importFiles(files, dir);
-    await reload();
-    const last = result.imported.at(-1);
-    if (last) void deps.tabs().openEntry(last);
-    const problems = describeImportProblems(result);
-    if (problems) deps.notify(problems);
-  }
-
   // A file dropped anywhere else on this panel — a read-only library's rows,
   // the space under the rows — has no handler of its own, and the browser's
   // default for a dropped file is to open it in place of the app. Caught
@@ -516,16 +372,12 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
   panel.addEventListener("dragover", (event) => event.preventDefault());
   panel.addEventListener("drop", (event) => {
     event.preventDefault();
-    const files = desktopFiles(event);
     const open = expandedId !== undefined ? rows.get(expandedId) : undefined;
-    if (!files.length) {
-      if (expandedId !== undefined && open?.writable) void moveDraggedInto(expandedId, event, "");
-      return;
-    }
     if (expandedId !== undefined && open?.writable) {
-      void importInto(expandedId, "", files);
+      deps.treeActions.dropInto(event, rootedIn(expandedId, ""));
       return;
     }
+    if (desktopFiles(event).length === 0) return;
     deps.notify(
       open
         ? "This library is read-only. Set it to Read & write in its Properties to drop files into it."
@@ -533,33 +385,42 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     );
   });
 
-  const tree: LibraryTreeActions = {
-    async startCreate(target, type) {
-      const { libraryId } = target;
-      // The input row is drawn inside its parent's list, so a collapsed
-      // target — or a library whose row isn't open, when started from its
-      // ⋮ — has to be opened first or the row appears nowhere.
-      if (expandedId !== libraryId) await setExpanded(libraryId);
-      if (expandedId !== libraryId) return;
-      const parentPath = createParentOf(target);
-      deps.collapsed.expand(parentPath);
-      pendingCreate = { parentPath, type };
-      editingPath = undefined;
+  // A path within the open library, relative to it; undefined for one
+  // anywhere else, which this panel lists nothing of.
+  function withinOpen(path: string): string | undefined {
+    const { root, path: within } = parseRootedPath(path);
+    return isLibraryRoot(root) && root.library === expandedId ? within : undefined;
+  }
+
+  function listedIn(path: string): SpaceTreeNode[] | undefined {
+    const dir = withinOpen(path);
+    if (dir === undefined || expandedId === undefined) return undefined;
+    const root: PathRoot = { library: expandedId };
+    return listings.get(dir)?.map((node) => rootedNode(root, node));
+  }
+
+  const host: TreeHost = {
+    findEntry: (path) => listedIn(dirnameOf(path))?.find((node) => node.path === path),
+    children: listedIn,
+    hasRow: (path) => expandedView?.hasRow(path) ?? false,
+    render: () => {
       renderExpanded();
-      listOpenFolders(libraryId);
+      if (expandedId !== undefined) void listOpenFolders(expandedId);
     },
-    startRename({ libraryId, node }) {
-      if (!node) return;
-      editingPath = rootedIn(libraryId, node.path);
-      pendingCreate = undefined;
-      renderExpanded();
-    },
-    create: createNamed,
-    rename: async ({ libraryId, node }, name) => {
-      if (node) await renameNamed(libraryId, node, name);
-    },
-    reload,
+    refresh: reload,
+    bringIntoView: (path) => revealEntry(path, false),
+    expand: (path) => deps.collapsed.expand(path),
+    listsWhole: false,
+    trashName: "the .trash folder inside this library",
   };
+  deps.treeActions.attach(isLibraryRoot, host);
+
+  // The input row is drawn inside its parent's list, so a library whose row
+  // isn't open has to be opened first or the row appears nowhere.
+  async function newFolder(id: string): Promise<void> {
+    if (expandedId !== id) await setExpanded(id);
+    if (expandedId === id) deps.treeActions.startCreate(rootedIn(id, ""), "directory");
+  }
 
   function renderExpanded(): void {
     if (expandedId === undefined) return;
@@ -583,8 +444,6 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     unfollow = id === undefined ? undefined : deps.followLibrary(id, () => readAt, reloadOnce);
     expandedView?.dispose();
     expandedView = undefined;
-    editingPath = undefined;
-    pendingCreate = undefined;
     unrevealed = entry;
     // Remembered per browser, so the panel comes back to the same library
     // — after a reload, and after switching away and back. Collapsing it is
@@ -625,7 +484,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
     listings.set("", top.entries);
     readAt = top.changes;
     renderExpanded();
-    listOpenFolders(id);
+    void listOpenFolders(id);
   }
 
   async function refresh(): Promise<void> {
@@ -720,7 +579,7 @@ export function createLibrariesView(deps: LibrariesViewDeps): LibrariesView {
 
   return {
     view: { id: "library", label: "Libraries", icon: ICON, panel, onShow: () => void refresh() },
-    tree,
+    newFolder,
     // The id is recorded before the panel is shown, because showing it
     // re-lists the libraries and would otherwise collapse whatever was open.
     reveal: (id: string) => {
@@ -766,14 +625,8 @@ export interface LibraryManagerDeps {
   setLibraryLabel(id: string, label: string): Promise<void>;
   setLibraryDescription(id: string, description: string): Promise<void>;
   removeLibrary(id: string): Promise<void>;
-  // The open library's tree, for the row actions to drive and re-read.
-  tree: LibraryTreeActions;
-  deleteEntry(path: string, trash: boolean): Promise<unknown>;
-  // Whether Delete offers the trash, read as each menu and confirmation opens.
-  moveToTrash(): boolean;
-  // Drops the tabs a deleted entry leaves behind; without it the open
-  // document keeps saving and the file comes back.
-  onDeleted(path: string): void;
+  // Opens the library and its top's name field for a new folder.
+  newFolder(id: string): Promise<void>;
   // Re-reads the Libraries panel after an action changes a library. Held as
   // a callback because the panel is built alongside this, not before it.
   refresh(): Promise<void>;
@@ -978,8 +831,7 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     // own menu opens on a row, which aims a create inside or beside it.
     when: (_, arg: ListItemTarget | undefined) =>
       arg?.kind === "library" && arg.access === "read-write" && !arg.missing,
-    run: (_, arg: ListItemTarget) =>
-      deps.tree.startCreate({ libraryId: libraryTarget(arg).id, node: null }, "directory"),
+    run: (_, arg: ListItemTarget) => deps.newFolder(libraryTarget(arg).id),
   });
 
   deps.commands.register({
@@ -1024,114 +876,6 @@ export function createLibraryManager(deps: LibraryManagerDeps): LibraryManager {
     { command: "library.remove", group: "destructive", danger: true },
   ]);
 
-  // ---- a library's own tree ---------------------------------------------
-  //
-  // Every action here writes, so each applies only to a target drawn as
-  // writable. The set is deliberately smaller than the space tree's: binder
-  // order, Context, Find in context and New Site are all space machinery a
-  // library never gets, whatever it may be written to.
-  const treeTarget = (arg: ListItemTarget | LibraryTreeTarget | undefined): LibraryTreeTarget =>
-    arg as LibraryTreeTarget;
-  const isLibraryTreeTarget = (arg: unknown): arg is LibraryTreeTarget =>
-    typeof arg === "object" && arg !== null && "libraryId" in arg;
-  // A file holds no children, so the create actions give way to Rename;
-  // only an actual row renames or deletes.
-  const notFile = (_: CommandContext, arg: unknown) =>
-    isLibraryTreeTarget(arg) && arg.writable === true && arg.node?.type !== "file";
-  const isRow = (_: CommandContext, arg: unknown) =>
-    isLibraryTreeTarget(arg) && arg.writable === true && arg.node !== null;
-  // A name another surface asked for is typed there; the tree's own input
-  // row otherwise.
-  const createFrom = async (target: LibraryTreeTarget, type: "file" | "directory") => {
-    if (!target.naming) return deps.tree.startCreate(target, type);
-    const parentPath = createParentOf(target);
-    target.naming.create({ parentPath, type }, (name) => void deps.tree.create(parentPath, type, name));
-  };
-
-  deps.commands.register({
-    id: "libraryTree.newNote",
-    label: "New Note",
-    when: notFile,
-    run: (_, arg) => createFrom(treeTarget(arg as LibraryTreeTarget), "file"),
-  });
-  deps.commands.register({
-    id: "libraryTree.newFolder",
-    label: "New Folder",
-    when: notFile,
-    run: (_, arg) => createFrom(treeTarget(arg as LibraryTreeTarget), "directory"),
-  });
-  deps.commands.register({
-    id: "libraryTree.rename",
-    label: "Rename…",
-    when: isRow,
-    run: (_, arg) => {
-      const target = treeTarget(arg as LibraryTreeTarget);
-      const { libraryId, node, naming } = target;
-      if (!naming || !node) return deps.tree.startRename(target);
-      const path = formatRootedPath({ root: { library: libraryId }, path: node.path });
-      naming.rename(path, (name) => void deps.tree.rename(target, name));
-    },
-  });
-  deps.commands.register({
-    id: "libraryTree.delete",
-    label: "Delete",
-    when: isRow,
-    run: async (_, arg) => {
-      const { libraryId, node } = treeTarget(arg as LibraryTreeTarget);
-      if (!node) return;
-      const trash = deps.moveToTrash();
-      const confirmed = await deps.dialog().confirm({
-        title: trash ? `Move ${node.name} to Trash` : `Delete ${node.name}`,
-        // Named as this library's own trash, because that is where it goes:
-        // a library's deletions stay in the library, never in the space.
-        message: trash
-          ? `“${node.name}” moves to the .trash folder inside this library.`
-          : `“${node.name}” is deleted from disk. This can't be undone.`,
-        confirmLabel: trash ? "Move to Trash" : "Delete",
-        danger: true,
-      });
-      if (!confirmed) return;
-      const rooted = formatRootedPath({ root: { library: libraryId }, path: node.path });
-      try {
-        await deps.deleteEntry(rooted, trash);
-        deps.onDeleted(rooted);
-      } catch (error) {
-        await (trash
-          ? report("Move to Trash", error, "Moving to the Trash failed.")
-          : report("Delete", error, "Delete failed."));
-      }
-      await deps.tree.reload();
-    },
-  });
-
-  deps.menus.register("libraryTree", [
-    { command: "gallery.openFolder", group: "open" },
-    { command: "editor.openInNewTab", group: "open" },
-    { command: "editor.openToSide", group: "open" },
-    { command: "editor.editToSide", group: "open" },
-    { command: "gallery.openFolderInNewTab", group: "open" },
-    { command: "gallery.openFolderToSide", group: "open" },
-    { command: "libraryTree.rename", group: "bookmark" },
-    { command: "bookmarks.add", group: "bookmark" },
-    { command: "bookmarks.remove", group: "bookmark" },
-    ...presetFolderItems(
-      (arg) =>
-        isLibraryTreeTarget(arg) && arg.node?.type === "directory"
-          ? formatRootedPath({ root: { library: arg.libraryId }, path: arg.node.path })
-          : undefined,
-      (message) => window.alert(message),
-    ),
-    { command: "libraryTree.newNote", group: "create" },
-    { command: "libraryTree.newFolder", group: "create" },
-    copyPathItem({ group: "copy" }),
-    {
-      command: "libraryTree.delete",
-      group: "delete",
-      label: () => removalLabel(deps.moveToTrash()),
-      danger: true,
-    },
-  ]);
-
   return { addLibrary };
 }
 
@@ -1141,9 +885,7 @@ export interface LibrariesPanelDeps
       | "createMenuButton"
       | "addLibrary"
       | "openTreeMenu"
-      | "createEntry"
       | "notify"
-      | "importFiles"
       | "fetchLibraryFolder"
       | "followLibrary"
       | "onWritten"
@@ -1159,8 +901,7 @@ export interface LibrariesPanelDeps
       | "setLibraryLabel"
       | "setLibraryDescription"
       | "removeLibrary"
-      | "tree"
-      | "deleteEntry"
+      | "newFolder"
     > {
   // Both menus this panel opens are built from it: the row's own "⋮" and
   // the tree's context menu.
@@ -1181,13 +922,12 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     openTreeMenu: (event, target) => {
       event.preventDefault();
       deps.contextMenu.open({
-        menu: "libraryTree",
+        menu: "tree",
         arg: target,
         at: { x: event.clientX, y: event.clientY },
         ariaLabel: "Library actions",
       });
     },
-    createEntry: postCreateEntry,
     // Straight to the route, never through the tree the library's links
     // resolve against: that cache has to hold the whole library, and a
     // listing is one folder of it.
@@ -1195,8 +935,6 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     followLibrary: spaceChanges.followLibrary,
     onWritten,
     writesNotified,
-    importFiles: (files, dir) =>
-      importDroppedFiles(files, dir, { dialog: deps.dialog(), createEntry: postCreateEntry, upload: postUploadFile }),
     // The same surface the space tree reports a failed write on. A tree
     // action's own menu is gone by the time the call settles, so there is
     // nowhere in the panel to put it.
@@ -1209,8 +947,7 @@ export function createLibrariesPanel(deps: LibrariesPanelDeps): LibrariesView {
     setLibraryLabel: postLibraryLabel,
     setLibraryDescription: postLibraryDescription,
     removeLibrary: deleteLibrary,
-    deleteEntry: postDeleteEntry,
-    tree: view.tree,
+    newFolder: (id) => view.newFolder(id),
     refresh: () => view.refresh(),
     reveal: (id) => view.reveal(id),
     revealFolder: (path) => view.revealFolder(path),

@@ -1,25 +1,42 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { LibraryRow, SpaceTreeNode } from "../../../../web/core/apiClient.ts";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { type LibraryRow, postCreateEntry, type SpaceTreeNode } from "../../../../web/core/apiClient.ts";
 import { isWritableRoot } from "../../../../web/core/libraries.ts";
 import type { ListItemTarget } from "../../../../web/lib/listItemMenu.ts";
 import { type CommandContext, createCommands } from "../../../../web/services/commands.ts";
 import type { DialogService, FormOptions, PromptOptions } from "../../../../web/services/dialog.ts";
 import { setLocalSort } from "../../../../web/services/folderSorts.ts";
+import { createKeybindings } from "../../../../web/services/keybindings.ts";
+import { importDroppedFiles } from "../../../../web/services/mediaImport.ts";
 import { createMenus, type MenuOpenOptions } from "../../../../web/services/menus.ts";
 import * as settings from "../../../../web/services/settings.ts";
+import { createTreeActions } from "../../../../web/services/treeActions.ts";
 import type { TreeRenderContext } from "../../../../web/view/fileTreeView.ts";
 import {
   createLibrariesView,
   createLibraryManager,
   type LibrariesViewDeps,
   type LibraryLocationBridge,
-  type LibraryTreeActions,
 } from "../../../../web/view/sidebar/libraries.ts";
+import { fakeDrag } from "../../support/drag.ts";
 
 vi.mock("../../../../web/core/apiClient.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../web/core/apiClient.ts")>()),
   postLocalSort: vi.fn(async () => undefined),
+  postCreateEntry: vi.fn(async (parentPath: string, name: string, type: "file" | "directory") => ({
+    path: `${parentPath}/${name}`,
+    type,
+  })),
+}));
+
+vi.mock("../../../../web/services/mediaImport.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../web/services/mediaImport.ts")>()),
+  importDroppedFiles: vi.fn(async (files: readonly File[], dir: string) => ({
+    imported: files.map((file) => `${dir}/${file.name}`),
+    refused: [],
+    failed: [],
+    cancelled: false,
+  })),
 }));
 
 function library(id: string, missing = false, access: LibraryRow["access"] = "read-only"): LibraryRow {
@@ -32,14 +49,51 @@ const tree: SpaceTreeNode[] = [{ name: "a.png", path: "a.png", type: "file" } as
 const iconOf = (options: unknown) => (options as { icon?: { glyph?: string } }).icon?.glyph;
 
 type DrawTree = (nodes: SpaceTreeNode[], listPath: string, ctx: TreeRenderContext) => void;
-type TestDeps = LibrariesViewDeps & { renderTree: Mock<DrawTree> };
+type MoveCall = (moves: readonly { from: string; to: string }[], refreshTree: () => Promise<unknown>) => Promise<[]>;
+type TestDeps = LibrariesViewDeps & {
+  renderTree: Mock<DrawTree>;
+  // What the tree actions call: the move every write's rename or drop asks
+  // for, the opens, and the registry their commands sit in.
+  move: Mock<MoveCall>;
+  open: Mock<(path: string) => Promise<void>>;
+  openBeside: Mock<(path: string) => Promise<void>>;
+  treeCommands: ReturnType<typeof createCommands>;
+  drawn: Set<string>;
+};
 
 function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
   // Every tree the panel creates draws through this one spy, so a test reads
   // what was drawn, and under which list path, without holding the tree.
   const renderTree = vi.fn<DrawTree>();
   const tabs = { openEntry: vi.fn(), openEntryBeside: vi.fn(), openFolder: vi.fn() };
+  // The rows a test says the tree drew, by rooted path.
+  const drawn = new Set<string>();
+  const treeCommands = createCommands();
+  const move = vi.fn<MoveCall>(async (_moves, refreshTree) => {
+    await refreshTree();
+    return [];
+  });
+  const open = vi.fn(async (_path: string) => undefined);
+  const openBeside = vi.fn(async (_path: string) => undefined);
+  const treeActions = createTreeActions({
+    commands: treeCommands,
+    menus: createMenus(treeCommands),
+    keybindings: createKeybindings(treeCommands),
+    dialog: () => ({ confirm: vi.fn(async () => true) }) as unknown as DialogService,
+    moveToTrash: { get: () => true },
+    open,
+    openBeside,
+    move,
+    onDeleted: vi.fn(),
+    templateSources: () => [],
+  });
   return {
+    move,
+    open,
+    openBeside,
+    treeCommands,
+    drawn,
+    treeActions,
     fetchLibraries: vi.fn(async () => ({ libraries: [library("one"), library("two")] })),
     // Every folder lists the same entries unless a test says otherwise.
     fetchLibraryFolder: vi.fn(async () => ({ entries: tree, changes: "1.0" })),
@@ -52,24 +106,13 @@ function deps(overrides: Partial<LibrariesViewDeps> = {}): TestDeps {
       const element = document.createElement("ul");
       element.className = "rendered";
       const render = (nodes: SpaceTreeNode[], ctx: TreeRenderContext) => renderTree(nodes, listPath, ctx);
-      return { element, render, hasRow: () => false, reveal: () => false, dispose: vi.fn() };
+      return { element, render, hasRow: (path: string) => drawn.has(path), reveal: () => false, dispose: vi.fn() };
     }),
     renderTree,
     showExtensions: () => false,
     createMenuButton: vi.fn(() => document.createElement("button")),
     openTreeMenu: vi.fn(),
-    createEntry: vi.fn(async (parentPath: string, name: string, type: "file" | "directory") => ({
-      path: `${parentPath}/${name}`,
-      type,
-    })),
-    moveEntry: vi.fn(async () => undefined),
     notify: vi.fn(),
-    importFiles: vi.fn(async (files: readonly File[], dir: string) => ({
-      imported: files.map((file) => `${dir}/${file.name}`),
-      refused: [],
-      failed: [],
-      cancelled: false,
-    })),
     tabs: () => tabs,
     show: vi.fn(),
     collapsed: { isCollapsed: vi.fn(() => true), setCollapsed: vi.fn(), expand: vi.fn(), reveal: vi.fn(() => false) },
@@ -635,7 +678,7 @@ describe("createLibrariesView", () => {
     expect(d.fetchLibraryFolder).not.toHaveBeenCalled();
   });
 
-  it("re-lists every listed folder on a reload, and forgets the tree its links resolve against", async () => {
+  it("re-lists every listed folder after a write, and forgets the tree its links resolve against", async () => {
     const fetchLibraryFolder = vi.fn(async (_id: string, dir: string) => ({ entries: nested[dir] }));
     const collapsed = {
       isCollapsed: vi.fn(() => false),
@@ -644,13 +687,15 @@ describe("createLibrariesView", () => {
       reveal: vi.fn(() => false),
     };
     const d = deps({ fetchLibraryFolder, collapsed });
+    // The tree actions re-read a library through the host it registered.
+    const attach = vi.spyOn(d.treeActions, "attach");
     const libraries = await shown(d);
     headers(libraries.view.panel)[0].click();
     await vi.waitFor(() => expect(fetchLibraryFolder).toHaveBeenCalledWith("one", "shots/day1"));
     await Promise.resolve();
 
     fetchLibraryFolder.mockClear();
-    await libraries.tree.reload();
+    await attach.mock.calls[0][1].refresh();
     expect(fetchLibraryFolder.mock.calls.map(([, dir]) => dir).sort()).toEqual(["", "shots", "shots/day1"]);
     expect(d.forgetLibraryTree).toHaveBeenCalledWith("one");
   });
@@ -755,19 +800,10 @@ describe("createLibraryManager", () => {
     const setLibraryAccess = vi.fn(async () => undefined);
     const removeLibrary = vi.fn(async () => undefined);
     const refresh = vi.fn(async () => undefined);
-    const deleteEntry = vi.fn(async () => undefined);
-    const onDeleted = vi.fn();
+    const newFolder = vi.fn(async () => undefined);
     const reveal = vi.fn();
     const revealFolder = vi.fn();
     const revealFile = vi.fn();
-    const trash = { on: true };
-    const tree: LibraryTreeActions = {
-      startCreate: vi.fn(),
-      startRename: vi.fn(),
-      create: vi.fn(async () => undefined),
-      rename: vi.fn(async () => undefined),
-      reload: vi.fn(async () => undefined),
-    };
     const { addLibrary } = createLibraryManager({
       commands,
       menus,
@@ -778,10 +814,7 @@ describe("createLibraryManager", () => {
       setLibraryLabel,
       setLibraryDescription,
       removeLibrary,
-      deleteEntry,
-      moveToTrash: () => trash.on,
-      onDeleted,
-      tree,
+      newFolder,
       refresh,
       reveal,
       revealFolder,
@@ -790,7 +823,6 @@ describe("createLibraryManager", () => {
     return {
       revealFolder,
       revealFile,
-      trash,
       commands,
       menus,
       form,
@@ -801,10 +833,8 @@ describe("createLibraryManager", () => {
       setLibraryDescription,
       removeLibrary,
       refresh,
-      deleteEntry,
-      onDeleted,
+      newFolder,
       reveal,
-      tree,
       bridge,
       contextMenu,
       addLibrary,
@@ -977,7 +1007,7 @@ describe("createLibraryManager", () => {
   });
 
   it("offers New Folder at a writable library's root only", async () => {
-    const { commands, menus, tree } = manager("read-only");
+    const { commands, menus, newFolder } = manager("read-only");
     const writable = target({ access: "read-write" });
     expect(commands.isEnabled("library.newFolder", context, target())).toBe(false);
     expect(commands.isEnabled("library.newFolder", context, target({ access: "read-write", missing: true }))).toBe(
@@ -992,7 +1022,7 @@ describe("createLibraryManager", () => {
     ]);
 
     await commands.run("library.newFolder", context, writable);
-    expect(tree.startCreate).toHaveBeenCalledWith({ libraryId: "one", node: null }, "directory");
+    expect(newFolder).toHaveBeenCalledWith("one");
   });
 
   it("opens on the row's description and access, both permission choices on offer", async () => {
@@ -1079,121 +1109,6 @@ describe("createLibraryManager", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  // The half that makes a delete safe: a tab still pointing at the file
-  // would recreate it on its next save, so the editor is told, with the
-  // rooted path every tab holds.
-  it("deletes a library entry into its trash and drops the tabs on it", async () => {
-    const { commands, confirm, deleteEntry, onDeleted, tree } = manager(undefined);
-    const node = { name: "a.md", path: "batch/a.md", type: "file" } as SpaceTreeNode;
-    await commands.run("libraryTree.delete", context, { libraryId: "one", node, writable: true });
-
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
-    expect(deleteEntry).toHaveBeenCalledWith("lib:one/batch/a.md", expect.any(Boolean));
-    expect(onDeleted).toHaveBeenCalledWith("lib:one/batch/a.md");
-    expect(tree.reload).toHaveBeenCalledTimes(1);
-  });
-
-  it("lists Rename… directly above Bookmark, in one group", () => {
-    const { commands, menus } = manager(undefined);
-    commands.register({ id: "bookmarks.add", label: "Bookmark", run: vi.fn() });
-    const node = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
-    const items = menus.resolve("libraryTree", context, { libraryId: "one", node, writable: true });
-    expect(items.map((item) => [item.label, item.group])).toEqual([
-      ["Rename…", "bookmark"],
-      ["Bookmark", "bookmark"],
-      ["Move to Trash", "delete"],
-    ]);
-  });
-
-  // Red stays either way: the Trash has no Restore, so a trashed file can't
-  // simply be put back. Only the words follow the setting.
-  it("names the delete after the trash setting, in the menu and the dialog", async () => {
-    const { commands, confirm, deleteEntry, menus, trash } = manager(undefined);
-    const node = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
-    const arg = { libraryId: "one", node, writable: true };
-    const deleteItem = () => menus.resolve("libraryTree", context, arg).find((item) => item.danger);
-    expect(deleteItem()?.label).toBe("Move to Trash");
-    await commands.run("libraryTree.delete", context, arg);
-    expect(confirm).toHaveBeenLastCalledWith(
-      expect.objectContaining({ title: "Move a.md to Trash", confirmLabel: "Move to Trash", danger: true }),
-    );
-    expect(deleteEntry).toHaveBeenLastCalledWith("lib:one/a.md", true);
-
-    trash.on = false;
-    expect(deleteItem()?.label).toBe("Delete");
-    await commands.run("libraryTree.delete", context, arg);
-    expect(confirm).toHaveBeenLastCalledWith(
-      expect.objectContaining({ title: "Delete a.md", confirmLabel: "Delete", danger: true }),
-    );
-    expect(deleteEntry).toHaveBeenLastCalledWith("lib:one/a.md", false);
-  });
-
-  // The setting is the server's and can change while a confirmation is open:
-  // the delete does what that confirmation said, never what the setting says
-  // by the time it is accepted.
-  it("deletes the way the confirmation said, even if the setting changed meanwhile", async () => {
-    const { commands, confirm, deleteEntry, trash } = manager(undefined);
-    confirm.mockImplementationOnce(async () => {
-      trash.on = false;
-      return true;
-    });
-    await commands.run("libraryTree.delete", context, {
-      libraryId: "one",
-      node: { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode,
-      writable: true,
-    });
-    expect(deleteEntry).toHaveBeenCalledWith("lib:one/a.md", true);
-  });
-
-  it("drops no tab when the delete itself failed", async () => {
-    const { commands, deleteEntry, onDeleted } = manager(undefined);
-    vi.mocked(deleteEntry).mockRejectedValueOnce(new Error("Not found"));
-    await commands.run("libraryTree.delete", context, {
-      libraryId: "one",
-      node: { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode,
-      writable: true,
-    });
-    expect(deleteEntry).toHaveBeenCalled();
-    expect(onDeleted).not.toHaveBeenCalled();
-  });
-
-  // The tree's menu opens on a read-only library's folders too, so every
-  // action that writes answers for itself; a target without the flag is
-  // read-only.
-  it("offers no write on a target drawn read-only", () => {
-    const { commands } = manager(undefined);
-    const folder = { name: "batch", path: "batch", type: "directory" } as SpaceTreeNode;
-    for (const id of ["libraryTree.newNote", "libraryTree.newFolder", "libraryTree.rename", "libraryTree.delete"]) {
-      expect(commands.isEnabled(id, context, { libraryId: "one", node: folder, writable: false }), id).toBe(false);
-      expect(commands.isEnabled(id, context, { libraryId: "one", node: folder }), id).toBe(false);
-      expect(commands.isEnabled(id, context, { libraryId: "one", node: folder, writable: true }), id).toBe(true);
-    }
-  });
-
-  // Opened from a gallery tile, the tree's menu has the name typed there.
-  it("types a rename or a create on the surface that opened the menu", async () => {
-    const { commands, tree } = manager(undefined);
-    const naming = { rename: vi.fn(), create: vi.fn() };
-    const node = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
-    const folder = { name: "batch", path: "batch", type: "directory" } as SpaceTreeNode;
-
-    const onFile = { libraryId: "one", node, writable: true, naming };
-    await commands.run("libraryTree.rename", context, onFile);
-    expect(tree.startRename).not.toHaveBeenCalled();
-    expect(naming.rename).toHaveBeenCalledWith("lib:one/notes/a.md", expect.any(Function));
-    naming.rename.mock.calls[0][1]("b.md");
-    expect(tree.rename).toHaveBeenCalledWith(onFile, "b.md");
-
-    await commands.run("libraryTree.newFolder", context, { libraryId: "one", node: folder, writable: true, naming });
-    expect(tree.startCreate).not.toHaveBeenCalled();
-    expect(naming.create).toHaveBeenCalledWith(
-      { parentPath: "lib:one/batch", type: "directory" },
-      expect.any(Function),
-    );
-    naming.create.mock.calls[0][1]("Shots");
-    expect(tree.create).toHaveBeenCalledWith("lib:one/batch", "directory", "Shots");
-  });
-
   it("removes nothing when the confirmation is declined", async () => {
     const { commands, removeLibrary, refresh } = manager(undefined, { confirmed: false });
     await commands.run("library.remove", context, target());
@@ -1204,8 +1119,8 @@ describe("createLibraryManager", () => {
 });
 
 // Permission drives what the tree offers. A read-only library renders
-// exactly as it always did; a read-write one gets the inline inputs and the
-// context menu, and every path it names is rooted.
+// locked; a read-write one takes the shared tree actions on its own root,
+// and every path it names is rooted.
 describe("a writable library's tree", () => {
   const writableDeps = (overrides: Partial<LibrariesViewDeps> = {}) =>
     deps({ fetchLibraries: vi.fn(async () => ({ libraries: [library("one", false, "read-write")] })), ...overrides });
@@ -1219,6 +1134,20 @@ describe("a writable library's tree", () => {
 
   const contextOf = (d: TestDeps) =>
     vi.mocked(d.renderTree).mock.calls[vi.mocked(d.renderTree).mock.calls.length - 1][2];
+  const one = { library: "one" };
+  const node = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
+  const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
+  const run = (d: TestDeps, command: string, arg: unknown) => d.treeCommands.run(command, context, arg);
+  const context: CommandContext = { tab: { kind: "empty" }, pane: undefined };
+
+  const alert = vi.fn();
+  beforeEach(() => vi.stubGlobal("alert", alert));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    alert.mockClear();
+    vi.mocked(postCreateEntry).mockClear();
+    vi.mocked(importDroppedFiles).mockClear();
+  });
 
   it("renders unlocked, and a read-only one stays locked", async () => {
     const writable = writableDeps();
@@ -1244,16 +1173,14 @@ describe("a writable library's tree", () => {
 
   // A read-only library's folders still open as a gallery from the menu; its
   // files have nothing to offer, so they open none.
-  it("opens the tree menu with the permission it drew, and a read-only one on folders only", async () => {
+  it("opens the tree menu on its root with the row rooted, and a read-only one on folders only", async () => {
     const writable = writableDeps();
     await expanded(writable);
-    const node: SpaceTreeNode = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
-    const folder: SpaceTreeNode = { name: "notes", path: "notes", type: "directory" } as SpaceTreeNode;
+    const rootedFolder = { ...folder, path: "lib:one/batch" };
     contextOf(writable).onContextMenu(new MouseEvent("contextmenu"), node);
     expect(writable.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), {
-      libraryId: "one",
-      node,
-      writable: true,
+      root: one,
+      node: { ...node, path: "lib:one/notes/a.md" },
     });
 
     const readOnly = deps();
@@ -1261,114 +1188,90 @@ describe("a writable library's tree", () => {
     contextOf(readOnly).onContextMenu(new MouseEvent("contextmenu"), node);
     expect(readOnly.openTreeMenu).not.toHaveBeenCalled();
     contextOf(readOnly).onContextMenu(new MouseEvent("contextmenu"), folder);
-    expect(readOnly.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), {
-      libraryId: "one",
-      node: folder,
-      writable: false,
-    });
+    expect(readOnly.openTreeMenu).toHaveBeenCalledWith(expect.any(MouseEvent), { root: one, node: rootedFolder });
   });
 
-  // The space tree acts on the node its own dragstart reported, so a library
-  // row reporting none is what keeps it inert when dropped there.
-  it("never reports a drag start, writable or not", async () => {
+  it("picks one row at a time and takes no Delete key", async () => {
     const d = writableDeps();
     await expanded(d);
-    const node: SpaceTreeNode = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
-    expect(contextOf(d).onDragStart([node])).toBeUndefined();
+    expect(contextOf(d).selectsMany).toBe(false);
+    expect(contextOf(d).onDelete).toBeUndefined();
   });
-
-  // jsdom has no DragEvent; a drop is a plain event carrying a file list.
-  function fileDrop(...names: string[]): DragEvent {
-    const event = new Event("drop") as DragEvent;
-    Object.defineProperty(event, "dataTransfer", {
-      value: { files: names.map((name) => new File([new Uint8Array(8)], name)), types: ["Files"] },
-    });
-    return event;
-  }
 
   // The gesture the feature exists for: a take dragged off the desktop
   // lands in the folder it was dropped on, or beside the file it was dropped
-  // on, in that library's own root — then the tree is re-read and the file
-  // opened.
+  // on, in that library's own root; the tree is re-read and the last file
+  // opened once its row is there.
   it("copies dropped desktop files into the dropped-on folder and opens the last", async () => {
     const d = writableDeps();
     await expanded(d);
-    const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
-    contextOf(d).onDrop(fileDrop("take.mp4", "still.png"), folder, "into");
-    await vi.waitFor(() => expect(d.importFiles).toHaveBeenCalled());
-    const [files, dir] = vi.mocked(d.importFiles).mock.calls[0];
-    expect(dir).toBe("lib:one/batch");
-    expect(files.map((f) => f.name)).toEqual(["take.mp4", "still.png"]);
-    await vi.waitFor(() => expect(d.tabs().openEntry).toHaveBeenCalledWith("lib:one/batch/still.png"));
+    d.drawn.add("lib:one/batch/still.png");
+    const files = [new File(["x"], "take.mp4"), new File(["x"], "still.png")];
+    contextOf(d).onDrop(fakeDrag("drop", { files }).event, folder, "into");
+    await vi.waitFor(() => expect(d.open).toHaveBeenCalledWith("lib:one/batch/still.png"));
+    expect(vi.mocked(importDroppedFiles).mock.calls[0][1]).toBe("lib:one/batch");
     expect(d.fetchLibraryFolder).toHaveBeenCalledTimes(2);
 
-    const file = { name: "one.md", path: "batch/one.md", type: "file" } as SpaceTreeNode;
-    contextOf(d).onDrop(fileDrop("b.mp4"), file, "before");
-    await vi.waitFor(() => expect(d.importFiles).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(d.importFiles).mock.calls[1][1]).toBe("lib:one/batch");
+    contextOf(d).onDrop(fakeDrag("drop", { files: [new File(["x"], "b.mp4")] }).event, node, "before");
+    await vi.waitFor(() => expect(importDroppedFiles).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(importDroppedFiles).mock.calls[1][1]).toBe("lib:one/notes");
   });
 
-  // A tree row's drag carries its rooted path as text/plain.
-  function rowDrop(rootedPath: string): DragEvent {
-    const event = new Event("drop") as DragEvent;
-    Object.defineProperty(event, "dataTransfer", {
-      value: { files: [], types: ["text/plain"], getData: () => rootedPath },
-    });
-    return event;
-  }
-
-  it("moves a row dropped into another folder of the same library", async () => {
+  it("moves a row dragged into another folder of the same library", async () => {
     const d = writableDeps();
     await expanded(d);
-    const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
-    contextOf(d).onDrop(rowDrop("lib:one/notes/a.md"), folder, "into");
-    await vi.waitFor(() => expect(d.moveEntry).toHaveBeenCalledWith("lib:one/notes/a.md", "lib:one/batch/a.md"));
+    contextOf(d).onDragStart([node]);
+    contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
+    expect(d.move).toHaveBeenCalledWith(
+      [{ from: "lib:one/notes/a.md", to: "lib:one/batch/a.md" }],
+      expect.any(Function),
+    );
 
-    const sibling = { name: "b.md", path: "b.md", type: "file" } as SpaceTreeNode;
-    contextOf(d).onDrop(rowDrop("lib:one/notes/a.md"), sibling, "after");
-    await vi.waitFor(() => expect(d.moveEntry).toHaveBeenCalledWith("lib:one/notes/a.md", "lib:one/a.md"));
-    expect(d.importFiles).not.toHaveBeenCalled();
+    contextOf(d).onDragStart([node]);
+    contextOf(d).onDrop(fakeDrag("drop").event, { name: "b.md", path: "b.md", type: "file" } as SpaceTreeNode, "after");
+    expect(d.move).toHaveBeenLastCalledWith([{ from: "lib:one/notes/a.md", to: "lib:one/a.md" }], expect.any(Function));
+    expect(importDroppedFiles).not.toHaveBeenCalled();
   });
 
   // Between roots a move is a copy, which the move route refuses; a library
   // keeps no binder order, so a drop beside a sibling changes nothing.
-  it("ignores a row from another root, into its own folder, or into itself", async () => {
+  it("ignores a row from another root, beside its own folder's rows, or into itself", async () => {
     const d = writableDeps();
     await expanded(d);
-    const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
     const nested = { name: "inner", path: "batch/inner", type: "directory", children: [] } as SpaceTreeNode;
     const sibling = { name: "b.md", path: "notes/b.md", type: "file" } as SpaceTreeNode;
-    contextOf(d).onDrop(rowDrop("notes/a.md"), folder, "into");
-    contextOf(d).onDrop(rowDrop("lib:two/a.md"), folder, "into");
-    contextOf(d).onDrop(rowDrop("lib:one/notes/a.md"), sibling, "before");
-    contextOf(d).onDrop(rowDrop("lib:one/batch"), nested, "into");
-    contextOf(d).onDrop(rowDrop("lib:one/batch"), folder, "into");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(d.moveEntry).not.toHaveBeenCalled();
-  });
-
-  it("reports a move the server refused", async () => {
-    const d = writableDeps({ moveEntry: vi.fn(async () => Promise.reject(new Error("nope"))) });
-    await expanded(d);
-    const folder = { name: "batch", path: "batch", type: "directory", children: [] } as SpaceTreeNode;
-    contextOf(d).onDrop(rowDrop("lib:one/a.md"), folder, "into");
-    await vi.waitFor(() => expect(d.notify).toHaveBeenCalledWith("nope"));
+    d.treeActions.editing().onDragStart([{ name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode]);
+    contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
+    d.treeActions.editing({ library: "two" }).onDragStart([node]);
+    contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
+    contextOf(d).onDragStart([node]);
+    contextOf(d).onDrop(fakeDrag("drop").event, sibling, "before");
+    contextOf(d).onDragStart([folder]);
+    contextOf(d).onDrop(fakeDrag("drop").event, nested, "into");
+    contextOf(d).onDragStart([folder]);
+    contextOf(d).onDrop(fakeDrag("drop").event, folder, "into");
+    expect(d.move).not.toHaveBeenCalled();
   });
 
   it("a row dropped on the panel outside the rows moves to the library's root", async () => {
     const d = writableDeps();
     const libraries = await expanded(d);
-    libraries.view.panel.dispatchEvent(rowDrop("lib:one/notes/a.md"));
-    await vi.waitFor(() => expect(d.moveEntry).toHaveBeenCalledWith("lib:one/notes/a.md", "lib:one/a.md"));
+    contextOf(d).onDragStart([node]);
+    libraries.view.panel.dispatchEvent(fakeDrag("drop").event);
+    expect(d.move).toHaveBeenCalledWith([{ from: "lib:one/notes/a.md", to: "lib:one/a.md" }], expect.any(Function));
   });
 
   it("tells the person what did not land", async () => {
-    const d = writableDeps({
-      importFiles: vi.fn(async () => ({ imported: [], refused: ["x.zip"], failed: [], cancelled: false })),
+    vi.mocked(importDroppedFiles).mockResolvedValueOnce({
+      imported: [],
+      refused: ["x.zip"],
+      failed: [],
+      cancelled: false,
     });
+    const d = writableDeps();
     await expanded(d);
-    contextOf(d).onDrop(fileDrop("x.zip"), { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode, "into");
-    await vi.waitFor(() => expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("x.zip")));
+    contextOf(d).onDrop(fakeDrag("drop", { files: [new File(["x"], "x.zip")] }).event, node, "into");
+    await vi.waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringContaining("x.zip")));
   });
 
   // A drop that misses every writable row must not fall through to the
@@ -1376,59 +1279,54 @@ describe("a writable library's tree", () => {
   it("catches a drop on a read-only library's panel and says why", async () => {
     const d = deps();
     const libraries = await expanded(d);
-    libraries.view.panel.dispatchEvent(fileDrop("take.mp4"));
-    expect(d.importFiles).not.toHaveBeenCalled();
+    libraries.view.panel.dispatchEvent(fakeDrag("drop", { files: [new File(["x"], "take.mp4")] }).event);
+    expect(importDroppedFiles).not.toHaveBeenCalled();
     expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("read-only"));
   });
 
   it("a drop on the panel outside the rows lands in the open writable library's root", async () => {
     const d = writableDeps();
     const libraries = await expanded(d);
-    libraries.view.panel.dispatchEvent(fileDrop("take.mp4"));
-    await vi.waitFor(() => expect(d.importFiles).toHaveBeenCalled());
-    expect(vi.mocked(d.importFiles).mock.calls[0][1]).toBe("lib:one");
+    libraries.view.panel.dispatchEvent(fakeDrag("drop", { files: [new File(["x"], "take.mp4")] }).event);
+    await vi.waitFor(() => expect(importDroppedFiles).toHaveBeenCalled());
+    expect(vi.mocked(importDroppedFiles).mock.calls[0][1]).toBe("lib:one");
   });
 
-  it("creates under the clicked folder, in that library's root, then opens the file in a new tab", async () => {
+  it("creates under the clicked folder, in that library's root, then opens the file once drawn", async () => {
     const d = writableDeps();
-    const libraries = await expanded(d);
-    const folder: SpaceTreeNode = { name: "notes", path: "notes", type: "directory", children: [] } as SpaceTreeNode;
+    await expanded(d);
+    d.drawn.add("lib:one/notes/take");
+    await run(d, "tree.newNote", { root: one, node: { name: "notes", path: "lib:one/notes", type: "directory" } });
+    const { pendingCreate } = contextOf(d);
+    expect(pendingCreate).toEqual({ parentPath: "lib:one/notes", type: "file", kind: "note" });
+    if (!pendingCreate) throw new Error("no name field");
 
-    libraries.tree.startCreate({ libraryId: "one", node: folder }, "file");
-    expect(contextOf(d).pendingCreate).toEqual({ parentPath: "lib:one/notes", type: "file" });
-
-    contextOf(d).onCreateSubmit({ parentPath: "lib:one/notes", type: "file" }, "  take  ");
-    await vi.waitFor(() => expect(d.createEntry).toHaveBeenCalled());
-    expect(d.createEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file");
+    contextOf(d).onCreateSubmit(pendingCreate, "  take  ");
+    await vi.waitFor(() => expect(d.openBeside).toHaveBeenCalledWith("lib:one/notes/take"));
+    expect(postCreateEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file", undefined);
     // The tree is re-read rather than patched, so what shows is what the
     // filesystem answered.
-    await vi.waitFor(() => expect(d.tabs().openEntryBeside).toHaveBeenCalledWith("lib:one/notes/take"));
-    expect(d.tabs().openEntry).not.toHaveBeenCalled();
     expect(d.fetchLibraryFolder).toHaveBeenCalledTimes(2);
   });
 
-  // A file holds no children, so a create started on one lands beside it.
-  it("creates beside a file, and at the library root for the empty area", async () => {
+  // A file holds no children, so the creates give way to Rename on one.
+  it("creates at the library root for the empty area, and nothing on a file", async () => {
     const d = writableDeps();
-    const libraries = await expanded(d);
+    await expanded(d);
+    const onFile = { root: one, node: { ...node, path: "lib:one/notes/a.md" } };
+    expect(d.treeCommands.isEnabled("tree.newFolder", context, onFile)).toBe(false);
 
-    libraries.tree.startCreate(
-      { libraryId: "one", node: { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode },
-      "directory",
-    );
-    expect(contextOf(d).pendingCreate).toEqual({ parentPath: "lib:one/notes", type: "directory" });
-
-    libraries.tree.startCreate({ libraryId: "one", node: null }, "file");
-    expect(contextOf(d).pendingCreate).toEqual({ parentPath: "lib:one", type: "file" });
+    await run(d, "tree.newNote", { root: one, node: null });
+    expect(contextOf(d).pendingCreate).toEqual({ parentPath: "lib:one", type: "file", kind: "note" });
   });
 
   // Started from a collapsed row's ⋮, the input row needs a tree to sit in.
-  it("opens the library first when a create starts on a collapsed one", async () => {
+  it("opens the library first when a new folder starts on a collapsed one", async () => {
     const d = writableDeps();
     const libraries = await shown(d);
     expect(d.renderTree).not.toHaveBeenCalled();
 
-    await libraries.tree.startCreate({ libraryId: "one", node: null }, "directory");
+    await libraries.newFolder("one");
     expect(d.fetchLibraryFolder).toHaveBeenCalledWith("one", "");
     expect(headers(libraries.view.panel)[0].getAttribute("aria-expanded")).toBe("true");
     expect(contextOf(d).pendingCreate).toEqual({ parentPath: "lib:one", type: "directory" });
@@ -1436,70 +1334,57 @@ describe("a writable library's tree", () => {
 
   it("renames in place, naming both ends rooted", async () => {
     const d = writableDeps();
-    const libraries = await expanded(d);
-    const node: SpaceTreeNode = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
-
-    libraries.tree.startRename({ libraryId: "one", node });
+    await expanded(d);
+    await run(d, "tree.rename", { root: one, node: { ...node, path: "lib:one/notes/a.md" } });
     expect(contextOf(d).editingPath).toBe("lib:one/notes/a.md");
 
     contextOf(d).onRenameSubmit(node, "b.md");
-    await vi.waitFor(() => expect(d.moveEntry).toHaveBeenCalled());
-    expect(d.moveEntry).toHaveBeenCalledWith("lib:one/notes/a.md", "lib:one/notes/b.md");
+    await vi.waitFor(() =>
+      expect(d.move).toHaveBeenCalledWith(
+        [{ from: "lib:one/notes/a.md", to: "lib:one/notes/b.md" }],
+        expect.any(Function),
+      ),
+    );
+    expect(contextOf(d).editingPath).toBeUndefined();
   });
 
   it("writes nothing when a rename is emptied or unchanged", async () => {
     const d = writableDeps();
-    const libraries = await expanded(d);
-    const node: SpaceTreeNode = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
-
-    libraries.tree.startRename({ libraryId: "one", node });
+    await expanded(d);
     contextOf(d).onRenameSubmit(node, "   ");
     contextOf(d).onRenameSubmit(node, "a.md");
     await Promise.resolve();
-    expect(d.moveEntry).not.toHaveBeenCalled();
-  });
-
-  it("reports a failed write instead of leaving the row half-renamed", async () => {
-    const d = writableDeps({ moveEntry: vi.fn(async () => Promise.reject(new Error("Already exists"))) });
-    const libraries = await expanded(d);
-    const node: SpaceTreeNode = { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode;
-
-    libraries.tree.startRename({ libraryId: "one", node });
-    contextOf(d).onRenameSubmit(node, "b.md");
-    await vi.waitFor(() => expect(d.notify).toHaveBeenCalledWith("Already exists"));
+    expect(d.move).not.toHaveBeenCalled();
   });
 
   it("cancelling clears the inline input without writing", async () => {
     const d = writableDeps();
-    const libraries = await expanded(d);
-
-    libraries.tree.startCreate({ libraryId: "one", node: null }, "file");
+    await expanded(d);
+    await run(d, "tree.newNote", { root: one, node: null });
     contextOf(d).onCreateCancel();
     expect(contextOf(d).pendingCreate).toBeUndefined();
 
-    libraries.tree.startRename({
-      libraryId: "one",
-      node: { name: "a.md", path: "a.md", type: "file" } as SpaceTreeNode,
-    });
+    await run(d, "tree.rename", { root: one, node: { ...node, path: "lib:one/notes/a.md" } });
     contextOf(d).onRenameCancel();
     expect(contextOf(d).editingPath).toBeUndefined();
-    expect(d.createEntry).not.toHaveBeenCalled();
-    expect(d.moveEntry).not.toHaveBeenCalled();
+    expect(postCreateEntry).not.toHaveBeenCalled();
+    expect(d.move).not.toHaveBeenCalled();
   });
 
   // A gallery tile's name is typed on the tile, so the library needn't be
   // open here; a gallery lists from disk too, and is told the library changed.
   it("writes a name typed elsewhere, and says the library changed", async () => {
     const d = writableDeps();
-    const libraries = await shown(d);
-    const node: SpaceTreeNode = { name: "a.md", path: "notes/a.md", type: "file" } as SpaceTreeNode;
-
-    await libraries.tree.rename({ libraryId: "one", node }, "b.md");
-    expect(d.moveEntry).toHaveBeenCalledWith("lib:one/notes/a.md", "lib:one/notes/b.md");
-
-    await libraries.tree.create("lib:one/notes", "file", "take");
-    expect(d.createEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file");
-    expect(d.tabs().openEntryBeside).toHaveBeenCalledWith("lib:one/notes/take");
+    await shown(d);
+    const naming = { rename: vi.fn(), create: vi.fn() };
+    await run(d, "tree.newNote", {
+      root: one,
+      node: { name: "notes", path: "lib:one/notes", type: "directory" },
+      naming,
+    });
+    naming.create.mock.calls[0][1]("take");
+    await vi.waitFor(() => expect(d.openBeside).toHaveBeenCalledWith("lib:one/notes/take"));
+    expect(postCreateEntry).toHaveBeenCalledWith("lib:one/notes", "take", "file", undefined);
     expect(d.onChanged).toHaveBeenCalledTimes(1);
   });
 });

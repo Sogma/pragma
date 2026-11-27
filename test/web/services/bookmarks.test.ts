@@ -82,9 +82,9 @@ describe("what a menu's bookmark items act on", () => {
 
   it("is a tree row, the space's or a library's", () => {
     expect(bookmarkTargetOf({ node: { type: "file", path: "notes/a.md" } }, none)).toBe("notes/a.md");
-    expect(bookmarkTargetOf({ node: { type: "directory", path: "stills" }, libraryId: "refs" }, none)).toBe(
-      "lib:refs/stills",
-    );
+    expect(
+      bookmarkTargetOf({ root: { library: "refs" }, node: { type: "directory", path: "lib:refs/stills" } }, none),
+    ).toBe("lib:refs/stills");
     expect(bookmarkTargetOf({ node: null }, none)).toBeUndefined();
   });
 

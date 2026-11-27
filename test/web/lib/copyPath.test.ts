@@ -143,7 +143,10 @@ describe("Copy path in an entry's menu", () => {
 
   it("names a library's entry from the library's folder, by its rooted path", async () => {
     const { commands, items, installed, systemPath } = setup();
-    const [flyout] = items({ libraryId: "personas", node: { type: "file", path: "Lina/tester.png" } });
+    const [flyout] = items({
+      root: { library: "personas" },
+      node: { type: "file", path: "lib:personas/Lina/tester.png" },
+    });
     const [fromLibrary, fromSystem] = flyout.submenu ?? [];
     expect(fromLibrary.label).toBe("from library folder");
 
@@ -175,7 +178,7 @@ describe("Copy path in an entry's menu", () => {
     expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/projects/My%20Draft.md");
     await commands.run(COPY_PRAGMA_URL, context, rows({ folder: "projects" })[0].arg);
     expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/projects/");
-    const library = { libraryId: "personas", node: { type: "file", path: "Lina/tester.png" } };
+    const library = { root: { library: "personas" }, node: { type: "file", path: "lib:personas/Lina/tester.png" } };
     await commands.run(COPY_PRAGMA_URL, context, rows(library)[0].arg);
     expect(clipboard.writeText).toHaveBeenLastCalledWith("pragma://My%20Notes/lib:personas/Lina/tester.png");
     installed.dispose();

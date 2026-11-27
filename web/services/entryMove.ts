@@ -42,26 +42,15 @@ export interface EntryMove {
   to: string;
 }
 
-/** Moves the entry at `from` to `to`, then settles everything the move
- * displaced: open tabs and models re-keyed, rewritten documents re-read and
- * recorded, the tree refreshed, each pane on a moved tab re-read if it keeps
- * its own copy, and anything the rewrite could not repair reported.
+/** Moves each entry, then settles everything the moves displaced: open tabs
+ * and models re-keyed, rewritten documents re-read and recorded, the tree
+ * refreshed, each pane on a moved tab re-read if it keeps its own copy, and
+ * anything a rewrite could not repair reported.
  *
- * Resolves to the server's response, or undefined when the move did not
- * happen — the caller has already been told why through `notify`. */
-export async function moveSpaceEntry(
-  from: string,
-  to: string,
-  deps: EntryMoveDeps,
-): Promise<MoveEntryResponse | undefined> {
-  const [moved] = await moveSpaceEntries([{ from, to }], deps);
-  return moved;
-}
-
-/** Moves each entry as a lone move would, as one action: one flush before,
- * one tree refresh after, and one notification naming every entry that
- * stayed where it was. Resolves to each move's response, in order, undefined
- * for one that did not happen. */
+ * One flush before, one tree refresh after, and one notification naming
+ * every entry that stayed where it was. Resolves to each move's response, in
+ * order, undefined for one that did not happen: the caller has already been
+ * told why through `notify`. */
 export async function moveSpaceEntries(
   moves: readonly EntryMove[],
   deps: EntryMoveDeps,
