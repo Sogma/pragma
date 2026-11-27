@@ -1227,7 +1227,7 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
     // Offered where a Table's card offers its delete: in Edit mode alone.
     const removable = editable() && !designing;
     const items = rows.map((row) => {
-      const actions = [createRowOpenButton(() => openCard(row))];
+      const openButton = createRowOpenButton(() => openCard(row));
       const removal = removable ? deps.removal(row.path) : undefined;
       const remove = removal && createCardRemoveButton(removal.label, removal.run);
       const card = arranged
@@ -1243,14 +1243,14 @@ export function createClassPane(deps: ClassPaneDeps): ClassPane {
                     ? pictureOf(row)
                     : field && buildCell(field, row),
             })),
-            actions,
+            openButton,
             remove,
           )
         : createCard({
             picture: pictureOf(row),
             title: buildTitle(row),
             badge: badge && filled(badge, row) ? buildCell(badge, row) : undefined,
-            actions,
+            open: openButton,
             lines: lines
               .filter((field) => filled(field, row))
               .map((field) => ({ label: field.label, control: buildCell(field, row) })),

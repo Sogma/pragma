@@ -62,24 +62,24 @@ describe("a small card's tiles", () => {
 });
 
 describe("createArrangedCard", () => {
-  const action = () => Object.assign(document.createElement("button"), { className: "row-open" });
+  const button = (className: string) => Object.assign(document.createElement("button"), { className });
   const size = { columns: 4, rows: 1 };
 
-  it("ends the title's tile with the card's actions", () => {
-    const card = createArrangedCard(
-      [
-        { part: "title", size, control: document.createElement("span") },
-        { part: "line", size, label: "Lens", control: document.createElement("span") },
-      ],
-      [action()],
-    );
-    expect(card.querySelector(".data-cards-title .row-open")).not.toBeNull();
-    expect(card.querySelector(".data-cards-actions")).toBeNull();
-  });
+  it("holds its open and remove buttons on the card itself, outside every tile", () => {
+    const tiles = [
+      { part: "title" as const, size, control: document.createElement("span") },
+      { part: "line" as const, size, label: "Lens", control: document.createElement("span") },
+    ];
+    const card = createArrangedCard(tiles, button("row-open"), button("data-cards-remove"));
+    expect([...card.children].map((child) => child.className)).toEqual([
+      "row-open",
+      "data-cards-grid",
+      "data-cards-remove",
+    ]);
+    expect(card.querySelector(".data-cards-tile button")).toBeNull();
 
-  it("puts them in the card's corner when no title is on it", () => {
-    const card = createArrangedCard([{ part: "heading", size, label: "Camera" }], [action()]);
-    expect(card.querySelector(".data-cards-actions .row-open")).not.toBeNull();
-    expect(card.querySelector(".data-cards-heading")?.textContent).toBe("Camera");
+    const bare = createArrangedCard([{ part: "heading", size, label: "Camera" }]);
+    expect([...bare.children].map((child) => child.className)).toEqual(["data-cards-grid"]);
+    expect(bare.querySelector(".data-cards-heading")?.textContent).toBe("Camera");
   });
 });

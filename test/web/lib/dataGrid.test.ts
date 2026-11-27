@@ -244,7 +244,7 @@ describe("a row's card from the grid", () => {
   const selected = (root: Element) =>
     [...root.querySelectorAll("tbody > tr")].findIndex((tr) => tr.classList.contains("is-selected"));
 
-  it("opens a row's card from a gutter before its values in the list, and from its head on a card", () => {
+  it("opens a row's card from a gutter before its values in the list, and from its corner on a card", () => {
     const openRow = vi.fn();
     const list = form({ openRow });
     expect(list.querySelector("thead th")?.className).toBe("row-gutter");
@@ -256,7 +256,8 @@ describe("a row's card from the grid", () => {
     expect(openRow).toHaveBeenLastCalledWith(expect.objectContaining({ values: { take: "close", note: "" } }), 1);
 
     const cards = form({ openRow, layout: "cards" });
-    cards.querySelectorAll<HTMLElement>(".data-cards-head .row-open")[2].click();
+    expect(cards.querySelector(".data-cards-head .row-open")).toBeNull();
+    cards.querySelectorAll<HTMLElement>(".data-cards-card > .row-open")[2].click();
     expect(openRow).toHaveBeenLastCalledWith(expect.objectContaining({ values: { take: "insert", note: "bell" } }), 2);
   });
 

@@ -141,34 +141,20 @@ export function createArrangedTile(tile: ArrangedTile): HTMLElement {
   return el;
 }
 
-/** An arranged card. Its actions end the title's tile, as they end the head
- * of a card the cards view composes; with no title on the card they sit in
- * its top corner. Its remove button ends it, as a composed card's does. */
+/** An arranged card. Its open and remove buttons sit on its corners, as a
+ * composed card's do, whatever tiles reach them. */
 export function createArrangedCard(
   tiles: readonly ArrangedTile[],
-  actions: readonly HTMLElement[],
+  open?: HTMLElement,
   remove?: HTMLElement,
 ): HTMLElement {
   const card = document.createElement("article");
   card.className = "card data-cards-card data-cards-arranged form-input-row";
+  if (open) card.appendChild(open);
   const grid = document.createElement("div");
   grid.className = "data-cards-grid";
-  let placed = false;
-  for (const tile of tiles) {
-    const el = createArrangedTile(tile);
-    if (tile.part === "title" && !placed) {
-      el.append(...actions);
-      placed = true;
-    }
-    grid.appendChild(el);
-  }
+  grid.append(...tiles.map(createArrangedTile));
   card.appendChild(grid);
-  if (!placed && actions.length > 0) {
-    const bar = document.createElement("div");
-    bar.className = "data-cards-actions";
-    bar.append(...actions);
-    card.appendChild(bar);
-  }
   if (remove) card.appendChild(remove);
   return card;
 }

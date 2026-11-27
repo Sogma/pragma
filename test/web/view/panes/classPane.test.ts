@@ -1225,7 +1225,7 @@ describe("classPane: screenplays and media as rows", () => {
       "data-cards-field",
     ]);
     expect(tiles[0].querySelector(".class-row-title")?.textContent).toBe("Wide");
-    expect(tiles[0].querySelector(".row-open")).not.toBeNull();
+    expect(card.firstElementChild?.classList.contains("row-open")).toBe(true);
     expect(tiles.map((tile) => tile.style.getPropertyValue("--tile-columns"))).toEqual(["2", "1", "2"]);
     expect(card.lastElementChild?.classList.contains("data-cards-remove")).toBe(true);
   });

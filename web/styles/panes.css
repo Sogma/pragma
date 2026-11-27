@@ -122,6 +122,14 @@
   margin-top: 12px;
 }
 
+/* A card's open disc reaches 10px above it (data-cards.css), and the first
+   row's last card sits under the floating toolbar, which takes no room: the
+   cards start that much lower, so the toolbar never covers the disc. A
+   Class's toolbar row already holds its cards lower. */
+.editor-table > .data-table-form > .data-cards {
+  padding-top: 10px;
+}
+
 /* A row's margins hang in the side padding, which is a margin wide, so the
    grid takes the pane's whole width and lines up with the title above it
    and Add below. Only a margin a grid draws hangs. */

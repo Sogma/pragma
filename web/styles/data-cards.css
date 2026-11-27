@@ -111,22 +111,14 @@
   width: 100%;
 }
 
-/* A card's button opening its full card, in its head, shown while the card
-   is hovered or holds focus. */
-.data-cards-card:hover .row-open,
-.data-cards-card:focus-within .row-open {
-  opacity: 1;
-}
-
-/* A card's remove button, shown as its open button is: a disc centered on
-   the curve of the card's bottom-right corner. That point lies 0.293 of the
-   radius (1 - 1/√2) in from the border's outer edge, and right and bottom
-   count from 1px inside that edge. It reaches into the gap between cards,
-   which is wider, so it never covers the next card. */
-.data-cards-remove {
+/* A card's open and remove buttons, shown while it is hovered or holds
+   focus: discs centered on the curves of its top-right and bottom-right
+   corners. That point lies 0.293 of the radius (1 - 1/√2) in from the
+   border's outer edge; the offsets count from 1px inside that edge. The gap
+   around a card is wider than a disc reaches, so none covers another card. */
+.data-cards-card > :is(.row-open, .data-cards-remove) {
   position: absolute;
   right: calc(var(--panel-radius) * 0.293 - 13px);
-  bottom: calc(var(--panel-radius) * 0.293 - 13px);
   z-index: 1;
   width: 24px;
   height: 24px;
@@ -136,13 +128,25 @@
   opacity: 0;
 }
 
-.data-cards-card:hover > .data-cards-remove,
-.data-cards-card:focus-within > .data-cards-remove {
+.data-cards-card > .row-open {
+  top: calc(var(--panel-radius) * 0.293 - 13px);
+}
+
+.data-cards-card > .data-cards-remove {
+  bottom: calc(var(--panel-radius) * 0.293 - 13px);
+}
+
+.data-cards-card:is(:hover, :focus-within) > :is(.row-open, .data-cards-remove) {
   opacity: 1;
 }
 
+.data-cards-card > .row-open:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 /* Red on hover, as a delete button is. */
-.data-cards-remove:hover {
+.data-cards-card > .data-cards-remove:hover {
   background: var(--bg-hover);
   color: var(--color-danger);
 }
@@ -228,12 +232,4 @@
 .data-cards-tile.data-cards-picture .media-field-picture {
   height: 100%;
   object-fit: cover;
-}
-
-/* With no title on the card, its actions sit in its top corner. */
-.data-cards-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: flex;
 }

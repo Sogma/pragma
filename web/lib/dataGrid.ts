@@ -403,10 +403,9 @@ export interface CardContent {
   picture?: HTMLElement;
   title?: HTMLElement;
   badge?: HTMLElement;
-  // Controls at the end of the card's head, such as its open button.
-  actions?: HTMLElement[];
   lines: { label: string; control: HTMLElement }[];
-  // The card's remove button, drawn on its corner.
+  // The card's open and remove buttons, drawn on its top and bottom corners.
+  open?: HTMLElement;
   remove?: HTMLElement;
 }
 
@@ -415,6 +414,7 @@ export interface CardContent {
 export function createCard(content: CardContent): HTMLElement {
   const card = document.createElement("article");
   card.className = "card data-cards-card form-input-row";
+  if (content.open) card.appendChild(content.open);
   if (content.picture) {
     const figure = document.createElement("div");
     figure.className = "data-cards-picture";
@@ -435,7 +435,6 @@ export function createCard(content: CardContent): HTMLElement {
     badgeEl.appendChild(content.badge);
     head.appendChild(badgeEl);
   }
-  for (const action of content.actions ?? []) head.appendChild(action);
   if (head.childElementCount > 0) card.appendChild(head);
   for (const { label, control } of content.lines) {
     const line = document.createElement("div");
@@ -500,7 +499,7 @@ export interface TableFormSpec {
    * rows again once the row is gone. */
   deleteRow?(row: TableRow, redraw: () => void): void;
   /** Opens the row's full card: from its gutter in the list, from its
-   * head in a card. */
+   * corner on a card. */
   openRow?(row: TableRow, index: number): void;
   /** The rows ticked: each list row ends in its checkbox. A card has none. */
   selection?: RowSelection<TableRow>;
@@ -538,7 +537,7 @@ function tableCards(spec: TableFormSpec): HTMLElement {
   const draw = () => list.replaceChildren(...spec.rows.map(card));
   const { openRow, deleteRow } = spec;
   const arranged = spec.smallCard && resolveSmallCard(spec.columns, spec.smallCard, { picture, title, badge });
-  const actions = (row: TableRow, index: number) => (openRow ? [createRowOpenButton(() => openRow(row, index))] : []);
+  const open = (row: TableRow, index: number) => openRow && createRowOpenButton(() => openRow(row, index));
   const remove = (row: TableRow) => deleteRow && createCardRemoveButton("Delete entry", () => deleteRow(row, draw));
   const card = (row: TableRow, index: number) =>
     arranged
@@ -549,14 +548,14 @@ function tableCards(spec: TableFormSpec): HTMLElement {
             label,
             control: field && spec.cell(field, row),
           })),
-          actions(row, index),
+          open(row, index),
           remove(row),
         )
       : createCard({
           picture: picture && spec.cell(picture, row),
           title: title && spec.cell(title, row),
           badge: badge && spec.cell(badge, row),
-          actions: actions(row, index),
+          open: open(row, index),
           lines: lines
             .filter((column) => !spec.readOnly || (row.values[column.id] ?? "").trim())
             .map((column) => ({ label: column.label, control: spec.cell(column, row) })),
