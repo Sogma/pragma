@@ -1397,6 +1397,25 @@ describe("a Make Object node's card", () => {
     expect(rows.every((row) => row.querySelector(".handle")?.classList.contains("unconnected"))).toBe(true);
   });
 
+  // A row object keys a field by the id, which the label needn't match.
+  it("shows a column pin's id over its name, on Add Row as on Make Object", () => {
+    const { cards } = setup();
+    const own = [
+      { id: "due_date", label: "Due date", type: "timestamp" },
+      { id: "prompt", label: "Prompt", type: "text" },
+    ];
+    for (const type of ["makeObject", "addRow"]) {
+      const el = cards.build(node(type, { tablePath: "renders/log.table.html", columns: own }));
+      const names = [...el.querySelectorAll<HTMLElement>(".flow-node-inputs .flow-port-label")].filter((label) =>
+        own.some((column) => column.label === label.textContent),
+      );
+      expect(names.map((label) => [label.textContent, label.dataset.tooltip])).toEqual([
+        ["Due date", "due_date"],
+        ["Prompt", "prompt"],
+      ]);
+    }
+  });
+
   // A column's id is whatever its Table says, "columns" included.
   it("keeps what's typed under values, apart from the node's own keys, and hides it once wired", () => {
     const { cards, deps, graph } = setup();

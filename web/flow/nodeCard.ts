@@ -979,7 +979,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
     const label = document.createElement("span");
     label.className = "flow-port-label";
     label.textContent = port.label;
-    describePin(port, label);
+    // The column's id, the key a row object gives it. Set on the card, not as
+    // the pin's description, which App mode shows to whoever fills the form.
+    label.dataset.tooltip = column.id;
     row.append(handle, label);
     const key = `${node.id}:${port.id}`;
     optionalHandleEls.set(key, handle);
