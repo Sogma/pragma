@@ -2099,6 +2099,61 @@ describe("API contract — libraries", () => {
     }
   });
 
+  // Only a space's Table, and an id as the rule spells one: the Flows are
+  // listed first, and written only when the change is applied.
+  it("changes a Table column's id in the Flows naming it, listing them first", async () => {
+    const change = (body: unknown) =>
+      fetch(`${testServer.baseUrl}/api/space/table-column-id`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const dir = path.join(testServer.spaceRoot, "ids");
+    await mkdir(dir);
+    const flow = path.join(dir, "log.flow.html");
+    await writeFile(
+      path.join(dir, "shots.table.html"),
+      serializeTableFile({ version: "1.0", columns: [{ id: "take", label: "Take", type: "text" }], rows: [] }),
+      "utf8",
+    );
+    await writeFile(
+      flow,
+      serializeFlowFile({
+        version: "1.0",
+        name: "Log",
+        graph: {
+          nodes: [
+            {
+              id: "fields",
+              type: "makeObject",
+              position: { x: 0, y: 0 },
+              config: { tablePath: "shots.table.html", columns: [{ id: "take", label: "Take", type: "text" }] },
+            },
+          ],
+          edges: [],
+        },
+      }),
+      "utf8",
+    );
+    try {
+      const body = { path: "ids/shots.table.html", from: "take", to: "shot" };
+      const listed = await change({ ...body, apply: false });
+      expect(listed.status).toBe(200);
+      expect(await listed.json()).toEqual({ flows: ["ids/log.flow.html"] });
+      expect(await readFile(flow, "utf8")).toContain('"id":"take"');
+
+      expect((await change({ ...body, to: "Shot Size", apply: false })).status).toBe(400);
+      expect((await change({ ...body, to: "", apply: false })).status).toBe(400);
+      expect((await change({ ...body, path: "ids/log.flow.html", apply: false })).status).toBe(400);
+
+      const applied = await change({ ...body, apply: true });
+      expect(await applied.json()).toEqual({ flows: ["ids/log.flow.html"] });
+      expect(await readFile(flow, "utf8")).toContain('"id":"shot"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   // Whether a Flow shows App mode is host state too, in any root: switching
   // never writes the file, and the view the file opens in keeps nothing. It
   // follows a move and goes with a delete.

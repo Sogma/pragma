@@ -41,9 +41,12 @@ import type {
   SpaceSiteEntry,
   SpaceTrustRequestBody,
   SwitchSpaceRequestBody,
+  TableColumnIdRequestBody,
+  TableColumnIdResponse,
   TableLayoutRequestBody,
 } from "../../protocol/api.ts";
 import { CHANGES_HEADER, readTabPlace, readTabViewport } from "../../protocol/api.ts";
+import { columnIdOf } from "../../protocol/columnId.ts";
 import { parseFlowFile } from "../../protocol/flowFile.ts";
 import { parseSortChoice } from "../../protocol/folderSort.ts";
 import { isHiddenPath } from "../../protocol/relativeReference.ts";
@@ -51,6 +54,7 @@ import { formatRootedPath } from "../../protocol/rootedPath.ts";
 import { parseTableFile } from "../../protocol/tableFile.ts";
 import { isFlowFile, isTableFile, isTableLayout, thumbnailKindForPath } from "../../protocol/types.ts";
 import { classRows, folderRows, scopeFolderOf } from "../classRows.ts";
+import { changeColumnIdInFlows } from "../columnIds.ts";
 import { contextViewFor, readContext, rememberContextView } from "../contextMemory.ts";
 import { entryDescription, entryExcerpt } from "../descriptions.ts";
 import { EntryListFileError } from "../entryListFile.ts";
@@ -667,6 +671,25 @@ export function mountSpaceRoutes(
     const own = parseTableFile(await readFile(resolved.filePath, "utf8"))?.layout ?? "list";
     await saveTableLayout(spaceRoot, formatWithinRoot(resolved, resolved.filePath), body.layout, own);
     return c.body(null, 204);
+  });
+
+  // A Table column's new id, in the Flows naming the column, before the
+  // Table's own save changes it there. Only a space's Table: a library is
+  // read-only, and its Flows are no part of the space's bookkeeping.
+  app.all("/api/space/table-column-id", async (c) => {
+    if (c.req.method !== "POST") return c.body(null, 405);
+
+    const body = (await c.req.json()) as Incoming<TableColumnIdRequestBody>;
+    if (typeof body.path !== "string" || !isTableFile(body.path)) return c.text("path must be a Table", 400);
+    if (typeof body.from !== "string" || body.from === "") return c.text("from must be a column id", 400);
+    if (typeof body.to !== "string" || body.to === "" || columnIdOf(body.to) !== body.to) {
+      return c.text("to must be a column id: lowercase letters, digits and underscores", 400);
+    }
+    const resolved = resolveRootedPath(spaceRoot, body.path, "write");
+    if (!isSpaceTarget(resolved)) return c.text("path must be a Table in the space", 400);
+    const tablePath = formatWithinRoot(resolved, resolved.filePath);
+    const flows = await changeColumnIdInFlows(spaceRoot, tablePath, body.from, body.to, body.apply === true);
+    return c.json<TableColumnIdResponse>({ flows });
   });
 
   // Whether a Flow shows App mode on this install, the same host state, so a

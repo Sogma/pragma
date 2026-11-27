@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { parseTableFile } from "../../../../src/protocol/tableFile.ts";
-import type { TableFileResponse } from "../../../../web/core/apiClient.ts";
+import { changeTableColumnId, type TableFileResponse } from "../../../../web/core/apiClient.ts";
 import { createDialogService } from "../../../../web/services/dialog.ts";
 import { createTableView } from "../../../../web/view/panes/tablePane.ts";
 import { testContextMenu } from "../../support/testContextMenu.ts";
+
+vi.mock("../../../../web/core/apiClient.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../web/core/apiClient.ts")>()),
+  changeTableColumnId: vi.fn(async () => []),
+}));
 
 // Layout's card lays its tiles on a grid that measures itself.
 globalThis.ResizeObserver ??= class {
@@ -43,6 +48,7 @@ function setup(readingView = false, designing = true) {
   const scheduleSave = vi.fn();
   const onRendered = vi.fn();
   const reportReadout = vi.fn();
+  const reloadPath = vi.fn();
   const tableView = createTableView({
     editorTable,
     dialog: createDialogService(),
@@ -51,12 +57,13 @@ function setup(readingView = false, designing = true) {
     scheduleSave,
     onRendered,
     openPath: vi.fn(),
+    reloadPath,
     openMedia: vi.fn(),
     dialogHost: document.body,
     reportReadout,
   });
   tableView.setDesigning(designing);
-  return { tableView, editorTable, scheduleSave, onRendered, reportReadout };
+  return { tableView, editorTable, scheduleSave, onRendered, reportReadout, reloadPath };
 }
 
 // A list row's checkbox, at its end.
@@ -302,7 +309,7 @@ describe("column add", () => {
     (popover.querySelector(".action-button") as HTMLButtonElement).click(); // close it, blank name is a no-op
   });
 
-  it("submitting adds a column, slugifies its id, backfills existing rows, and persists", () => {
+  it("submitting adds a column, makes its id from its name, backfills existing rows, and persists", () => {
     const { tableView, editorTable, scheduleSave } = setup();
     tableView.render(sampleFile());
     (editorTable.querySelector(".data-table-add-column") as HTMLButtonElement).click();
@@ -317,7 +324,7 @@ describe("column add", () => {
     expect(editorTable.querySelectorAll("thead .data-table-column-label")[2].textContent).toBe("Unit Price");
     expect(editorTable.querySelectorAll("tbody tr")[0].querySelectorAll("td")).toHaveLength(3);
     const [, content] = scheduleSave.mock.calls[scheduleSave.mock.calls.length - 1];
-    expect(content).toContain('data-field="unit-price"');
+    expect(content).toContain('data-field="unit_price"');
   });
 
   it("a select column needs at least one option before it can be added", () => {
@@ -403,6 +410,107 @@ describe("column delete", () => {
 
     expect(editorTable.querySelector(".data-table-empty")).not.toBeNull();
     expect(editorTable.querySelector("table")).toBeNull();
+  });
+});
+
+describe("a column's id", () => {
+  const changeId = changeTableColumnId as Mock<typeof changeTableColumnId>;
+  beforeEach(() => {
+    changeId.mockReset();
+    changeId.mockResolvedValue([]);
+  });
+
+  async function promptFor(editorTable: HTMLElement, typed: string): Promise<HTMLElement> {
+    (editorTable.querySelectorAll(".data-table-column-menu")[0] as HTMLButtonElement).click();
+    const item = [...document.querySelectorAll<HTMLButtonElement>(".context-menu button")].find(
+      (button) => button.textContent === "Change id…",
+    );
+    item?.click();
+    const panel = document.querySelector(".dialog-panel") as HTMLElement;
+    const input = panel.querySelector("input") as HTMLInputElement;
+    input.value = typed;
+    (panel.querySelector(".dialog-primary") as HTMLButtonElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return panel;
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // A rename changes only the label; the id is changed on its own, everywhere
+  // the Table keys by it, as the rule for a typed id spells it.
+  it("is changed from its menu in the column, every row and the card, with no Flow to ask about", async () => {
+    const { tableView, editorTable, scheduleSave } = setup();
+    tableView.render(sampleFile({ card: [{ field: "done" }, { field: "name" }] }));
+    const panel = await promptFor(editorTable, "Full Name");
+    await settle();
+
+    expect(panel.isConnected).toBe(false);
+    expect(changeId).toHaveBeenCalledExactlyOnceWith({
+      path: "inventory.table.html",
+      from: "name",
+      to: "full_name",
+      apply: false,
+    });
+    const [, content] = scheduleSave.mock.calls[scheduleSave.mock.calls.length - 1];
+    const saved = parseTableFile(content);
+    expect(saved?.columns.map((column) => [column.id, column.label])).toEqual([
+      ["full_name", "Name"],
+      ["done", "Done"],
+    ]);
+    expect(saved?.rows[0].values).toEqual({ full_name: "Widget", done: "false" });
+    expect(saved?.card).toEqual([{ field: "done" }, { field: "full_name" }]);
+  });
+
+  it("refuses an id another column has, or one with nothing to keep", async () => {
+    const { tableView, editorTable, scheduleSave } = setup();
+    tableView.render(sampleFile());
+    const panel = await promptFor(editorTable, "Done");
+    expect(panel.querySelector(".dialog-error")?.textContent).toBe('"done" is another column\'s id.');
+    const input = panel.querySelector("input") as HTMLInputElement;
+    input.value = "!!!";
+    (panel.querySelector(".dialog-primary") as HTMLButtonElement).click();
+    await settle();
+    expect(panel.querySelector(".dialog-error")?.textContent).toBe("An id needs a letter or a digit.");
+    expect(changeId).not.toHaveBeenCalled();
+    expect(scheduleSave).not.toHaveBeenCalled();
+  });
+
+  // An open Flow reads the Table again when it is read again, so it is read
+  // again only once the Table's own save has the new id.
+  it("lists the Flows naming it in a confirm, changes them first, and reads them again once the Table is saved", async () => {
+    const { tableView, editorTable, scheduleSave, reloadPath } = setup();
+    changeId.mockResolvedValue(["tools/log.flow.html"]);
+    tableView.render(sampleFile());
+    await promptFor(editorTable, "title");
+    await settle();
+
+    const confirm = document.querySelector(".dialog-panel") as HTMLElement;
+    expect(confirm.querySelector(".dialog-title")?.textContent).toBe('Change the id "name" to "title"?');
+    expect(confirm.querySelector(".path-label")?.getAttribute("data-path")).toBe("tools/log.flow.html");
+    expect(scheduleSave).not.toHaveBeenCalled();
+
+    (confirm.querySelector(".dialog-primary") as HTMLButtonElement).click();
+    await settle();
+    await settle();
+    expect(changeId).toHaveBeenLastCalledWith({ path: "inventory.table.html", from: "name", to: "title", apply: true });
+    const [, content, onWritten] = scheduleSave.mock.calls[scheduleSave.mock.calls.length - 1];
+    expect(content).toContain('data-field="title"');
+    expect(reloadPath).not.toHaveBeenCalled();
+    onWritten?.();
+    expect(reloadPath).toHaveBeenCalledExactlyOnceWith("tools/log.flow.html");
+  });
+
+  it("stays as it was when the confirm is cancelled", async () => {
+    const { tableView, editorTable, scheduleSave } = setup();
+    changeId.mockResolvedValue(["tools/log.flow.html"]);
+    tableView.render(sampleFile());
+    await promptFor(editorTable, "title");
+    await settle();
+    const [cancel] = document.querySelectorAll<HTMLButtonElement>(".dialog-panel .dialog-actions button");
+    cancel.click();
+    await settle();
+    expect(changeId).toHaveBeenCalledTimes(1);
+    expect(scheduleSave).not.toHaveBeenCalled();
+    expect(editorTable.querySelector("thead .data-table-column-label")?.textContent).toBe("Name");
   });
 });
 
@@ -992,11 +1100,12 @@ describe("a media column's file names", () => {
     const items = [...document.querySelectorAll<HTMLButtonElement>(".context-menu button")];
     expect(items.map((each) => each.textContent?.trim())).toEqual([
       "Rename…",
+      "Change id…",
       "Show name",
       "Media folder…",
       "Delete column",
     ]);
-    const item = items[1];
+    const item = items[2];
     expect(item.getAttribute("aria-checked")).toBe("false");
     item.click();
     expect(name().hidden).toBe(false);

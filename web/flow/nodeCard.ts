@@ -1875,7 +1875,9 @@ export function createNodeCards(deps: NodeCardDeps): NodeCards {
   // label: exposing from either place tints the one label, and App mode and
   // a caller outside the app both read the same exposed output.
   function createChartDrawing(node: FlowNodeInstance, rowsLabelEl: HTMLElement): HTMLDivElement {
-    const view = createChartView("flow-chart", () => chartSpecFrom(node.config), "Run the flow to draw the chart");
+    const view = createChartView("flow-chart", () => chartSpecFrom(node.config), "Run the flow to draw the chart", {
+      names: () => pickers.columnNames(node.id, "rows"),
+    });
     chartViews.get(node.id)?.dispose();
     chartViews.set(node.id, view);
     bindExposeToggle(node, "rows", "object", rowsLabelEl, view.el);

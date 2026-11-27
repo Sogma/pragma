@@ -1797,6 +1797,21 @@ export interface TableLayoutRequestBody {
   layout: TableLayout;
 }
 
+// POST /api/space/table-column-id: a Table column's id changed in the Flows
+// that name it, before the Table's own save changes it there. Without
+// `apply`, nothing is written, and `flows` lists what would be.
+export interface TableColumnIdRequestBody {
+  path: string;
+  from: string;
+  to: string;
+  apply: boolean;
+}
+
+export interface TableColumnIdResponse {
+  /** The Flows naming the column, as space paths. */
+  flows: string[];
+}
+
 // POST /api/space/flow-app-mode: whether one Flow shows App mode, in any
 // root, on this install. Its file's own `appModeActive` keeps nothing.
 export interface FlowAppModeRequestBody {

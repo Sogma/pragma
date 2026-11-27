@@ -330,11 +330,12 @@ export function createAppMode(deps: AppModeDeps): AppMode {
   function buildAppModeChartField(node: FlowNodeInstance): HTMLDivElement {
     const wrap = document.createElement("div");
     wrap.className = "flow-app-field flow-app-output";
+    const pickers = pickersFor(node);
     const view = createChartView(
       "flow-app-output-value flow-app-chart",
       () => chartSpecFrom(node.config),
       "Not run yet",
-      { fill: true },
+      { fill: true, names: () => pickers.columnNames(node.id, "rows") },
     );
     appModeChartViews.set(node.id, view);
     wrap.appendChild(view.el);

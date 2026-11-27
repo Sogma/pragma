@@ -740,7 +740,7 @@ describe("nodeCard", () => {
 
   it("get field slots are output rows that grow with +, fill from the wired table, and drop their edges on removal", async () => {
     const { cards, deps, graph } = setup();
-    const flowNode = node("getField", { field1Key: "Voice" });
+    const flowNode = node("getField", { field1Key: "voice" });
     const el = cards.build(flowNode);
     const rows = () => [...el.querySelectorAll(".flow-node-outputs .flow-port-row.output")];
     const handleIds = () => rows().map((row) => (row.querySelector(".handle.source") as HTMLElement).dataset.handleid);
@@ -770,11 +770,11 @@ describe("nodeCard", () => {
     cards.updateSourceDependents("getField-1");
     await new Promise((resolve) => setTimeout(resolve, 0));
     const select = rows()[0].querySelector("select") as HTMLSelectElement;
-    expect([...select.options].map((o) => o.value)).toEqual(["Name", "Voice"]);
-    expect(select.value).toBe("Voice");
+    expect([...select.options].map((o) => o.value)).toEqual(["name", "voice"]);
+    expect(select.value).toBe("voice");
 
     graph.edges.push({ id: "out", source: "getField-1", sourcePort: "field_2", target: "j", targetPort: "text_1" });
-    flowNode.config.field2Key = "Name";
+    flowNode.config.field2Key = "name";
     (rows()[1].querySelector(".flow-remove-variable-button") as HTMLElement).click();
     expect(handleIds()).toEqual(["field_1"]);
     expect(graph.edges.map((e) => e.id)).toEqual(["in"]);

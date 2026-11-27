@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardTiles, cardWithField, cardWithoutField } from "../../src/protocol/card.ts";
+import { cardTiles, cardWithField, cardWithFieldRenamed, cardWithoutField } from "../../src/protocol/card.ts";
 import type { TableColumn } from "../../src/protocol/types.ts";
 
 const fields: TableColumn[] = [
@@ -47,5 +47,19 @@ describe("cardWithField and cardWithoutField", () => {
     const small = [{ title: true as const, columns: 3 }, { field: "a" }];
     expect(cardWithField(small, "b")).toEqual([...small, { field: "b" }]);
     expect(cardWithoutField(small, "a")).toEqual([{ title: true, columns: 3 }]);
+  });
+
+  // A heading that happens to read as the old key is text, not the field.
+  it("keeps a renamed field's tile where it was, as it was, and starts no card", () => {
+    expect(cardWithFieldRenamed([{ heading: "a" }, { field: "a", rows: 2 }, { field: "b" }], "a", "c")).toEqual([
+      { heading: "a" },
+      { field: "c", rows: 2 },
+      { field: "b" },
+    ]);
+    expect(cardWithFieldRenamed([{ title: true as const }, { field: "a", columns: 3 }], "a", "c")).toEqual([
+      { title: true },
+      { field: "c", columns: 3 },
+    ]);
+    expect(cardWithFieldRenamed(undefined, "a", "c")).toBeUndefined();
   });
 });

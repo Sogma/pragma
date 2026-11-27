@@ -170,7 +170,7 @@ describe("a path wired into a loader", () => {
       context({ ensureCapability }),
     );
 
-    expect(outputs.rows).toEqual({ type: "object", value: [{ Name: "Ada" }] });
+    expect(outputs.rows).toEqual({ type: "object", value: [{ name: "Ada" }] });
     expect(asked(ensureCapability)).toEqual([{ type: "readFile", path: "space:tools/cast.table.html", wired: true }]);
 
     sandboxRead.mockResolvedValueOnce({ kind: "table", columns: [], rows: [] });

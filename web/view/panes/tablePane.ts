@@ -1,4 +1,5 @@
-import { cardWithField, cardWithoutField } from "../../../src/protocol/card.ts";
+import { cardWithField, cardWithFieldRenamed, cardWithoutField } from "../../../src/protocol/card.ts";
+import { columnIdFor, columnIdOf } from "../../../src/protocol/columnId.ts";
 import { stampTableDates, TABLE_DATE_KEYS } from "../../../src/protocol/metadata.ts";
 import { basenameOf, dirnameOf } from "../../../src/protocol/rootedPath.ts";
 import { serializeTableFile } from "../../../src/protocol/tableHtml.ts";
@@ -18,7 +19,13 @@ import {
   newRowValue,
   TABLE_LAYOUTS,
 } from "../../../src/protocol/types.ts";
-import { type FileResponse, postTableLayout, type TableFileResponse } from "../../core/apiClient.ts";
+import {
+  changeTableColumnId,
+  type FileResponse,
+  postTableLayout,
+  type TableFileResponse,
+} from "../../core/apiClient.ts";
+import { pathNames } from "../../core/spaceTree.ts";
 import { contextOfTab } from "../../core/tabContext.ts";
 import {
   createMediaPreview,
@@ -43,8 +50,8 @@ import { el, iconButton } from "../../lib/dom.ts";
 import { createFieldPopover } from "../../lib/fieldPopover.ts";
 import { type CellOptions, createCell } from "../../lib/fieldValue.ts";
 import { type Flyout, openFlyout } from "../../lib/flyout.ts";
+import { createPathLabel } from "../../lib/pathLabel.ts";
 import { createRowSelection } from "../../lib/rowSelection.ts";
-import { uniqueSlug } from "../../lib/slug.ts";
 import { createPageFind } from "../../pageFind.ts";
 import { createRowCard } from "../../rowCard.ts";
 import type { DialogHandle, DialogService } from "../../services/dialog.ts";
@@ -79,10 +86,10 @@ function openAddColumnPopover(
     typeLabel: "Column type",
     types: FIELD_VALUE_TYPE_OPTIONS,
     onSubmit: ({ label, type, options, default: fill, max, reject }) => {
-      // No id field: the id keys every row's value, but the label already
-      // implies a fair one, so typing it by hand isn't worth the friction.
+      // No id field: the name implies a fair one, and the column's menu
+      // changes it, so typing one here isn't worth the friction.
       const column: TableColumn = {
-        id: uniqueSlug(label, existingIds, "column"),
+        id: columnIdFor(label, existingIds),
         type: type as TableColumn["type"],
         label,
       };
@@ -120,6 +127,16 @@ function confirmDeleteColumn(
     .then((confirmed) => {
       if (confirmed) onConfirm(column);
     });
+}
+
+// The Flows an id change rewrites, as its confirm lists them: a path a line.
+function flowList(flows: readonly string[]): HTMLElement {
+  const list = el("span", "dialog-path-list");
+  for (const flow of flows) {
+    if (list.childElementCount > 0) list.append(document.createElement("br"));
+    list.append(createPathLabel(flow, pathNames, { type: "file" }));
+  }
+  return list;
 }
 
 // A row is named in its confirm by the text its card shows as its title,
@@ -160,7 +177,9 @@ export interface TableViewDeps {
   // Its group's reading-view toggle — session state, not a persisted
   // setting — read here to decide editable vs. locked grid.
   isReadingView: () => boolean;
-  scheduleSave: (path: string, content: string) => void;
+  // `onWritten` runs once that content is written, unless a newer save of
+  // the path supersedes it first.
+  scheduleSave: (path: string, content: string, onWritten?: () => void) => void;
   // Called after every (re-)render, once editorTable's new content — and
   // the table's name, once known — is in hand, so the group re-places its
   // title bar.
@@ -171,6 +190,9 @@ export interface TableViewDeps {
   // Opens what a path cell names, by its rooted path, as a link opens it: a
   // path ending in `/` as its folder.
   openPath: (rootedPath: string) => void;
+  // Reads an open document again, after a write it didn't make: a Flow an
+  // id change rewrote.
+  reloadPath: (path: string) => void;
   // A click on a media cell's picture, with the cell's field.
   openMedia: (rootedPath: string, field: HTMLElement) => void;
   // The pane's box, which a row's card lies over; without one, rows have
@@ -244,7 +266,7 @@ export function createTableView(deps: TableViewDeps): TableView {
   // first time a table's ever saved through pragma (there's no separate
   // "new table" flow to have set it earlier — see docs/protocol.md's Tables
   // section) and left untouched after that.
-  function persistActiveTable(): void {
+  function persistActiveTable(onWritten?: () => void): void {
     if (!activeTable) return;
     const { file, columns, rows, card, smallCard } = activeTable;
     // Belt-and-braces against the pane's own read-only lock: re-serializing a
@@ -263,7 +285,7 @@ export function createTableView(deps: TableViewDeps): TableView {
       card,
       smallCard,
     } satisfies TableFile);
-    deps.scheduleSave(file.path, content);
+    deps.scheduleSave(file.path, content, onWritten);
   }
 
   // Shared by both Add-column entry points (the empty-table state and the
@@ -293,6 +315,71 @@ export function createTableView(deps: TableViewDeps): TableView {
     if (!target) return;
     edit(target);
     persistActiveTable();
+    renderActiveTablePane();
+  }
+
+  // The column menu's "Change id…": the id every row's value and every Flow
+  // naming the column key it by. The Flows change first, behind a confirm
+  // that lists them, then this Table. An open Flow is read again once the
+  // Table's save lands, or its Make Object would read the old id and drop
+  // the wires the rewrite moved.
+  async function changeColumnId(path: string, column: TableColumn): Promise<void> {
+    const from = column.id;
+    const typed = await deps.dialog.prompt({
+      title: `Id of "${column.label}"`,
+      message: "Flows name the column by its id. Renaming the column never changes it.",
+      label: "Id",
+      value: from,
+      submitLabel: "Change",
+      validate: (value) => {
+        const id = columnIdOf(value);
+        if (!id) return "An id needs a letter or a digit.";
+        if (id !== from && activeTable?.columns.some((each) => each.id === id))
+          return `"${id}" is another column's id.`;
+        return undefined;
+      },
+    });
+    const to = typed === null ? from : columnIdOf(typed);
+    if (to === from) return;
+    let changed: string[] = [];
+    try {
+      const flows = await changeTableColumnId({ path, from, to, apply: false });
+      if (flows.length > 0) {
+        const confirmed = await deps.dialog.confirm({
+          title: `Change the id "${from}" to "${to}"?`,
+          message: [
+            "These Flows use the column, and will be updated to the new id:",
+            flowList(flows),
+            "Anything else that names the old id won't follow, such as another Table with the same columns that a Flow reaches through a wired path.",
+          ],
+          confirmLabel: "Change id",
+        });
+        if (!confirmed) return;
+        changed = await changeTableColumnId({ path, from, to, apply: true });
+      }
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Changing the column's id failed.");
+      return;
+    }
+    renameColumnId(path, from, to, () => {
+      for (const flow of changed) deps.reloadPath(flow);
+    });
+  }
+
+  // A column's id, changed in the working copy: the column, every row's
+  // value and the cards' tiles, everything else as it was.
+  function renameColumnId(path: string, from: string, to: string, onWritten: () => void): void {
+    const column = activeTable?.file.path === path ? activeTable.columns.find((each) => each.id === from) : undefined;
+    if (!activeTable || !column) return;
+    column.id = to;
+    for (const row of activeTable.rows) {
+      if (!Object.hasOwn(row.values, from)) continue;
+      row.values[to] = row.values[from];
+      delete row.values[from];
+    }
+    activeTable.card = cardWithFieldRenamed(activeTable.card, from, to);
+    activeTable.smallCard = cardWithFieldRenamed(activeTable.smallCard, from, to);
+    persistActiveTable(onWritten);
     renderActiveTablePane();
   }
 
@@ -548,6 +635,7 @@ export function createTableView(deps: TableViewDeps): TableView {
                 persistActiveTable();
               }),
           },
+          { label: "Change id…", run: () => void changeColumnId(path, column) },
           ...fieldSettingItems(column, {
             change: (edit) => changeColumn(path, column.id, edit),
             dialog: deps.dialog,
@@ -769,8 +857,15 @@ export interface TablePaneDeps extends Omit<TableViewDeps, "editorTable" | "open
 // the opens it makes through the tabs.
 export type TablePaneWiring = Omit<
   TablePaneDeps,
-  "isReadingView" | "onRendered" | "dialogHost" | "saveLayout" | "previewSources" | "openPath" | "reportReadout"
-> & { tabs: () => Pick<Tabs, "openSpacePath"> };
+  | "isReadingView"
+  | "onRendered"
+  | "dialogHost"
+  | "saveLayout"
+  | "previewSources"
+  | "openPath"
+  | "reloadPath"
+  | "reportReadout"
+> & { tabs: () => Pick<Tabs, "openSpacePath" | "reloadPath"> };
 
 export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescriptor {
   return {
@@ -782,6 +877,7 @@ export function tablePane({ tabs, ...deps }: TablePaneWiring): EditorPaneDescrip
         saveLayout: postTableLayout,
         previewSources: servedPreviewSources(),
         openPath: (path) => void tabs().openSpacePath(path),
+        reloadPath: (path) => void tabs().reloadPath(path),
         isReadingView: () => group.isReadingView(),
         onRendered: () => group.rendered(),
         dialogHost: group.element,

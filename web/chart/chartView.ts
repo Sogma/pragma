@@ -17,6 +17,9 @@ export interface ChartViewOptions {
   // height its container sets (an App mode tile). Without it the chart takes
   // its height from its width, and a box of fixed height would cut it off.
   fill?: boolean;
+  // The names of the rows' keys, which the axes are titled with: a Table's
+  // rows are keyed by column id, which nobody reads as a title.
+  names?: () => Promise<ReadonlyMap<string, string>>;
 }
 
 // Below this a chart is all margins: a shorter box scrolls it instead.
@@ -52,13 +55,20 @@ export function createChartView(
     if (!drawing) return;
     try {
       const { drawChart } = await import("./plotChart.ts");
-      // Replaced or cleared while the adapter loaded.
+      const names = await options.names?.().catch(() => undefined);
+      // Replaced or cleared while the adapter or the names loaded.
       if (rows !== drawing) return;
       drawnWidth = contentWidth(el);
       drawnHeight = contentHeight(el);
       setState("drawn");
       el.replaceChildren(
-        drawChart(spec(), drawing, drawnWidth, options.fill ? Math.max(drawnHeight, MIN_FILL_HEIGHT) : undefined),
+        drawChart(
+          spec(),
+          drawing,
+          drawnWidth,
+          options.fill ? Math.max(drawnHeight, MIN_FILL_HEIGHT) : undefined,
+          names,
+        ),
       );
     } catch (error) {
       setState("error", `Couldn't draw the chart: ${error instanceof Error ? error.message : String(error)}`);

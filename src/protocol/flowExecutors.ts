@@ -576,7 +576,7 @@ function resolveBooleanInput(inputs: Record<string, PortValue>, node: FlowNodeIn
 }
 
 // Both outputs describe the same author-picked row: `selected` is its
-// first-column value, `row` the whole row keyed by column label, not id.
+// first-column value, `row` the whole row keyed by column id.
 // No table configured, or no row picked, gives `row` as `{}`: empty, not an
 // error. A picked row the table no longer has fails the node instead.
 const loadRow: NodeExecutor = async (node, _inputs, context) => {
@@ -596,9 +596,7 @@ const loadRow: NodeExecutor = async (node, _inputs, context) => {
         ? undefined
         : rows.find((candidate) => (candidate.values[firstColumnId] ?? "") === selectedValue);
     if (match) {
-      row = Object.fromEntries(
-        columns.map((column) => [column.label, value(column.type, match.values[column.id] ?? "")]),
-      );
+      row = Object.fromEntries(columns.map((column) => [column.id, value(column.type, match.values[column.id] ?? "")]));
       selected = value(columns[0].type, selectedValue);
     } else if (selectedValue) {
       throw new Error(`"${tablePath}" no longer has a row "${selectedValue}"`);
@@ -611,7 +609,7 @@ const loadRow: NodeExecutor = async (node, _inputs, context) => {
   };
 };
 
-// Every row, keyed by column label as loadRow's `row` is. No table
+// Every row, keyed by column id as loadRow's `row` is. No table
 // configured gives `[]`: empty, not an error, as loadRow's `{}` is.
 const loadTableRows: NodeExecutor = async (node, inputs, context) => {
   const { path: tablePath, wired } = nodePath(node, inputs, context);
@@ -623,9 +621,7 @@ const loadTableRows: NodeExecutor = async (node, inputs, context) => {
     if (result.kind !== "table") throw new Error(`"${tablePath}" isn't a table`);
     const value = documentValues(context, tablePath);
     rows = result.rows.map((row) =>
-      Object.fromEntries(
-        result.columns.map((column) => [column.label, value(column.type, row.values[column.id] ?? "")]),
-      ),
+      Object.fromEntries(result.columns.map((column) => [column.id, value(column.type, row.values[column.id] ?? "")])),
     );
   }
   return { rows: { type: "object", value: rows }, path: readPath(context, tablePath) };
@@ -706,7 +702,7 @@ const loadRandomRow: NodeExecutor = async (node, inputs, context) => {
       const value = documentValues(context, tablePath);
       const [first] = result.columns;
       row = Object.fromEntries(
-        result.columns.map((column) => [column.label, value(column.type, match.values[column.id] ?? "")]),
+        result.columns.map((column) => [column.id, value(column.type, match.values[column.id] ?? "")]),
       );
       selected = value(first.type, match.values[first.id] ?? "");
     }

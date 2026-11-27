@@ -158,6 +158,8 @@ import type {
   SpellcheckLanguages,
   SwitchSpaceRequestBody,
   SystemPathResponse,
+  TableColumnIdRequestBody,
+  TableColumnIdResponse,
   TableLayoutRequestBody,
   TabPlace,
   TabViewport,
@@ -926,6 +928,17 @@ export async function postTableLayout(path: string, layout: TableLayoutRequestBo
     body: { path, layout } satisfies TableLayoutRequestBody,
     fallback: "Changing the layout failed",
   });
+}
+
+/** The Flows naming a Table column, as space paths: each changed to name
+ * the column's new id when `apply` is set, before the Table's own save. */
+export async function changeTableColumnId(body: TableColumnIdRequestBody): Promise<string[]> {
+  const { flows } = await request<TableColumnIdResponse>("/api/space/table-column-id", {
+    method: "POST",
+    body: body satisfies TableColumnIdRequestBody,
+    fallback: "Changing the column's id failed",
+  });
+  return flows;
 }
 
 export async function postFlowAppMode(path: string, appMode: boolean): Promise<void> {

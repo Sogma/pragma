@@ -538,16 +538,16 @@ describe("Load Row's pick", () => {
     sandboxRead.mockResolvedValue({
       kind: "table",
       columns: [
-        { id: "c1", label: "Scene", type: "text" },
-        { id: "c2", label: "Takes", type: "integer" },
+        { id: "scene", label: "Scene", type: "text" },
+        { id: "takes", label: "Takes", type: "integer" },
       ],
-      rows: [{ id: "r1", values: { c1: "One", c2: "3" } }],
+      rows: [{ id: "r1", values: { scene: "One", takes: "3" } }],
     });
   });
 
-  it("gives the picked row, keyed by column label", async () => {
+  it("gives the picked row, keyed by column id", async () => {
     const outputs = await loadRow("One");
-    expect(outputs.row).toEqual({ type: "object", value: { Scene: "One", Takes: "3" } });
+    expect(outputs.row).toEqual({ type: "object", value: { scene: "One", takes: "3" } });
     expect(outputs.selected).toEqual({ type: "text", value: "One" });
   });
 
@@ -572,16 +572,16 @@ describe("Load Table and Chart", () => {
   const chart = (config: Record<string, string>, value: unknown) =>
     NODE_EXECUTORS.chart(node("chart", config), rows(value), context());
 
-  it("loads every row keyed by column label, as Load Row keys its one row", async () => {
+  it("loads every row keyed by column id, as Load Row keys its one row", async () => {
     sandboxRead.mockResolvedValue({
       kind: "table",
       columns: [
-        { id: "c1", label: "Scene", type: "text" },
-        { id: "c2", label: "Takes", type: "integer" },
+        { id: "scene", label: "Scene", type: "text" },
+        { id: "takes", label: "Takes", type: "integer" },
       ],
       rows: [
-        { id: "r1", values: { c1: "One", c2: "3" } },
-        { id: "r2", values: { c1: "Two" } },
+        { id: "r1", values: { scene: "One", takes: "3" } },
+        { id: "r2", values: { scene: "Two" } },
       ],
     });
     const outputs = await NODE_EXECUTORS.loadTableRows(
@@ -592,8 +592,8 @@ describe("Load Table and Chart", () => {
     expect(outputs.rows).toEqual({
       type: "object",
       value: [
-        { Scene: "One", Takes: "3" },
-        { Scene: "Two", Takes: "" },
+        { scene: "One", takes: "3" },
+        { scene: "Two", takes: "" },
       ],
     });
     expect(sandboxRead).toHaveBeenCalledWith("flow", "picture.flow.html", "takes.table.html");
@@ -605,13 +605,13 @@ describe("Load Table and Chart", () => {
     sandboxRead.mockResolvedValue({
       kind: "table",
       columns: [
-        { id: "c1", label: "Still", type: "media" },
-        { id: "c2", label: "Refs", type: "path" },
-        { id: "c3", label: "Note", type: "text" },
+        { id: "still", label: "Still", type: "media" },
+        { id: "refs", label: "Refs", type: "path" },
+        { id: "note", label: "Note", type: "text" },
       ],
       rows: [
-        { values: { c1: "stills/a%20b.png", c2: "../refs/", c3: "stills/a.png" } },
-        { values: { c1: "lib:footage/x.png", c2: "../../../x.md", c3: "" } },
+        { values: { still: "stills/a%20b.png", refs: "../refs/", note: "stills/a.png" } },
+        { values: { still: "lib:footage/x.png", refs: "../../../x.md", note: "" } },
       ],
     });
     const outputs = await NODE_EXECUTORS.loadTableRows(
@@ -622,8 +622,8 @@ describe("Load Table and Chart", () => {
     expect(outputs.rows).toEqual({
       type: "object",
       value: [
-        { Still: "/film/shots/stills/a b.png", Refs: "/film/refs/", Note: "stills/a.png" },
-        { Still: "lib:footage/x.png", Refs: "../../../x.md", Note: "" },
+        { still: "/film/shots/stills/a b.png", refs: "/film/refs/", note: "stills/a.png" },
+        { still: "lib:footage/x.png", refs: "../../../x.md", note: "" },
       ],
     });
   });
@@ -631,8 +631,8 @@ describe("Load Table and Chart", () => {
   it("hands a picked row's path on from the root", async () => {
     sandboxRead.mockResolvedValue({
       kind: "table",
-      columns: [{ id: "c1", label: "Ref", type: "path" }],
-      rows: [{ values: { c1: "a.md" } }],
+      columns: [{ id: "ref", label: "Ref", type: "path" }],
+      rows: [{ values: { ref: "a.md" } }],
     });
     const picked = await NODE_EXECUTORS.loadRow(
       node("loadRow", { tablePath: "shots/log.table.html", selectedValue: "a.md" }),
@@ -641,7 +641,7 @@ describe("Load Table and Chart", () => {
     );
     expect(picked).toEqual({
       selected: { type: "text", value: "/film/shots/a.md" },
-      row: { type: "object", value: { Ref: "/film/shots/a.md" } },
+      row: { type: "object", value: { ref: "/film/shots/a.md" } },
       path: { type: "text", value: "/film/shots/log.table.html" },
     });
   });

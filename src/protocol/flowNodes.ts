@@ -316,7 +316,7 @@ function videoReferencePorts(): FlowPort[] {
 // Shared by loadRow and loadRandomRow, so a graph can swap one for the other.
 const ROW_OUTPUTS: FlowPort[] = [
   textPort("selected", "The row's first-column value."),
-  objectPort("row", "The whole row, keyed by column label."),
+  objectPort("row", "The whole row, keyed by column id."),
   textPort("path"),
 ];
 
@@ -376,7 +376,7 @@ const loadRandomRow = withPathInput(
 );
 
 /** Every row of a table as one `object` output: a list of records keyed by
- * column label, the shape Load Row's `row` has, so one Get Field reads either. */
+ * column id, the shape Load Row's `row` has, so one Get Field reads either. */
 const loadTableRows = withPathInput(
   {
     type: "loadTableRows",
@@ -386,7 +386,7 @@ const loadTableRows = withPathInput(
     keywords: ["csv", "spreadsheet", "rows", "all", "data"],
     version: "1.0",
     inputs: [],
-    outputs: [objectPort("rows", "Every row, each keyed by column label."), textPort("path")],
+    outputs: [objectPort("rows", "Every row, each keyed by column id."), textPort("path")],
     configFields: [],
     configKeys: ["tablePath"],
     capabilityFor: (config) => {

@@ -60,6 +60,7 @@ function setup(loaded: FileResponse = file(), held = memoryViews()) {
     scheduleSave,
     onRendered,
     openPath,
+    reloadPath: vi.fn(),
     previewSources: testPreviewSources(held),
     formats: createFormats(),
     dialogHost: document.body,

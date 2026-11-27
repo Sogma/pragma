@@ -935,10 +935,12 @@ describe("pickers", () => {
     expect(deps.persistGraph).not.toHaveBeenCalled();
   });
 
-  it("the Get Field picker lists a wired row's column labels per slot, keeping a stored key the table lost", async () => {
+  // A Table's rows are keyed by column id, which the dropdown saves while it
+  // shows the column's name.
+  it("the Get Field picker lists a wired row's columns by name per slot, saving their ids and keeping a key the table lost", async () => {
     const loadRow = node("loadRow", { tablePath: "t.table.html" });
     const { deps, pickers } = setup({ sourceOf: vi.fn(() => ({ node: loadRow, portId: "row" })) });
-    const flowNode = node("getField", { field1Key: "Voice", field2Key: "Weight" });
+    const flowNode = node("getField", { field1Key: "voice", field2Key: "weight" });
     const picker = pickers.createGetFieldPicker(flowNode);
     const first = picker.control(1);
     const second = picker.control(2);
@@ -948,19 +950,38 @@ describe("pickers", () => {
     expect(deps.ensureCapability).not.toHaveBeenCalled();
     expect(deps.read).toHaveBeenCalledWith("t.table.html");
     expect((first.querySelector("input") as HTMLInputElement).hidden).toBe(true);
-    expect([...selectOf(first).options].map((o) => o.textContent)).toEqual(["Voice (missing)", "Name", "Weight"]);
-    expect(selectOf(first).value).toBe("Voice");
-    expect(selectOf(second).value).toBe("Weight");
+    expect([...selectOf(first).options].map((o) => o.textContent)).toEqual(["voice (missing)", "Name", "Weight"]);
+    expect(selectOf(first).value).toBe("voice");
+    expect(selectOf(second).value).toBe("weight");
 
-    selectOf(second).value = "Name";
+    selectOf(second).value = "name";
     selectOf(second).dispatchEvent(new Event("change"));
-    expect(flowNode.config.field2Key).toBe("Name");
+    expect(flowNode.config.field2Key).toBe("name");
     expect(deps.persistGraph).toHaveBeenCalled();
 
     // A slot added later fills from the list already read.
     const third = picker.control(3);
     expect([...selectOf(third).options].map((o) => o.textContent)).toEqual(["Choose a field", "Name", "Weight"]);
     expect(deps.read).toHaveBeenCalledTimes(1);
+  });
+
+  // A Chart or a Show Object hands on the rows it was given, so a node wired
+  // after one lists the loader's columns.
+  it("lists the columns of rows a Chart passed on", async () => {
+    const loader = node("loadTableRows", { tablePath: "t.table.html" });
+    const chart = node("chart", { x: "name", y: "weight" });
+    const sourceOf = vi.fn((nodeId: string) =>
+      nodeId === "chart-2" ? { node: chart, portId: "rows" } : { node: loader, portId: "rows" },
+    );
+    const { deps, pickers } = setup({ sourceOf });
+    const second = { ...node("chart", { x: "name" }), id: "chart-2" };
+    pickers.createChartPicker(second);
+    await tick();
+    expect(deps.read).toHaveBeenCalledWith("t.table.html");
+    expect([...(await pickers.columnNames("chart-2", "rows"))]).toEqual([
+      ["name", "Name"],
+      ["weight", "Weight"],
+    ]);
   });
 
   it("the Get Field picker is a text box for a source whose keys aren't known until it runs", async () => {
@@ -978,12 +999,12 @@ describe("pickers", () => {
     input.dispatchEvent(new Event("input"));
     expect(flowNode.config.field1Key).toBe("tags");
 
-    // Wired to a Load Table: its column labels, once the edge change refreshes it.
+    // Wired to a Load Table: its column ids, once the edge change refreshes it.
     sourceOf.mockReturnValue({ node: node("loadTableRows", { tablePath: "t.table.html" }), portId: "rows" });
     picker.refresh();
     await tick();
     expect(input.hidden).toBe(true);
-    expect([...selectOf(control).options].map((o) => o.value)).toEqual(["tags", "Name", "Weight"]);
+    expect([...selectOf(control).options].map((o) => o.value)).toEqual(["tags", "name", "weight"]);
 
     // A failed read falls back to typing rather than an empty dropdown.
     vi.mocked(deps.read).mockRejectedValueOnce(new Error("denied"));

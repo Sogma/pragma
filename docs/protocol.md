@@ -463,6 +463,8 @@ The `.html` suffix is required so the file can render in a plain browser or repo
 
 Each `<th>` in `<thead>` defines one column. Its text is the label. Renaming a column changes only this label; its id remains unchanged.
 
+A column's id is unique within its Table and never empty; a column breaking that has no id to be named by. A host making a column takes the id from its name: lowercase ASCII letters and digits, an accent folded to the letter under it, each other run of characters one underscore and none at either end, made unique by `_2`, `_3` and so on, or `column_1`, `column_2` and so on for a name with nothing left. A person may change an id, by the same rule; the host then changes the cards' tiles that name it, and may change what else does.
+
 | Attribute | Meaning and default |
 |---|---|
 | `data-field` | The column id. |

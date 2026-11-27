@@ -56,6 +56,21 @@ describe("drawChart", () => {
     expect(wide.map(shown)).toContain("Interrogation at dawn");
   });
 
+  // A Table's rows are keyed by column id; the axes say the column's name.
+  it("titles each axis with its column's name where it has one, else with its key", () => {
+    const rows = [{ scene: "One", takes: "3" }];
+    const titles = (svg: Element) =>
+      ["x", "y"].map((axis) => svg.querySelector(`[aria-label="${axis}-axis label"] text`)?.textContent?.trim());
+    const named = drawChart(
+      { type: "bar", x: "scene", y: "takes" },
+      rows,
+      400,
+      undefined,
+      new Map([["scene", "Scene"]]),
+    );
+    expect(titles(named)).toEqual(["Scene", "↑ takes"]);
+  });
+
   it("draws at the height it's given, and at 0.6 of the width without one", () => {
     const rows = [{ Scene: "One", Takes: "3" }];
     expect(drawChart(bar, rows, 500, 180).getAttribute("height")).toBe("180");

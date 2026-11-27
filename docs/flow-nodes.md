@@ -18,7 +18,7 @@ Copyright © 2026 SGM DevNet LLC and contributors. This catalog, like the [proto
 - **Config:** `tablePath`, `selectedValue`
 - **Capability:** readFile(`tablePath`)
 
-`selected` is the row's first-column value, and `row` the whole row keyed by column **label**. A `media` or `path` value names its entry from the Table's folder, and is handed on from the root, `/…` or `lib:<id>/…`, so it names that entry wherever it is wired; one that names nothing is handed on as written.
+`selected` is the row's first-column value, and `row` the whole row keyed by column **id**. A `media` or `path` value names its entry from the Table's folder, and is handed on from the root, `/…` or `lib:<id>/…`, so it names that entry wherever it is wired; one that names nothing is handed on as written.
 
 ### `loadRandomRow`
 
@@ -29,7 +29,7 @@ Copyright © 2026 SGM DevNet LLC and contributors. This catalog, like the [proto
 - **Config:** `tablePath`, `weightColumn`
 - **Capability:** readFile(`tablePath`)
 
-The pick is weighted by an `integer` column when `weightColumn` names one. A row whose weight is blank, non-numeric, or `<= 0` is excluded; if that excludes every row, the pick is uniform over all rows. `selected` and `row` are as for [`loadRow`](#loadrow): the row's first-column value, and the whole row keyed by column **label**.
+The pick is weighted by an `integer` column when `weightColumn` names one by its id. A row whose weight is blank, non-numeric, or `<= 0` is excluded; if that excludes every row, the pick is uniform over all rows. `selected` and `row` are as for [`loadRow`](#loadrow): the row's first-column value, and the whole row keyed by column **id**.
 
 ### `loadTableRows`
 
@@ -40,7 +40,7 @@ The pick is weighted by an `integer` column when `weightColumn` names one. A row
 - **Config:** `tablePath`
 - **Capability:** readFile(`tablePath`)
 
-Gives every row as one list, each row keyed by column **label** and its `media` and `path` values handed on from the root, as `loadRow`'s `row` is; no table configured gives `[]`.
+Gives every row as one list, each row keyed by column **id** and its `media` and `path` values handed on from the root, as `loadRow`'s `row` is; no table configured gives `[]`.
 
 ### `getField`
 
@@ -69,7 +69,7 @@ Displays its input and passes it through unchanged, so it can sit mid-chain.
 - **Outputs:** `rows: object` (passthrough)
 - **Config:** `chartType`, `x`, `y`
 
-Draws its rows and passes them through: `chartType` is `bar` (the default) or `line`, and `x` and `y` name columns. Input that isn't a list of rows, a column not chosen, or one the rows lack fails the node, naming the columns the rows have.
+Draws its rows and passes them through: `chartType` is `bar` (the default) or `line`, and `x` and `y` name columns by the keys the rows hold them under, a Table's column ids; an editor that knows a column's name titles its axis with it. Input that isn't a list of rows, a column not chosen, or one the rows lack fails the node, naming the columns the rows have.
 
 ### `makeObject`
 

@@ -162,6 +162,9 @@ export interface Pickers {
   createGenerationPicker(node: FlowNodeInstance, onRegenerate: () => void): GenerationView;
   createGetFieldPicker(node: FlowNodeInstance): FieldPicker;
   createChartPicker(node: FlowNodeInstance): ChartPicker;
+  // The names of the columns of the rows wired into a node's input, by key,
+  // from the Table they're read from: what a chart titles its axes with.
+  columnNames(nodeId: string, portId: string): Promise<ReadonlyMap<string, string>>;
   createAppletPicker(node: FlowNodeInstance, onChosen: () => void): AppletPicker;
 }
 
@@ -235,7 +238,21 @@ export interface ChartPicker {
  * silently. */
 interface KeyControl {
   el: HTMLElement;
-  render(value: string, keys: string[] | undefined): void;
+  render(value: string, keys: readonly SourceKey[] | undefined): void;
+}
+
+// The nodes that hand on the value they're given, by the port that comes in
+// and goes out under one name: their keys are their source's.
+const PASSES_ON: Record<string, string> = { showObject: "object", chart: "rows" };
+// A chain longer than this is a loop, which a graph can't hold, or not worth
+// following.
+const MAX_PASSES = 16;
+
+/** A key a source's records hold, and the name it shows: a Table's column
+ * id, shown as the column's name. */
+interface SourceKey {
+  key: string;
+  name: string;
 }
 
 function createKeyControl(save: (value: string) => void, placeholder: string, emptyLabel: string): KeyControl {
@@ -260,9 +277,9 @@ function createKeyControl(save: (value: string) => void, placeholder: string, em
         input.value = value;
         return;
       }
-      const options = keys.map((key) => ({ value: key, label: key }));
+      const options = keys.map(({ key, name }) => ({ value: key, label: name }));
       if (value === "") options.unshift({ value: "", label: emptyLabel });
-      else if (!keys.includes(value)) options.unshift({ value, label: `${value} (missing)` });
+      else if (!keys.some(({ key }) => key === value)) options.unshift({ value, label: `${value} (missing)` });
       const signature = JSON.stringify(options);
       if (signature !== shownOptions) {
         shownOptions = signature;
@@ -1427,12 +1444,20 @@ export function createPickers(deps: PickerDeps): Pickers {
     return { el: wrap, target: files.target };
   }
 
-  // The keys a source's object will carry, read from the document its
-  // executor reads: a Load Row's or Load Table's column labels. undefined for
-  // any other source, whose keys exist only once it runs. No ensureCapability:
-  // a grant the loader was refused isn't asked for again from a node that only
-  // lists its fields.
-  async function sourceKeys(source: { node: FlowNodeInstance; portId: string } | undefined) {
+  // The keys a source's records will carry, read from the Table its executor
+  // reads: a Load Row's or Load Table's column ids, each with its name.
+  // undefined for any other source, whose keys exist only once it runs, and
+  // for a Table that can't be read, where the key is typed instead.
+  //
+  // No ensureCapability: a grant the loader was refused isn't asked for again
+  // from a node that only lists its fields.
+  async function sourceKeys(
+    from: { node: FlowNodeInstance; portId: string } | undefined,
+  ): Promise<SourceKey[] | undefined> {
+    let source = from;
+    for (let hops = 0; source && PASSES_ON[source.node.type] === source.portId && hops < MAX_PASSES; hops++) {
+      source = deps.sourceOf(source.node.id, source.portId);
+    }
     if (!source) return undefined;
     const { node, portId } = source;
     const isRow =
@@ -1443,7 +1468,9 @@ export function createPickers(deps: PickerDeps): Pickers {
     try {
       const result = await deps.read(path);
       if (result?.kind === "table") {
-        return [...new Set(result.columns.map((column) => column.label).filter((label) => label !== ""))];
+        const keys = new Map<string, string>();
+        for (const { id, label } of result.columns) if (id !== "" && !keys.has(id)) keys.set(id, label || id);
+        return [...keys].map(([key, name]) => ({ key, name }));
       }
     } catch {
       // Unreadable or not granted: fall back to typing the key.
@@ -1451,10 +1478,15 @@ export function createPickers(deps: PickerDeps): Pickers {
     return undefined;
   }
 
+  async function columnNames(nodeId: string, portId: string): Promise<ReadonlyMap<string, string>> {
+    const keys = await sourceKeys(deps.sourceOf(nodeId, portId));
+    return new Map((keys ?? []).map(({ key, name }) => [key, name]));
+  }
+
   // getField's keys: one key control per slot, over one shared key list.
   function createGetFieldPicker(node: FlowNodeInstance): FieldPicker {
     const controls = new Map<number, KeyControl>();
-    let keys: string[] | undefined;
+    let keys: SourceKey[] | undefined;
     let latest = 0;
 
     const configKey = (slot: number) => `field${slot}Key`;
@@ -1532,7 +1564,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     ];
     row.append(field("Chart", typeSelect), ...axes.map((axis) => field(axis.label, axis.control.el)));
 
-    let keys: string[] | undefined;
+    let keys: SourceKey[] | undefined;
     let latest = 0;
     const render = () => {
       for (const axis of axes) axis.control.render(stored(axis.key), keys);
@@ -1632,6 +1664,7 @@ export function createPickers(deps: PickerDeps): Pickers {
     createGenerationPicker,
     createGetFieldPicker,
     createChartPicker,
+    columnNames,
     createAppletPicker,
   };
 }

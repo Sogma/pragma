@@ -19,6 +19,25 @@ export function cardWithField(card: readonly SmallCardTile[] | undefined, field:
   return card.some((tile) => "field" in tile && tile.field === field) ? [...card] : [...card, { field }];
 }
 
+/** A field whose key changed keeps its place on the card. */
+export function cardWithFieldRenamed(
+  card: readonly CardTile[] | undefined,
+  from: string,
+  to: string,
+): CardTile[] | undefined;
+export function cardWithFieldRenamed(
+  card: readonly SmallCardTile[] | undefined,
+  from: string,
+  to: string,
+): SmallCardTile[] | undefined;
+export function cardWithFieldRenamed(
+  card: readonly SmallCardTile[] | undefined,
+  from: string,
+  to: string,
+): SmallCardTile[] | undefined {
+  return card?.map((tile) => ("field" in tile && tile.field === from ? { ...tile, field: to } : tile));
+}
+
 /** A field deleted from the file leaves its card too, so one added later
  * under the same key joins at the end rather than where the old one sat. */
 export function cardWithoutField(card: readonly CardTile[] | undefined, field: string): CardTile[] | undefined;

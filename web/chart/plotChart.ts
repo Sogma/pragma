@@ -22,7 +22,9 @@ export function drawChart(
   rows: readonly Record<string, unknown>[],
   width: number,
   height = Math.round(width * 0.6),
+  names: ReadonlyMap<string, string> = new Map(),
 ): Element {
+  const xLabel = names.get(spec.x) ?? spec.x;
   const text = (value: unknown) => (value == null ? "" : String(value).trim());
   const xs = rows.map((row) => text(row[spec.x]));
   // A line over numbers is a line over a scale; anything else keeps the
@@ -49,10 +51,10 @@ export function drawChart(
     marginLeft: 48,
     marginBottom: crowded ? 64 : undefined,
     x: { domain: numericX ? undefined : categories },
-    y: { label: spec.y, grid: true },
+    y: { label: names.get(spec.y) ?? spec.y, grid: true },
     marks: [
       Plot.axisX(
-        crowded ? { label: spec.x, tickRotate: -35, lineWidth: 7, textOverflow: "ellipsis" } : { label: spec.x },
+        crowded ? { label: xLabel, tickRotate: -35, lineWidth: 7, textOverflow: "ellipsis" } : { label: xLabel },
       ),
       Plot.ruleY([0]),
       mark,
