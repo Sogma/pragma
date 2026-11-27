@@ -402,8 +402,13 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
       const created = await postDuplicateEntry(node.path);
       await host.refresh();
       if (naming) {
-        const listed = host.findEntry(created.path);
-        if (listed) naming.rename(listed.path, (name) => void renameNamed(listed, name).then(deps.openBeside));
+        // A tree listed a folder at a time may not hold the copy's folder.
+        const copy = host.findEntry(created.path) ?? {
+          name: basenameOf(created.path),
+          path: created.path,
+          type: "file",
+        };
+        naming.rename(copy.path, (name) => void renameNamed(copy, name).then(deps.openBeside));
         return;
       }
       if (!host.hasRow(created.path)) return;
@@ -581,7 +586,7 @@ export function createTreeActions(deps: TreeActionsDeps): TreeActions {
   commands.register({
     id: "tree.duplicate",
     label: "Duplicate",
-    when: (_, arg: TreeTarget) => arg.node?.type === "file" && inSpace(arg),
+    when: (_, arg: TreeTarget) => arg.node?.type === "file" && writable(arg),
     run: (_, arg: TreeTarget) => {
       if (arg.node) void duplicate(arg.node, arg.naming);
     },

@@ -461,12 +461,9 @@ describe("a library's tree", () => {
       "Add to Presets",
       "Move to Trash",
     ]);
-    expect(labels(onRow(libraryNote))).toEqual(["Rename…", "Move to Trash"]);
-    for (const id of ["tree.newTable", "tree.newFlow", "tree.newClass", "tree.duplicate"]) {
-      expect(
-        commands.isEnabled(id, emptyContext, onRow(id === "tree.duplicate" ? libraryNote : libraryNotes)),
-        id,
-      ).toBe(false);
+    expect(labels(onRow(libraryNote))).toEqual(["Duplicate", "Rename…", "Move to Trash"]);
+    for (const id of ["tree.newTable", "tree.newFlow", "tree.newClass"]) {
+      expect(commands.isEnabled(id, emptyContext, onRow(libraryNotes)), id).toBe(false);
     }
 
     // Adding a folder to Presets writes the space's list, not the library.
@@ -597,15 +594,39 @@ describe("a library's tree", () => {
     expect(deps.onDeleted).not.toHaveBeenCalled();
   });
 
-  it("lists Rename… directly above Bookmark, in one group", () => {
+  it("lists Duplicate, then Rename… directly above Bookmark, in one group", () => {
     const { commands, menus } = harness();
     commands.register({ id: "bookmarks.add", label: "Bookmark", run: vi.fn() });
     const items = menus.resolve("tree", emptyContext, onRow(libraryNote));
     expect(items.map((item) => [item.label, item.group])).toEqual([
+      ["Duplicate", "bookmark"],
       ["Rename…", "bookmark"],
       ["Bookmark", "bookmark"],
       ["Move to Trash", "delete"],
     ]);
+  });
+
+  it("duplicates a library's file, opens the copy beside, then names it in place", async () => {
+    vi.mocked(postDuplicateEntry).mockResolvedValueOnce({ path: "lib:one/notes/a 2.md", type: "file" });
+    const copy = file("lib:one/notes/a 2.md");
+    const { commands, actions, deps, libraryTree } = harness(
+      {},
+      { library: { children: (path) => (path === "lib:one/notes" ? [libraryNote, copy] : undefined) } },
+    );
+    await commands.run("tree.duplicate", emptyContext, onRow(libraryNote));
+    await vi.waitFor(() => expect(actions.editing(one).editingPath).toBe("lib:one/notes/a 2.md"));
+    expect(postDuplicateEntry).toHaveBeenCalledWith("lib:one/notes/a.md");
+    expect(libraryTree.refresh).toHaveBeenCalled();
+    expect(deps.openBeside).toHaveBeenCalledWith("lib:one/notes/a 2.md");
+  });
+
+  // A tile's folder may be one the library's tree hasn't listed.
+  it("names a copy on the surface that asked, listed or not", async () => {
+    vi.mocked(postDuplicateEntry).mockResolvedValueOnce({ path: "lib:one/far/x 2.md", type: "file" });
+    const { commands } = harness({}, { library: { findEntry: () => undefined } });
+    const naming = { rename: vi.fn(), create: vi.fn() };
+    await commands.run("tree.duplicate", emptyContext, onRow(file("lib:one/far/x.md"), naming));
+    await vi.waitFor(() => expect(naming.rename).toHaveBeenCalledWith("lib:one/far/x 2.md", expect.any(Function)));
   });
 
   it("keeps a row dragged from one root out of another's tree", () => {
